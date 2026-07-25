@@ -256,11 +256,14 @@
   const RING_R = 52;
   const RING_C = 2 * Math.PI * RING_R;
 
-  $: categoryTabs = [
-    { key: "all", label: "All" },
-    ...categories.map((cat) => ({ key: cat, label: cat })),
-    { key: INCOMPLETE_SETS_TAB, label: "Incomplete Sets" },
-  ];
+  // Incomplete Sets sits just before Misc, which is the catch-all bucket.
+  $: categoryTabs = (() => {
+    const tabs = categories.map((cat) => ({ key: cat, label: cat }));
+    const setsTab = { key: INCOMPLETE_SETS_TAB, label: "Incomplete Sets" };
+    const miscAt = tabs.findIndex((tab) => tab.key.toLowerCase() === "misc");
+    tabs.splice(miscAt >= 0 ? miscAt : tabs.length, 0, setsTab);
+    return [{ key: "all", label: "All" }, ...tabs];
+  })();
 
   // Started but unfinished, fewest parts first, so it reads as a farm order.
   $: incompleteSets = (() => {

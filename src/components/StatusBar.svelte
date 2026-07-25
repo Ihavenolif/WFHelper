@@ -9,6 +9,8 @@
 
   let updateActionPending = false;
   let showChangelog = false;
+  /** Version the changelog already popped for, so it opens once per update. */
+  let autoOpenedVersion: string | null = null;
 
   // available / downloading / downloaded all mean "there is an update": the pill
   // turns green and opens the changelog instead of re-checking the feed.
@@ -16,6 +18,17 @@
     $appUpdateState.status === "available" ||
     $appUpdateState.status === "downloading" ||
     $appUpdateState.status === "downloaded";
+
+  function autoOpenChangelog(version: string): void {
+    autoOpenedVersion = version;
+    showChangelog = true;
+  }
+
+  // The startup check finding an update opens the changelog on its own; the pill
+  // stays the way back in after it is closed.
+  $: if (hasUpdate && $appUpdateState.version && autoOpenedVersion !== $appUpdateState.version) {
+    autoOpenChangelog($appUpdateState.version);
+  }
 
   $: updateButtonDisabled = updateActionPending || $appUpdateState.status === "checking";
   $: updateButtonText =
