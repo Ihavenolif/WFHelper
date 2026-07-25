@@ -29,7 +29,8 @@ export const en = {
   "arbi.import": "Import EE.log…",
   "arbi.trackingDisabled":
     "Run tracking is turned off in Settings - new arbitrations are not being recorded.",
-  "arbi.importResult": "Imported {imported}, skipped {skipped} (already known)",
+  "arbi.importResult":
+    "Imported {imported}, skipped {skipped} (already known, client-side, or under 2 rotations)",
   "arbi.diskUsage": "Raw logs on disk: {size}",
   "arbi.runCount": "{count} runs",
   "arbi.col.date": "Date",

@@ -90,6 +90,8 @@ export interface ArbiParsedRun {
   rotations: number;
   drones: number;
   totalEnemies: number;
+  /** False for client-side runs, whose logs carry no AI data to analyze. */
+  hostTelemetry: boolean;
   stats: ArbiRunStats | null;
 }
 
@@ -134,6 +136,8 @@ interface RunState {
   runEndSec: number | null;
   lastActivitySec: number;
   eventCount: number;
+  /** Saw an AI spawn line. Only the host logs those, so false means client-side. */
+  hostTelemetry: boolean;
   rotations: number;
   lastRewardSec: number;
   rewardTimestamps: number[];
@@ -205,6 +209,7 @@ export function createArbiParser(): ArbiParser {
       runEndSec: null,
       lastActivitySec: gameTimeSec,
       eventCount: 0,
+      hostTelemetry: false,
       rotations: 0,
       lastRewardSec: 0,
       rewardTimestamps: [],
@@ -332,12 +337,14 @@ export function createArbiParser(): ArbiParser {
 
     if (DRONE.test(line)) {
       run.eventCount++;
+      run.hostTelemetry = true;
       if (ts > 0) {
         run.droneTimestamps.push(ts);
         run.lastActivitySec = Math.max(run.lastActivitySec, ts);
       }
     } else if (AGENT_CREATED.test(line)) {
       run.eventCount++;
+      run.hostTelemetry = true;
       if (!AGENT_EXCLUDE.test(line)) {
         const fullAgent = line.match(AGENT_FULL);
         if (fullAgent) {
@@ -505,6 +512,7 @@ export function createArbiParser(): ArbiParser {
       rotations: r.rotations,
       drones,
       totalEnemies,
+      hostTelemetry: r.hostTelemetry,
       stats,
     };
   }

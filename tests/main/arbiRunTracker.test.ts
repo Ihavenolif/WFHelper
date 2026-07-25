@@ -40,11 +40,13 @@ function waitForRun(tracker: Tracker): Promise<ArbiRunRecord> {
   });
 }
 
+/** Two rotations plus host AI lines, so the run clears the save gate. */
 function feedRun(tracker: Tracker): void {
   tracker.processArbiLine(missionLine(100, "Arbitration: Casta Defense (Ceres)"), "file");
   tracker.processArbiLine(droneLine(150), "file");
   tracker.processArbiLine(droneLine(200), "file");
   tracker.processArbiLine(rewardLine(400), "file");
+  tracker.processArbiLine(rewardLine(500), "file");
 }
 
 beforeEach(() => {
@@ -92,7 +94,7 @@ describe("arbiRunTracker", () => {
     expect(run.node).toBe("Casta Defense (Ceres)");
     expect(run.missionType).toBe("defense");
     expect(run.drones).toBe(2);
-    expect(run.rotations).toBe(1);
+    expect(run.rotations).toBe(2);
     expect(run.endReason).toBe("new-mission");
     expect(run.source).toBe("live");
     expect(run.logFile).toBe(`${run.id}.log.gz`);
@@ -158,7 +160,7 @@ describe("arbiRunTracker", () => {
     tracker.processArbiLine("500.000 Script [Info]: TopMenu.lua: Abort: host/no session", "file");
     const run = await saved;
     expect(run.endReason).toBe("aborted");
-    expect(run.rotations).toBe(1);
+    expect(run.rotations).toBe(2);
   });
 
   it("finalizes with log-truncated on EE.log reset", async () => {
@@ -168,7 +170,7 @@ describe("arbiRunTracker", () => {
     tracker.notifyEeLogReset();
     const run = await saved;
     expect(run.endReason).toBe("log-truncated");
-    expect(run.rotations).toBe(1);
+    expect(run.rotations).toBe(2);
   });
 
   it("finalizes synchronously on shutdown", async () => {
@@ -180,6 +182,30 @@ describe("arbiRunTracker", () => {
     expect(saved).not.toBeNull();
     expect((saved as unknown as ArbiRunRecord).endReason).toBe("app-quit");
     expect(fs.existsSync(path.join(tmpDir, "arbi-runs.json"))).toBe(true);
+  });
+
+  it("saves neither a client-side run nor one under two rotations", async () => {
+    const tracker = await freshTracker();
+
+    // Client-side: no OnAgentCreated lines at all, however many rotations.
+    tracker.processArbiLine(missionLine(100, "Arbitration: Casta Defense (Ceres)"), "file");
+    tracker.processArbiLine(rewardLine(400), "file");
+    tracker.processArbiLine(rewardLine(500), "file");
+    tracker.processArbiLine(rewardLine(600), "file");
+    tracker.processArbiLine(eomLine(700), "file");
+
+    // Host-side but only one rotation.
+    tracker.processArbiLine(missionLine(1000, "Arbitration: Casta Defense (Ceres)"), "file");
+    tracker.processArbiLine(droneLine(1050), "file");
+    tracker.processArbiLine(rewardLine(1400), "file");
+    tracker.processArbiLine(eomLine(1500), "file");
+
+    await new Promise((r) => setTimeout(r, 50));
+    expect(tracker.getRuns()).toHaveLength(0);
+    expect(fs.existsSync(path.join(tmpDir, "arbi-runs.json"))).toBe(false);
+    const logsDir = path.join(tmpDir, "arbi-logs");
+    const leftovers = fs.existsSync(logsDir) ? fs.readdirSync(logsDir) : [];
+    expect(leftovers).toEqual([]);
   });
 
   it("starts a back-to-back arbitration from the ending mission line", async () => {
@@ -195,6 +221,8 @@ describe("arbiRunTracker", () => {
 
     const second = waitForRun(tracker);
     tracker.processArbiLine(droneLine(950), "file");
+    tracker.processArbiLine(rewardLine(1000), "file");
+    tracker.processArbiLine(rewardLine(1100), "file");
     tracker.notifyEeLogReset();
     const run2 = await second;
     expect(run2.node).toBe("Berehynia Interception (Sedna)");
@@ -220,6 +248,7 @@ describe("arbiRunTracker", () => {
     );
     tracker.processArbiLine(droneLine(950), "file");
     tracker.processArbiLine(rewardLine(1100), "file");
+    tracker.processArbiLine(rewardLine(1150), "file");
     tracker.processArbiLine(eomLine(1200), "file");
     const run2 = await second;
     expect(run2.node).toBe("Berehynia Interception (Sedna)");
@@ -277,6 +306,7 @@ describe("arbiRunTracker", () => {
       missionLine(100, "Arbitration: Casta Defense (Ceres)"),
       droneLine(150),
       rewardLine(400),
+      rewardLine(500),
     ].join("\n");
     fs.writeFileSync(path.join(logsDir, "2026-01-01_10-00-00.partial.log"), partial, "utf-8");
 
@@ -284,7 +314,7 @@ describe("arbiRunTracker", () => {
     const runs = tracker.getRuns();
     expect(runs).toHaveLength(1);
     expect(runs[0].endReason).toBe("log-truncated");
-    expect(runs[0].rotations).toBe(1);
+    expect(runs[0].rotations).toBe(2);
     expect(fs.readdirSync(logsDir).some((f) => f.endsWith(".partial.log"))).toBe(false);
     expect(fs.readdirSync(logsDir).some((f) => f.endsWith(".log.gz"))).toBe(true);
   });

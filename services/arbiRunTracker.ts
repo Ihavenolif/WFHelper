@@ -27,6 +27,15 @@ const FLUSH_EVERY_LINES = 200;
 const INACTIVITY_TIMEOUT_MS = 10 * 60_000;
 const INACTIVITY_CHECK_MS = 60_000;
 const RUN_ID_RE = /^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}(?:-\d+)?$/;
+/** Same floor the summary overlay uses - shorter runs aren't worth an entry. */
+const MIN_SAVED_ROTATIONS = 2;
+
+/** Why a parsed run should not be indexed, or null when it should be. */
+function _skipReason(parsed: ArbiParsedRun): string | null {
+  if (!parsed.hostTelemetry) return "client-side run, no AI data in the log";
+  if (parsed.rotations < MIN_SAVED_ROTATIONS) return `${parsed.rotations} rotation(s)`;
+  return null;
+}
 
 interface ActiveRun {
   id: string;
@@ -240,6 +249,18 @@ function _finalizeRun(endReason: ArbiRunEndReason, sync: boolean): void {
   const parsed = _parser.finalize();
   if (!parsed) return;
 
+  const skip = _skipReason(parsed);
+  if (skip) {
+    _reservedIds.delete(run.id);
+    try {
+      fs.unlinkSync(run.partialPath);
+    } catch {
+      // nothing flushed yet -> no file
+    }
+    log.info(`[Arbi] Run not saved (${skip}): ${parsed.node}`);
+    return;
+  }
+
   _flushPending(run);
 
   if (sync) {
@@ -372,7 +393,7 @@ function _salvageStalePartials(): void {
       const parser = createArbiParser();
       for (const line of content.split(/\r?\n/)) parser.feedLine(line);
       const parsed = parser.finalize();
-      if (!parsed) {
+      if (!parsed || _skipReason(parsed)) {
         fs.unlinkSync(partialPath);
         continue;
       }
@@ -481,6 +502,7 @@ export function addImportedRun(
   rawSegment: string,
   endReason: ArbiRunEndReason = "imported",
 ): ArbiRunRecord | null {
+  if (_skipReason(parsed)) return null;
   const id = _formatRunId(new Date(startedAt));
   if (_runs.some((r) => r.id === id) || _reservedIds.has(id)) return null;
   _reservedIds.add(id);

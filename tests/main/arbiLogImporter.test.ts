@@ -4,6 +4,8 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { createArbiParser } from "../../services/arbiRunParser";
+
 let tmpDir: string;
 
 vi.mock("electron", () => ({
@@ -39,15 +41,25 @@ function multiRunLog(): string {
     missionLine(100, "Arbitration: Casta Defense (Ceres)"),
     droneLine(150),
     droneLine(200),
+    // Two rotations each: one-rotation runs are not indexed.
     rewardLine(400),
+    rewardLine(500),
     missionLine(900, "Cetus (Earth)"),
     "950.000 Sys [Info]: idle in town",
     missionLine(1000, "Arbitration: Berehynia Interception (Sedna)"),
     droneLine(1100),
     droneLine(1160),
     rewardLine(1400),
+    rewardLine(1500),
     // file ends while second run is active
   ].join("\n");
+}
+
+/** Parse a fixture directly: the skipped ones never reach a record. */
+function parseFixture(file: string) {
+  const parser = createArbiParser();
+  for (const line of fs.readFileSync(file, "utf-8").split(/\r?\n/)) parser.feedLine(line);
+  return parser.finalize();
 }
 
 async function freshImporter() {
@@ -92,7 +104,7 @@ describe("arbiLogImporter", () => {
 
     expect(second.node).toBe("Berehynia Interception (Sedna)");
     expect(second.missionType).toBe("interception");
-    expect(second.rotations).toBe(1);
+    expect(second.rotations).toBe(2);
     // File ended mid-run: no observed end.
     expect(second.endReason).toBe("imported");
 
@@ -128,78 +140,89 @@ describe("arbiLogImporter", () => {
     expect(result.skipped).toBe(0);
   });
 
-  it("imports a real aborted run with type, node id and end reason", async () => {
+  it("skips a real aborted run below the rotation floor, parsing it correctly", async () => {
     const { importer } = await freshImporter();
     const fixture = path.join(__dirname, "..", "fixtures", "arbi", "oestrus-abort-ee.log");
 
     const result = await importer.importEeLog(fixture);
-    expect(result.imported).toHaveLength(1);
-    expect(result.skipped).toBe(0);
+    expect(result.imported).toHaveLength(0);
+    expect(result.skipped).toBe(1);
+    expect(fs.existsSync(path.join(tmpDir, "arbi-logs"))).toBe(false);
 
-    const run = result.imported[0];
-    expect(run.node).toBe("Oestrus (Eris)");
-    expect(run.missionType).toBe("other");
-    expect(run.missionTypeRaw).toBe("MT_PURIFY");
-    expect(run.solNode).toBe("SolNode167");
-    expect(run.endReason).toBe("aborted");
-    expect(run.stats).toBeNull();
-    expect(run.drones).toBe(0);
+    const run = parseFixture(fixture);
+    expect(run?.node).toBe("Oestrus (Eris)");
+    expect(run?.missionType).toBe("other");
+    expect(run?.missionTypeRaw).toBe("MT_PURIFY");
+    expect(run?.solNode).toBe("SolNode167");
+    expect(run?.rotations).toBe(0);
+    expect(run?.stats).toBeNull();
+    expect(run?.drones).toBe(0);
     // FlightAgents never advanced MonitoredTicking - the post-pass drops them.
-    expect(run.totalEnemies).toBe(0);
-    // Header anchor [UTC: 09:40:31] at ts 0.102 -> run start ts 178.428.
-    const startedAt = Date.UTC(2026, 6, 6, 9, 40, 31) - 102 + 178_428;
-    expect(run.startedAt).toBe(startedAt);
-    expect(run.id).toBe(fmtId(startedAt));
-
-    const gz = fs.readFileSync(path.join(tmpDir, "arbi-logs", `${run.id}.log.gz`));
-    const raw = zlib.gunzipSync(gz).toString("utf-8");
-    expect(raw).toContain("Oestrus (Eris) - Arbitration");
-    expect(raw).toContain("AbortMissionConfirm");
-    expect(raw).not.toContain("Isos (Eris)");
+    expect(run?.totalEnemies).toBe(0);
   });
 
-  it("imports a real survival run past the in-mission EndOfMatch screens", async () => {
+  it("skips a real one-rotation survival, still parsing past the EndOfMatch screens", async () => {
     const { importer } = await freshImporter();
     const fixture = path.join(__dirname, "..", "fixtures", "arbi", "mot-survival-ee.log");
 
     const result = await importer.importEeLog(fixture);
-    expect(result.imported).toHaveLength(1);
+    expect(result.imported).toHaveLength(0);
+    expect(result.skipped).toBe(1);
 
-    const run = result.imported[0];
-    expect(run.node).toBe("Mot (Void)");
-    expect(run.missionType).toBe("other");
-    expect(run.missionTypeRaw).toBe("MT_SURVIVAL");
-    expect(run.solNode).toBe("SolNode409");
+    const run = parseFixture(fixture);
+    expect(run?.node).toBe("Mot (Void)");
+    expect(run?.missionType).toBe("other");
+    expect(run?.missionTypeRaw).toBe("MT_SURVIVAL");
+    expect(run?.solNode).toBe("SolNode409");
     // The EndOfMatch.lua screens at 432/577 must not have ended the run.
-    expect(run.endReason).toBe("mission-end");
-    expect(run.rotations).toBe(1);
-    expect(run.drones).toBe(7);
+    expect(run?.rotations).toBe(1);
+    expect(run?.drones).toBe(7);
     // first drone 434.607 -> last drone 735.957
-    expect(run.durationSec).toBeCloseTo(301.35, 2);
-    const startedAt = Date.UTC(2026, 6, 6, 15, 46, 29) - 91 + 415_070;
-    expect(run.id).toBe(fmtId(startedAt));
+    expect(run?.durationSec).toBeCloseTo(301.35, 2);
   });
 
-  it("imports a real interception run ignoring the stray survival reward UI", async () => {
+  it("skips a real one-rotation interception, ignoring the stray survival reward UI", async () => {
     const { importer } = await freshImporter();
     const fixture = path.join(__dirname, "..", "fixtures", "arbi", "rhea-interception-ee.log");
 
     const result = await importer.importEeLog(fixture);
-    expect(result.imported).toHaveLength(1);
+    expect(result.imported).toHaveLength(0);
+    expect(result.skipped).toBe(1);
 
-    const run = result.imported[0];
-    expect(run.node).toBe("Rhea (Saturn)");
-    expect(run.missionType).toBe("interception");
-    expect(run.missionTypeRaw).toBe("MT_TERRITORY");
-    expect(run.solNode).toBe("SolNode18");
-    expect(run.endReason).toBe("mission-end");
-    expect(run.rotations).toBe(1);
-    expect(run.drones).toBe(5);
+    const run = parseFixture(fixture);
+    expect(run?.node).toBe("Rhea (Saturn)");
+    expect(run?.missionType).toBe("interception");
+    expect(run?.missionTypeRaw).toBe("MT_TERRITORY");
+    expect(run?.solNode).toBe("SolNode18");
+    expect(run?.rotations).toBe(1);
+    expect(run?.drones).toBe(5);
     // The rotation anchors on the DefenseReward, not the stray SurvivalReward.
-    expect(run.stats?.rewardTimestamps).toEqual([356.94]);
-    expect(run.stats?.preciseStartSec).toBe(133.194);
+    expect(run?.stats?.rewardTimestamps).toEqual([356.94]);
+    expect(run?.stats?.preciseStartSec).toBe(133.194);
     // first territory control 133.194 -> reward 356.940 (matches the reference site)
-    expect(run.durationSec).toBeCloseTo(223.746, 3);
+    expect(run?.durationSec).toBeCloseTo(223.746, 3);
+  });
+
+  it("never imports a client-side run, however long", async () => {
+    const { importer } = await freshImporter();
+    const logPath = path.join(tmpDir, "EE.log");
+    // Client logs carry no OnAgentCreated lines - the host simulates the AI.
+    fs.writeFileSync(
+      logPath,
+      [
+        HEADER,
+        missionLine(100, "Arbitration: Casta Defense (Ceres)"),
+        rewardLine(400),
+        rewardLine(500),
+        rewardLine(600),
+        rewardLine(700),
+      ].join("\n"),
+      "utf-8",
+    );
+
+    const result = await importer.importEeLog(logPath);
+    expect(result.imported).toHaveLength(0);
+    expect(result.skipped).toBe(1);
   });
 
   it("imports a real defense run with wave map and foreign-timezone anchor", async () => {
@@ -250,13 +273,18 @@ describe("arbiLogImporter", () => {
     const logPath = path.join(tmpDir, "EE.log");
     fs.writeFileSync(
       logPath,
-      [missionLine(100, "Arbitration: Casta Defense (Ceres)"), droneLine(150)].join("\n"),
+      [
+        missionLine(100, "Arbitration: Casta Defense (Ceres)"),
+        droneLine(150),
+        rewardLine(120),
+        rewardLine(151),
+      ].join("\n"),
       "utf-8",
     );
     const mtimeMs = fs.statSync(logPath).mtimeMs;
     const result = await importer.importEeLog(logPath);
     expect(result.imported).toHaveLength(1);
-    // last line ts 150, run start ts 100 -> startedAt = mtime - 50s
-    expect(result.imported[0].startedAt).toBeCloseTo(mtimeMs - 50_000, -2);
+    // last line ts 151, run start ts 100 -> startedAt = mtime - 51s
+    expect(result.imported[0].startedAt).toBeCloseTo(mtimeMs - 51_000, -2);
   });
 });
