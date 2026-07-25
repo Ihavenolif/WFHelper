@@ -20,7 +20,7 @@ import { app, BrowserWindow, screen } from "electron";
 const WIN_W = 370;
 const WIN_H = 80;
 const MARGIN = 16;
-const NOTIFICATION_FILE = path.join(__dirname, "..", "renderer", "trade-notification.html");
+const NOTIFICATION_FILE = path.join(app.getAppPath(), "renderer", "trade-notification.html");
 
 // Timing: the renderer shows the toast for RENDERER_VISIBLE_MS, then fades out
 // over RENDERER_FADE_MS. The main process hides the window slightly later so

@@ -11,9 +11,6 @@ import { normalizeErrorMessage } from "../config/shared/errors";
 
 const log = withScope("linuxStreamCapture");
 
-const APP_ROOT = path.join(__dirname, "..");
-const CAPTURE_WINDOW_FILE = path.join(APP_ROOT, "renderer", "linux-capture.html");
-
 // After a decline, don't re-prompt on every scan retry.
 const DECLINE_COOLDOWN_MS = 60_000;
 // The portal picker is interactive; give the user time to answer.
@@ -53,7 +50,9 @@ async function _installDisplayMediaHandler(win: BrowserWindowType): Promise<void
 
 async function _createWindow(): Promise<BrowserWindowType | null> {
   try {
-    const { BrowserWindow } = await import("electron");
+    const { app, BrowserWindow } = await import("electron");
+    // getAppPath() is the asar root; __dirname is .electron-build, which has no renderer/.
+    const captureWindowFile = path.join(app.getAppPath(), "renderer", "linux-capture.html");
     const win = new BrowserWindow({
       show: false,
       width: 320,
@@ -68,14 +67,14 @@ async function _createWindow(): Promise<BrowserWindowType | null> {
     });
     hardenBrowserWindowNavigation(win, {
       label: "linux-capture",
-      allowedFilePaths: [CAPTURE_WINDOW_FILE],
+      allowedFilePaths: [captureWindowFile],
       log,
     });
     await _installDisplayMediaHandler(win);
     win.on("closed", () => {
       if (_win === win) _win = null;
     });
-    await win.loadFile(CAPTURE_WINDOW_FILE);
+    await win.loadFile(captureWindowFile);
     // _exec passes userGesture=true; getDisplayMedia needs a user activation.
     await _exec(win, "window.__startCapture && window.__startCapture()");
     return win;
