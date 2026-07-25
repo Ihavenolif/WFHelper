@@ -57,6 +57,8 @@ type SetPartProgress = {
   imageUrl: string | null;
   ownedCount: number;
   requiredCount: number;
+  /** The part this reward actually is - bow grips and the like are hard to spot. */
+  isReward: boolean;
 };
 
 type InventoryData = Record<string, unknown> | null;
@@ -136,8 +138,10 @@ function componentRequiredCount(parent: ItemEntry | null, uniqueName: string | n
 function setProgress(
   parent: ItemEntry | null,
   ownedCounts: Map<string, number>,
+  rewardUniqueName: string | null,
 ): { owned: number; required: number; completeSets: number; parts: SetPartProgress[] } | null {
   if (!parent || !Array.isArray(parent.components) || parent.components.length === 0) return null;
+  const rewardAliases = rewardUniqueName ? componentUniqueNameAliases(rewardUniqueName) : [];
 
   let owned = 0;
   let required = 0;
@@ -157,6 +161,7 @@ function setProgress(
       imageUrl: componentEntry?.imageUrl || null,
       ownedCount: count,
       requiredCount: needed,
+      isReward: rewardAliases.includes(component.uniqueName),
     });
   }
 
@@ -192,7 +197,7 @@ function enrichRewardItems(items: unknown[], inventoryData: InventoryData): unkn
     const setName = parentName ? `${parentName} Set` : null;
     const partRequiredCount = componentRequiredCount(parent, uniqueName);
     const partOwnedCount = uniqueName ? ownedCounts.get(uniqueName) || 0 : 0;
-    const progress = setProgress(parent, ownedCounts);
+    const progress = setProgress(parent, ownedCounts, uniqueName);
     const ducats = finitePositiveInteger(item.ducats) ?? entry?.ducats ?? null;
 
     return {

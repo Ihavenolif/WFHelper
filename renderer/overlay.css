@@ -470,6 +470,18 @@ body {
   color: var(--muted);
 }
 
+/* The part this reward actually is. Owned/missing already own the border tint,
+   so this adds an accent ring and fill to read as "this one" at a glance. */
+.slot-set-part.is-reward {
+  border-color: var(--accent-bright);
+  background: color-mix(in oklab, var(--accent) 22%, transparent);
+  box-shadow: 0 0 0 1px var(--accent-bright);
+}
+
+.slot-set-part.is-reward .slot-set-part-count {
+  color: var(--accent-bright);
+}
+
 #error-banner {
   display: none;
   margin: 0 12px 8px;

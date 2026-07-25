@@ -129,8 +129,10 @@ function appendSetParts(container, parts) {
     const ok =
       Number.isFinite(required) && required > 0 && Number.isFinite(owned) && owned >= required;
     const chip = document.createElement("span");
-    chip.className = `slot-set-part ${ok ? "owned" : "missing"}`;
-    chip.title = `${part.name || "Part"}: ${formatCount(part.ownedCount)}/${formatCount(part.requiredCount)}`;
+    chip.className = `slot-set-part ${ok ? "owned" : "missing"}${part.isReward ? " is-reward" : ""}`;
+    chip.title = `${part.name || "Part"}: ${formatCount(part.ownedCount)}/${formatCount(part.requiredCount)}${
+      part.isReward ? " (this reward)" : ""
+    }`;
 
     if (part.imageUrl) {
       const img = document.createElement("img");
