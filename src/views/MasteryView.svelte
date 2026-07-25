@@ -134,8 +134,7 @@
   }
 
   $: masterySummaryItems = buildMasterySummary(displayMasteryData);
-  // Star chart / intrinsics come straight from the account, so they ignore the
-  // founder-item filter that reshapes displayMasteryData.
+  // Straight from the account, so unaffected by the founder-item filter.
   $: completion = $masteryData?.stats?.completion ?? null;
   $: starChartRows = (
     completion
@@ -263,8 +262,7 @@
     { key: INCOMPLETE_SETS_TAB, label: "Incomplete Sets" },
   ];
 
-  // Sets the account has started but not finished, fewest parts left first, so
-  // the tab reads as a farm order. Status tabs don't apply here.
+  // Started but unfinished, fewest parts first, so it reads as a farm order.
   $: incompleteSets = (() => {
     const search = $masteryFilters.search.trim().toLowerCase();
     return $parsedItems
