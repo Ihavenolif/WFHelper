@@ -28,18 +28,19 @@ jobs:
             echo "::error::DISCORD_WEBHOOK_URL secret is missing/empty - Discord announcement NOT sent."
             exit 1
           fi
+          dry_run=false
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "Webhook secret is set (non-empty). Dry run - nothing posted."
-            if [ -n "$ROLE_ID" ]; then
-              echo "Release role ping configured (id ends ...${ROLE_ID: -4})."
-            else
-              echo "No release role ping configured (DISCORD_RELEASE_ROLE_ID unset)."
-            fi
-            exit 0
+            dry_run=true
+            # Long synthetic body so the dry run exercises the truncation branch.
+            TITLE="dry run"
+            URL="https://github.com/${{ github.repository }}/releases"
+            BODY=$(for i in $(seq 1 300); do echo "- synthetic changelog line $i"; done)
           fi
           title="$TITLE"
           [ -z "$title" ] && title="$TAG"
           # jq escapes + truncates by codepoint; allowed_mentions keeps notes from pinging.
+          # Discord allows 4096 in an embed description; cut back to a line break
+          # so the post never ends mid-bullet.
           payload=$(jq -n \
             --arg title "$title" \
             --arg url "$URL" \
@@ -48,7 +49,9 @@ jobs:
             '
             ($body
               | if length == 0 then "A new version of WFHelper is available - see the release for details."
-                elif length > 1500 then .[0:1500] + "…\n\n**[Full changelog →](" + $url + ")**"
+                elif length > 3900 then
+                  (.[0:3900] | (rindex("\n") // 3900) as $cut | .[0:$cut])
+                  + "\n\n**[Full changelog →](" + $url + ")**"
                 else . end) as $desc
             | {
                 username: "WFHelper Releases",
@@ -63,5 +66,20 @@ jobs:
                   footer: { text: "Download at wfhelper.com" }
                 } ]
               }')
+          chars=$(printf '%s' "$payload" | jq -r '.embeds[0].description | length')
+          if [ "$chars" -gt 4096 ]; then
+            echo "::error::Embed description is $chars chars; Discord rejects over 4096."
+            exit 1
+          fi
+          if [ "$dry_run" = true ]; then
+            echo "Webhook secret is set (non-empty). Dry run - nothing posted."
+            if [ -n "$ROLE_ID" ]; then
+              echo "Release role ping configured (id ends ...${ROLE_ID: -4})."
+            else
+              echo "No release role ping configured (DISCORD_RELEASE_ROLE_ID unset)."
+            fi
+            echo "Payload built OK; embed description $chars chars."
+            exit 0
+          fi
           curl -sS -f -X POST -H "Content-Type: application/json" \
             -d "$payload" "$DISCORD_WEBHOOK_URL"
