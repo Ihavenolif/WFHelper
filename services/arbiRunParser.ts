@@ -61,6 +61,13 @@ const REWARD_DEBOUNCE_SEC = 30;
 /** Mirror Defense nodes run 2 waves per rotation instead of 3. */
 const MIRROR_DEFENSE_NODES = ["munio", "tyana"];
 
+// Disruption (MT_ARTIFACT) states. A round ends on ARTIFACT_ROUND_DONE, which is
+// the only reliable rotation marker here - SurvivalReward.swf fires constantly.
+const DISRUPTION_ROUND_START = /SentientArtifactMission\.lua: Disruption: State change: ARTIFACT_ROUND$/;
+const DISRUPTION_ROUND_DONE =
+  /SentientArtifactMission\.lua: Disruption: State change: ARTIFACT_ROUND_DONE/;
+const DISRUPTION_CONDUITS_PER_ROUND = 4;
+
 const SATURATION_BUCKET_WIDTH = 3;
 const SATURATION_MAX_COUNT = 30;
 /** Tick-sample gaps longer than this are load screens/host stalls, not gameplay. */
@@ -149,6 +156,9 @@ interface RunState {
   waveStarts: Map<number, number>;
   waveEnds: number[];
   waveCountdowns: number[];
+  /** Disruption only: ARTIFACT_ROUND / ARTIFACT_ROUND_DONE timestamps. */
+  roundStarts: number[];
+  roundEnds: number[];
   preciseStartSec: number | null;
 }
 
@@ -174,6 +184,7 @@ function classifyMission(missionName: string): {
 function missionTypeFromRaw(mt: string): ArbiMissionType {
   if (mt === "MT_DEFENSE") return "defense";
   if (mt === "MT_TERRITORY") return "interception";
+  if (mt === "MT_ARTIFACT") return "disruption";
   return "other";
 }
 
@@ -181,10 +192,17 @@ function applyMissionTypeRaw(run: RunState, mt: string): void {
   if (run.missionTypeRaw !== null) return;
   run.missionTypeRaw = mt;
   run.missionType = missionTypeFromRaw(mt);
+  // A disruption round is four conduits; node names never say "Disruption", so
+  // the engine type is the only place this can be set.
+  if (run.missionType === "disruption") run.wavesPerRotation = DISRUPTION_CONDUITS_PER_ROUND;
 }
 
 function hasFullStats(run: RunState): boolean {
-  return run.missionType === "defense" || run.missionType === "interception";
+  return (
+    run.missionType === "defense" ||
+    run.missionType === "interception" ||
+    run.missionType === "disruption"
+  );
 }
 
 export function createArbiParser(): ArbiParser {
@@ -221,6 +239,8 @@ export function createArbiParser(): ArbiParser {
       waveStarts: new Map(),
       waveEnds: [],
       waveCountdowns: [],
+      roundStarts: [],
+      roundEnds: [],
       preciseStartSec: null,
     };
     return { type: "run-start", missionName, node, missionType, gameTimeSec };
@@ -310,6 +330,27 @@ export function createArbiParser(): ArbiParser {
       }
     } else if (run.preciseStartSec === null && ts > 0 && TERRITORY_START.test(line)) {
       run.preciseStartSec = ts;
+    }
+
+    if (run.missionType === "disruption" && ts > 0) {
+      if (DISRUPTION_ROUND_DONE.test(line)) {
+        run.eventCount++;
+        run.rotations++;
+        run.roundEnds.push(ts);
+        run.rewardTimestamps.push(ts);
+        run.lastActivitySec = Math.max(run.lastActivitySec, ts);
+        // The interval before the next round is downtime, like a reward screen.
+        if (run.currentPauseStart === null) run.currentPauseStart = ts;
+      } else if (DISRUPTION_ROUND_START.test(line)) {
+        run.eventCount++;
+        run.roundStarts.push(ts);
+        run.lastActivitySec = Math.max(run.lastActivitySec, ts);
+        if (run.preciseStartSec === null) run.preciseStartSec = ts;
+        if (run.currentPauseStart !== null) {
+          run.pauseIntervals.push({ start: run.currentPauseStart, end: ts });
+          run.currentPauseStart = null;
+        }
+      }
     }
 
     // The survival reward UI also gets created in other modes (seen 25s before
@@ -454,6 +495,19 @@ export function createArbiParser(): ArbiParser {
     return out;
   }
 
+  /** Disruption rounds: each ARTIFACT_ROUND paired with the next ROUND_DONE. */
+  function buildRounds(r: RunState): ArbiWaveEntry[] {
+    const out: ArbiWaveEntry[] = [];
+    let endIdx = 0;
+    for (const [i, start] of r.roundStarts.entries()) {
+      while (endIdx < r.roundEnds.length && r.roundEnds[endIdx] <= start) endIdx++;
+      if (endIdx >= r.roundEnds.length) break;
+      out.push({ index: i + 1, durationSec: r.roundEnds[endIdx] - start });
+      endIdx++;
+    }
+    return out;
+  }
+
   function finalize(): ArbiParsedRun | null {
     if (!run) return null;
     const r = run;
@@ -495,7 +549,12 @@ export function createArbiParser(): ArbiParser {
         preciseStartSec: r.preciseStartSec,
         lastActivitySec: r.lastActivitySec,
         saturationBuckets: buildSaturation(r, startSec, r.lastActivitySec),
-        waves: r.missionType === "defense" ? buildWaves(r) : null,
+        waves:
+          r.missionType === "defense"
+            ? buildWaves(r)
+            : r.missionType === "disruption"
+              ? buildRounds(r)
+              : null,
       };
     }
 

@@ -152,6 +152,7 @@
               <option value="all">{$tr("arbi.filter.allTypes")}</option>
               <option value="defense">{$tr("arbi.type.defense")}</option>
               <option value="interception">{$tr("arbi.type.interception")}</option>
+              <option value="disruption">{$tr("arbi.type.disruption")}</option>
               <option value="other">{$tr("arbi.type.other")}</option>
             </select>
           </label>

@@ -22,6 +22,7 @@
   function typeLabel(run: ArbiRunRecord): string {
     if (run.missionType === "defense") return $t("arbi.type.defense");
     if (run.missionType === "interception") return $t("arbi.type.interception");
+    if (run.missionType === "disruption") return $t("arbi.type.disruption");
     return missionKindLabel(run) ?? $t("arbi.type.other");
   }
 

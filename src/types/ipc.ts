@@ -515,11 +515,12 @@ export type { DailyStatEntry, SessionStats, TradeEvent, TradeItem, TradeType };
 // Single source of truth for arbitration types lives in config/shared/arbiTypes.ts.
 import type {
   ArbiImportResult,
+  ArbiMissionType,
   ArbiRunRecord,
   ArbiRunStats,
   ArbiRunsPayload,
 } from "../../config/shared/arbiTypes.js";
-export type { ArbiRunRecord, ArbiRunStats };
+export type { ArbiMissionType, ArbiRunRecord, ArbiRunStats };
 import type {
   ArbiScheduleAlerts,
   ArbiScheduleEntry,

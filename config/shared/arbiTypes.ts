@@ -4,7 +4,7 @@
  * Single source of truth - do not duplicate these types elsewhere.
  */
 
-export type ArbiMissionType = "defense" | "interception" | "other";
+export type ArbiMissionType = "defense" | "interception" | "disruption" | "other";
 
 type ArbiRunSource = "live" | "imported";
 

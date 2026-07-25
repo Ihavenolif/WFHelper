@@ -243,7 +243,8 @@ describe("arbi run stats", () => {
 
 // Lines below are verbatim from a real 2026-07-06 EE.log (aborted Oestrus arbi).
 const REAL = {
-  pendingElite: "158.074 Script [Info]: ThemedSquadOverlay.lua: Pending mission: SolNode167_EliteAlert",
+  pendingElite:
+    "158.074 Script [Info]: ThemedSquadOverlay.lua: Pending mission: SolNode167_EliteAlert",
   setSquadCapture: `250.845 Net [Info]: Set squad mission: {"difficulty":1,"name":"SolNode162"}`,
   missionNameSuffix:
     "178.428 Script [Info]: ThemedSquadOverlay.lua: Mission name: Oestrus (Eris) - Arbitration",
@@ -399,5 +400,44 @@ describe("arbi run end + type detection (real EE.log lines)", () => {
       "110.000 Game [Info]: OnStateStarted, mission type=MT_TERRITORY",
     ]);
     expect(interception?.missionType).toBe("interception");
+  });
+});
+
+const stateLine = (ts: number, state: string) =>
+  `${ts.toFixed(3)} Script [Info]: SentientArtifactMission.lua: Disruption: State change: ${state}`;
+const mtLine = (ts: number, mt: string) =>
+  `${ts.toFixed(3)} Game [Info]: OnStateStarted, mission type=${mt}`;
+
+describe("disruption runs", () => {
+  it("types MT_ARTIFACT as disruption and counts rounds, not reward popups", () => {
+    const run = runParser([
+      missionLine(100, "Apollo (Lua) - Arbitration"),
+      mtLine(101, "MT_ARTIFACT"),
+      stateLine(110, "ARTIFACT_ROUND"),
+      droneLine(150),
+      enemyLine(160, "ButcherAgent", 4),
+      // Disruption spams the survival reward UI; it must not count as a rotation.
+      `200.000 Sys [Info]: Created /Lotus/Interface/SurvivalReward.swf`,
+      `260.000 Sys [Info]: Created /Lotus/Interface/SurvivalReward.swf`,
+      stateLine(400, "ARTIFACT_ROUND_DONE"),
+      stateLine(401, "REWARDS (host)"),
+      stateLine(420, "INTERVAL"),
+      stateLine(440, "ARTIFACT_ROUND"),
+      droneLine(500),
+      stateLine(700, "ARTIFACT_ROUND_DONE"),
+    ]);
+
+    expect(run?.missionType).toBe("disruption");
+    expect(run?.missionTypeRaw).toBe("MT_ARTIFACT");
+    expect(run?.rotations).toBe(2);
+    expect(run?.hostTelemetry).toBe(true);
+    // Four conduits per round drive the vitus model.
+    expect(run?.stats?.wavesPerRotation).toBe(4);
+    expect(run?.stats?.waves).toEqual([
+      { index: 1, durationSec: 290 },
+      { index: 2, durationSec: 260 },
+    ]);
+    // The interval between rounds is downtime, not fight time.
+    expect(run?.stats?.preciseStartSec).toBe(110);
   });
 });

@@ -43,6 +43,7 @@ export const en = {
   "arbi.col.log": "Raw Log",
   "arbi.type.defense": "Defense",
   "arbi.type.interception": "Interception",
+  "arbi.type.disruption": "Disruption",
   "arbi.type.other": "Other",
   "arbi.deleteRun": "Delete run",
   "arbi.confirmDeleteRun": "Delete this run (including its raw log)?",
@@ -103,6 +104,8 @@ export const en = {
   "arbi.saturation.threshold": "% of total time spent with {count} or more enemies alive:",
   "arbi.waveMap.title": "Wave Clear Map",
   "arbi.waveMap.desc": "Fight duration per wave. Green = fast, red = slow.",
+  "arbi.roundMap.title": "Round Clear Map",
+  "arbi.roundMap.desc": "Time per round, against this run's median. Green = fast, red = slow.",
   "arbi.dpm.title": "Drones Per Minute",
   "arbi.dpm.desc":
     "DPM per rotation, with the run average. (Pre-buffing time counts toward round 1.)",

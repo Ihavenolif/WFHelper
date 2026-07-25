@@ -32,7 +32,9 @@
       ? $tr("arbi.type.defense")
       : run.missionType === "interception"
         ? $tr("arbi.type.interception")
-        : $tr("arbi.type.other"));
+        : run.missionType === "disruption"
+          ? $tr("arbi.type.disruption")
+          : $tr("arbi.type.other"));
 
   $: endReasonLabel = $tr(`arbi.end.${run.endReason}` as MessageKey);
 
@@ -224,7 +226,7 @@
         <ArbiDpmChart {stats} />
         <ArbiRotationList {stats} />
       </div>
-      <ArbiWaveMap {stats} />
+      <ArbiWaveMap {stats} missionType={run.missionType} />
     {:else}
       <ThemedPanel className="p-5">
         <p class="m-0 text-sm text-text-muted">{$tr("arbi.noStats")}</p>
