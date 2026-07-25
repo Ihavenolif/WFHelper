@@ -201,6 +201,22 @@ interface ProfileMastery {
   testReady?: boolean;
 }
 
+export interface ProgressPair {
+  done: number;
+  total: number;
+}
+
+/** Star chart + intrinsic completion; display only, never part of the XP total. */
+export interface AccountCompletion {
+  starChart: {
+    normal: ProgressPair;
+    junctions: ProgressPair;
+    steelPath: ProgressPair;
+    steelPathJunctions: ProgressPair;
+  };
+  intrinsics: { railjack: ProgressPair; drifter: ProgressPair };
+}
+
 interface MasteryStats {
   total: number;
   mastered: number;
@@ -208,6 +224,7 @@ interface MasteryStats {
   missing: number;
   byCategory: Record<string, MasteryCategoryStats>;
   profileMastery?: ProfileMastery | null;
+  completion?: AccountCompletion | null;
 }
 
 export interface MasteryData {

@@ -33,6 +33,7 @@
   } from "../lib/wfm/rankedHotset.js";
   import { getInventoryHydrationController } from "../stores/inventoryHydration.js";
   import { sharedFilters, updateSharedFilters } from "../stores/filters.js";
+  import { activeItem } from "../stores/modals.js";
   import { isRankedGroup } from "../../config/shared/numeric.js";
 
   const METRIC_VISIBLE_PREFETCH_LIMIT = 42;
@@ -42,6 +43,8 @@
 
   let filter: InventoryFilterTab = "all_parts";
   let showFilterPanel = false;
+  // Full Sets lists sellable spares; this folds in the sets still missing parts.
+  let showIncompleteSets = false;
   let selectedInternalName: string | null = null;
   let orderBookPanelOpen = true;
   const FILTERS = INVENTORY_FILTERS;
@@ -73,8 +76,12 @@
 
   function handleFilterSelect(event: CustomEvent<InventoryFilterTab>): void {
     filter = event.detail;
-    // Default to fewest-parts-first on arrival; don't fight a deliberate re-sort.
-    if (filter === "incomplete_sets" && $inventoryFilters.sortBy !== "missing_parts") {
+  }
+
+  function toggleIncompleteSets(): void {
+    showIncompleteSets = !showIncompleteSets;
+    // Fewest-parts-first on arrival; don't fight a deliberate re-sort.
+    if (showIncompleteSets && $inventoryFilters.sortBy !== "missing_parts") {
       updateSharedFilters("inventory", { sortBy: "missing_parts", sortDirection: "asc" });
     }
   }
@@ -100,6 +107,11 @@
         network: true,
       });
     }
+  }
+
+  function handleItemExpand(event: CustomEvent<InventoryViewItem>): void {
+    const parsed = $parsedItems.find((entry) => entry.internalName === event.detail.internalName);
+    if (parsed) activeItem.set(parsed);
   }
 
   function closeOrderBookPanel(): void {
@@ -199,14 +211,28 @@
   });
 
   $: ({ orderedNames, orderedSlugs } = buildOrderLookups($marketOrders));
-  $: tabBaseItems = buildBaseInventoryItems(
-    $parsedItems,
-    filter,
-    $wfmItems,
-    orderedNames,
-    orderedSlugs,
-    $relicDb,
-  );
+  $: incompleteSetBaseItems =
+    filter === "full_sets" && showIncompleteSets
+      ? buildBaseInventoryItems(
+          $parsedItems,
+          "incomplete_sets",
+          $wfmItems,
+          orderedNames,
+          orderedSlugs,
+          $relicDb,
+        )
+      : [];
+  $: tabBaseItems = [
+    ...buildBaseInventoryItems(
+      $parsedItems,
+      filter,
+      $wfmItems,
+      orderedNames,
+      orderedSlugs,
+      $relicDb,
+    ),
+    ...incompleteSetBaseItems,
+  ];
   $: allRankedBaseItems = [
     ...buildBaseInventoryItems(
       $parsedItems,
@@ -302,11 +328,25 @@
         : ''}"
     >
       <div class="min-w-0">
+        {#if filter === "full_sets"}
+          <label
+            class="mb-2 flex w-fit cursor-pointer items-center gap-2 text-xs text-text-secondary"
+          >
+            <input
+              type="checkbox"
+              class="accent-[color:var(--accent)]"
+              checked={showIncompleteSets}
+              on:change={toggleIncompleteSets}
+            />
+            Show incomplete sets
+          </label>
+        {/if}
         <InventoryGrid
           items={filtered}
           {showDucats}
           on:select={handleItemSelect}
           on:visible={handleItemVisible}
+          on:expand={handleItemExpand}
         />
       </div>
 

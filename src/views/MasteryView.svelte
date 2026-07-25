@@ -2,7 +2,7 @@
   import { SvelteMap } from "svelte/reactivity";
 
   import { masteryData } from "../stores/mastery.js";
-  import { wfmItems, foundryData, inventoryData, itemDb } from "../stores/data.js";
+  import { wfmItems, foundryData, inventoryData, itemDb, parsedItems } from "../stores/data.js";
   import { buildSubsumedFamilySet, isFrameSubsumed, isSubsumableFrame } from "../lib/helminth.js";
   import { componentUniqueNameAliases } from "../../config/shared/componentNames.js";
   import { activeItem, activeComponent } from "../stores/modals.js";
@@ -15,7 +15,7 @@
   import { sharedFilters } from "../stores/filters.js";
   import ItemImage from "../components/ItemImage.svelte";
   import { send } from "../lib/ipc.js";
-  import type { MasteryCategoryStats } from "../types/inventory.js";
+  import type { MasteryCategoryStats, ProgressPair } from "../types/inventory.js";
 
   const CAT_ORDER = [
     "Warframes",
@@ -33,6 +33,8 @@
     ["owned", "Owned"],
   ] satisfies Array<["name" | "owned", string]>;
   const FOUNDER_ITEM_NAMES = new Set(["Excalibur Prime", "Lato Prime", "Skana Prime"]);
+
+  const INCOMPLETE_SETS_TAB = "__incomplete_sets";
 
   let catFilter = "all";
   let statusFilter = "all";
@@ -114,10 +116,15 @@
     if (profileMastery && profileMastery.rank != null) {
       const nextRank = profileMastery.rank + 1;
       let label = "Progress unavailable";
-      if (profileMastery.testReady) {
+      if (profileMastery.testReady && profileMastery.xpIntoRank != null) {
+        // Banked XP overflows past the bar; show the real figure, not a clamp.
+        label = `${profileMastery.xpIntoRank.toLocaleString()} / ${(profileMastery.xpForNext ?? 0).toLocaleString()} XP · MR ${nextRank} ready`;
+      } else if (profileMastery.testReady) {
         label = `MR ${nextRank} test ready`;
       } else if (profileMastery.xpIntoRank != null && profileMastery.xpForNext != null) {
-        label = `${profileMastery.xpIntoRank.toLocaleString()} / ${profileMastery.xpForNext.toLocaleString()} XP to MR ${nextRank}`;
+        // The game counts down to the next rank ("LEGENDARY 7 IN 93,362"); match it.
+        const remaining = Math.max(0, profileMastery.xpForNext - profileMastery.xpIntoRank);
+        label = `MR ${nextRank} in ${remaining.toLocaleString()} XP`;
       } else if (profileMastery.percentToNext != null) {
         label = `${profileMastery.percentToNext}% to next`;
       }
@@ -127,6 +134,27 @@
   }
 
   $: masterySummaryItems = buildMasterySummary(displayMasteryData);
+  // Star chart / intrinsics come straight from the account, so they ignore the
+  // founder-item filter that reshapes displayMasteryData.
+  $: completion = $masteryData?.stats?.completion ?? null;
+  $: starChartRows = (
+    completion
+      ? [
+          ["Normal", completion.starChart.normal],
+          ["Junctions", completion.starChart.junctions],
+          ["Steel Path", completion.starChart.steelPath],
+          ["Steel P. Junctions", completion.starChart.steelPathJunctions],
+        ]
+      : []
+  ) as Array<[string, ProgressPair]>;
+  $: intrinsicRows = (
+    completion
+      ? [
+          ["Railjack", completion.intrinsics.railjack],
+          ["Duviri", completion.intrinsics.drifter],
+        ]
+      : []
+  ) as Array<[string, ProgressPair]>;
 
   // Keyed by productUniqueName, name as fallback; parts match the same set.
   type FoundryStatus = "in-progress" | "claimable";
@@ -232,7 +260,20 @@
   $: categoryTabs = [
     { key: "all", label: "All" },
     ...categories.map((cat) => ({ key: cat, label: cat })),
+    { key: INCOMPLETE_SETS_TAB, label: "Incomplete Sets" },
   ];
+
+  // Sets the account has started but not finished, fewest parts left first, so
+  // the tab reads as a farm order. Status tabs don't apply here.
+  $: incompleteSets = (() => {
+    const search = $masteryFilters.search.trim().toLowerCase();
+    return $parsedItems
+      .filter((entry) => entry.inventoryGroup === "incomplete_sets")
+      .filter((entry) => !search || entry.name.toLowerCase().includes(search))
+      .sort(
+        (a, b) => (a.missingParts ?? 0) - (b.missingParts ?? 0) || a.name.localeCompare(b.name),
+      );
+  })();
 </script>
 
 <section class="view active">
@@ -322,6 +363,56 @@
           </div>
         {/each}
       </ThemedPanel>
+
+      {#if completion}
+        <div class="mt-3 grid gap-2 min-[900px]:grid-cols-2">
+          <ThemedPanel className="grid gap-2 p-2.5">
+            <span class="font-display text-sm font-semibold text-text-secondary">Star chart</span>
+            {#each starChartRows as [label, pair] (label)}
+              {@const width = boundedPercent(pair.done, pair.total)}
+              <div class="grid items-center gap-2 grid-cols-[minmax(96px,130px)_1fr_auto]">
+                <span class="text-xs text-text-secondary">{label}</span>
+                <svg
+                  class="block h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]"
+                  viewBox="0 0 100 1"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <rect class="fill-info" x="0" y="0" {width} height="1"></rect>
+                </svg>
+                <span class="whitespace-nowrap text-xs text-text-secondary"
+                  >{pair.done}/{pair.total}
+                  <small class="text-text-muted">({formatPercent(pair.done, pair.total)}%)</small
+                  ></span
+                >
+              </div>
+            {/each}
+          </ThemedPanel>
+
+          <ThemedPanel className="grid content-start gap-2 p-2.5">
+            <span class="font-display text-sm font-semibold text-text-secondary">Intrinsics</span>
+            {#each intrinsicRows as [label, pair] (label)}
+              {@const width = boundedPercent(pair.done, pair.total)}
+              <div class="grid items-center gap-2 grid-cols-[minmax(96px,130px)_1fr_auto]">
+                <span class="text-xs text-text-secondary">{label}</span>
+                <svg
+                  class="block h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]"
+                  viewBox="0 0 100 1"
+                  preserveAspectRatio="none"
+                  aria-hidden="true"
+                >
+                  <rect class="fill-accent" x="0" y="0" {width} height="1"></rect>
+                </svg>
+                <span class="whitespace-nowrap text-xs text-text-secondary"
+                  >{pair.done}/{pair.total}
+                  <small class="text-text-muted">({formatPercent(pair.done, pair.total)}%)</small
+                  ></span
+                >
+              </div>
+            {/each}
+          </ThemedPanel>
+        </div>
+      {/if}
     </div>
 
     <!-- Filters -->
@@ -333,138 +424,183 @@
           onSelect={(key) => (catFilter = key)}
         />
       </div>
-      <div class="flex items-end border-b border-white/[0.09]">
-        <HeaderTabs
-          options={STATUS_TABS}
-          activeKey={statusFilter}
-          onSelect={(key) => (statusFilter = key)}
-        />
-      </div>
+      {#if catFilter !== INCOMPLETE_SETS_TAB}
+        <div class="flex items-end border-b border-white/[0.09]">
+          <HeaderTabs
+            options={STATUS_TABS}
+            activeKey={statusFilter}
+            onSelect={(key) => (statusFilter = key)}
+          />
+        </div>
+      {/if}
     </div>
 
     <!-- Item grid -->
-    <div class="item-grid">
-      {#if filtered.length === 0}
-        <div class="empty-state col-span-full"><p>No items match your filters</p></div>
-      {:else}
-        {#each filtered as item, itemIndex (`${item.uniqueName || item.internalName || item.name}-${itemIndex}`)}
-          <div
-            class="item-card group {item.status === 'missing'
-              ? 'opacity-60'
-              : item.status === 'mastered'
-                ? 'border-success/25'
-                : item.status === 'progress'
-                  ? 'border-warning/25'
-                  : ''}"
-            role="button"
-            tabindex="0"
-            aria-label="Open details for {item.name}"
-            on:click={() => activeItem.set(item)}
-            on:keydown={(event) => {
-              if (event.key === "Enter" || event.key === " ") activeItem.set(item);
-            }}
-          >
-            <div class="item-img-wrap">
-              <ItemImage src={item.imageUrl} alt={item.name} />
-              {#if item.vaulted}<span class="vault-badge">V</span>{/if}
-              <span
-                class="absolute right-1.5 bottom-1.5 w-1.5 h-1.5 rounded-full shadow-[0_0_0_2px_rgba(0,0,0,0.38)] {item.status ===
-                'mastered'
-                  ? 'bg-success'
-                  : item.status === 'progress'
-                    ? 'bg-warning'
-                    : 'bg-danger opacity-70'}"
-              ></span>
-            </div>
-            <div class="item-body">
-              <span class="item-name">{item.name}</span>
-              <span class="item-type"
-                >{item.category}{item.masteryReq ? ` · MR ${item.masteryReq}` : ""}</span
-              >
-              {#if item.foundryStatus || item.subsumed}
-                <div class="mt-1 flex flex-wrap gap-1">
-                  {#if item.foundryStatus === "in-progress"}
-                    <span class="mastery-badge building">Crafting</span>
-                  {:else if item.foundryStatus === "claimable"}
-                    <span class="mastery-badge ready">Ready</span>
-                  {/if}
-                  {#if item.subsumed}<span class="mastery-badge subsumed">Subsumed</span>{/if}
-                </div>
-              {/if}
-              {#if !item.missing}
-                {@const rankWidth =
-                  item.maxRank > 0
-                    ? Math.max(0, Math.min(100, (item.rank / item.maxRank) * 100))
-                    : 0}
-                <div class="item-rank-bar">
-                  <svg
-                    class="rank-bar-svg"
-                    viewBox="0 0 100 4"
-                    preserveAspectRatio="none"
-                    aria-hidden="true"
-                  >
-                    <rect
-                      class="rank-fill-svg"
-                      class:max={item.mastered}
-                      class:partial={!item.mastered}
-                      x="0"
-                      y="0"
-                      width={rankWidth}
-                      height="4"
-                      rx="2"
-                      ry="2"
-                    ></rect>
-                  </svg>
-                </div>
-                <span class="item-rank-text">Lv {item.rank}/{item.maxRank} · {item.nextPct}%</span>
-              {:else}
-                <span class="text-xs text-text-muted">Not owned</span>
-              {/if}
-              {#if (item.components || []).length > 0}
-                <div class="mt-1.5 flex flex-wrap gap-1">
-                  {#each (item.components || []).slice(0, 8) as comp, compIndex (`${comp.uniqueName || comp.name || "component"}-${compIndex}`)}
-                    {@const isOwned = comp.owned || (comp.ownedCount ?? 0) >= (comp.itemCount || 1)}
-                    {@const compState = comp.building ? "building" : isOwned ? "owned" : "missing"}
-                    <button
-                      type="button"
-                      class="comp-dot h-1.5 w-1.5 rounded-full border border-transparent {compState}"
-                      title="{comp.name || '?'}: {compState === 'building'
-                        ? 'crafting'
-                        : compState}"
-                      aria-label="Open {comp.name || 'component'} details"
-                      on:click|stopPropagation={() =>
-                        activeComponent.set({ comp, parentName: item.name })}
-                    ></button>
-                  {/each}
-                </div>
-              {/if}
-              {#if item.wfm}
-                <button
-                  type="button"
-                  class="wfm-link absolute top-1.5 right-1.5 inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-black/25 text-text-muted opacity-0 transition-[opacity,color,border-color] duration-100 group-hover:opacity-100 hover:text-accent hover:border-accent-dim"
-                  title="View on warframe.market"
-                  aria-label="View {item.name} on warframe.market"
-                  on:click|stopPropagation={() =>
-                    send("open-external", `https://warframe.market/items/${item.wfm.url_name}`)}
+    {#if catFilter === INCOMPLETE_SETS_TAB}
+      <div class="item-grid">
+        {#if incompleteSets.length === 0}
+          <div class="empty-state col-span-full"><p>No sets in progress</p></div>
+        {:else}
+          {#each incompleteSets as set (set.internalName)}
+            <div
+              class="item-card group border-info/25"
+              role="button"
+              tabindex="0"
+              aria-label="Open details for {set.name}"
+              on:click={() => activeItem.set(set)}
+              on:keydown={(event) => {
+                if (event.key === "Enter" || event.key === " ") activeItem.set(set);
+              }}
+            >
+              <div class="item-img-wrap">
+                <ItemImage src={set.imageUrl} alt={set.name} />
+                {#if set.vaulted}<span class="vault-badge">V</span>{/if}
+                <span
+                  class="absolute right-2 bottom-1.5 font-display text-base font-bold text-info drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+                  >{set.ownedPartTypes ?? 0}/{set.totalPartTypes ?? 0}</span
                 >
-                  <svg
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="1.5"
-                    class="h-3.5 w-3.5"
-                  >
-                    <path d="M6 3H3v10h10v-3" />
-                    <path d="M9 2h5v5" />
-                    <path d="M14 2L7 9" />
-                  </svg>
-                </button>
-              {/if}
+              </div>
+              <div class="item-body">
+                <span class="item-name">{set.name}</span>
+                <span class="item-type"
+                  >Needs {set.missingParts ?? 0}
+                  {(set.missingParts ?? 0) === 1 ? "part" : "parts"}</span
+                >
+              </div>
             </div>
-          </div>
-        {/each}
-      {/if}
-    </div>
+          {/each}
+        {/if}
+      </div>
+    {:else}
+      <div class="item-grid">
+        {#if filtered.length === 0}
+          <div class="empty-state col-span-full"><p>No items match your filters</p></div>
+        {:else}
+          {#each filtered as item, itemIndex (`${item.uniqueName || item.internalName || item.name}-${itemIndex}`)}
+            <div
+              class="item-card group {item.status === 'missing'
+                ? 'opacity-60'
+                : item.status === 'mastered'
+                  ? 'border-success/25'
+                  : item.status === 'progress'
+                    ? 'border-warning/25'
+                    : ''}"
+              role="button"
+              tabindex="0"
+              aria-label="Open details for {item.name}"
+              on:click={() => activeItem.set(item)}
+              on:keydown={(event) => {
+                if (event.key === "Enter" || event.key === " ") activeItem.set(item);
+              }}
+            >
+              <div class="item-img-wrap">
+                <ItemImage src={item.imageUrl} alt={item.name} />
+                {#if item.vaulted}<span class="vault-badge">V</span>{/if}
+                <span
+                  class="absolute right-1.5 bottom-1.5 w-1.5 h-1.5 rounded-full shadow-[0_0_0_2px_rgba(0,0,0,0.38)] {item.status ===
+                  'mastered'
+                    ? 'bg-success'
+                    : item.status === 'progress'
+                      ? 'bg-warning'
+                      : 'bg-danger opacity-70'}"
+                ></span>
+              </div>
+              <div class="item-body">
+                <span class="item-name">{item.name}</span>
+                <span class="item-type"
+                  >{item.category}{item.masteryReq ? ` · MR ${item.masteryReq}` : ""}</span
+                >
+                {#if item.foundryStatus || item.subsumed}
+                  <div class="mt-1 flex flex-wrap gap-1">
+                    {#if item.foundryStatus === "in-progress"}
+                      <span class="mastery-badge building">Crafting</span>
+                    {:else if item.foundryStatus === "claimable"}
+                      <span class="mastery-badge ready">Ready</span>
+                    {/if}
+                    {#if item.subsumed}<span class="mastery-badge subsumed">Subsumed</span>{/if}
+                  </div>
+                {/if}
+                {#if !item.missing}
+                  {@const rankWidth =
+                    item.maxRank > 0
+                      ? Math.max(0, Math.min(100, (item.rank / item.maxRank) * 100))
+                      : 0}
+                  <div class="item-rank-bar">
+                    <svg
+                      class="rank-bar-svg"
+                      viewBox="0 0 100 4"
+                      preserveAspectRatio="none"
+                      aria-hidden="true"
+                    >
+                      <rect
+                        class="rank-fill-svg"
+                        class:max={item.mastered}
+                        class:partial={!item.mastered}
+                        x="0"
+                        y="0"
+                        width={rankWidth}
+                        height="4"
+                        rx="2"
+                        ry="2"
+                      ></rect>
+                    </svg>
+                  </div>
+                  <span class="item-rank-text">Lv {item.rank}/{item.maxRank} · {item.nextPct}%</span
+                  >
+                {:else}
+                  <span class="text-xs text-text-muted">Not owned</span>
+                {/if}
+                {#if (item.components || []).length > 0}
+                  <div class="mt-1.5 flex flex-wrap gap-1">
+                    {#each (item.components || []).slice(0, 8) as comp, compIndex (`${comp.uniqueName || comp.name || "component"}-${compIndex}`)}
+                      {@const isOwned =
+                        comp.owned || (comp.ownedCount ?? 0) >= (comp.itemCount || 1)}
+                      {@const compState = comp.building
+                        ? "building"
+                        : isOwned
+                          ? "owned"
+                          : "missing"}
+                      <button
+                        type="button"
+                        class="comp-dot h-1.5 w-1.5 rounded-full border border-transparent {compState}"
+                        title="{comp.name || '?'}: {compState === 'building'
+                          ? 'crafting'
+                          : compState}"
+                        aria-label="Open {comp.name || 'component'} details"
+                        on:click|stopPropagation={() =>
+                          activeComponent.set({ comp, parentName: item.name })}
+                      ></button>
+                    {/each}
+                  </div>
+                {/if}
+                {#if item.wfm}
+                  <button
+                    type="button"
+                    class="wfm-link absolute top-1.5 right-1.5 inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-black/25 text-text-muted opacity-0 transition-[opacity,color,border-color] duration-100 group-hover:opacity-100 hover:text-accent hover:border-accent-dim"
+                    title="View on warframe.market"
+                    aria-label="View {item.name} on warframe.market"
+                    on:click|stopPropagation={() =>
+                      send("open-external", `https://warframe.market/items/${item.wfm.url_name}`)}
+                  >
+                    <svg
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      stroke-width="1.5"
+                      class="h-3.5 w-3.5"
+                    >
+                      <path d="M6 3H3v10h10v-3" />
+                      <path d="M9 2h5v5" />
+                      <path d="M14 2L7 9" />
+                    </svg>
+                  </button>
+                {/if}
+              </div>
+            </div>
+          {/each}
+        {/if}
+      </div>
+    {/if}
   {:else}
     <div class="empty-state">
       <p>Loading mastery data...</p>

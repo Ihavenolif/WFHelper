@@ -14,7 +14,21 @@ import { sanitizeDisplayName } from "../config/shared/displayName";
 import { toFiniteNumber } from "../config/shared/numeric";
 import type { MasteryStatus } from "../config/shared/masteryTypes";
 
-const MASTERABLE_DB_CATEGORIES = new Set(["Warframe", "Weapon", "Companion", "Railjack"]);
+// Newer additions reach the db with a display-style category ("Warframes",
+// "Primary") rather than the singular form, so accept both spellings or they
+// drop out of mastery entirely. Components still get filtered by name below.
+const MASTERABLE_DB_CATEGORIES = new Set([
+  "Warframe",
+  "Weapon",
+  "Companion",
+  "Railjack",
+  "Warframes",
+  "Primary",
+  "Secondary",
+  "Melee",
+  "Companions",
+  "Archwing",
+]);
 
 // productCategory -> display label
 const PRODUCT_DISPLAY: Record<string, string> = {
@@ -131,6 +145,8 @@ const INV_CATEGORIES: Record<string, number> = {
 };
 
 const VENARI_UNIQUE_NAME_PATTERN = /\/Powersuits\/Khora\/Kavat\/Khora(?:Prime)?KavatPowerSuit$/i;
+const TRAINING_AMP_UNIQUE_NAME =
+  "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon";
 const WEAPON_AFFINITY_PER_RANK_SQUARED = 500;
 const SUIT_AFFINITY_PER_RANK_SQUARED = 1_000;
 
@@ -232,10 +248,43 @@ function extractMasteredFlag(entry: Record<string, unknown>): boolean | null {
   return pickBoolean(entry, MASTERED_FLAG_KEYS);
 }
 
+let _exportLevelCaps: { caps: Map<string, number>; known: Set<string> } | null = null;
+
+/** Overcapped ranks straight from DE's export, which is authoritative. */
+function getExportLevelCaps(): { caps: Map<string, number>; known: Set<string> } {
+  if (_exportLevelCaps) return _exportLevelCaps;
+  const caps = new Map<string, number>();
+  const known = new Set<string>();
+  try {
+    const pep = require("warframe-public-export-plus") as Record<string, unknown>;
+    for (const [tableName, table] of Object.entries(pep)) {
+      if (!tableName.startsWith("Export") || !table || typeof table !== "object") continue;
+      for (const [uniqueName, entry] of Object.entries(table as Record<string, unknown>)) {
+        known.add(uniqueName);
+        const cap = toFiniteNumber((entry as { maxLevelCap?: unknown })?.maxLevelCap);
+        if (cap != null && cap > MAX_ITEM_RANK) caps.set(uniqueName, cap);
+      }
+    }
+  } catch {
+    /* export unavailable, heuristics below still apply */
+  }
+  _exportLevelCaps = { caps, known };
+  return _exportLevelCaps;
+}
+
 function getMasteryMaxRank(itemType: string, fallbackMaxRank: number): number {
   const dbItem = itemDb.lookupItem(itemType);
   const name = (dbItem?.name || "").toLowerCase();
   const path = itemType.toLowerCase();
+
+  // Trust the export: it lists every rank-40 family (Kuva/Tenet/Coda/Paracesis/
+  // Necramech), so an item it knows without a cap really does stop at 30. The
+  // path heuristics below only cover items missing from the export - they used
+  // to over-cap strays like Onos, whose path contains "Entrati".
+  const { caps, known } = getExportLevelCaps();
+  const exportCap = caps.get(itemType);
+  if (exportCap != null) return Math.max(exportCap, fallbackMaxRank);
+  if (known.has(itemType)) return fallbackMaxRank;
 
   if (
     fallbackMaxRank > MAX_ITEM_RANK ||
@@ -302,6 +351,7 @@ function masteryXpToRank(xp: number): number {
 // Node tag -> mastery grant. ExportRegions carries masteryExp per node; junctions
 // export 0 there but award a flat 1000 in game. Loaded once, empty on failure.
 let _regionMastery: Record<string, number> | null = null;
+const _regionIsJunction: Record<string, boolean> = {};
 function getRegionMastery(): Record<string, number> {
   if (_regionMastery) return _regionMastery;
   _regionMastery = {};
@@ -327,10 +377,9 @@ function getRegionMastery(): Record<string, number> {
   }
 
   for (const [tag, node] of Object.entries(regions ?? {})) {
-    _regionMastery[tag] =
-      node.missionType === "MT_JUNCTION"
-        ? JUNCTION_MASTERY_XP
-        : (toFiniteNumber(node.masteryExp) ?? 0);
+    const junction = node.missionType === "MT_JUNCTION";
+    _regionIsJunction[tag] = junction;
+    _regionMastery[tag] = junction ? JUNCTION_MASTERY_XP : (toFiniteNumber(node.masteryExp) ?? 0);
   }
   return _regionMastery;
 }
@@ -354,6 +403,87 @@ function computeMissionMasteryXp(inventoryData: Record<string, unknown>): number
     if (steelPath) xp += regions[tag];
   }
   return xp;
+}
+
+export interface ProgressPair {
+  done: number;
+  total: number;
+}
+export interface AccountCompletionStats {
+  starChart: {
+    normal: ProgressPair;
+    junctions: ProgressPair;
+    steelPath: ProgressPair;
+    steelPathJunctions: ProgressPair;
+  };
+  intrinsics: { railjack: ProgressPair; drifter: ProgressPair };
+}
+
+/**
+ * Star chart + intrinsic completion, display only - none of it feeds the XP
+ * total. Node counts come from ExportRegions rather than a hardcoded number so
+ * they track new planets on their own.
+ */
+export function computeAccountCompletion(
+  inventoryData: Record<string, unknown>,
+): AccountCompletionStats {
+  const regions = getRegionMastery();
+
+  let normalTotal = 0;
+  let junctionTotal = 0;
+  for (const [tag, xp] of Object.entries(regions)) {
+    if (xp <= 0) continue;
+    if (_regionIsJunction[tag]) junctionTotal++;
+    else normalTotal++;
+  }
+
+  let normalDone = 0;
+  let junctionDone = 0;
+  let steelDone = 0;
+  let steelJunctionDone = 0;
+  const missions = Array.isArray(inventoryData?.Missions) ? inventoryData.Missions : [];
+  for (const entry of missions as Array<Record<string, unknown>>) {
+    const tag = typeof entry.Tag === "string" ? entry.Tag : null;
+    if (!tag || !(tag in regions) || regions[tag] <= 0) continue;
+    const completes = toFiniteNumber(entry.Completes) ?? 0;
+    const steel = (toFiniteNumber(entry.Tier) ?? 0) >= 1;
+    if (completes <= 0 && !steel) continue;
+    if (_regionIsJunction[tag]) {
+      junctionDone++;
+      if (steel) steelJunctionDone++;
+    } else {
+      normalDone++;
+      if (steel) steelDone++;
+    }
+  }
+
+  const skills = (inventoryData?.PlayerSkills || {}) as Record<string, unknown>;
+  const sumRanks = (match: RegExp): number => {
+    let ranks = 0;
+    for (const [key, value] of Object.entries(skills)) {
+      if (!match.test(key)) continue;
+      const rank = toFiniteNumber(value);
+      if (rank != null && rank > 0) ranks += Math.min(rank, MAX_INTRINSIC_RANK);
+    }
+    return ranks;
+  };
+  const capFor = (match: RegExp): number =>
+    Object.keys(skills).filter((key) => match.test(key)).length * MAX_INTRINSIC_RANK;
+
+  const RAILJACK = /^LPS_(?!DRIFT_)/;
+  const DRIFTER = /^LPS_DRIFT_/;
+  return {
+    starChart: {
+      normal: { done: normalDone, total: normalTotal },
+      junctions: { done: junctionDone, total: junctionTotal },
+      steelPath: { done: steelDone, total: normalTotal },
+      steelPathJunctions: { done: steelJunctionDone, total: junctionTotal },
+    },
+    intrinsics: {
+      railjack: { done: sumRanks(RAILJACK), total: capFor(RAILJACK) },
+      drifter: { done: sumRanks(DRIFTER), total: capFor(DRIFTER) },
+    },
+  };
 }
 
 // LPS_* entries are intrinsic ranks (railjack + drifter), 1500 mastery each.
@@ -391,13 +521,15 @@ function extractProfileMastery(
     const nextThreshold = masteryRankToXp(rank + 1);
     const xpForNext = nextThreshold - currentThreshold;
 
-    // XP banked for the next test, game rank not yet advanced.
+    // XP banked for the next test, game rank not yet advanced. Keep the real
+    // (overflowing) figure rather than clamping to the bar - the game and
+    // AlecaFrame both show how much is actually banked.
     if (totalXp >= nextThreshold) {
       return {
         rank,
         percentToNext: 100,
         totalXp,
-        xpIntoRank: xpForNext,
+        xpIntoRank: totalXp - currentThreshold,
         xpForNext,
         testReady: true,
       };
@@ -508,9 +640,13 @@ function getExcludeReason(
   if (/\/Developers?\//i.test(uniqueName)) return "developer";
   if (/\/FixedGun/i.test(uniqueName)) return "fixed-gun";
 
-  // Training amps
-  if (/\/SentTrainingAmps?\//i.test(uniqueName)) return "training-amp";
-  if (/\/SentTrainingAmplifiers?\//i.test(uniqueName)) return "training-amp";
+  // Training amps: the preset amp comes from SYNTHETIC_MASTERABLE_ITEMS and its
+  // scaffold/brace grant nothing, but the Mote Prism is an amp in its own right.
+  if (/\/SentTrainingAmps?\/|\/SentTrainingAmplifiers?\//i.test(uniqueName)) {
+    return isAmpPrismMasterableOverride({ name: name ?? undefined }, uniqueName)
+      ? null
+      : "training-amp";
+  }
 
   // Name-based
   if (name) {
@@ -559,8 +695,10 @@ function resolveDisplayCategoryInfo(
 
 function isAmpPrismMasterableOverride(item: { name?: string }, uniqueName: string): boolean {
   if (!/\/OperatorAmplifiers?\//i.test(uniqueName)) return false;
-  if (/\/SentTrainingAmplifier/i.test(uniqueName)) return false;
-  if (!/\/Barrel\//i.test(uniqueName)) return false;
+  // Built amps keep the prism at .../Barrel/<part>; the Mote Amp preset carries
+  // it as a bare ...TrainingBarrel leaf. Both are masterable - the game lists
+  // Mote Prism as its own amp and DE writes it a separate XPInfo entry.
+  if (!/\/Barrel\/|Barrel$/i.test(uniqueName)) return false;
   const n = (item.name || "").toLowerCase();
   // Keep to prism-only override (scaffolds/braces should not grant mastery).
   return n.includes(" prism");
@@ -753,6 +891,7 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
       { total: number; mastered: number; inProgress: number; missing: number }
     >;
     profileMastery: ProfileMasteryInfo | null;
+    completion: AccountCompletionStats;
   };
 } {
   if (!inventoryData)
@@ -765,6 +904,7 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
         missing: 0,
         byCategory: {},
         profileMastery: null,
+        completion: computeAccountCompletion({}),
       },
     };
 
@@ -777,6 +917,20 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
 
   // Build owned map: uniqueName -> { rank, maxRank, owned }
   const ownedMap = new Map<string, OwnedMasteryRecord>();
+  const masterableNames = new Set(allMasterable.map((item) => item.uniqueName));
+
+  // A modular kit earns mastery through exactly one of its parts (zaw strike,
+  // kitgun chamber, amp prism, k-drive deck) while the built item carries a
+  // generic ItemType. That part is the one the catalog lists as masterable, so
+  // match on it rather than hardcoding a rule per family.
+  const modularMasteryPart = (entry: InventoryMasteryEntry): string | null => {
+    const parts = (entry as { ModularParts?: unknown }).ModularParts;
+    if (!Array.isArray(parts)) return null;
+    for (const part of parts) {
+      if (typeof part === "string" && masterableNames.has(part)) return part;
+    }
+    return null;
+  };
 
   for (const [invKey, maxRank] of Object.entries(INV_CATEGORIES)) {
     const arr = inventoryData[invKey];
@@ -784,8 +938,20 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
     const affinityPerRankSquared = getInventoryAffinityPerRankSquared(invKey);
     for (const entry of arr as InventoryMasteryEntry[]) {
       const record = readOwnedMasteryRecord(entry, maxRank as number, true, affinityPerRankSquared);
-      if (record && entry.ItemType) {
-        ownedMap.set(entry.ItemType, record);
+      if (!record) continue;
+      const part = modularMasteryPart(entry);
+      // The Mote Amp is a preset rather than a build: the game masters the amp
+      // itself AND its Mote Prism off the same XP. Real builds (zaws, kitguns,
+      // pet frames) credit only the part - their assembled ItemType is generic.
+      const keys =
+        part && entry.ItemType === TRAINING_AMP_UNIQUE_NAME
+          ? [entry.ItemType, part]
+          : [part ?? entry.ItemType];
+      for (const key of keys) {
+        if (!key) continue;
+        // Several builds can share one part; mastery keeps the best rank reached.
+        const existing = ownedMap.get(key);
+        ownedMap.set(key, existing && existing.rank > record.rank ? existing : record);
       }
     }
   }
@@ -845,7 +1011,9 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
 
     let status: MasteryStatus = "missing";
     let rank = 0;
-    let maxRank = MAX_ITEM_RANK;
+    // Overcapped families (Kuva/Tenet/Coda/Paracesis/Necramech) cap at 40 whether
+    // or not the account owns one; without this an unowned Bonewidow reads "0/30".
+    let maxRank = getMasteryMaxRank(item.uniqueName, MAX_ITEM_RANK);
     let currentlyOwned = false;
     let masteryXp = 0;
 
@@ -912,6 +1080,7 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
       missing,
       byCategory,
       profileMastery: extractProfileMastery(inventoryData, totalMasteryXp),
+      completion: computeAccountCompletion(inventoryData),
     },
   };
 }

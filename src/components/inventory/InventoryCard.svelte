@@ -12,6 +12,7 @@
   const dispatch = createEventDispatcher<{
     select: InventoryViewItem;
     visible: InventoryViewItem;
+    expand: InventoryViewItem;
   }>();
   let cardEl: HTMLDivElement | null = null;
   let visibilityObserver: IntersectionObserver | null = null;
@@ -69,7 +70,7 @@
 </script>
 
 <div
-  class="item-card relative {mastered ? 'border-success/25' : ''} {item.isPrime
+  class="item-card group relative {mastered ? 'border-success/25' : ''} {item.isPrime
     ? 'border-accent/30'
     : ''}"
   role="button"
@@ -79,6 +80,25 @@
   on:keydown={(event) => (event.key === "Enter" || event.key === " ") && selectCard()}
   bind:this={cardEl}
 >
+  <button
+    type="button"
+    class="expand-link absolute top-1.5 right-1.5 z-10 inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-black/25 text-text-muted opacity-0 transition-[opacity,color,border-color] duration-100 group-hover:opacity-100 hover:text-accent hover:border-accent-dim"
+    title="Open item details"
+    aria-label="Open details for {item.name}"
+    on:click|stopPropagation={() => dispatch("expand", item)}
+  >
+    <svg
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      class="h-3.5 w-3.5"
+    >
+      <path d="M6 3H3v10h10v-3" />
+      <path d="M9 2h5v5" />
+      <path d="M14 2L7 9" />
+    </svg>
+  </button>
   <div class="item-img-wrap">
     <ItemImage src={item.displayImageUrl} alt={item.name} />
     {#if item.vaulted}<span class="vault-badge">V</span>{/if}

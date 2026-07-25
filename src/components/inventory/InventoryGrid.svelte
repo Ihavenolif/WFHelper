@@ -10,10 +10,15 @@
   const dispatch = createEventDispatcher<{
     select: InventoryViewItem;
     visible: InventoryViewItem;
+    expand: InventoryViewItem;
   }>();
 
   function handleSelect(event: CustomEvent<InventoryViewItem>): void {
     dispatch("select", event.detail);
+  }
+
+  function handleExpand(event: CustomEvent<InventoryViewItem>): void {
+    dispatch("expand", event.detail);
   }
 
   function handleVisible(event: CustomEvent<InventoryViewItem>): void {
@@ -32,7 +37,13 @@
     </div>
   {:else}
     {#each items as item (item.internalName)}
-      <InventoryCard {item} {showDucats} on:select={handleSelect} on:visible={handleVisible} />
+      <InventoryCard
+        {item}
+        {showDucats}
+        on:select={handleSelect}
+        on:visible={handleVisible}
+        on:expand={handleExpand}
+      />
     {/each}
   {/if}
 </div>
