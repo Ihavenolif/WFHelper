@@ -207,7 +207,7 @@ export interface ProgressPair {
 }
 
 /** Star chart + intrinsic completion; display only, never part of the XP total. */
-export interface AccountCompletion {
+interface AccountCompletion {
   starChart: {
     normal: ProgressPair;
     junctions: ProgressPair;

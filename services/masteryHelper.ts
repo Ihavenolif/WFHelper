@@ -401,11 +401,11 @@ function computeMissionMasteryXp(inventoryData: Record<string, unknown>): number
   return xp;
 }
 
-export interface ProgressPair {
+interface ProgressPair {
   done: number;
   total: number;
 }
-export interface AccountCompletionStats {
+interface AccountCompletionStats {
   starChart: {
     normal: ProgressPair;
     junctions: ProgressPair;
@@ -416,7 +416,7 @@ export interface AccountCompletionStats {
 }
 
 /** Star chart + intrinsic completion. Display only; totals from ExportRegions. */
-export function computeAccountCompletion(
+function computeAccountCompletion(
   inventoryData: Record<string, unknown>,
 ): AccountCompletionStats {
   const regions = getRegionMastery();
