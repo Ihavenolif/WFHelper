@@ -38,6 +38,13 @@ const TERRITORY_START = /TerritoryMission\.lua: .*(control|captured)/i;
 const PENDING_SECTOR_PLAIN = /(?:ThemedSquadOverlay\.lua: Pending mission:|MapRedux\.lua: Confirm sector) (\S+)/;
 const PENDING_SECTOR_JSON = /Set squad mission.*?"name":"([^"]+)"/;
 const ELITE_SECTOR = /^(SolNode\d+)_EliteAlert$/;
+// Joining a squad's mission already in progress - no "Mission name:" line ever
+// follows. Standard for disruption: one player rolls tiles, invites, then drops
+// so the migration hands hosting to whoever stays. Either marker starts the run,
+// whichever lands first; the engine mission type follows both.
+const CLIENT_MISSION_JOIN =
+  /Client (?:joining mission in-progress|loaded)[^{]*\{"name":"([^"]+)"\}/;
+const CACHED_MISSION_NAME = /ThemedSquadOverlay\.lua: Cached mission name=(.+) \((SolNode\d+)\)/;
 
 // Timestamped in-mission lines carrying the engine mission type (and node id).
 const SYNC_CONSUMABLES = /SyncAutoPopulatedConsumables for mission (MT_[A-Z_]+) with location (\S+)/;
@@ -209,6 +216,8 @@ export function createArbiParser(): ArbiParser {
   let run: RunState | null = null;
   /** Internal sector of the most recent mission select (e.g. "SolNode167_EliteAlert"). */
   let pendingSector: string | null = null;
+  /** Squad-overlay mission name, the only name source when joining in progress. */
+  let cachedMission: { name: string; solNode: string } | null = null;
 
   function startRun(missionName: string, gameTimeSec: number): ArbiParserEvent {
     const { node, missionType, wavesPerRotation } = classifyMission(missionName);
@@ -254,6 +263,21 @@ export function createArbiParser(): ArbiParser {
 
     const sector = line.match(PENDING_SECTOR_PLAIN) ?? line.match(PENDING_SECTOR_JSON);
     if (sector) pendingSector = sector[1];
+
+    const cached = line.match(CACHED_MISSION_NAME);
+    if (cached) cachedMission = { name: cached[1].trim(), solNode: cached[2] };
+
+    // Joining a squad mid-mission never logs a "Mission name:" line; the client
+    // load is the only start signal. Its sector still carries _EliteAlert.
+    const clientLoad = !run ? line.match(CLIENT_MISSION_JOIN) : null;
+    if (clientLoad) {
+      const joined = ELITE_SECTOR.exec(clientLoad[1]);
+      if (joined) {
+        pendingSector = clientLoad[1];
+        const name = cachedMission?.solNode === joined[1] ? cachedMission.name : joined[1];
+        return startRun(name, ts);
+      }
+    }
 
     const mission = line.match(MISSION_NAME);
     if (mission) {
@@ -585,6 +609,7 @@ export function createArbiParser(): ArbiParser {
     reset: () => {
       run = null;
       pendingSector = null;
+      cachedMission = null;
     },
   };
 }

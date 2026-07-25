@@ -441,3 +441,40 @@ describe("disruption runs", () => {
     expect(run?.stats?.preciseStartSec).toBe(110);
   });
 });
+
+describe("joining a mission in progress", () => {
+  it("starts a run on the client load when no mission-name line follows", () => {
+    const parser = createArbiParser();
+    parser.feedLine(
+      "2040.984 Script [Info]: ThemedSquadOverlay.lua: Cached mission name=Apollo (Lua) - Arbitration (SolNode308)",
+    );
+    const event = parser.feedLine(
+      '2047.451 Script [Info]: ThemedSquadOverlay.lua: LoadLevelMsg received. Client joining mission in-progress: {"name":"SolNode308_EliteAlert"}',
+    );
+
+    expect(event).toEqual({
+      type: "run-start",
+      missionName: "Apollo (Lua) - Arbitration",
+      node: "Apollo (Lua)",
+      missionType: "other",
+      gameTimeSec: 2047.451,
+    });
+    // The later "Client loaded" line must not open a second run.
+    expect(
+      parser.feedLine(
+        '2051.361 Script [Info]: Client loaded {"name":"SolNode308_EliteAlert"} with MissionInfo:',
+      ),
+    ).toBeNull();
+    parser.feedLine(droneLine(2100));
+    expect(parser.finalize()?.solNode).toBe("SolNode308");
+  });
+
+  it("ignores a client load for a normal, non-arbitration mission", () => {
+    const parser = createArbiParser();
+    const event = parser.feedLine(
+      '100.000 Script [Info]: ThemedSquadOverlay.lua: Client loaded {"name":"SolNode308"} with MissionInfo:',
+    );
+    expect(event).toBeNull();
+    expect(parser.isRunActive()).toBe(false);
+  });
+});
