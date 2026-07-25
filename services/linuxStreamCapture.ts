@@ -26,6 +26,16 @@ function _now(): number {
   return Date.now();
 }
 
+// The reward layout is measured against the game's own frame, so a whole-desktop
+// capture breaks every crop while Warframe runs windowed - prefer its window.
+function pickCaptureSource<T extends { id: string; name: string }>(
+  sources: readonly T[],
+): T | null {
+  const game = sources.find((source) => /(^|\W)warframe(\W|$)/i.test(source.name || ""));
+  if (game) return game;
+  return sources.find((source) => source.id.startsWith("screen:")) ?? sources[0] ?? null;
+}
+
 async function _installDisplayMediaHandler(win: BrowserWindowType): Promise<void> {
   if (_handlerInstalled) return;
   const { desktopCapturer } = await import("electron");
@@ -33,10 +43,15 @@ async function _installDisplayMediaHandler(win: BrowserWindowType): Promise<void
   win.webContents.session.setDisplayMediaRequestHandler(
     (_request, callback) => {
       desktopCapturer
-        .getSources({ types: ["screen"], thumbnailSize: { width: 0, height: 0 } })
+        .getSources({ types: ["window", "screen"], thumbnailSize: { width: 0, height: 0 } })
         .then((sources) => {
-          if (sources.length > 0) callback({ video: sources[0] });
-          else callback({} as never);
+          const source = pickCaptureSource(sources);
+          if (!source) {
+            callback({} as never);
+            return;
+          }
+          log.info("[LinuxCapture] capturing source:", source.name || source.id);
+          callback({ video: source });
         })
         .catch((err) => {
           log.warn("[LinuxCapture] getSources failed:", normalizeErrorMessage(err));
@@ -170,3 +185,5 @@ export function disposeLinuxStreamCapture(): void {
   if (_win && !_win.isDestroyed()) _win.destroy();
   _win = null;
 }
+
+export const __test__ = { pickCaptureSource };
