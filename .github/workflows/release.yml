@@ -32,6 +32,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # The tag is the version; package.json in the repo is only a dev placeholder.
+      - name: Set version from tag
+        shell: bash
+        run: pnpm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
+
       - name: Validate release credentials
         shell: pwsh
         env:
@@ -161,6 +166,11 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      # The tag is the version; package.json in the repo is only a dev placeholder.
+      - name: Set version from tag
+        shell: bash
+        run: pnpm version "${GITHUB_REF_NAME#v}" --no-git-tag-version --allow-same-version
 
       - name: Validate release runtime configuration
         env:
