@@ -176,6 +176,11 @@ class OcrServerWorker {
 
   private async _ensureReady(): Promise<void> {
     if (this._ready && this._proc && !this._proc.killed) return;
+    // The helper is a PowerShell script over Windows.Media.Ocr; there is no
+    // other platform to spawn it on, and trying costs a startup timeout.
+    if (process.platform !== "win32") {
+      throw new Error("Windows OCR is unavailable on this platform");
+    }
     const latched = latchedEngineError();
     if (latched) throw latched;
     if (this._starting && this._startPromise) return this._startPromise;
@@ -240,6 +245,16 @@ class OcrServerWorker {
         this._drainBuffer();
       });
 
+      // Without this a failed spawn (ENOENT) raises an uncaught exception.
+      proc.on("error", (err: Error) => {
+        clearStartup();
+        this._ready = false;
+        this._proc = null;
+        this._starting = false;
+        noteEngineUnavailable(`OCR helper could not be started: ${err.message}`);
+        reject(err);
+      });
+
       proc.stderr.on("data", (chunk: string) => {
         const msg = String(chunk).trim();
         if (!msg) return;
@@ -293,7 +308,9 @@ class OcrServerWorker {
 
     this._restartCount += 1;
     const delay = RESTART_BASE_DELAY_MS * this._restartCount;
-    log.info(`[OcrServer] Restarting in ${delay}ms (attempt ${this._restartCount}/${MAX_RESTARTS})`);
+    log.info(
+      `[OcrServer] Restarting in ${delay}ms (attempt ${this._restartCount}/${MAX_RESTARTS})`,
+    );
     setTimeout(() => {
       if (this._disposed) return;
       this._spawn().catch((err) => {
@@ -472,13 +489,26 @@ try {
 
 export const nativeOcrAvailable = !!_nativeRecognize;
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number | undefined, label: string): Promise<T> {
+function withTimeout<T>(
+  promise: Promise<T>,
+  timeoutMs: number | undefined,
+  label: string,
+): Promise<T> {
   if (!timeoutMs || timeoutMs <= 0) return promise;
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error(`${label} timeout after ${timeoutMs}ms`)), timeoutMs);
+    const timer = setTimeout(
+      () => reject(new Error(`${label} timeout after ${timeoutMs}ms`)),
+      timeoutMs,
+    );
     promise.then(
-      (value) => { clearTimeout(timer); resolve(value); },
-      (err) => { clearTimeout(timer); reject(err); },
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
     );
   });
 }

@@ -141,6 +141,10 @@ export function createRewardOcrRunner(options: OcrRunnerOptions): OcrRunner {
       return nativeOcrFile(imagePath, timeoutMs);
     }
 
+    // Off Windows the ONNX reader is the only one; don't spawn a PowerShell fallback.
+    if (process.platform !== "win32") {
+      throw new Error("PowerShell OCR is Windows-only");
+    }
     return runPowerShellOCR(imagePath, timeoutMs);
   }
 
@@ -235,4 +239,3 @@ export function createRewardOcrRunner(options: OcrRunnerOptions): OcrRunner {
     runPowerShellOCR,
   };
 }
-
