@@ -32,8 +32,8 @@ function slot(x: number) {
   return { titleRect: { x, y: 0, width: 90, height: 20 } };
 }
 
-function match(name: string, score = 200) {
-  return [{ item: { name }, confidence: 0.99, score, mode: "exact" }];
+function match(name: string, score = 200, mode = "exact") {
+  return [{ item: { name }, confidence: 0.99, score, mode }];
 }
 
 async function scan(ocrByCrop: Record<string, string>) {
@@ -76,6 +76,35 @@ describe("scanRewardSlotsFallback layout merge", () => {
     expect(result?.items.map((item) => item.slotIndex)).toEqual([0, 1, 2, 3]);
     expect(result?.emptySlots).toBe(0);
     expect(result?.matchedSlots).toBe(4);
+  });
+
+  // Real 4-reward screen: two cards matched perfectly, two matched correctly but
+  // weaker, and the 2-slot subset outscored the full read on averages.
+  it("keeps a full four-slot read over a cleaner two-slot subset", async () => {
+    h.layouts = [
+      { count: 4, confidence: 0.9, slots: [slot(0), slot(100), slot(200), slot(300)] },
+      { count: 2, confidence: 0.9, slots: [slot(100), slot(200)] },
+    ];
+    h.matches = {
+      "orthos prime handle": match("Orthos Prime Handle", 300, "substring"),
+      "mesa prime blueprint": match("Mesa Prime Blueprint", 1100),
+      "odonata prime blueprint": match("Odonata Prime Blueprint", 1100),
+      "forma blueprint": match("Forma Blueprint", 300),
+    };
+    const result = await scan({
+      "crop:0": "orthos prime handle",
+      "crop:100": "mesa prime blueprint",
+      "crop:200": "odonata prime blueprint",
+      "crop:300": "forma blueprint",
+    });
+
+    expect(result?.matchedSlots).toBe(4);
+    expect(result?.items.map((item) => item.name)).toEqual([
+      "Orthos Prime Handle",
+      "Mesa Prime Blueprint",
+      "Odonata Prime Blueprint",
+      "Forma Blueprint",
+    ]);
   });
 
   it("never overrides a slot the winner already filled", async () => {

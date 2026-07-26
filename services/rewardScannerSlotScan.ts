@@ -394,18 +394,15 @@ export async function scanRewardSlotsFallback(
         `items=${result.items.map((item) => item.name).join(" | ")}`,
     );
 
-    // Multi-card layouts outrank a lone pristine exact match - structure beats averages.
-    const bestIsMulti = !!bestResult && bestResult.matchedSlots >= 2;
-    const resultIsMulti = result.matchedSlots >= 2;
+    // Structure beats averages: filling more slots wins outright, because the
+    // score averages per-slot quality and a weaker-but-correct card drags it down.
     if (
       !bestResult ||
-      (resultIsMulti && !bestIsMulti) ||
-      (resultIsMulti === bestIsMulti &&
+      result.matchedSlots > bestResult.matchedSlots ||
+      (result.matchedSlots === bestResult.matchedSlots &&
         (result.score > bestResult.score ||
           (Math.abs(result.score - bestResult.score) < 12 &&
-            result.items.length === bestResult.items.length &&
-            result.emptySlots < bestResult.emptySlots) ||
-          (result.score === bestResult.score && result.items.length > bestResult.items.length)))
+            result.emptySlots < bestResult.emptySlots)))
     ) {
       bestResult = result;
       bestRun = run;
