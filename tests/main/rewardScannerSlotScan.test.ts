@@ -107,6 +107,43 @@ describe("scanRewardSlotsFallback layout merge", () => {
     ]);
   });
 
+  // 4-player squad where only two cracked a relic: the wide layout matches the
+  // same two cards but leaves two slots empty, so the tight layout must win.
+  it("prefers the smaller layout when the extra slots are empty", async () => {
+    h.layouts = [
+      { count: 4, confidence: 0.9, slots: [slot(0), slot(100), slot(200), slot(300)] },
+      { count: 2, confidence: 0.9, slots: [slot(100), slot(200)] },
+    ];
+    h.matches = {
+      "mesa prime blueprint": match("Mesa Prime Blueprint", 1100),
+      "odonata prime blueprint": match("Odonata Prime Blueprint", 1100),
+    };
+    const result = await scan({
+      "crop:100": "mesa prime blueprint",
+      "crop:200": "odonata prime blueprint",
+    });
+
+    expect(result?.matchedSlots).toBe(2);
+    expect(result?.emptySlots).toBe(0);
+    expect(result?.items.map((item) => item.name)).toEqual([
+      "Mesa Prime Blueprint",
+      "Odonata Prime Blueprint",
+    ]);
+  });
+
+  it("keeps a solo single-reward read", async () => {
+    h.layouts = [
+      { count: 4, confidence: 0.9, slots: [slot(0), slot(100), slot(200), slot(300)] },
+      { count: 1, confidence: 0.9, slots: [slot(200)] },
+    ];
+    h.matches = { "forma blueprint": match("Forma Blueprint", 900) };
+    const result = await scan({ "crop:200": "forma blueprint" });
+
+    expect(result?.matchedSlots).toBe(1);
+    expect(result?.emptySlots).toBe(0);
+    expect(result?.items.map((item) => item.name)).toEqual(["Forma Blueprint"]);
+  });
+
   it("never overrides a slot the winner already filled", async () => {
     h.layouts = [
       { count: 4, confidence: 0.9, slots: [slot(0), slot(100), slot(200), slot(300)] },
