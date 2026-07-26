@@ -5,7 +5,7 @@
   import { PRESET_KEYS, THEME_PRESETS } from "../config/themePresets.js";
   import { currentView, SETUP_COMPLETED_KEY, statusText } from "../stores/app.js";
   import { themeSettings } from "../stores/theme.js";
-  import { invoke, on } from "../lib/ipc.js";
+  import { invoke, on, getPlatform } from "../lib/ipc.js";
   import { loadUiScale, saveUiScale } from "../lib/uiScaleSetting.js";
   import { UI_SCALE_MAX, UI_SCALE_MIN, UI_SCALE_STEP } from "../../config/runtime/uiScale.js";
   import { APP_LOGO_URL, SETUP_OVERLAY_BG_URLS } from "../lib/assetUrls.js";
@@ -19,10 +19,13 @@
   import type { RawInventoryData } from "../types/inventory.js";
   import type { HelperDownloadProgress, HelperStatus } from "../types/ipc.js";
   import SegmentedControl from "../components/SegmentedControl.svelte";
+  import ProtonLaunchOption from "../components/ProtonLaunchOption.svelte";
 
   type Step = "configure" | "inventory" | "downloading" | "done" | "overlays" | "error";
   type InventorySource = "helper" | "json" | "aleca";
   type HelperInventoryStatus = "checking" | "found" | "not_found" | "error";
+
+  const isLinux = getPlatform() === "linux";
 
   let step: Step = "configure";
   let inventorySource: InventorySource = "helper";
@@ -833,6 +836,14 @@
                   All themes and full customization: Settings &gt; Appearance.
                 </p>
               </div>
+
+              {#if isLinux}
+                <div
+                  class="rounded-lg border border-[var(--ui-panel-border)] bg-[var(--ui-control-bg)] px-3 py-3 [backdrop-filter:var(--ui-backdrop-blur)]"
+                >
+                  <ProtonLaunchOption compact />
+                </div>
+              {/if}
 
               <div
                 class="rounded-lg border border-[var(--ui-panel-border)] bg-[var(--ui-control-bg)] px-3 py-3 [backdrop-filter:var(--ui-backdrop-blur)]"
