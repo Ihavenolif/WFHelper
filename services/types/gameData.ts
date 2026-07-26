@@ -181,6 +181,7 @@ export interface WorldStateRaw {
   Sorties?: SortieRaw | SortieRaw[];
   Descents?: DescentRaw[];
   EndlessXpChoices?: EndlessXpChoice[];
+  EndlessXpSchedule?: EndlessXpScheduleEntry[];
   SyndicateMissions?: SyndicateMissionRaw[];
   Invasions?: InvasionRaw[];
   DailyDeals?: DailyDealRaw[];
@@ -194,5 +195,11 @@ interface DescentRaw {
 interface EndlessXpChoice {
   Category: string;
   Choices: string[];
+}
+
+interface EndlessXpScheduleEntry {
+  Activation?: WorldStateDate;
+  Expiry?: WorldStateDate;
+  CategoryChoices?: EndlessXpChoice[];
 }
 

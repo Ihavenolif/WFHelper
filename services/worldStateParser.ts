@@ -389,10 +389,34 @@ async function fetchEarthCycle(): Promise<{ isDay: boolean; timeLeft: string; ex
   }
 }
 
-// The weekly Circuit reward rotation (normal + Steel Path "hard" incarnons) is
-// not in DE's world state, and computeDuviriMoodCycle only derives the mood.
-// warframestat's /pc/duviriCycle carries it. Returns [] on any failure so the
-// Circuit panel just stays empty instead of breaking the world fetch.
+const CIRCUIT_CATEGORIES: ReadonlyArray<[string, string]> = [
+  ["EXC_NORMAL", "normal"],
+  ["EXC_HARD", "hard"],
+];
+
+export function parseCircuitChoices(
+  raw: WorldStateRaw | null,
+  nowMs: number = Date.now(),
+): Array<{ category: string; choices: string[] }> {
+  const schedule = Array.isArray(raw?.EndlessXpSchedule) ? raw.EndlessXpSchedule : [];
+  const active =
+    schedule.find((entry) => {
+      const from = Number(entry?.Activation?.["$date"]?.["$numberLong"] || 0);
+      const to = Number(entry?.Expiry?.["$date"]?.["$numberLong"] || 0);
+      return from <= nowMs && (!to || to > nowMs);
+    }) || null;
+  const categories = active?.CategoryChoices || raw?.EndlessXpChoices || [];
+
+  return CIRCUIT_CATEGORIES.map(([tag, category]) => ({
+    category,
+    // Split internal camel-case names for display.
+    choices: (categories.find((entry) => entry?.Category === tag)?.Choices || [])
+      .filter((name): name is string => typeof name === "string")
+      .map((name) => name.replace(/([a-z0-9])([A-Z])/g, "$1 $2")),
+  })).filter((entry) => entry.choices.length > 0);
+}
+
+// Keep Circuit empty when the fallback is unavailable.
 async function fetchDuviriChoices(): Promise<Array<{ category: string; choices: string[] }>> {
   try {
     const data = (await fetchJsonWithTimeout(
@@ -691,7 +715,9 @@ export function parseBountyCycleBounties(data: BountyCycleResponse): unknown[] {
   return result;
 }
 
-async function fetchAndComputeCycles(): Promise<Record<string, unknown>> {
+async function fetchAndComputeCycles(
+  knownChoices: Array<{ category: string; choices: string[] }> = [],
+): Promise<Record<string, unknown>> {
   const nowMs = Date.now();
 
   // Vallis and Duviri mood are pure math - always available
@@ -702,7 +728,7 @@ async function fetchAndComputeCycles(): Promise<Record<string, unknown>> {
   const [oracleResult, earthResult, duviriChoicesResult] = await Promise.allSettled([
     fetchJsonWithTimeout(ORACLE_BOUNTY_CYCLE_URL, CYCLE_FETCH_TIMEOUT_MS) as Promise<BountyCycleResponse>,
     fetchEarthCycle(),
-    fetchDuviriChoices(),
+    knownChoices.length > 0 ? Promise.resolve(knownChoices) : fetchDuviriChoices(),
   ]);
 
   const duviriCycle = {
@@ -784,8 +810,11 @@ export async function fetchAndParse(): Promise<Record<string, unknown>> {
   if (!parsed) return emptyWorldState();
 
   // Fetch cycles and warframestat extras in parallel
+  const parsedChoices =
+    (parsed.duviriCycle as { choices?: Array<{ category: string; choices: string[] }> } | null)
+      ?.choices || [];
   const [cyclesResult, extrasResult] = await Promise.allSettled([
-    fetchAndComputeCycles(),
+    fetchAndComputeCycles(parsedChoices),
     fetchWarframestatExtras(),
   ]);
 
@@ -949,20 +978,10 @@ export function parseRaw(raw: WorldStateRaw | null): Record<string, unknown> | n
       return act <= nowMs && exp > nowMs;
     }) || descentArr[0];
 
-  const xpChoices = raw.EndlessXpChoices || [];
   const duviriCycle = {
     state: null as string | null,
     expiry: descentRaw ? deDate(descentRaw.Expiry) : null,
-    choices: [
-      {
-        category: "normal",
-        choices: xpChoices.find((c) => c.Category === "EXC_NORMAL")?.Choices || [],
-      },
-      {
-        category: "hard",
-        choices: xpChoices.find((c) => c.Category === "EXC_HARD")?.Choices || [],
-      },
-    ],
+    choices: parseCircuitChoices(raw, nowMs),
   };
 
   const rawBounties = (raw.SyndicateMissions || [])
