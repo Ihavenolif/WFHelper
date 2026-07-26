@@ -9,6 +9,8 @@ import {
   type Page,
 } from "@playwright/test";
 
+import { mainWindow } from "./mainWindow";
+
 /**
  * Boots the app against a sandboxed LOCALAPPDATA/APPDATA (own EE.log + own
  * userData), then verifies the Arbitrations schedule sub-tab and the post-run
@@ -47,7 +49,7 @@ describeArbi("Arbitration schedule + post-run overlay", () => {
     env.WFHELPER_USER_DATA = path.join(appData, "wfhelper");
 
     app = await electron.launch({ args: ["--no-sandbox", "."], env });
-    page = await app.firstWindow();
+    page = await mainWindow(app);
 
     // Fresh sandbox starts on the setup view; flag it done and reload.
     await page.evaluate(() => localStorage.setItem("setup-completed-v2", "1"));

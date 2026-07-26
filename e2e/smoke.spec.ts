@@ -10,6 +10,8 @@ import {
   type Page,
 } from "@playwright/test";
 
+import { mainWindow } from "./mainWindow";
+
 test.describe("Electron Smoke", () => {
   let app: ElectronApplication;
   let page: Page;
@@ -27,7 +29,7 @@ test.describe("Electron Smoke", () => {
     env.WFHELPER_USER_DATA = path.join(sandboxDir, "user-data");
 
     app = await electron.launch({ args: ["--no-sandbox", "."], env });
-    page = await app.firstWindow();
+    page = await mainWindow(app);
   });
 
   test.afterAll(async () => {
