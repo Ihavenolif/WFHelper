@@ -99,6 +99,30 @@ function toInfoPatch(info: UpdateInfo): Partial<UpdateState> {
   };
 }
 
+// Dev-only update preview: WF_FAKE_UPDATE=1.1.9 [+ WF_FAKE_UPDATE_NOTES=notes.md].
+function applyFakeUpdateState(): boolean {
+  const version = process.env.WF_FAKE_UPDATE;
+  if (!version || app.isPackaged) return false;
+
+  const notesPath = process.env.WF_FAKE_UPDATE_NOTES;
+  let releaseNotes: string | null = null;
+  if (notesPath) {
+    try {
+      releaseNotes = fs.readFileSync(notesPath, "utf-8").trim() || null;
+    } catch (err) {
+      log.warn("Fake update notes unreadable:", normalizeErrorMessage(err, "unknown error"));
+    }
+  }
+
+  setUpdateState("available", {
+    version,
+    releaseName: `WFHelper ${version}`,
+    releaseDate: new Date().toISOString(),
+    releaseNotes,
+  });
+  return true;
+}
+
 function shouldEnableAutoUpdater(): boolean {
   if (process.env.WF_DISABLE_AUTO_UPDATE === "1") return false;
   if (!app.isPackaged) return false;
@@ -193,6 +217,11 @@ export function initialize(windowRef: import("electron").BrowserWindow): void {
 
   if (initialized) return;
   initialized = true;
+
+  if (applyFakeUpdateState()) {
+    log.info(`Faking update ${process.env.WF_FAKE_UPDATE} as available (dev preview)`);
+    return;
+  }
 
   if (!shouldEnableAutoUpdater()) {
     setUpdateState("disabled", {
