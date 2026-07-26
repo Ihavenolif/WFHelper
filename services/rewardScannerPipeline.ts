@@ -10,6 +10,7 @@ import { matchItemsDetailed, MAX_REWARD_SLOTS, type SortedItem } from "./rewardS
 import {
   scanRewardSlotsFallback,
   type RewardReader,
+  type SlotScanStats,
   type StructuredOcrBufferRunner,
 } from "./rewardScannerSlotScan";
 import { CROP_PRESETS, SCANNER_TUNING } from "./rewardScannerSupport";
@@ -99,6 +100,7 @@ function buildScanMeta({
   strategy,
   elapsedMs,
   hadOcrSuccess,
+  layoutCount,
 }: {
   screenshot: Screenshot | null;
   band: { top: number; height: number } | null;
@@ -108,6 +110,7 @@ function buildScanMeta({
   strategy: string;
   elapsedMs: number;
   hadOcrSuccess: boolean;
+  layoutCount: number;
 }): Record<string, unknown> {
   const captureSize = screenshot?.image?.getSize?.() || { width: 0, height: 0 };
   const top = band ? round4(band.top, 0) : null;
@@ -126,6 +129,7 @@ function buildScanMeta({
     score: Number.isFinite(score) ? Number(Number(score).toFixed(3)) : null,
     exactCount: typeof exactCount === "number" ? exactCount : null,
     strategy: strategy || "none",
+    layoutCount,
     ocrVariant: variant,
     hadOcrSuccess: !!hadOcrSuccess,
     bandTopRatio: top,
@@ -286,12 +290,19 @@ export async function runRewardScanPipeline({
   }
 
   // Primary path: per-slot OCR over detected reward layouts.
+  const slotStats: SlotScanStats = { layoutCount: 0 };
   const slotResult = await scanRewardSlotsFallback(
     screenshot,
     MAX_REWARD_SLOTS,
     totalBudgetMs,
     scanStartedAt,
-    { sortedItems, ocrTimeoutMs: settings.ocrTimeoutMs, runOCRStructuredBuffer, reader },
+    {
+      sortedItems,
+      ocrTimeoutMs: settings.ocrTimeoutMs,
+      runOCRStructuredBuffer,
+      reader,
+      stats: slotStats,
+    },
   );
 
   let items: SortedItem[] = slotResult?.items ? slotResult.items.slice(0, MAX_REWARD_SLOTS) : [];
@@ -358,6 +369,7 @@ export async function runRewardScanPipeline({
       strategy,
       elapsedMs: Date.now() - scanStartedAt,
       hadOcrSuccess: items.length > 0,
+      layoutCount: slotStats.layoutCount,
     }),
   };
 

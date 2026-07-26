@@ -183,6 +183,11 @@ export type StructuredOcrBufferRunner = (
 /** Which OCR reader(s) feed slot candidates; "both" is production behavior. */
 export type RewardReader = "windows" | "onnx" | "both";
 
+/** Out-param: lets the caller tell "not the reward screen" from "OCR missed". */
+export interface SlotScanStats {
+  layoutCount: number;
+}
+
 function isUsableSlotCandidate(candidate: SlotCandidate): boolean {
   if (!candidate?.item?.name) return false;
   const normalizedName = String(candidate.item.name || "").trim();
@@ -247,12 +252,14 @@ export async function scanRewardSlotsFallback(
     ocrTimeoutMs: number;
     runOCRStructuredBuffer: StructuredOcrBufferRunner;
     reader?: RewardReader;
+    stats?: SlotScanStats;
   },
 ): Promise<SlotScanResult | null> {
   await yieldToEventLoop();
   const layouts = detectRewardSlotLayoutCandidates(screenshot?.image)
     .filter((layout) => hasConfidentSlotLayout(layout))
     .slice(0, 6);
+  if (options.stats) options.stats.layoutCount = layouts.length;
   if (layouts.length === 0) return null;
 
   let bestResult: SlotScanResult | null = null;

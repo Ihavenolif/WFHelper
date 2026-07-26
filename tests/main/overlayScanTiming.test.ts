@@ -9,7 +9,11 @@ vi.mock("../../services/itemDatabase", () => ({
 
 const noop = () => {};
 
-function createHarness() {
+type ScanResult = { items: unknown[]; meta: Record<string, unknown> | null };
+
+const foundReward: ScanResult = { items: [{ name: "Neo N1 Relic" }], meta: null };
+
+function createHarness(result: ScanResult = foundReward) {
   const scanTimes: number[] = [];
   const autoHideDelays: number[] = [];
 
@@ -18,7 +22,7 @@ function createHarness() {
     rewardScanner: {
       scanRewardsDetailed: async () => {
         scanTimes.push(Date.now());
-        return { items: [{ name: "Neo N1 Relic" }], meta: null };
+        return result;
       },
     },
     ctx: { overlaySettings: {}, overlayWindow: null, currentInventoryData: null },
@@ -94,6 +98,26 @@ describe("overlay scan timing (eelog trigger)", () => {
 
     // 14.5s vote window minus the 500ms spent before the scan resolved.
     expect(autoHideDelays).toEqual([14_000]);
+  });
+
+  it("gives up after three scans that find no reward layout", async () => {
+    const { controller, scanTimes } = createHarness({ items: [], meta: { layoutCount: 0 } });
+
+    const done = controller.dispatchRewardScan("manual");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await done;
+
+    expect(scanTimes).toHaveLength(3);
+  });
+
+  it("keeps retrying while a reward layout is on screen", async () => {
+    const { controller, scanTimes } = createHarness({ items: [], meta: { layoutCount: 4 } });
+
+    const done = controller.dispatchRewardScan("manual");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await done;
+
+    expect(scanTimes.length).toBeGreaterThan(3);
   });
 
   it("manual scans keep the plain success auto-hide", async () => {

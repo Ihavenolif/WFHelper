@@ -14,6 +14,8 @@ import { sleep } from "../../services/rewardScannerUtils";
 const SCAN_RETRY_WINDOW_MS = 5_000;
 const SCAN_RETRY_INTERVAL_MS = 450;
 const SCAN_MAX_ATTEMPTS = 10;
+// Consecutive no-layout scans before the trigger is written off as a false one.
+const NO_LAYOUT_MAX_ATTEMPTS = 3;
 const MAX_REWARD_ITEMS = 4;
 // Max wait for the reward-UI render signal before scanning anyway. The signal
 // is unreliable (DBWIN can miss the icon burst), so this is a fallback delay,
@@ -287,6 +289,7 @@ export function createOverlayScanController(options: OverlayScanControllerOption
   async function runRewardScanWithRetries(triggerSource: string): Promise<RewardScanResult> {
     const startedAt = Date.now();
     let attempts = 0;
+    let noLayoutAttempts = 0;
     let bestResult: RewardScanResult | null = null;
 
     while (attempts < SCAN_MAX_ATTEMPTS && Date.now() - startedAt < SCAN_RETRY_WINDOW_MS) {
@@ -309,6 +312,13 @@ export function createOverlayScanController(options: OverlayScanControllerOption
           elapsedMs: Date.now() - startedAt,
           timedOut: false,
         };
+      }
+
+      // The trigger lines also fire on plain pauses; no card layout = not the reward screen.
+      noLayoutAttempts = Number(result?.meta?.layoutCount || 0) > 0 ? 0 : noLayoutAttempts + 1;
+      if (noLayoutAttempts >= NO_LAYOUT_MAX_ATTEMPTS) {
+        log.info(`[Trigger] no reward layout in ${attempts} attempt(s) - not the reward screen`);
+        break;
       }
 
       const elapsed = Date.now() - startedAt;
