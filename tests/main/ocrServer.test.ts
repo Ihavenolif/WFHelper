@@ -49,14 +49,33 @@ async function freshModule(): Promise<OcrServerModule> {
   return import("../../services/ocrServer");
 }
 
+const realPlatform = process.platform;
+
+/** The helper is Windows-only, so pin the platform or these read as skipped on CI's linux runner. */
+function setPlatform(platform: string): void {
+  Object.defineProperty(process, "platform", { value: platform, configurable: true });
+}
+
 describe("ocrServer engine-unavailable latch", () => {
   beforeEach(() => {
     spawnMock.mockReset();
+    setPlatform("win32");
     vi.useFakeTimers({ now: new Date("2026-07-15T12:00:00Z") });
   });
 
   afterEach(() => {
+    setPlatform(realPlatform);
     vi.useRealTimers();
+  });
+
+  it("never spawns the helper off windows", async () => {
+    const mod = await freshModule();
+    setPlatform("linux");
+
+    await expect(mod.ocrServer.runOCRStructured({ imageBase64: "eA==" }, 2000)).rejects.toThrow(
+      /unavailable on this platform/,
+    );
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 
   it("surfaces the ps1 startup error, latches, and fails fast without respawning", async () => {
