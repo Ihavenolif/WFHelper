@@ -1,4 +1,5 @@
 import { writable, derived } from "svelte/store";
+import { ownedComponentCount } from "../../config/shared/componentNames.js";
 import { aggregateComponentOwnership } from "../../config/shared/componentOwnership.js";
 import { parseInventory } from "../lib/inventory.js";
 import { parseFoundry } from "../lib/inventory/foundryResources.js";
@@ -30,7 +31,7 @@ export function enrichComponents(
   ownership: Map<string, number>,
 ): ComponentInfo[] {
   return components.map((comp) => {
-    const count = comp.uniqueName ? ownership.get(comp.uniqueName) || 0 : 0;
+    const count = ownedComponentCount(comp.uniqueName, ownership);
     return { ...comp, ownedCount: count, owned: count >= (comp.itemCount || 1) };
   });
 }

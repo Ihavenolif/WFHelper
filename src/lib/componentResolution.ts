@@ -1,4 +1,7 @@
-import { componentUniqueNameAliases } from "../../config/shared/componentNames.js";
+import {
+  componentUniqueNameAliases,
+  ownedComponentCount,
+} from "../../config/shared/componentNames.js";
 import type { ComponentInfo, ItemDbEntry, ParsedItem } from "../types/inventory.js";
 import type { WfmItemsLookup } from "../types/ipc.js";
 
@@ -23,7 +26,7 @@ export function buildItemNameIndex(itemDb: Record<string, ItemDbEntry>): Map<str
 }
 
 function withOwnership(comp: ComponentInfo, ownership: Map<string, number>): ComponentInfo {
-  const count = comp.uniqueName ? ownership.get(comp.uniqueName) || 0 : 0;
+  const count = ownedComponentCount(comp.uniqueName, ownership);
   return { ...comp, ownedCount: count, owned: count >= (comp.itemCount || 1) };
 }
 

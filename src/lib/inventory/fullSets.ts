@@ -1,4 +1,4 @@
-import { componentUniqueNameAliases } from "../../../config/shared/componentNames.js";
+import { ownedComponentCount } from "../../../config/shared/componentNames.js";
 import type { ItemDbEntry, ParsedItem, PartType } from "../../types/inventory.js";
 import {
   type ResolvedItem,
@@ -17,20 +17,6 @@ import {
 // stay out.
 function isWeaponSetComponent(uniqueName: string): boolean {
   return /\/Recipes\/Weapons\/(WeaponParts?\/|.*Blueprint$)/i.test(uniqueName);
-}
-
-// A set component can be owned under a different name than the set lists it:
-//   - warframe parts: set says ...Component, inventory holds ...Blueprint
-//   - weapon parts:   set says ...Blade,     inventory holds ...BladeBlueprint
-// Try every spelling and take the largest; they're the same part, not separate
-// piles, so max (not sum) is the real owned count.
-function ownedAcrossAliases(uniqueName: string, ownedCounts: Map<string, number>): number {
-  if (!uniqueName) return 0;
-  const candidates = componentUniqueNameAliases(uniqueName);
-  if (!/Blueprint$/i.test(uniqueName)) candidates.push(`${uniqueName}Blueprint`);
-  let owned = 0;
-  for (const key of candidates) owned = Math.max(owned, ownedCounts.get(key) || 0);
-  return owned;
 }
 
 function isEligibleFullSetRoot(
@@ -116,7 +102,7 @@ export function buildFullSetItems(
         typeof component.itemCount === "number" && component.itemCount > 0
           ? component.itemCount
           : 1;
-      const ownedCount = ownedAcrossAliases(unique, ownedCounts);
+      const ownedCount = ownedComponentCount(unique, ownedCounts);
       completeSets = Math.min(completeSets, Math.floor(ownedCount / required));
 
       return {

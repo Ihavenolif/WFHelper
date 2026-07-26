@@ -1,6 +1,9 @@
 import type { NativeImage } from "electron";
 import { aggregateComponentOwnership } from "../../config/shared/componentOwnership";
-import { componentUniqueNameAliases } from "../../config/shared/componentNames";
+import {
+  componentUniqueNameAliases,
+  ownedComponentCount,
+} from "../../config/shared/componentNames";
 import { normalizeErrorMessage } from "../../config/shared/errors";
 import { RELIC_REWARD_ITEMS, RELIC_REWARD_TRIGGER } from "../../config/shared/ipcChannels";
 import { normalizeWfmSlug } from "../../config/shared/wfm";
@@ -151,7 +154,7 @@ function setProgress(
   for (const component of parent.components) {
     if (!component.uniqueName || component.tradable === false) continue;
     const needed = finitePositiveInteger(component.itemCount) ?? 1;
-    const count = ownedCounts.get(component.uniqueName) || 0;
+    const count = ownedComponentCount(component.uniqueName, ownedCounts);
     required += needed;
     owned += Math.min(count, needed);
     completeSets = Math.min(completeSets, Math.floor(count / needed));
@@ -196,7 +199,7 @@ function enrichRewardItems(items: unknown[], inventoryData: InventoryData): unkn
     const parentName = parent?.name || null;
     const setName = parentName ? `${parentName} Set` : null;
     const partRequiredCount = componentRequiredCount(parent, uniqueName);
-    const partOwnedCount = uniqueName ? ownedCounts.get(uniqueName) || 0 : 0;
+    const partOwnedCount = ownedComponentCount(uniqueName, ownedCounts);
     const progress = setProgress(parent, ownedCounts, uniqueName);
     const ducats = finitePositiveInteger(item.ducats) ?? entry?.ducats ?? null;
 
