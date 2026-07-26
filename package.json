@@ -55,7 +55,8 @@
     "icons:deploy": "npm --prefix backend/worker exec -- wrangler pages deploy .icon-mirror/public --project-name wfhelper-icons --branch pre-production --commit-dirty=true",
     "icons:sync": "pnpm run icons:download && pnpm run icons:deploy",
     "rebuild": "electron-rebuild -f",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test:linux-boot": "node scripts/linux-boot-smoke.mjs"
   },
   "keywords": [
     "warframe",

@@ -67,9 +67,14 @@ jobs:
       - name: Build
         run: pnpm run build
 
-  # No Linux E2E job: the app relies on Windows-only native modules (DXGI screen
-  # capture), so the full Electron app can't boot on Linux. E2E runs on Windows
-  # below; Linux still covers typecheck/lint/unit/build in `validate`.
+      # Advisory smoke test for Linux path and platform regressions.
+      - name: Linux boot smoke
+        continue-on-error: true
+        run: |
+          pnpm exec playwright install-deps chromium
+          xvfb-run -a pnpm run test:linux-boot
+
+  # Native E2E stays on Windows; Linux runs the advisory boot smoke.
 
   validate-windows:
     runs-on: windows-latest
