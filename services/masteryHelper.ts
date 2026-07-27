@@ -142,6 +142,21 @@ const INV_CATEGORIES: Record<string, number> = {
   Hoverboards: MAX_ITEM_RANK,
 };
 
+// XPInfo lacks containers; explicit identities keep pet weapons at weapon rate.
+function isSuitRateXpInfoItem(
+  itemType: string,
+  dbItem: { category?: string; type?: string } | null,
+): boolean {
+  return (
+    dbItem?.category === "Warframe" ||
+    dbItem?.category === "Companion" ||
+    /\/Hoverboard/i.test(itemType) ||
+    /k-drive/i.test(String(dbItem?.type || "")) ||
+    /\/CrewShip\/(?:RailJack\/Default)?Harness$/i.test(itemType) ||
+    /RailjackHarness$/i.test(itemType)
+  );
+}
+
 const VENARI_UNIQUE_NAME_PATTERN = /\/Powersuits\/Khora\/Kavat\/Khora(?:Prime)?KavatPowerSuit$/i;
 const TRAINING_AMP_UNIQUE_NAME =
   "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon";
@@ -947,12 +962,7 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
       if (!entry.ItemType) continue;
       const existing = ownedMap.get(entry.ItemType);
       const dbItem = itemDb.lookupItem(entry.ItemType);
-      // Plexus (railjack harness) grants suit-rate mastery but has no db entry.
-      const isSuit =
-        dbItem?.category === "Warframe" ||
-        dbItem?.category === "Companion" ||
-        /\/CrewShip\/(?:RailJack\/Default)?Harness$/i.test(entry.ItemType) ||
-        /RailjackHarness$/i.test(entry.ItemType);
+      const isSuit = isSuitRateXpInfoItem(entry.ItemType, dbItem);
       const record = readOwnedMasteryRecord(
         entry,
         existing?.maxRank ?? MAX_ITEM_RANK,

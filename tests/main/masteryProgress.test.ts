@@ -129,6 +129,32 @@ describe("mastery progress", () => {
     expect(byName.get("Plexus")?.status).toBe("mastered");
   });
 
+  it("scores sold K-Drives at suit rate so XP history cannot fake mastery", () => {
+    const deck =
+      "/Lotus/Types/Vehicles/Hoverboard/HoverboardParts/PartComponents/HoverboardCorpusA/HoverboardCorpusADeck";
+    const progress = masteryHelper.computeMasteryProgress({
+      XPInfo: [{ ItemType: deck, XP: suitXpForRank(22) }],
+    });
+
+    const item = progress.items.find((entry) => entry.uniqueName === deck);
+
+    expect(item?.rank).toBe(22);
+    expect(item?.status).toBe("progress");
+  });
+
+  it("keeps sold hound weapons at weapon rate despite their /Pets/ path", () => {
+    const akaten = "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetMeleeWeaponPS";
+    const progress = masteryHelper.computeMasteryProgress({
+      XPInfo: [{ ItemType: akaten, XP: weaponXpForRank(30) }],
+    });
+
+    const item = progress.items.find((entry) => entry.uniqueName === akaten);
+
+    expect(item?.rank).toBe(30);
+    expect(item?.status).toBe("mastered");
+    expect(item?.masteryXp).toBe(3_000); // weapon credit, not suit-rate 4200
+  });
+
   it("includes hidden mastery items represented by the Warframe profile", () => {
     const names = new Set(masteryHelper.getAllMasterableItems().map((item) => item.name));
 
