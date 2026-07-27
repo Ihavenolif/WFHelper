@@ -80,6 +80,10 @@ export function resolveComponentByName(
   return uniqueName ? resolveComponentByUniqueName(uniqueName, itemDb, ownership) : null;
 }
 
+function stripSetSuffix(name: string): string {
+  return name.replace(/\s+Set$/i, "");
+}
+
 export function resolveComponentLocation(dbEntry: ItemDbEntry | null | undefined): string {
   const description = dbEntry?.description || "";
   const locMatch = description.match(/Location:\s*(.+)/i);
@@ -91,7 +95,7 @@ export function resolveComponentWikiFallback(
   parentName: string,
   dbEntry: ItemDbEntry | null | undefined,
 ): string {
-  if (dbEntry?.isBuildComponent && parentName) return parentName;
+  if (dbEntry?.isBuildComponent && parentName) return stripSetSuffix(parentName);
   return dbEntry?.name || comp.name;
 }
 
@@ -101,7 +105,8 @@ export function resolveComponentPriceLookup(
   dbEntry: ItemDbEntry | null | undefined,
   lookup: WfmItemsLookup,
 ): PriceLookupPlan {
-  const fullName = parentName ? `${parentName} ${comp.name}` : comp.name;
+  const parentItemName = stripSetSuffix(parentName || "");
+  const fullName = parentItemName ? `${parentItemName} ${comp.name}` : comp.name;
   const nameKey = fullName?.toLowerCase() || "";
   const directMatch = lookup[nameKey] || lookup[comp.name?.toLowerCase() || ""];
   const isTradable = Boolean(comp.tradable || directMatch);

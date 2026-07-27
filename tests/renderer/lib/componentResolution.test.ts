@@ -86,6 +86,25 @@ describe("componentResolution", () => {
     });
   });
 
+  it("strips the Set suffix from set-card parents so parts resolve real market names", () => {
+    const comp: ComponentInfo = {
+      name: "Chassis",
+      uniqueName: componentUniqueName,
+      tradable: true,
+    };
+    const lookup: WfmItemsLookup = {
+      "trinity prime chassis": { url_name: "trinity_prime_chassis" },
+    };
+
+    expect(resolveComponentPriceLookup(comp, "Trinity Prime Set", null, lookup)).toEqual({
+      name: "Trinity Prime Chassis",
+      isTradable: true,
+    });
+
+    const entry: ItemDbEntry = { name: "Trinity Prime Chassis", isBuildComponent: true };
+    expect(resolveComponentWikiFallback(comp, "Trinity Prime Set", entry)).toBe("Trinity Prime");
+  });
+
   it("extracts component location text and uses parent names for build-component wiki fallback", () => {
     const entry: ItemDbEntry = {
       name: "Trinity Prime Chassis",
