@@ -41,7 +41,7 @@ import { request, __test__ } from "../../services/wfmClient";
 
 function freshSolver() {
   return vi.fn(async () => {
-    __test__.setClearance("cf_clearance=fresh", "UA-new");
+    __test__.setClearanceForTest("cf_clearance=fresh", "UA-new");
     return true;
   });
 }
@@ -50,15 +50,15 @@ describe("stale Cloudflare clearance recovery", () => {
   beforeEach(() => {
     state.scripted.length = 0;
     state.requests.length = 0;
-    __test__.setClearance(null, null);
-    __test__.setChallengeSolver(null);
-    __test__.resetClearanceCooldown();
+    __test__.setClearanceForTest(null, null);
+    __test__.setChallengeSolverForTest(null);
+    __test__.resetClearanceCooldownForTest();
   });
 
   it("re-solves and retries when a held clearance gets 403", async () => {
-    __test__.setClearance("cf_clearance=stale", "UA-old");
+    __test__.setClearanceForTest("cf_clearance=stale", "UA-old");
     const solver = freshSolver();
-    __test__.setChallengeSolver(solver);
+    __test__.setChallengeSolverForTest(solver);
     state.scripted.push(
       { status: 403, body: "error code: 1020" },
       { status: 200, body: '{"ok":true}' },
@@ -76,9 +76,9 @@ describe("stale Cloudflare clearance recovery", () => {
   });
 
   it("solves at most once per cooldown window", async () => {
-    __test__.setClearance("cf_clearance=stale", "UA-old");
+    __test__.setClearanceForTest("cf_clearance=stale", "UA-old");
     const solver = freshSolver();
-    __test__.setChallengeSolver(solver);
+    __test__.setChallengeSolverForTest(solver);
 
     state.scripted.push({ status: 403, body: "blocked" }, { status: 403, body: "blocked" });
     await expect(request("GET", "/items")).rejects.toMatchObject({
@@ -95,7 +95,7 @@ describe("stale Cloudflare clearance recovery", () => {
 
   it("leaves plain API 403s alone when no clearance is held", async () => {
     const solver = freshSolver();
-    __test__.setChallengeSolver(solver);
+    __test__.setChallengeSolverForTest(solver);
     state.scripted.push({ status: 403, body: '{"error":"forbidden"}' });
 
     await expect(request("GET", "/items")).rejects.toMatchObject({ status: 403 });
@@ -105,7 +105,7 @@ describe("stale Cloudflare clearance recovery", () => {
 
   it("solves on a Cloudflare challenge response even without a held clearance", async () => {
     const solver = freshSolver();
-    __test__.setChallengeSolver(solver);
+    __test__.setChallengeSolverForTest(solver);
     state.scripted.push(
       {
         status: 403,

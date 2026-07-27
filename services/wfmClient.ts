@@ -771,17 +771,14 @@ export function requestRaw(
 }
 
 export const __test__ = {
-  setClearance(cookie: string | null, ua: string | null): void {
+  setClearanceForTest(cookie: string | null, ua: string | null): void {
     _clearanceCookie = cookie;
     _clearanceUa = ua;
   },
-  getClearance(): { cookie: string | null; ua: string | null } {
-    return { cookie: _clearanceCookie, ua: _clearanceUa };
-  },
-  setChallengeSolver(fn: (() => Promise<boolean>) | null): void {
+  setChallengeSolverForTest(fn: (() => Promise<boolean>) | null): void {
     _challengeSolver = fn ?? _solveChallengeInWindow;
   },
-  resetClearanceCooldown(): void {
+  resetClearanceCooldownForTest(): void {
     _lastClearanceSolveAt = 0;
   },
 };

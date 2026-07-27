@@ -7,7 +7,7 @@ const DAU_PREFIX = 'dau:';
 const DAU_TTL_SEC = 8 * 24 * 3600;
 export const DAU_MAX_QUERY_DAYS = 8;
 
-export function utcDay(date: Date = new Date()): string {
+function utcDay(date: Date = new Date()): string {
 	return date.toISOString().slice(0, 10);
 }
 
