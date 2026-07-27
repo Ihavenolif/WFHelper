@@ -103,12 +103,9 @@ const MAX_REASONABLE_VALUE = 500;
  * For these, a "-XX%" value on-screen means the stat is beneficial (positive),
  * and "+XX%" would mean a curse (negative).  We flip `positive` after parsing
  * so the overlay colours green/red correctly.
+ * Only Recoil reverses display polarity; Zoom keeps normal polarity.
  */
-const INVERTED_POLARITY_STATS = new Set([
-  "weapon recoil",
-  "recoil",
-  "zoom",
-]);
+const INVERTED_POLARITY_STATS = new Set(["weapon recoil", "recoil"]);
 
 function preprocessOcrText(raw: string): string {
   let text = raw;

@@ -207,10 +207,15 @@ describe("parseRivenStats", () => {
     const result = parseRivenStats("-27.3% Zoom");
     expect(result).toHaveLength(1);
     expect(result[0].name).toBe("Zoom");
-    // Zoom is an inverted-polarity stat: minus on screen = beneficial
-    expect(result[0].positive).toBe(true);
-    expect(result[0].displayPositive).toBe(false);
+    expect(result[0].positive).toBe(false);
+    expect(result[0].displayPositive).toBeUndefined();
     expect(result[0].value).toBe(27.3);
+  });
+
+  it("keeps a minus-signed Zoom a curse despite OCR prefix garbage", () => {
+    const result = parseRivenStats("o -29.8% Zoom");
+    expect(result).toHaveLength(1);
+    expect(result[0]).toMatchObject({ name: "Zoom", positive: false, value: 29.8 });
   });
 
   it("keeps inverted-polarity stat display signs from OCR while preserving beneficial semantics", () => {
@@ -246,8 +251,7 @@ describe("parseRivenStats", () => {
       "Zoom",
       "Multishot",
     ]);
-    // Zoom is inverted-polarity: minus on screen = beneficial (positive: true)
-    expect(result.map((s) => s.positive)).toEqual([true, true, true, true]);
+    expect(result.map((s) => s.positive)).toEqual([true, true, false, true]);
     expect(result.map((s) => s.value)).toEqual([48.3, 127.2, 27.3, 15.5]);
   });
 

@@ -357,6 +357,14 @@ export function gradeRiven(
   const numCurses = stats.filter((s) => !s.positive).length;
   const assumedLevel = DEFAULT_LVL;
 
+  // Reject impossible shapes before invalid values are clamped into valid grades.
+  if (numBuffs > 3 || numCurses > 1) {
+    log.warn(
+      `[RivenGrade] impossible stat shape (${numBuffs} buffs / ${numCurses} curses) - skipping grade`,
+    );
+    return null;
+  }
+
   // Resolve tag/entry and the numeric display value once per stat.
   const prepared = stats.map((stat) => {
     const tag = rivenData.statNameToTag(stat.name);

@@ -400,6 +400,31 @@ describe("gradeRiven", () => {
     expect(result!.stats[2].grade).toBeTruthy();
   });
 
+  it("returns null for an impossible buff/curse shape instead of clamped S grades", () => {
+    expect(
+      gradeRiven("Kuva Nukor", [
+        { name: "Status Chance", positive: true, value: 42.6 },
+        { name: "Heat", positive: true, value: 41.2 },
+        { name: "Reload Speed", positive: true, value: 23.0 },
+        { name: "Zoom", positive: true, value: 29.8 },
+      ]),
+    ).toBeNull();
+  });
+
+  it("grades the field-report Kuva Nukor riven mid-range, nothing clamped", () => {
+    const result = gradeRiven("Kuva Nukor", [
+      { name: "Status Chance", positive: true, value: 42.6 },
+      { name: "Heat", positive: true, value: 41.2 },
+      { name: "Reload Speed", positive: true, value: 23.0 },
+      { name: "Zoom", positive: false, value: 29.8 },
+    ]);
+    expect(result).not.toBeNull();
+    for (const stat of result!.stats) {
+      expect(stat.rollFloat).toBeGreaterThan(0);
+      expect(stat.rollFloat).toBeLessThan(1);
+    }
+  });
+
   it("assigns B grade to unrecognised stat names", () => {
     const result = gradeRiven("Rubico Prime", [
       { name: "Critical Chance", positive: true, value: 90 },
