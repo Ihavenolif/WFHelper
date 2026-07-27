@@ -38,4 +38,11 @@ describe("DebugLineGate", () => {
     expect(gate.wants(REWARD_LINE, 1000)).toBe(true);
     expect(gate.wants(REWARD_LINE, 1001)).toBe(true);
   });
+
+  it("forwards the reward-UI render signal line", () => {
+    const gate = new DebugLineGate();
+    expect(
+      gate.wants("Script [Info]: ProjectionRewardChoice.lua: Missing icon data!", 0),
+    ).toBe(true);
+  });
 });

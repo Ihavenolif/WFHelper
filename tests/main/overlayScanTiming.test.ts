@@ -13,16 +13,30 @@ type ScanResult = { items: unknown[]; meta: Record<string, unknown> | null };
 
 const foundReward: ScanResult = { items: [{ name: "Neo N1 Relic" }], meta: null };
 
-function createHarness(result: ScanResult = foundReward) {
+type HarnessStatus = {
+  isOpen: boolean;
+  isFocused: boolean;
+  focusedProcessName?: string | null;
+  focusedDisplayId?: string | null;
+};
+
+function createHarness(
+  result: ScanResult = foundReward,
+  options: { results?: ScanResult[]; status?: () => HarnessStatus } = {},
+) {
   const scanTimes: number[] = [];
   const autoHideDelays: number[] = [];
+  const sentItems: unknown[][] = [];
+  const statusFn = options.status;
 
   const controller = createOverlayScanController({
     log: { info: noop, warn: noop, error: noop },
     rewardScanner: {
       scanRewardsDetailed: async () => {
         scanTimes.push(Date.now());
-        return result;
+        const queue = options.results;
+        if (!queue) return result;
+        return queue[Math.min(scanTimes.length - 1, queue.length - 1)];
       },
     },
     ctx: { overlaySettings: {}, overlayWindow: null, currentInventoryData: null },
@@ -30,14 +44,17 @@ function createHarness(result: ScanResult = foundReward) {
       setAnchorMeta: noop,
       getAnchorMeta: () => null,
       positionOverlayWindow: noop,
-      sendOverlayEvent: noop,
+      sendOverlayEvent: (_channel: string, payload?: unknown) => {
+        if (Array.isArray(payload)) sentItems.push(payload);
+      },
       scheduleOverlayAutoHide: (delayMs: number) => autoHideDelays.push(delayMs),
       clearOverlayAutoHideTimer: noop,
       createOverlayWindow: noop,
     },
+    ...(statusFn ? { warframeStatus: { getStatus: async () => statusFn() } } : {}),
   });
 
-  return { controller, scanTimes, autoHideDelays };
+  return { controller, scanTimes, autoHideDelays, sentItems };
 }
 
 describe("overlay scan timing (eelog trigger)", () => {
@@ -128,5 +145,116 @@ describe("overlay scan timing (eelog trigger)", () => {
     await done;
 
     expect(autoHideDelays).toEqual([8_500]);
+  });
+
+  it("rescans once when OCR fills fewer slots than the layout has", async () => {
+    const twoOfFour: ScanResult = {
+      items: [{ name: "A" }, { name: "B" }],
+      meta: { layoutCount: 4 },
+    };
+    const fourOfFour: ScanResult = {
+      items: [{ name: "A" }, { name: "B" }, { name: "C" }, { name: "D" }],
+      meta: { layoutCount: 4 },
+    };
+    const { controller, scanTimes, sentItems } = createHarness(twoOfFour, {
+      results: [twoOfFour, fourOfFour],
+    });
+
+    const done = controller.dispatchRewardScan("manual");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await done;
+
+    expect(scanTimes).toHaveLength(2);
+    expect(sentItems.at(-1)).toHaveLength(4);
+  });
+
+  it("keeps the fuller partial when the bonus attempt does not improve", async () => {
+    const twoOfFour: ScanResult = {
+      items: [{ name: "A" }, { name: "B" }],
+      meta: { layoutCount: 4 },
+    };
+    const { controller, scanTimes, sentItems } = createHarness(twoOfFour, {
+      results: [twoOfFour, twoOfFour],
+    });
+
+    const done = controller.dispatchRewardScan("manual");
+    await vi.advanceTimersByTimeAsync(5_000);
+    await done;
+
+    expect(scanTimes).toHaveLength(2);
+    expect(sentItems.at(-1)).toHaveLength(2);
+  });
+
+  it("does not rescan a clean sweep", async () => {
+    const fourOfFour: ScanResult = {
+      items: [{ name: "A" }, { name: "B" }, { name: "C" }, { name: "D" }],
+      meta: { layoutCount: 4 },
+    };
+    const { controller, scanTimes } = createHarness(fourOfFour);
+
+    const done = controller.dispatchRewardScan("manual");
+    await vi.advanceTimersByTimeAsync(0);
+    await done;
+
+    expect(scanTimes).toHaveLength(1);
+  });
+
+  it("skips the eelog scan when Warframe is unfocused with no focused display", async () => {
+    const { controller, scanTimes, autoHideDelays } = createHarness(foundReward, {
+      status: () => ({ isOpen: true, isFocused: false, focusedProcessName: "brave" }),
+    });
+
+    const done = controller.dispatchRewardScan("eelog");
+    await vi.advanceTimersByTimeAsync(1_000);
+    await done;
+
+    expect(scanTimes).toHaveLength(0);
+    expect(autoHideDelays).toEqual([3_500]);
+  });
+
+  it("holds the auto-hide while Warframe is unfocused, hides after refocus grace", async () => {
+    let focused = false;
+    const { controller, autoHideDelays } = createHarness(foundReward, {
+      status: () => ({
+        isOpen: true,
+        isFocused: focused,
+        focusedProcessName: "brave",
+        focusedDisplayId: "display-2",
+      }),
+    });
+    controller.notifyRewardUiReady();
+
+    const done = controller.dispatchRewardScan("eelog");
+    await vi.advanceTimersByTimeAsync(500);
+    await done;
+
+    expect(autoHideDelays).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(14_000);
+    expect(autoHideDelays).toEqual([]);
+
+    focused = true;
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(autoHideDelays).toEqual([2_500]);
+  });
+
+  it("hides at the vote-window expiry when Warframe is focused", async () => {
+    const { controller, autoHideDelays } = createHarness(foundReward, {
+      status: () => ({
+        isOpen: true,
+        isFocused: true,
+        focusedProcessName: "warframe.x64",
+        focusedDisplayId: "display-1",
+      }),
+    });
+    controller.notifyRewardUiReady();
+
+    const done = controller.dispatchRewardScan("eelog");
+    await vi.advanceTimersByTimeAsync(500);
+    await done;
+    expect(autoHideDelays).toEqual([]);
+
+    await vi.advanceTimersByTimeAsync(14_000);
+    expect(autoHideDelays).toEqual([250]);
   });
 });

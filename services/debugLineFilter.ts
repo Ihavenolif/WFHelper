@@ -10,6 +10,7 @@ const FILTER_SUBSTRINGS_LOWER = [
   "dialog::sendresult",        // relic/riven dialog closing
   "pause countdown done",      // mission reward trigger
   "got rewards",               // mission reward trigger
+  "projectionrewardchoice.lua", // reward cards rendering (early-scan signal)
   "omegarerollselection.swf",  // riven rolling screen opened
   "diorama setup",             // riven diorama ready (OmegaRerollSelection.lua)
   "npcmanager::clearagents",   // riven session close
