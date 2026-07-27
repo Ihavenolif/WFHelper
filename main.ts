@@ -1,6 +1,6 @@
 import "./config/runtime/appIdentity";
 
-import { app, BrowserWindow, globalShortcut } from "electron";
+import { app, BrowserWindow, crashReporter, globalShortcut } from "electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -61,6 +61,9 @@ import * as apiHelperRunner from "./services/apiHelperRunner";
 import { disposeLinuxStreamCapture } from "./services/linuxStreamCapture";
 import { isTradeNotificationOverlayEnabled } from "./config/runtime/overlaySettings";
 import { WIN_APP_USER_MODEL_ID } from "./config/shared/appMeta";
+
+// Keep native crash dumps local under userData\Crashes.
+crashReporter.start({ uploadToServer: false });
 
 // Suppress noisy Chromium/DevTools internal logging in terminal.
 app.commandLine.appendSwitch("disable-logging");
@@ -191,6 +194,7 @@ app.whenReady().then(async () => {
     `[Startup] userData: ${app.getPath("userData")}` +
       (process.env.WFHELPER_USER_DATA ? " (WFHELPER_USER_DATA override)" : ""),
   );
+  log.info(`[Startup] crashDumps: ${app.getPath("crashDumps")}`);
 
   const settingsStart = Date.now();
   overlayIpc.loadOverlaySettings();
