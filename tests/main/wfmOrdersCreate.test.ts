@@ -77,4 +77,28 @@ describe("createOrder perTrade adaptivity", () => {
     ).rejects.toThrow(/platinum/);
     expect(requestV2Mock).toHaveBeenCalledTimes(1);
   });
+
+  it("recovers both calls when two concurrent first creates race the flag", async () => {
+    requestV2Mock.mockImplementation(async (_method, _path, opts) => {
+      const body = (opts?.json ?? {}) as Record<string, unknown>;
+      if (!("perTrade" in body)) throw perTradeError("required");
+      return ORDER_RESPONSE;
+    });
+
+    const [a, b] = await Promise.all([
+      wfmOrders.createOrder({ itemId: "i1", orderType: "sell", platinum: 85, quantity: 1 }),
+      wfmOrders.createOrder({ itemId: "i2", orderType: "sell", platinum: 10, quantity: 2 }),
+    ]);
+
+    expect(a.id).toBe("o1");
+    expect(b.id).toBe("o1");
+    expect(requestV2Mock).toHaveBeenCalledTimes(4);
+    const bodies = requestV2Mock.mock.calls.map(
+      (call) => call[2]?.json as Record<string, unknown>,
+    );
+    expect(bodies[0]).not.toHaveProperty("perTrade");
+    expect(bodies[1]).not.toHaveProperty("perTrade");
+    expect(bodies[2]).toHaveProperty("perTrade");
+    expect(bodies[3]).toHaveProperty("perTrade");
+  });
 });

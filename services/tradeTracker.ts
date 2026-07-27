@@ -95,7 +95,12 @@ function sanitizeTradeEvent(value: unknown): TradeEvent | null {
   const items = event.items
     .map(sanitizeTradeItem)
     .filter((item): item is TradeItem => item != null);
-  if (event.items.length > 0 && items.length === 0) return null;
+  if (event.items.length > 0 && items.length === 0) {
+    log.warn(
+      `[TradeTracker] Dropping trade ${id} (${date}): all ${event.items.length} item(s) corrupt`,
+    );
+    return null;
+  }
   if (items.length < event.items.length) {
     log.info(`[TradeTracker] Dropped ${event.items.length - items.length} corrupt item(s) from trade ${id}`);
   }

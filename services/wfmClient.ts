@@ -256,6 +256,35 @@ function _solveChallengeInWindow(): Promise<boolean> {
   return _challengeSolve;
 }
 
+let _challengeSolver: () => Promise<boolean> = _solveChallengeInWindow;
+
+// Retry one expired clearance per cooldown to avoid challenge loops.
+const CLEARANCE_RESOLVE_COOLDOWN_MS = 5 * 60_000;
+let _lastClearanceSolveAt = 0;
+
+async function _shouldReSolveClearance(res: WfmResponseLike): Promise<boolean> {
+  if (res.headers.get("cf-mitigated") === "challenge") return true;
+  if (res.status !== 403) return false;
+  if (_clearanceCookie) return true; // stale clearance is the likely cause
+  const text = await res.text().catch(() => "");
+  return /just a moment|cf-chl|challenge-platform/i.test(text);
+}
+
+async function _reSolveClearance(label: string): Promise<boolean> {
+  const now = Date.now();
+  if (now - _lastClearanceSolveAt < CLEARANCE_RESOLVE_COOLDOWN_MS) return false;
+  _lastClearanceSolveAt = now;
+  log.warn(
+    `[${label}] Cloudflare block with ${_clearanceCookie ? "stale" : "no"} clearance - re-running challenge`,
+  );
+  _clearanceCookie = null;
+  _clearanceUa = null;
+  if (!(await _challengeSolver())) return false;
+  const payload = _cookieJwt ? _decodeJwtPayload(_cookieJwt) : null;
+  if (typeof payload?.csrf_token === "string" && payload.csrf_token) _csrfToken = payload.csrf_token;
+  return true;
+}
+
 async function _ensureCsrfToken(): Promise<string | null> {
   if (_csrfToken) return _csrfToken;
   try {
@@ -355,6 +384,8 @@ function _request(
     _transportLogged = true;
     log.info(`[WFMClient] transport: ${net ? "chromium" : "node"}`);
   }
+  // Prevent retries from retaining stale auth.
+  headers = { ...headers };
   // Ride the earned clearance: the cookie only passes with the UA it was
   // earned under, so both travel together on every request.
   if (_clearanceUa) headers["User-Agent"] = _clearanceUa;
@@ -597,34 +628,40 @@ function _coreRequest(
   { json, headers: extraHeaders, baseHeaders = {}, label = "WFMClient" }: CoreRequestOptions = {},
 ): Promise<unknown> {
   return enqueue(async () => {
-    const token = _getToken();
     const url = baseUrl + path;
-
-    const headers: Record<string, string> = {
-      ...WFM_BASE_HEADERS,
-      ...baseHeaders,
-      ...extraHeaders,
-    };
-
-    if (token) {
-      headers["Authorization"] = `JWT ${token}`;
-      headers["Cookie"] = `JWT=${token}`;
-    }
-
-    if (method !== "GET") {
-      await applyMutationHeaders(headers, token || _cookieJwt, null);
-    }
-
     const body = json !== undefined ? JSON.stringify(json) : null;
 
-    let res: WfmResponseLike;
-    try {
-      res = await _request(method, url, headers, body);
-    } catch (networkErr) {
-      throw new WfmApiError(
-        `${label} network error: ${normalizeErrorMessage(networkErr)}`,
-        "WFM_NETWORK_ERROR",
-      );
+    // Rebuild auth headers after clearance recovery.
+    const attempt = async (): Promise<WfmResponseLike> => {
+      const token = _getToken();
+      const headers: Record<string, string> = {
+        ...WFM_BASE_HEADERS,
+        ...baseHeaders,
+        ...extraHeaders,
+      };
+
+      if (token) {
+        headers["Authorization"] = `JWT ${token}`;
+        headers["Cookie"] = `JWT=${token}`;
+      }
+
+      if (method !== "GET") {
+        await applyMutationHeaders(headers, token || _cookieJwt, null);
+      }
+
+      try {
+        return await _request(method, url, headers, body);
+      } catch (networkErr) {
+        throw new WfmApiError(
+          `${label} network error: ${normalizeErrorMessage(networkErr)}`,
+          "WFM_NETWORK_ERROR",
+        );
+      }
+    };
+
+    let res = await attempt();
+    if (!res.ok && (await _shouldReSolveClearance(res))) {
+      if (await _reSolveClearance(label)) res = await attempt();
     }
 
     if (res.status === 401) {
@@ -683,26 +720,31 @@ export function requestRaw(
 ): Promise<WfmRawResponse> {
   return enqueue(async () => {
     const url = BASE_URL + path;
-
-    const headers: Record<string, string> = {
-      ...WFM_BASE_HEADERS,
-      ...extraHeaders,
-    };
-
-    if (method !== "GET") {
-      await applyMutationHeaders(headers, null);
-    }
-
     const body = json !== undefined ? JSON.stringify(json) : null;
 
-    let res: WfmResponseLike;
-    try {
-      res = await _request(method, url, headers, body);
-    } catch (networkErr) {
-      throw new WfmApiError(
-        `WFM network error: ${normalizeErrorMessage(networkErr)}`,
-        "WFM_NETWORK_ERROR",
-      );
+    const attempt = async (): Promise<WfmResponseLike> => {
+      const headers: Record<string, string> = {
+        ...WFM_BASE_HEADERS,
+        ...extraHeaders,
+      };
+
+      if (method !== "GET") {
+        await applyMutationHeaders(headers, null);
+      }
+
+      try {
+        return await _request(method, url, headers, body);
+      } catch (networkErr) {
+        throw new WfmApiError(
+          `WFM network error: ${normalizeErrorMessage(networkErr)}`,
+          "WFM_NETWORK_ERROR",
+        );
+      }
+    };
+
+    let res = await attempt();
+    if (!res.ok && (await _shouldReSolveClearance(res))) {
+      if (await _reSolveClearance("WFMClient")) res = await attempt();
     }
 
     if (res.status === 429) throwRateLimitError("WFMClient", res);
@@ -727,3 +769,19 @@ export function requestRaw(
     return { res, body: resBody };
   });
 }
+
+export const __test__ = {
+  setClearance(cookie: string | null, ua: string | null): void {
+    _clearanceCookie = cookie;
+    _clearanceUa = ua;
+  },
+  getClearance(): { cookie: string | null; ua: string | null } {
+    return { cookie: _clearanceCookie, ua: _clearanceUa };
+  },
+  setChallengeSolver(fn: (() => Promise<boolean>) | null): void {
+    _challengeSolver = fn ?? _solveChallengeInWindow;
+  },
+  resetClearanceCooldown(): void {
+    _lastClearanceSolveAt = 0;
+  },
+};

@@ -167,20 +167,22 @@ export async function createOrder({
   };
 
   // v2: POST /order
+  // Classify races by the request shape actually sent.
+  const sentPerTrade = _sendPerTrade;
   let data: unknown;
   try {
-    data = await requestV2("POST", "/order", { json: buildBody(_sendPerTrade) });
+    data = await requestV2("POST", "/order", { json: buildBody(sentPerTrade) });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    const wantsFlip = _sendPerTrade ? /notAllowed/i : /required/i;
+    const wantsFlip = sentPerTrade ? /notAllowed/i : /required/i;
     if (!/perTrade/i.test(message) || !wantsFlip.test(message)) throw err;
-    _sendPerTrade = !_sendPerTrade;
+    _sendPerTrade = !sentPerTrade;
     log.info(
-      `[WFMOrders] server ${_sendPerTrade ? "requires" : "rejects"} perTrade - retrying ${
-        _sendPerTrade ? "with" : "without"
+      `[WFMOrders] server ${!sentPerTrade ? "requires" : "rejects"} perTrade - retrying ${
+        !sentPerTrade ? "with" : "without"
       } it`,
     );
-    data = await requestV2("POST", "/order", { json: buildBody(_sendPerTrade) });
+    data = await requestV2("POST", "/order", { json: buildBody(!sentPerTrade) });
   }
   const unwrapped = unwrapWfmResponse<WfmOrderMutationData>(data);
   const raw = (unwrapped?.order || unwrapped || data) as WfmRawOrder;
