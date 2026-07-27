@@ -1748,3 +1748,65 @@ describe('backend worker', () => {
 		expect(body.result.slugCount).toBe(2);
 	});
 });
+
+describe('anonymous active-user counting', () => {
+	const testEnv = env as unknown as Record<string, string | undefined>;
+
+	afterEach(() => {
+		delete testEnv.STATS_SALT;
+	});
+
+	async function dauKeyCount(): Promise<number> {
+		const page = await (env as unknown as Env).ITEM_META.list({ prefix: 'dau:' });
+		return page.keys.length;
+	}
+
+	async function requestSnapshot(ip: string): Promise<void> {
+		const request = new IncomingRequest('http://example.com/v1/snapshot', {
+			headers: { 'cf-connecting-ip': ip },
+		});
+		const ctx = createExecutionContext();
+		await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+	}
+
+	it('counts each snapshot caller once per day', async () => {
+		testEnv.STATS_SALT = 'test-salt';
+		await requestSnapshot('203.0.113.5');
+		await requestSnapshot('203.0.113.5');
+		expect(await dauKeyCount()).toBe(1);
+		await requestSnapshot('203.0.113.9');
+		expect(await dauKeyCount()).toBe(2);
+	});
+
+	it('records nothing while STATS_SALT is unset', async () => {
+		await requestSnapshot('203.0.113.5');
+		expect(await dauKeyCount()).toBe(0);
+	});
+
+	it('reports per-day unique counts on the admin route', async () => {
+		testEnv.STATS_SALT = 'test-salt';
+		testEnv.ADMIN_API_KEY = 'test-key';
+		await requestSnapshot('203.0.113.5');
+		await requestSnapshot('203.0.113.9');
+
+		const request = new IncomingRequest('http://example.com/admin/stats/active-users?days=2', {
+			headers: { authorization: 'Bearer test-key' },
+		});
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+
+		expect(response.status).toBe(200);
+		const body = (await response.json()) as {
+			ok: boolean;
+			enabled: boolean;
+			result: Array<{ date: string; users: number }>;
+		};
+		expect(body.ok).toBe(true);
+		expect(body.enabled).toBe(true);
+		expect(body.result).toHaveLength(2);
+		expect(body.result[0].users).toBe(2);
+		expect(body.result[1].users).toBe(0);
+	});
+});

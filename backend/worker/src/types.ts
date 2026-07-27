@@ -9,6 +9,8 @@ export interface Env {
 	PUBLIC_SNAPSHOT_RATE_LIMITER: RateLimit;
 	ADMIN_RATE_LIMITER: RateLimit;
 	ADMIN_API_KEY?: string;
+	/** Omit to disable activity counting. */
+	STATS_SALT?: string;
 	CACHE_TTL_SEC: string;
 	ORDERS_SUMMARY_CACHE_TTL_SEC?: string;
 	ORDERS_SUMMARY_STALE_REFRESH_SEC?: string;

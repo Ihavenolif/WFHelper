@@ -10,6 +10,7 @@ import {
 	getOrHydrateOrderSummary,
 	getOrHydratePrice,
 } from '../services/readThrough';
+import { recordActiveUser } from '../services/activeUsers';
 import { readRankedSummaryCatalogFromKv, sanitizeSnapshotForClient } from '../services/prewarm';
 import { annotateResponse } from '../services/logging';
 import type { Env } from '../types';
@@ -246,6 +247,8 @@ export async function handlePublicRoutes(req: Request, url: URL, env: Env, ctx?:
 		const guardResponse = await guardPublicRequest(req, env, 'snapshot');
 		if (guardResponse) return guardResponse;
 
+		// Count launches even when the snapshot is cached at the edge.
+		recordActiveUser(req, env, ctx);
 		routeStats.snapshotRequests += 1;
 		const cacheKey = new Request(`${url.origin}/v1/snapshot?body=${WFM_SNAPSHOT_CLIENT_CACHE_VERSION}`, { method: 'GET' });
 		const edgeCache = caches.default;

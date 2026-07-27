@@ -21,7 +21,8 @@ import { jsonResponse } from '../security/cors';
 import { isAdminAuthorized } from '../security/adminAuth';
 import { checkAdminRateLimit } from '../security/rateLimit';
 import type { Env } from '../types';
-import { getJsonFromKv, parseJsonBody, parsePositiveInt } from '../utils';
+import { countActiveUsers, DAU_MAX_QUERY_DAYS } from '../services/activeUsers';
+import { clamp, getJsonFromKv, parseJsonBody, parsePositiveInt } from '../utils';
 
 async function guardAdmin(req: Request, env: Env): Promise<Response | null> {
 	const rateLimited = await checkAdminRateLimit(req, env);
@@ -47,6 +48,15 @@ export async function handleAdminRoutes(req: Request, url: URL, env: Env): Promi
 		});
 
 		return jsonResponse({ ok: true, result }, req, env, 202);
+	}
+
+	if (req.method === 'GET' && url.pathname === '/admin/stats/active-users') {
+		const guardResponse = await guardAdmin(req, env);
+		if (guardResponse) return guardResponse;
+
+		const days = clamp(parsePositiveInt(url.searchParams.get('days') || '', 7), 1, DAU_MAX_QUERY_DAYS);
+		const result = await countActiveUsers(env, days);
+		return jsonResponse({ ok: true, enabled: Boolean(env.STATS_SALT), result }, req, env, 200);
 	}
 
 	if (req.method === 'GET' && url.pathname === '/admin/prewarm/status') {
