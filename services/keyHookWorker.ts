@@ -1,11 +1,8 @@
 /**
- * WH_KEYBOARD_LL hook in a worker: a passive keystream tap, not a RegisterHotKey
- * grab - swallows a watched combo only while Warframe is foreground. LL hooks
- * need the installing thread to pump messages (hence the PeekMessage loop), and
- * the callback blocks the keystroke, so it must stay under LowLevelHooksTimeout.
+ * Isolates the Koffi keyboard callback because teardown can crash its host.
+ * Watched combos are swallowed only while Warframe is foreground.
  */
 
-import { workerData, parentPort } from "worker_threads";
 import koffi from "koffi";
 
 interface WatchEntry {
@@ -19,6 +16,7 @@ interface WatchEntry {
 
 const kernel32 = koffi.load("kernel32.dll");
 const user32 = koffi.load("user32.dll");
+const { parentPort } = process;
 
 // Win32 BOOL is 4 bytes; koffi "bool" is 1 and leaks garbage - always int32.
 const GetModuleHandleW = kernel32.func("GetModuleHandleW", "void *", ["void *"]);
@@ -58,14 +56,6 @@ const PeekMessageW = user32.func("PeekMessageW", "int32", [
   "uint32", // wMsgFilterMax
   "uint32", // wRemoveMsg
 ]);
-const MsgWaitForMultipleObjectsEx = user32.func("MsgWaitForMultipleObjectsEx", "uint32", [
-  "uint32", // nCount
-  "void *", // pHandles
-  "uint32", // dwMilliseconds
-  "uint32", // dwWakeMask
-  "uint32", // dwFlags
-]);
-
 const KBDLLHOOKSTRUCT = koffi.struct("KBDLLHOOKSTRUCT", {
   vkCode: "uint32",
   scanCode: "uint32",
@@ -73,16 +63,16 @@ const KBDLLHOOKSTRUCT = koffi.struct("KBDLLHOOKSTRUCT", {
   time: "uint32",
   dwExtraInfo: "uintptr_t",
 });
-const LowLevelKeyboardProc = koffi.proto("intptr_t LowLevelKeyboardProc(int nCode, uintptr_t wParam, void *lParam)");
+const LowLevelKeyboardProc = koffi.proto(
+  "intptr_t LowLevelKeyboardProc(int nCode, uintptr_t wParam, void *lParam)",
+);
 
 const WH_KEYBOARD_LL = 13;
 const HC_ACTION = 0;
 const WM_KEYDOWN = 0x0100;
 const WM_SYSKEYDOWN = 0x0104;
 const PM_REMOVE = 0x0001;
-const QS_ALLINPUT = 0x04ff;
-const MWMO_INPUTAVAILABLE = 0x0004;
-const WAIT_TICK_MS = 200; // how long we block before re-checking the stop flag
+const PUMP_TICK_MS = 10;
 const MSG_SIZE = 48; // sizeof(MSG) on x64
 const MAX_PATH = 260;
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
@@ -94,7 +84,7 @@ const VK_MENU = 0x12; // Alt
 const VK_LWIN = 0x5b;
 const VK_RWIN = 0x5c;
 
-// ---- foreground = Warframe? (per-PID cache) ----
+// Cache process names to keep work out of the hook callback.
 const _exeNameBuf = Buffer.alloc(MAX_PATH * 2);
 const _exeNameSizeBuf = Buffer.alloc(4);
 const _pidBuf = Buffer.alloc(4);
@@ -117,7 +107,10 @@ function isWarframePid(pid: number): boolean {
   }
 
   const charCount = _exeNameSizeBuf.readUInt32LE(0);
-  const exePath = _exeNameBuf.subarray(0, charCount * 2).toString("utf16le").toLowerCase();
+  const exePath = _exeNameBuf
+    .subarray(0, charCount * 2)
+    .toString("utf16le")
+    .toLowerCase();
   const result = exePath.endsWith("\\warframe.x64.exe");
   _pidIsWarframe.set(pid, result);
   return result;
@@ -133,8 +126,7 @@ function foregroundIsWarframe(): boolean {
   return isWarframePid(pid);
 }
 
-// ---- watch list ----
-let watchList: WatchEntry[] = normalizeWatch((workerData as { watch?: unknown }).watch);
+let watchList: WatchEntry[] = [];
 let watchedVks = new Set(watchList.map((entry) => entry.vk));
 
 function normalizeWatch(value: unknown): WatchEntry[] {
@@ -188,7 +180,7 @@ const hookProc = koffi.register((nCode: number, wParam: number, lParam: unknown)
         const info = koffi.decode(lParam, KBDLLHOOKSTRUCT) as { vkCode: number };
         const match = matchBinding(info.vkCode);
         if (match && foregroundIsWarframe()) {
-          parentPort?.postMessage({ type: "hotkey", id: match.id });
+          parentPort.postMessage({ type: "hotkey", id: match.id });
           return 1; // swallow: the game (and only the game) loses this key
         }
       }
@@ -199,44 +191,64 @@ const hookProc = koffi.register((nCode: number, wParam: number, lParam: unknown)
   return CallNextHookEx(null, nCode, wParam as unknown as number, lParam) as number;
 }, koffi.pointer(LowLevelKeyboardProc));
 
-const stopFlag = new Int32Array((workerData as { stopBuffer: SharedArrayBuffer }).stopBuffer);
 const _msgBuf = Buffer.alloc(MSG_SIZE);
 
-parentPort?.on("message", (m: { type?: string; watch?: unknown }) => {
-  if (m?.type === "setWatch") setWatch(m.watch);
+parentPort.on("message", (event) => {
+  const message = event.data as { type?: string; watch?: unknown };
+  if (message?.type === "setWatch") {
+    setWatch(message.watch);
+    parentPort.postMessage({ type: "watch-updated", count: watchList.length });
+  }
 });
 
 function run(): void {
   const hHook = SetWindowsHookExW(WH_KEYBOARD_LL, hookProc, GetModuleHandleW(null), 0);
   if (!hHook) {
-    parentPort?.postMessage({ type: "error", message: `SetWindowsHookExW failed (GLE=${GetLastError()})` });
+    parentPort.postMessage({
+      type: "error",
+      message: `SetWindowsHookExW failed (GLE=${GetLastError()})`,
+    });
     koffi.unregister(hookProc);
-    parentPort?.postMessage({ type: "stopped" });
     return;
   }
 
-  parentPort?.postMessage({ type: "ready" });
+  parentPort.postMessage({ type: "ready" });
 
   let pidCacheResetAt = Date.now() + PID_CACHE_RESET_MS;
-  try {
-    while (Atomics.load(stopFlag, 0) === 0) {
-      // Drain the queue; an LL hook has no WM_ to dispatch, it just needs a pump.
+  let stopped = false;
+
+  function stop(message?: string): void {
+    if (stopped) return;
+    stopped = true;
+    if (message) parentPort.postMessage({ type: "error", message });
+    try {
+      UnhookWindowsHookEx(hHook);
+    } finally {
+      koffi.unregister(hookProc);
+    }
+  }
+
+  function pump(): void {
+    try {
+      // LL hooks need frequent message pumping.
       while ((PeekMessageW(_msgBuf, null, 0, 0, PM_REMOVE) as number) !== 0) {
         /* discard */
       }
-      MsgWaitForMultipleObjectsEx(0, null, WAIT_TICK_MS, QS_ALLINPUT, MWMO_INPUTAVAILABLE);
 
       const now = Date.now();
       if (now > pidCacheResetAt) {
         pidCacheResetAt = now + PID_CACHE_RESET_MS;
-        _pidIsWarframe.clear(); // Warframe may have restarted with a new PID
+        _pidIsWarframe.clear();
       }
+    } catch (err) {
+      stop(`keyboard hook pump failed: ${String(err)}`);
+      return;
     }
-  } finally {
-    UnhookWindowsHookEx(hHook);
-    koffi.unregister(hookProc);
-    parentPort?.postMessage({ type: "stopped" });
+
+    setTimeout(pump, PUMP_TICK_MS);
   }
+
+  pump();
 }
 
 run();

@@ -1,11 +1,9 @@
 /**
- * globalShortcut-shaped facade over the WH_KEYBOARD_LL worker: same
- * register/unregister contract, but swallows only while Warframe is focused.
- * Falls back to the real globalShortcut if the hook can't be installed.
+ * globalShortcut facade backed by an isolated WH_KEYBOARD_LL process.
+ * It falls back to Electron's shortcut API if the native hook fails.
  */
 
 import path from "node:path";
-import { Worker } from "worker_threads";
 import { parseAccelerator, type ParsedAccelerator } from "./acceleratorVk";
 
 interface Logger {
@@ -30,20 +28,36 @@ interface KeyHookShortcut {
   dispose: () => void;
 }
 
+interface HookProcess {
+  postMessage: (message: unknown) => void;
+  kill: () => boolean;
+  on: (event: string, listener: (...args: unknown[]) => void) => HookProcess;
+}
+
 export function createKeyHookShortcut(options: {
   log: Logger;
   loadFallback?: () => FallbackShortcut;
+  spawnHookProcess?: (modulePath: string) => HookProcess;
 }): KeyHookShortcut {
   const { log } = options;
   // Lazy: only pull in electron's globalShortcut if the hook actually fails.
   const loadFallback =
     options.loadFallback ??
     (() => (require("electron") as typeof import("electron")).globalShortcut);
+  const spawnHookProcess =
+    options.spawnHookProcess ??
+    ((modulePath: string) => {
+      const { utilityProcess } = require("electron") as typeof import("electron");
+      return utilityProcess.fork(modulePath, [], {
+        serviceName: "WFHelper Key Hook",
+        stdio: "ignore",
+      }) as unknown as HookProcess;
+    });
   const bindings = new Map<string, Binding>();
 
-  let worker: Worker | null = null;
-  let stopBuffer: SharedArrayBuffer | null = null;
-  let fallback: FallbackShortcut | null = null; // set once we give up on the hook
+  let hookProcess: HookProcess | null = null;
+  let hookProcessSpawned = false;
+  let fallback: FallbackShortcut | null = null;
 
   function getFallback(): FallbackShortcut {
     if (!fallback) fallback = loadFallback();
@@ -55,14 +69,16 @@ export function createKeyHookShortcut(options: {
   }
 
   function pushWatch(): void {
-    worker?.postMessage({ type: "setWatch", watch: watchPayload() });
+    if (hookProcess && hookProcessSpawned) {
+      hookProcess.postMessage({ type: "setWatch", watch: watchPayload() });
+    }
   }
 
   // Give up on the hook: move existing bindings and route future calls to it.
   function switchToFallback(reason: string): void {
     if (fallback) return; // already fell back
     log.warn("[KeyHook] falling back to globalShortcut:", reason);
-    stopWorker();
+    stopHookProcess();
     const gs = getFallback();
     for (const [accelerator, b] of bindings) {
       try {
@@ -73,16 +89,21 @@ export function createKeyHookShortcut(options: {
     }
   }
 
-  function ensureWorker(): boolean {
+  function ensureHookProcess(): boolean {
     if (fallback) return false; // committed to fallback for this session
-    if (worker) return true;
+    if (hookProcess) return true;
     try {
-      stopBuffer = new SharedArrayBuffer(4);
-      Atomics.store(new Int32Array(stopBuffer), 0, 0);
-      worker = new Worker(path.join(__dirname, "keyHookWorker.js"), {
-        workerData: { stopBuffer, watch: watchPayload() },
+      const createdProcess = spawnHookProcess(path.join(__dirname, "keyHookWorker.js"));
+      hookProcess = createdProcess;
+      hookProcessSpawned = false;
+      createdProcess.on("spawn", () => {
+        if (hookProcess !== createdProcess) return;
+        hookProcessSpawned = true;
+        pushWatch();
       });
-      worker.on("message", (m: { type?: string; id?: string; message?: string }) => {
+      createdProcess.on("message", (...args: unknown[]) => {
+        const value = args[0];
+        const m = value as { type?: string; id?: string; message?: string };
         switch (m?.type) {
           case "hotkey":
             if (m.id) bindings.get(m.id)?.handler();
@@ -91,35 +112,37 @@ export function createKeyHookShortcut(options: {
             log.info("[KeyHook] low-level keyboard hook installed");
             break;
           case "error":
-            switchToFallback(m.message || "worker error");
+            if (hookProcess === createdProcess) switchToFallback(m.message || "process error");
             break;
         }
       });
-      worker.on("error", (err: Error) => {
-        worker = null;
-        switchToFallback(String(err));
+      createdProcess.on("error", (...args: unknown[]) => {
+        if (hookProcess !== createdProcess) return;
+        switchToFallback(args.map(String).join(": "));
       });
-      worker.on("exit", () => {
-        worker = null;
+      createdProcess.on("exit", (...args: unknown[]) => {
+        if (hookProcess !== createdProcess) return;
+        hookProcess = null;
+        hookProcessSpawned = false;
+        if (!fallback && bindings.size > 0) {
+          switchToFallback(`utility process exited (${Number(args[0])})`);
+        }
       });
       return true;
     } catch (err) {
-      worker = null;
+      hookProcess = null;
+      hookProcessSpawned = false;
       switchToFallback(String(err));
       return false;
     }
   }
 
-  function stopWorker(): void {
-    if (!worker) return;
-    if (stopBuffer) {
-      Atomics.store(new Int32Array(stopBuffer), 0, 1);
-      stopBuffer = null;
-    }
-    const w = worker;
-    worker = null;
-    const killTimer = setTimeout(() => void w.terminate().catch(() => {}), 1500);
-    w.once("exit", () => clearTimeout(killTimer));
+  function stopHookProcess(): void {
+    if (!hookProcess) return;
+    const child = hookProcess;
+    hookProcess = null;
+    hookProcessSpawned = false;
+    child.kill();
   }
 
   function register(accelerator: string, callback: () => void): boolean {
@@ -130,8 +153,8 @@ export function createKeyHookShortcut(options: {
       log.warn("[KeyHook] cannot map accelerator, skipping:", accelerator);
       return false;
     }
+    if (!ensureHookProcess()) return getFallback().register(accelerator, callback);
     bindings.set(accelerator, { handler: callback, parsed });
-    if (!ensureWorker()) return getFallback().register(accelerator, callback);
     pushWatch();
     return true;
   }
@@ -142,16 +165,12 @@ export function createKeyHookShortcut(options: {
       return;
     }
     if (!bindings.delete(accelerator)) return;
-    if (bindings.size === 0) {
-      stopWorker(); // no watched keys -> uninstall the hook entirely
-    } else {
-      pushWatch();
-    }
+    pushWatch();
   }
 
   function dispose(): void {
     bindings.clear();
-    stopWorker();
+    stopHookProcess();
     if (fallback) fallback.unregisterAll?.();
   }
 

@@ -7,6 +7,7 @@
     "preload-riven.ts",
     "preload-trade-notification.ts",
     "preload-arbi.ts",
+    "services/keyHookWorker.ts",
     "src/App.svelte",
     "src/modals/**/*.svelte",
     "src/views/**/*.svelte",
