@@ -101,15 +101,17 @@ describe("mastery progress", () => {
     expect(item?.status).toBe("progress");
   });
 
-  it("matches modular pet shells and Plexus aliases so they do not show as missing", () => {
+  it("credits modular pets to their model heads and lists no phantom chassis cards", () => {
     const progress = masteryHelper.computeMasteryProgress({
       MoaPets: [
         {
-          ItemType: "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetAPowerSuit",
+          ItemType: "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetPowerSuit",
           XP: suitXpForRank(30),
+          ModularParts: ["/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadLambeo"],
         },
         {
-          ItemType: "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetPowerSuit",
+          // Hound builds without ModularParts still credit via the suit-model alias.
+          ItemType: "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetAPowerSuit",
           XP: suitXpForRank(30),
         },
       ],
@@ -124,9 +126,11 @@ describe("mastery progress", () => {
 
     const byName = new Map(progress.items.map((item) => [item.name, item]));
 
-    expect(byName.get("Hound")?.status).toBe("mastered");
-    expect(byName.get("Moa")?.status).toBe("mastered");
+    expect(byName.get("Lambeo Moa")?.status).toBe("mastered");
+    expect(byName.get("Dorma Hound")?.status).toBe("mastered");
     expect(byName.get("Plexus")?.status).toBe("mastered");
+    expect(byName.has("Moa")).toBe(false);
+    expect(byName.has("Hound")).toBe(false);
   });
 
   it("scores sold K-Drives at suit rate so XP history cannot fake mastery", () => {

@@ -226,6 +226,17 @@ const MASTERABLE_UNIQUE_NAME_ALIASES: Record<string, string[]> = {
   "/Lotus/Types/Game/CrewShip/RailjackHarness": [
     "/Lotus/Types/Game/CrewShip/RailJack/DefaultHarness",
   ],
+  // Hound suits are model-specific; credit them to the model head when an
+  // inventory carries suit XP without ModularParts.
+  "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadA": [
+    "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetAPowerSuit",
+  ],
+  "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadB": [
+    "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetBPowerSuit",
+  ],
+  "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadC": [
+    "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetCPowerSuit",
+  ],
   "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon": [
     "/Lotus/Weapons/Tenno/Bayonet/TnBayonetMeleeWeapon",
   ],
@@ -431,9 +442,7 @@ interface AccountCompletionStats {
 }
 
 /** Star chart + intrinsic completion. Display only; totals from ExportRegions. */
-function computeAccountCompletion(
-  inventoryData: Record<string, unknown>,
-): AccountCompletionStats {
+function computeAccountCompletion(inventoryData: Record<string, unknown>): AccountCompletionStats {
   const regions = getRegionMastery();
 
   let normalTotal = 0;
@@ -650,6 +659,12 @@ function getExcludeReason(
     return isAmpPrismMasterableOverride({ name: name ?? undefined }, uniqueName)
       ? null
       : "training-amp";
+  }
+
+  // Modular pet chassis: mastery tracks the model head (Lambeo Moa, Bhaira
+  // Hound, ...), never the power suit the build is stored under.
+  if (/\/Pets\/(?:MoaPets\/MoaPet|ZanukaPets\/ZanukaPet[ABC])PowerSuit$/.test(uniqueName)) {
+    return "modular-pet-chassis";
   }
 
   // Name-based
