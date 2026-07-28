@@ -173,6 +173,14 @@ export function parseActiveMissionTag(line: string): string | null {
   return match ? match[1] : null;
 }
 
+// Extraction or abort ends the fissure; no orbiter line re-tags afterwards,
+// so the tier tag must not survive into the orbiter's relic picker.
+const MISSION_END_PATTERN = /Sys \[Info\]: EOM missionLocationUnlocked=|TopMenu\.lua: Abort:/;
+
+export function isMissionEndLine(line: string): boolean {
+  return MISSION_END_PATTERN.test(line);
+}
+
 
 interface ParsedLogTradeItem {
   displayName: string;
@@ -397,6 +405,8 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
     if (missionTag) {
       log.info("[EELog] activeMissionTag:", missionTag);
       activeMissionTagCallback(missionTag);
+    } else if (isMissionEndLine(line)) {
+      activeMissionTagCallback("EndOfMission");
     }
   }
 

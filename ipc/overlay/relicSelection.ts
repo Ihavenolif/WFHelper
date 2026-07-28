@@ -16,6 +16,7 @@ const RECOMMENDATION_CACHE_TTL_MS = 10_000;
 const MIN_EELOG_TRIGGER_GAP_MS = 900;
 /** Max time for the OCR era-detection pass before falling back to desktop filter hint. */
 const ERA_DETECTION_TIMEOUT_MS = 1500;
+const ERA_DETECTION_RETRY_DELAY_MS = 700;
 /** Suppress overlay reopen for this long after an explicit close to prevent flicker. */
 const REOPEN_SUPPRESS_AFTER_CLOSE_MS = 3_000;
 
@@ -688,15 +689,29 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
         eraConfidence = 0.75;
         log.info(`[RelicSelection] using desktop tier hint without OCR: ${desktopTierHint}`);
       } else {
-        const eraDetection =
+        const detectEra =
           typeof rewardScanner.detectRelicSelectionEra === "function"
-            ? await rewardScanner.detectRelicSelectionEra({
-                timeoutMs: ERA_DETECTION_TIMEOUT_MS,
-                preferredDisplayId,
-              })
+            ? rewardScanner.detectRelicSelectionEra
             : null;
+        let eraDetection = detectEra
+          ? await detectEra({ timeoutMs: ERA_DETECTION_TIMEOUT_MS, preferredDisplayId })
+          : null;
 
         if (scanToken !== activeScanToken) return;
+
+        // The first capture after app start can come back empty (capture/OCR
+        // cold start) - one delayed retry before dropping the era filter.
+        if (detectEra && eraDetection && !normalizeEra(eraDetection.era || null)) {
+          log.info("[RelicSelection] era read empty, retrying once");
+          await new Promise((resolve) => setTimeout(resolve, ERA_DETECTION_RETRY_DELAY_MS));
+          if (scanToken !== activeScanToken) return;
+          const retryDetection = await detectEra({
+            timeoutMs: ERA_DETECTION_TIMEOUT_MS,
+            preferredDisplayId,
+          });
+          if (scanToken !== activeScanToken) return;
+          if (retryDetection) eraDetection = retryDetection;
+        }
 
         if (eraDetection?.sourceDisplayId) {
           windows.setAnchorMeta({ sourceDisplayId: eraDetection.sourceDisplayId });

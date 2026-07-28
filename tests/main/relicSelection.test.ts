@@ -262,4 +262,34 @@ describe("relic selection planner", () => {
     expect(ocrSpy).toHaveBeenCalled();
     expect(lastRecommendation().rows?.map((row) => row.label)).toEqual(["1x Lith Test Intact"]);
   });
+
+  it("mission end clears the fissure tag so the next pick trusts OCR again", async () => {
+    const { controller, lastRecommendation } = makeTwoEraController();
+
+    controller.setActiveMissionTag("VoidT6"); // omnia fissure
+    await controller.onRelicSelectionTrigger("manual");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    expect(lastRecommendation().era).toBe("omnia");
+
+    // extraction/abort routes the EndOfMission sentinel through the same callback
+    controller.setActiveMissionTag("EndOfMission");
+    controller.resetMissionTier();
+    await controller.onRelicSelectionTrigger("manual");
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(lastRecommendation().era).toBe("lith");
+    expect(lastRecommendation().rows?.map((row) => row.label)).toEqual(["1x Lith Test Intact"]);
+  });
+
+  it("retries an empty era read once before sending unfiltered rows", async () => {
+    const { controller, ocrSpy, lastRecommendation } = makeTwoEraController();
+    ocrSpy.mockResolvedValueOnce({ era: null, confidence: 0 });
+
+    await controller.onRelicSelectionTrigger("manual");
+    await new Promise((resolve) => setTimeout(resolve, 900));
+
+    expect(ocrSpy).toHaveBeenCalledTimes(2);
+    const payload = lastRecommendation();
+    expect(payload.era).toBe("lith");
+    expect(payload.rows?.map((row) => row.label)).toEqual(["1x Lith Test Intact"]);
+  });
 });
