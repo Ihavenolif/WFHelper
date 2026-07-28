@@ -31,7 +31,7 @@ function fixtureOrders(): { sell: unknown[]; buy: unknown[] } {
 }
 
 test.describe("Market tab (fixture mode)", () => {
-  test.setTimeout(120_000);
+  test.setTimeout(240_000);
 
   let app: ElectronApplication;
   let page: Page;
@@ -55,9 +55,11 @@ test.describe("Market tab (fixture mode)", () => {
     page = await mainWindow(app);
 
     // Fresh sandbox starts on the setup view; flag it done and reload.
+    // Cold CI runners need the same generous boot timeouts as smoke.spec.
+    await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
     await page.evaluate(() => localStorage.setItem("setup-completed-v2", "1"));
     await page.reload();
-    await expect(page.locator("#sidebar")).toBeVisible({ timeout: 20_000 });
+    await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
 
     await page.locator("#sidebar").getByText("Market", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "My Orders" })).toBeVisible({
@@ -95,10 +97,7 @@ test.describe("Market tab (fixture mode)", () => {
     await expect(priceInput).not.toBeVisible({ timeout: 15_000 });
 
     await expect(
-      page
-        .locator(".order-row", { hasText: "Fixture Item 1" })
-        .first()
-        .getByLabel("Listed price"),
+      page.locator(".order-row", { hasText: "Fixture Item 1" }).first().getByLabel("Listed price"),
     ).toHaveValue("11", { timeout: 15_000 });
   });
 
