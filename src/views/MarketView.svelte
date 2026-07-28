@@ -391,6 +391,23 @@
     orderModalState.set({ mode: "edit", order, hint: hint ?? null });
   }
 
+  /** Card stepper save: patch the store in place so the list doesn't resort/jump. */
+  async function inlineUpdateOrder(
+    order: WfmOrder,
+    updates: { platinum: number; quantity: number },
+  ): Promise<boolean> {
+    const result = await tradeInvoke("wfmUpdateOrder", order.id, updates);
+    if (hasError(result)) {
+      alert(`Update failed: ${result.error}`);
+      return false;
+    }
+    marketOrders.update((state) => ({
+      sell: state.sell.map((entry) => (entry.id === order.id ? { ...entry, ...updates } : entry)),
+      buy: state.buy.map((entry) => (entry.id === order.id ? { ...entry, ...updates } : entry)),
+    }));
+    return true;
+  }
+
   function selectOrder(order: WfmOrder): void {
     const item = marketOrderViewItems.find((entry) => entry.sourceOrderId === order.id);
     selectedOrderItemKey = item?.internalName ?? null;
@@ -682,6 +699,7 @@
                 onOpen={selectOrder}
                 onEdit={editOrder}
                 onDelete={deleteOrder}
+                onInlineSave={inlineUpdateOrder}
               />
             {/each}
           {/if}

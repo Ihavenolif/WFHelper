@@ -82,33 +82,62 @@ test.describe("Market tab (fixture mode)", () => {
     const firstRow = page.locator(".order-row", { hasText: "Fixture Item 1" }).first();
     await firstRow.getByRole("button", { name: "Edit" }).click();
 
+    const dialog = page.getByRole("dialog", { name: "Edit Order" });
     const priceInput = page.locator("#order-platinum");
     await expect(priceInput).toBeVisible();
     await expect(priceInput).toBeFocused();
     await expect(priceInput).toHaveValue("10");
 
-    await page.getByRole("button", { name: "Increase price by 1" }).click();
-    await page.getByRole("button", { name: "Increase price by 1" }).click();
+    await dialog.getByRole("button", { name: "Increase price by 1" }).click();
+    await dialog.getByRole("button", { name: "Increase price by 1" }).click();
     await expect(priceInput).toHaveValue("12");
-    await page.getByRole("button", { name: "Decrease price by 1" }).click();
+    await dialog.getByRole("button", { name: "Decrease price by 1" }).click();
     await expect(priceInput).toHaveValue("11");
 
     // Market hint from the row is carried into the modal.
-    await expect(page.getByText(/^Market: lowest sell/)).toBeVisible();
+    await expect(dialog.getByText(/^Market: lowest sell/)).toBeVisible();
 
-    await page.getByRole("button", { name: "Save Changes" }).click();
+    await dialog.getByRole("button", { name: "Save Changes" }).click();
     await expect(priceInput).not.toBeVisible({ timeout: 15_000 });
 
     // The refetched row shows the fixture-persisted price - no dialog stalled the flow.
     await expect(
-      page.locator(".order-row", { hasText: "Fixture Item 1" }).first().getByText("11"),
-    ).toBeVisible({ timeout: 15_000 });
+      page
+        .locator(".order-row", { hasText: "Fixture Item 1" })
+        .first()
+        .getByLabel("Listed price"),
+    ).toHaveValue("11", { timeout: 15_000 });
+  });
+
+  test("card steppers adjust price and quantity inline, without opening the panel", async () => {
+    const row = page.locator(".order-row", { hasText: "Fixture Item 3" }).first();
+    const priceValue = row.getByLabel("Listed price");
+    const qtyValue = row.getByLabel("Listed quantity", { exact: true });
+    await expect(priceValue).toHaveValue("12");
+
+    await row.getByRole("button", { name: "Increase price" }).click();
+    await row.getByRole("button", { name: "Increase price" }).click();
+    await expect(priceValue).toHaveValue("14");
+    await row.getByRole("button", { name: "Increase quantity" }).click();
+    await expect(qtyValue).toHaveValue("4");
+
+    // Editing must not select the item into the side panel.
+    await expect(page.getByText("Select an item to view WTS/WTB listings.")).toBeVisible();
+
+    const apply = row.getByRole("button", { name: "Apply changes" });
+    await apply.click();
+    await expect(apply).not.toBeVisible({ timeout: 15_000 });
+    await expect(priceValue).toHaveValue("14");
+    await expect(qtyValue).toHaveValue("4");
   });
 
   test("order-book panel is sticky and height-capped while the list scrolls", async () => {
-    await page.locator(".order-row", { hasText: "Fixture Item 2" }).first().click();
+    // Click the title area: the card center can land on a stepper arrow, which
+    // deliberately swallows clicks instead of selecting the item.
+    await page.locator('[title="Fixture Item 2"]').first().click();
     const heading = page.getByRole("heading", { name: "Market Listings" });
     await expect(heading).toBeVisible();
+    await expect(page.getByText("Fixture Item 2", { exact: true }).first()).toBeVisible();
 
     const aside = page.locator("aside", { has: heading });
     const maxHeight = await aside.evaluate((node) => getComputedStyle(node).maxHeight);
