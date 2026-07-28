@@ -84,8 +84,9 @@ describe("wfmContracts normalization", () => {
         },
       ],
     });
+    // Thumbs are rewritten to the WFHelper mirror (WFM challenge-gates /static/assets).
     expect(normalized[0]!.itemThumb).toBe(
-      "https://warframe.market/static/assets/items/images/en/thumbs/latron_prime_riven_mod.png",
+      "https://assets.wfhelper.com/wfm/items/images/en/thumbs/latron_prime_riven_mod.png",
     );
     expect(normalized[0]!.listedAt).toBe("2026-03-04T10:00:00.000Z");
     expect(normalized[0]!.updatedAt).toBe("2026-03-04T10:30:00.000Z");

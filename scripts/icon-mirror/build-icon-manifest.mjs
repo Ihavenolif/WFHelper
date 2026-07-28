@@ -63,7 +63,9 @@ function toFallbackUrl(sourceUrl) {
   const parsed = new URL(sourceUrl);
   if (parsed.hostname !== "browse.wf") return null;
   const contentHash = fallbackHashByPath.get(parsed.pathname);
-  return contentHash ? `https://content.warframe.com/PublicExport${parsed.pathname}!${contentHash}` : null;
+  return contentHash
+    ? `https://content.warframe.com/PublicExport${parsed.pathname}!${contentHash}`
+    : null;
 }
 
 function addUrl(urls, value) {
@@ -104,6 +106,44 @@ function collectItemDatabaseUrls(urls) {
   }
 }
 
+// WFM thumbs (the framed card art the app shows for mods/arcanes) are
+// challenge-gated on warframe.market - mirror them under stable /wfm/ keys.
+// Downloaded by download-wfm-thumbs.cjs (Electron), not the plain downloader.
+async function collectWfmThumbEntries() {
+  const { wfmThumbMirrorPath } = requireCompiled("config/shared/wfm.js");
+  const response = await fetch("https://api.warframe.market/v2/items", {
+    headers: {
+      Platform: "pc",
+      Language: "en",
+      Crossplay: "true",
+      Accept: "application/json",
+      "user-agent": "WFHelper icon mirror builder",
+    },
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) throw new Error(`WFM catalog HTTP ${response.status}`);
+  const json = await response.json();
+  const items = json?.data?.items || json?.data || [];
+  if (!Array.isArray(items) || items.length === 0) throw new Error("WFM catalog empty");
+
+  const byMirrorPath = new Map();
+  for (const item of items) {
+    const thumb = item?.i18n?.en?.thumb || item?.thumb;
+    if (typeof thumb !== "string" || !thumb.trim()) continue;
+    const sourceUrl = /^https?:\/\//i.test(thumb)
+      ? thumb.trim()
+      : `https://warframe.market/static/assets/${thumb.trim()}`;
+    const mirrorPath = wfmThumbMirrorPath(sourceUrl);
+    if (mirrorPath) byMirrorPath.set(mirrorPath, sourceUrl);
+  }
+  console.log(`[icon-mirror] WFM catalog: ${byMirrorPath.size} thumb entries`);
+  return [...byMirrorPath.entries()].sort().map(([mirrorPath, sourceUrl]) => ({
+    sourceUrl,
+    sourceHost: "warframe.market",
+    mirrorPath,
+  }));
+}
+
 function collectRelicDatabaseUrls(urls) {
   const relicService = requireCompiled("services/relicService.js");
   const relicDb = relicService.getRelicDatabase();
@@ -132,6 +172,10 @@ function writeHeaders() {
       "",
       "/icons/*",
       "  Cache-Control: public, max-age=31536000, immutable",
+      "",
+      "# hash-stripped keys: content updates in place, so no immutable here",
+      "/wfm/*",
+      "  Cache-Control: public, max-age=86400",
       "",
       "/manifest.json",
       "  Cache-Control: public, max-age=300",
@@ -190,6 +234,7 @@ const entries = [...urls].sort().map((sourceUrl) => {
     ...(fallbackUrl ? { fallbackUrl } : {}),
   };
 });
+entries.push(...(await collectWfmThumbEntries()));
 
 const hostCounts = entries.reduce((counts, entry) => {
   counts[entry.sourceHost] = (counts[entry.sourceHost] || 0) + 1;

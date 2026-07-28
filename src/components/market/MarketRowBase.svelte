@@ -11,6 +11,26 @@
   export let fullImageClass = "h-9 w-9 rounded-[var(--radius-md)] object-contain";
   export let compactBodyClass = "flex items-center gap-2.5 px-2.5 py-2";
   export let onOpen: () => void;
+  export let fallbackThumb: string | null = null;
+
+  // A dead thumb URL (mirror miss on a brand-new item) degrades to the
+  // fallback art, then to the no-thumb placeholder - never a broken-image glyph.
+  let thumbFailed = false;
+  let useFallbackThumb = false;
+  $: if (thumb) {
+    thumbFailed = false;
+    useFallbackThumb = false;
+  }
+  $: displayThumb = useFallbackThumb ? fallbackThumb : thumb;
+  $: showThumb = Boolean(displayThumb) && !thumbFailed;
+
+  function onThumbError(): void {
+    if (fallbackThumb && !useFallbackThumb && thumb !== fallbackThumb) {
+      useFallbackThumb = true;
+      return;
+    }
+    thumbFailed = true;
+  }
 
   function handleOpen(): void {
     onOpen();
@@ -54,12 +74,13 @@
     </div>
 
     <div class={compactBodyClass}>
-      {#if thumb}
+      {#if showThumb}
         <img
-          src={thumb}
+          src={displayThumb}
           alt={title}
           class="h-11 w-11 shrink-0 rounded-[var(--radius-md)] bg-black/30 object-contain"
           loading="lazy"
+          on:error={onThumbError}
         />
       {:else}
         <div class="h-11 w-11 shrink-0 rounded-[var(--radius-md)] bg-white/5"></div>
@@ -78,8 +99,14 @@
   >
     <slot name="fullStart" />
     <div class={fullMainClass}>
-      {#if thumb}
-        <img src={thumb} alt={title} class={fullImageClass} loading="lazy" />
+      {#if showThumb}
+        <img
+          src={displayThumb}
+          alt={title}
+          class={fullImageClass}
+          loading="lazy"
+          on:error={onThumbError}
+        />
       {:else}
         <div class="{fullImageClass} bg-white/5"></div>
       {/if}

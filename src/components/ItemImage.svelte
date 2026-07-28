@@ -4,10 +4,13 @@
   export let src: string | null = null;
   export let alt = "";
   export let cls = "item-img";
+  // Second-chance source (e.g. DE artwork when the mirrored WFM thumb 404s).
+  export let fallbackSrc: string | null = null;
 
   let lastSrc: string | null = null;
   let failed = false;
   let useFormaFallback = false;
+  let useFallbackSrc = false;
 
   const imageBase = "h-auto w-auto object-contain [image-rendering:auto]";
   const placeholderBase = "flex h-12 w-12 items-center justify-center text-text-muted opacity-30";
@@ -19,10 +22,13 @@
     lastSrc = src;
     failed = false;
     useFormaFallback = false;
+    useFallbackSrc = false;
   }
   $: effectiveSrc = useFormaFallback
     ? FORMA_ICON_URL
-    : src || (isFormaIcon ? FORMA_ICON_URL : null);
+    : useFallbackSrc
+      ? fallbackSrc
+      : src || (isFormaIcon ? FORMA_ICON_URL : null);
 
   $: mergedImageClass = `${imageBase} ${cls}`.trim();
   $: mergedPlaceholderClass = `${placeholderBase} ${cls}`.trim();
@@ -32,6 +38,10 @@
     if (isFormaIcon && !useFormaFallback && img && !img.src.endsWith("Forma.webp")) {
       useFormaFallback = true;
       failed = false;
+      return;
+    }
+    if (fallbackSrc && !useFallbackSrc && fallbackSrc !== src) {
+      useFallbackSrc = true;
       return;
     }
 

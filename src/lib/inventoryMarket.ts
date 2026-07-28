@@ -14,6 +14,7 @@ import {
   isRankedGroup,
   resolveRankedMaxRank,
 } from "../../config/shared/numeric.js";
+import { formatWfmAssetUrl } from "../../config/shared/wfm.js";
 import { rendererPriceCacheKey } from "../../config/shared/wfmCacheKeys.js";
 import { isExcludedRankedMarketItem } from "../../config/shared/wfmExclusions.js";
 
@@ -343,14 +344,17 @@ export function buildBaseInventoryItems(
       const canIndexMarket =
         !isRankedListingItem || (item.tradable === true && !excludedRankedItem);
       const marketSlug = canIndexMarket ? slugCandidate : null;
-      const marketThumb =
+      // formatWfmAssetUrl also heals persisted caches that still hold direct
+      // warframe.market URLs (challenge-gated since mid-2026) into mirror URLs.
+      const marketThumb = formatWfmAssetUrl(
         lookupByGameRef?.thumb ||
-        lookupByName?.thumb ||
-        lookupByGameRef?.icon ||
-        lookupByName?.icon ||
-        cachedMeta?.thumb ||
-        cachedMeta?.icon ||
-        null;
+          lookupByName?.thumb ||
+          lookupByGameRef?.icon ||
+          lookupByName?.icon ||
+          cachedMeta?.thumb ||
+          cachedMeta?.icon ||
+          null,
+      );
       const lookupMaxRank = toFinitePositiveInt(lookupByName?.maxRank);
       const resolvedMaxRank =
         isRankedListingItem && lookupMaxRank != null ? lookupMaxRank : item.maxRank;
@@ -447,7 +451,7 @@ export function buildInventoryViewItems(
         ? Number((ducats / platinum).toFixed(2))
         : null;
 
-    const iconFromMeta = metric?.thumb || metric?.icon || null;
+    const iconFromMeta = formatWfmAssetUrl(metric?.thumb || metric?.icon || null);
     const displayImageUrl = isRankedGroup(item.inventoryGroup)
       ? item.marketThumb || iconFromMeta || item.imageUrl || null
       : item.imageUrl || item.marketThumb || iconFromMeta || null;

@@ -43,6 +43,7 @@
     compact
     title={contract.itemName}
     {thumb}
+    fallbackThumb={RIVEN_TEMPLATE_URL}
     badgeLabel={badge}
     {badgeClass}
     {rankBadges}
@@ -87,7 +88,13 @@
     </svelte:fragment>
   </MarketRowBase>
 {:else}
-  <MarketRowBase title={contract.itemName} {thumb} {rankBadges} onOpen={() => onEdit(contract)}>
+  <MarketRowBase
+    title={contract.itemName}
+    {thumb}
+    fallbackThumb={RIVEN_TEMPLATE_URL}
+    {rankBadges}
+    onOpen={() => onEdit(contract)}
+  >
     <svelte:fragment slot="fullStart">
       <span class="h-[15px] w-[15px] shrink-0" aria-hidden="true"></span>
     </svelte:fragment>

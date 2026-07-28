@@ -100,7 +100,11 @@
     </svg>
   </button>
   <div class="item-img-wrap">
-    <ItemImage src={item.displayImageUrl} alt={item.name} />
+    <ItemImage
+      src={item.displayImageUrl}
+      fallbackSrc={item.imageUrl !== item.displayImageUrl ? item.imageUrl : null}
+      alt={item.name}
+    />
     {#if item.vaulted}<span class="vault-badge">V</span>{/if}
     {#if item.inventoryGroup === "incomplete_sets"}
       <span
