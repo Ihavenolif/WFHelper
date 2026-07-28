@@ -37,6 +37,7 @@ import {
   WFM_NOTIFICATION,
 } from "../config/shared/ipcChannels";
 import { confirmTradeMutation, tradeMutationDenied } from "./tradeMutationGate";
+import { registerWfmFixtures } from "./wfmFixtureIpc";
 
 const log = withScope("wfmIpc");
 
@@ -92,6 +93,8 @@ function _handleWfmAuthGiveUp(): void {
 const WFM_SLUG_RE = /^[a-z0-9_]+$/;
 
 function register(): void {
+  if (registerWfmFixtures()) return; // E2E-only stub replaced the whole surface
+
   handleAuthorized(WFM_SIGNIN, assertMainRendererSender, async (_event, payload) => {
     const creds = parseCredentials(payload);
     if (!creds) {
