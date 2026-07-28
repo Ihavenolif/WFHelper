@@ -111,3 +111,12 @@ jobs:
 
       - name: E2E smoke tests (Windows)
         run: pnpm exec playwright test --config playwright.config.ts
+
+      # Failure snapshots (error-context.md, traces) for post-mortems.
+      - name: Upload Playwright results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: test-results/
+          if-no-files-found: ignore

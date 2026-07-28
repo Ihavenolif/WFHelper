@@ -54,12 +54,32 @@ test.describe("Market tab (fixture mode)", () => {
     app = await electron.launch({ args: ["--no-sandbox", "."], env });
     page = await mainWindow(app);
 
+    // Renderer errors only surface in the CI log if we forward them.
+    page.on("console", (msg) => {
+      if (msg.type() === "error") console.log("[renderer console]", msg.text());
+    });
+    page.on("pageerror", (err) => console.log("[renderer pageerror]", String(err)));
+
     // Fresh sandbox starts on the setup view; flag it done and reload.
     // Cold CI runners need the same generous boot timeouts as smoke.spec.
     await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
     await page.evaluate(() => localStorage.setItem("setup-completed-v2", "1"));
     await page.reload();
-    await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
+    try {
+      await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
+    } catch (err) {
+      // Post-mortem for CI: which state did the reload land in?
+      const flag = await page
+        .evaluate(() => localStorage.getItem("setup-completed-v2"))
+        .catch(() => "<evaluate failed>");
+      const welcome = await page.getByRole("heading", { name: "Welcome to WFHelper" }).count();
+      const body = await page
+        .evaluate(() => document.body.innerHTML.slice(0, 1500))
+        .catch(() => "<evaluate failed>");
+      console.log(`[market e2e] no sidebar: setupFlag=${flag} welcomeHeadings=${welcome}`);
+      console.log(`[market e2e] body snippet: ${body}`);
+      throw err;
+    }
 
     await page.locator("#sidebar").getByText("Market", { exact: true }).click();
     await expect(page.getByRole("heading", { name: "My Orders" })).toBeVisible({
