@@ -90,8 +90,7 @@
   }
 
   function toggleSelectAll(): void {
-    const allSelected =
-      filteredRuns.length > 0 && filteredRuns.every((r) => selectedIds.has(r.id));
+    const allSelected = filteredRuns.length > 0 && filteredRuns.every((r) => selectedIds.has(r.id));
     const filteredIds = new Set(filteredRuns.map((r) => r.id));
     selectedIds = allSelected
       ? new Set([...selectedIds].filter((id) => !filteredIds.has(id)))
