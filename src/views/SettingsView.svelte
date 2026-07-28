@@ -554,7 +554,7 @@
       </div>
     </div>
   {:else if settingsTab === "appearance"}
-    <div class="settings-tab-grid py-3">
+    <div class="settings-tab-grid settings-masonry py-3">
       <AppearanceCard />
     </div>
   {:else if settingsTab === "overlay"}
