@@ -33,6 +33,7 @@
   import { titleFromSlug } from "../../config/shared/wfm.js";
   import type {
     MarketTab,
+    OrderModalHint,
     WfmContract,
     WfmContractAttribute,
     WfmOrder,
@@ -386,8 +387,8 @@
     switchTypeTab(type as MarketTab);
   }
 
-  function editOrder(order: WfmOrder): void {
-    orderModalState.set({ mode: "edit", order });
+  function editOrder(order: WfmOrder, hint?: OrderModalHint): void {
+    orderModalState.set({ mode: "edit", order, hint: hint ?? null });
   }
 
   function selectOrder(order: WfmOrder): void {

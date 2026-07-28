@@ -7,6 +7,8 @@
   export let onClose: () => void;
   /** Extra class on the outer overlay element (e.g. "comp-overlay"). */
   export let overlayClass: string = "";
+  /** Preferred element to focus on open; falls back to the first tabbable. */
+  export let initialFocus: (() => HTMLElement | null) | null = null;
 
   let overlayEl: HTMLDivElement;
   let previouslyFocused: HTMLElement | null = null;
@@ -62,8 +64,14 @@
   onMount(async () => {
     previouslyFocused = document.activeElement as HTMLElement | null;
     await tick();
-    // Focus the first tabbable inside the dialog, or the overlay itself
-    // if there's nothing tabbable yet (content renders next tick anyway).
+    // Focus the caller's preferred element, else the first tabbable inside the
+    // dialog, else the overlay itself (content renders next tick anyway).
+    const preferred = initialFocus?.() ?? null;
+    if (preferred) {
+      preferred.focus();
+      if (preferred instanceof HTMLInputElement) preferred.select();
+      return;
+    }
     const focusables = getFocusable();
     (focusables[0] ?? overlayEl)?.focus();
   });

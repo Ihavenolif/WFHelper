@@ -4,7 +4,7 @@
   import MarketRowBase from "./MarketRowBase.svelte";
   import { isRankedGroup } from "../../../config/shared/numeric.js";
   import type { InventoryViewItem } from "../../lib/inventoryMarket.js";
-  import type { WfmOrder } from "../../types/market.js";
+  import type { OrderModalHint, WfmOrder } from "../../types/market.js";
 
   export let order: WfmOrder;
   export let item: (InventoryViewItem & { sourceOrderId?: string }) | null = null;
@@ -12,7 +12,7 @@
   export let selected = false;
   export let onSelectChange: (orderId: string, checked: boolean) => void;
   export let onOpen: (order: WfmOrder) => void;
-  export let onEdit: (order: WfmOrder) => void;
+  export let onEdit: (order: WfmOrder, hint: OrderModalHint) => void;
   export let onDelete: (orderId: string) => void;
 
   $: orderKind = order.orderType === "buy" ? "WTB" : "WTS";
@@ -50,7 +50,7 @@
 
   function stopAndEdit(event: MouseEvent): void {
     event.stopPropagation();
-    onEdit(order);
+    onEdit(order, { wts: wtsLabel, wtb: wtbLabel, median: medianLabel });
   }
 
   function stopAndDelete(event: MouseEvent): void {

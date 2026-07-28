@@ -126,9 +126,17 @@ export interface WfmUpdateOrderInput {
   modRank?: number;
 }
 
+/** Market snapshot labels shown next to the price field while editing. */
+export interface OrderModalHint {
+  wts: string;
+  wtb: string;
+  median: string;
+}
+
 export interface OrderModalState {
   mode: "create" | "edit";
   order: WfmOrder | null;
+  hint?: OrderModalHint | null;
   draft?: {
     item?: WfmLookupItem | null;
     orderType?: OrderType;

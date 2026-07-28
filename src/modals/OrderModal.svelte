@@ -36,14 +36,29 @@
   let showRankField = false;
   let submitting = false;
   let errorMsg = "";
+  let platinumEl: HTMLInputElement | null = null;
+  let searchEl: HTMLInputElement | null = null;
 
   $: state = $orderModalState;
   $: isEdit = state?.mode === "edit";
   $: order = (state?.order || null) as WfmOrder | null;
   $: draft = state?.draft || null;
+  $: hint = isEdit ? (state?.hint ?? null) : null;
 
   $: if (state) {
     resetForm();
+  }
+
+  function stepPlatinum(delta: number): void {
+    const current = parseInt(String(platinum), 10);
+    const base = Number.isFinite(current) ? current : 0;
+    platinum = String(Math.min(99_999, Math.max(1, base + delta)));
+  }
+
+  function stepQuantity(delta: number): void {
+    const current = parseInt(String(quantity), 10);
+    const base = Number.isFinite(current) ? current : 1;
+    quantity = Math.min(999, Math.max(1, base + delta));
   }
 
   function resetForm(): void {
@@ -193,7 +208,11 @@
 </script>
 
 {#if state}
-  <ModalShell ariaLabel={isEdit ? "Edit Order" : "New Order"} onClose={close}>
+  <ModalShell
+    ariaLabel={isEdit ? "Edit Order" : "New Order"}
+    onClose={close}
+    initialFocus={() => (isEdit ? platinumEl : searchEl)}
+  >
     <div class="detail-panel order-modal-panel">
       <button type="button" class="detail-close" aria-label="Close order dialog" on:click={close}
         >&times;</button
@@ -241,6 +260,7 @@
                     id="order-item-search"
                     type="text"
                     bind:value={itemSearchQuery}
+                    bind:el={searchEl}
                     onInput={onSearchInput}
                     placeholder="Search items..."
                     autocomplete="off"
@@ -297,15 +317,36 @@
             <label for="order-platinum" class="text-sm font-medium text-text-secondary"
               >Price (platinum)</label
             >
-            <ThemedInput
-              id="order-platinum"
-              type="number"
-              min="1"
-              max="99999"
-              bind:value={platinum}
-              placeholder="e.g. 50"
-              required
-            />
+            <div class="flex items-stretch gap-1.5">
+              <ThemedInput
+                id="order-platinum"
+                type="number"
+                min="1"
+                max="99999"
+                bind:value={platinum}
+                bind:el={platinumEl}
+                placeholder="e.g. 50"
+                required
+                className="w-full"
+              />
+              <button
+                type="button"
+                class="btn-secondary w-9 shrink-0 px-0 text-base font-bold"
+                aria-label="Decrease price by 1"
+                on:click={() => stepPlatinum(-1)}>&minus;</button
+              >
+              <button
+                type="button"
+                class="btn-secondary w-9 shrink-0 px-0 text-base font-bold"
+                aria-label="Increase price by 1"
+                on:click={() => stepPlatinum(1)}>+</button
+              >
+            </div>
+            {#if hint}
+              <div class="text-xs text-text-secondary">
+                Market: lowest sell {hint.wts} &middot; highest buy {hint.wtb} &middot; median {hint.median}
+              </div>
+            {/if}
           </div>
 
           <!-- Quantity -->
@@ -313,14 +354,29 @@
             <label for="order-quantity" class="text-sm font-medium text-text-secondary"
               >Quantity</label
             >
-            <ThemedInput
-              id="order-quantity"
-              type="number"
-              min="1"
-              max="999"
-              bind:value={quantity}
-              required
-            />
+            <div class="flex items-stretch gap-1.5">
+              <ThemedInput
+                id="order-quantity"
+                type="number"
+                min="1"
+                max="999"
+                bind:value={quantity}
+                required
+                className="w-full"
+              />
+              <button
+                type="button"
+                class="btn-secondary w-9 shrink-0 px-0 text-base font-bold"
+                aria-label="Decrease quantity by 1"
+                on:click={() => stepQuantity(-1)}>&minus;</button
+              >
+              <button
+                type="button"
+                class="btn-secondary w-9 shrink-0 px-0 text-base font-bold"
+                aria-label="Increase quantity by 1"
+                on:click={() => stepQuantity(1)}>+</button
+              >
+            </div>
           </div>
 
           <!-- Mod rank (optional) -->
