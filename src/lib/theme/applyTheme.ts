@@ -131,7 +131,7 @@ function resolveSurfaceTokens(effects: ThemeEffects): {
       panelShadow: "none",
       controlBg: "color-mix(in srgb, var(--bg-raised) 72%, transparent)",
       controlBorder: "color-mix(in srgb, var(--border) 90%, transparent)",
-      backdropBlur: "blur(10px)",
+      backdropBlur: `blur(${effects.glassBlurPx}px)`,
       // modals float over dimmed content, so keep them mostly opaque for readability
       modalBg: "color-mix(in srgb, var(--bg-surface) 82%, transparent)",
     };

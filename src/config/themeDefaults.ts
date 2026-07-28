@@ -41,6 +41,7 @@ export const DEFAULT_EFFECTS: Readonly<ThemeEffects> = Object.freeze({
   cornerStyle: "soft",
   surfaceStyle: "full",
   glass: false,
+  glassBlurPx: 10,
   relicCardStyle: "ornate",
 });
 

@@ -42,6 +42,7 @@ export interface ThemeEffects {
   cornerStyle: ThemeCornerStyle;
   surfaceStyle: ThemeSurfaceStyle;
   glass: boolean;
+  glassBlurPx: number;
   relicCardStyle: RelicCardStyle;
 }
 

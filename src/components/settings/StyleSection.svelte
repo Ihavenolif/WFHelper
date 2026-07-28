@@ -26,7 +26,7 @@
   ];
 
   const densityOptions: ReadonlyArray<{ value: UiDensity; label: string }> = [
-    { value: "compact", label: "Compact cards" },
+    { value: "compact", label: "Cards" },
     { value: "row", label: "Rows" },
   ];
 
@@ -63,20 +63,42 @@
       </div>
     </ThemedControlCard>
 
-    <ThemedControlCard as="label">
-      <span class="text-text-secondary text-xs font-medium">
-        {$tr("appearance.glass")}
-        <span class="block text-xs text-text-muted font-normal mt-0.5"
-          >{$tr("appearance.glassHint")}</span
-        >
-      </span>
-      <input
-        class="accent-accent"
-        type="checkbox"
-        checked={effects.glass}
-        on:change={(e) =>
-          themeSettings.setEffects({ glass: (e.target as HTMLInputElement).checked })}
-      />
+    <ThemedControlCard>
+      <label class="flex cursor-pointer items-center justify-between gap-2.5">
+        <span class="text-text-secondary text-xs font-medium">
+          {$tr("appearance.glass")}
+          <span class="block text-xs text-text-muted font-normal mt-0.5"
+            >{$tr("appearance.glassHint")}</span
+          >
+        </span>
+        <input
+          class="accent-accent"
+          type="checkbox"
+          checked={effects.glass}
+          on:change={(e) =>
+            themeSettings.setEffects({ glass: (e.target as HTMLInputElement).checked })}
+        />
+      </label>
+      {#if effects.glass}
+        <div class="mt-2 flex items-center gap-2">
+          <input
+            type="range"
+            min="2"
+            max="32"
+            step="1"
+            class="w-full accent-accent"
+            aria-label="Glass blur strength"
+            value={effects.glassBlurPx}
+            on:input={(e) =>
+              themeSettings.setEffects({
+                glassBlurPx: Number((e.target as HTMLInputElement).value),
+              })}
+          />
+          <span class="w-9 shrink-0 text-right text-xs text-text-primary tabular-nums"
+            >{effects.glassBlurPx}px</span
+          >
+        </div>
+      {/if}
     </ThemedControlCard>
 
     <ThemedControlCard>
@@ -91,18 +113,20 @@
     </ThemedControlCard>
 
     <ThemedControlCard>
-      <div class="flex items-center justify-between gap-3">
-        <span class="text-text-secondary text-xs font-medium">
+      <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <span class="min-w-0 text-text-secondary text-xs font-medium">
           Market list density
           <span class="block text-xs text-text-muted font-normal mt-0.5">
             How Warframe.market orders and riven contracts are displayed.
           </span>
         </span>
-        <SegmentedControl
-          value={$marketDensity}
-          options={densityOptions}
-          onChange={(v) => marketDensity.set(v)}
-        />
+        <span class="shrink-0">
+          <SegmentedControl
+            value={$marketDensity}
+            options={densityOptions}
+            onChange={(v) => marketDensity.set(v)}
+          />
+        </span>
       </div>
     </ThemedControlCard>
   </div>

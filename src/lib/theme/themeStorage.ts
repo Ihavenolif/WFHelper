@@ -136,11 +136,17 @@ function asRelicCardStyle(value: unknown, fallback: RelicCardStyle): RelicCardSt
   return value === "ornate" || value === "plain" ? value : fallback;
 }
 
+function asBlurPx(value: unknown, fallback: number): number {
+  const parsed = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : NaN;
+  return Number.isNaN(parsed) ? fallback : Math.min(32, Math.max(2, parsed));
+}
+
 function normalizeEffects(rawEffects: Record<string, unknown>): ThemeEffects {
   return {
     cornerStyle: asCornerStyle(rawEffects.cornerStyle, DEFAULT_EFFECTS.cornerStyle),
     surfaceStyle: asSurfaceStyle(rawEffects.surfaceStyle, DEFAULT_EFFECTS.surfaceStyle),
     glass: typeof rawEffects.glass === "boolean" ? rawEffects.glass : DEFAULT_EFFECTS.glass,
+    glassBlurPx: asBlurPx(rawEffects.glassBlurPx, DEFAULT_EFFECTS.glassBlurPx),
     relicCardStyle: asRelicCardStyle(rawEffects.relicCardStyle, DEFAULT_EFFECTS.relicCardStyle),
   };
 }
