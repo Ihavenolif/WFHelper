@@ -11,8 +11,10 @@
     arbiDiskUsageBytes,
     arbiRuns,
     arbiRunsLoaded,
+    deleteArbiRun,
     loadArbiRuns,
     pendingArbiRunId,
+    updateArbiTags,
     upsertArbiRun,
   } from "../stores/arbiRuns.js";
   import {
@@ -29,7 +31,14 @@
 
   let filterMinVitus: number | null = null;
   let filterTag = "";
-  let filterType: "all" | "defense" | "interception" | "other" = "all";
+  let filterType: "all" | "defense" | "interception" | "disruption" | "other" = "all";
+  let filterMinRotations: number | null = null;
+  let filterMinDurationMin: number | null = null;
+  let filterSource: "all" | "live" | "imported" = "all";
+
+  let selectedIds = new Set<string>();
+  let massTagDraft = "";
+  let massBusy = false;
 
   $: selectedRun = selectedRunId ? ($arbiRuns.find((r) => r.id === selectedRunId) ?? null) : null;
 
@@ -44,14 +53,76 @@
       return false;
     }
     if (filterTag && !(run.tags ?? []).includes(filterTag)) return false;
+    if (filterMinRotations != null && run.rotations < filterMinRotations) return false;
+    if (filterMinDurationMin != null && run.durationSec < filterMinDurationMin * 60) return false;
+    if (filterSource !== "all" && run.source !== filterSource) return false;
     return true;
   });
-  $: filtersActive = filterType !== "all" || filterMinVitus != null || filterTag !== "";
+  $: filtersActive =
+    filterType !== "all" ||
+    filterMinVitus != null ||
+    filterTag !== "" ||
+    filterMinRotations != null ||
+    filterMinDurationMin != null ||
+    filterSource !== "all";
 
   function clearFilters(): void {
     filterMinVitus = null;
     filterTag = "";
     filterType = "all";
+    filterMinRotations = null;
+    filterMinDurationMin = null;
+    filterSource = "all";
+  }
+
+  // Drop selections that no longer resolve to a run (deleted elsewhere).
+  $: {
+    const alive = new Set($arbiRuns.map((r) => r.id));
+    if ([...selectedIds].some((id) => !alive.has(id))) {
+      selectedIds = new Set([...selectedIds].filter((id) => alive.has(id)));
+    }
+  }
+
+  function toggleSelect(id: string): void {
+    selectedIds = selectedIds.has(id)
+      ? new Set([...selectedIds].filter((x) => x !== id))
+      : new Set([...selectedIds, id]);
+  }
+
+  function toggleSelectAll(): void {
+    const allSelected =
+      filteredRuns.length > 0 && filteredRuns.every((r) => selectedIds.has(r.id));
+    const filteredIds = new Set(filteredRuns.map((r) => r.id));
+    selectedIds = allSelected
+      ? new Set([...selectedIds].filter((id) => !filteredIds.has(id)))
+      : new Set([...selectedIds, ...filteredIds]);
+  }
+
+  async function massDelete(): Promise<void> {
+    if (massBusy || selectedIds.size === 0) return;
+    if (!confirm($tr("arbi.confirmDeleteRuns", { count: String(selectedIds.size) }))) return;
+    massBusy = true;
+    try {
+      for (const id of selectedIds) await deleteArbiRun(id);
+      selectedIds = new Set();
+    } finally {
+      massBusy = false;
+    }
+  }
+
+  async function massAddTag(): Promise<void> {
+    const value = massTagDraft.trim();
+    if (massBusy || !value || selectedIds.size === 0) return;
+    massBusy = true;
+    try {
+      for (const id of selectedIds) {
+        const run = $arbiRuns.find((r) => r.id === id);
+        if (run) await updateArbiTags(id, [...(run.tags ?? []), value]);
+      }
+      massTagDraft = "";
+    } finally {
+      massBusy = false;
+    }
   }
 
   // Deep-link from the post-run overlay; also fires when the view is already open.
@@ -156,6 +227,41 @@
               <option value="other">{$tr("arbi.type.other")}</option>
             </select>
           </label>
+          <label class="flex flex-col gap-1">
+            <span class="uppercase tracking-wide text-text-muted"
+              >{$tr("arbi.filter.minRotations")}</span
+            >
+            <input
+              class="w-20 rounded border border-border bg-bg-raised px-2 py-1 text-text-primary outline-none focus:border-accent"
+              type="number"
+              min="0"
+              placeholder="0"
+              bind:value={filterMinRotations}
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="uppercase tracking-wide text-text-muted"
+              >{$tr("arbi.filter.minDuration")}</span
+            >
+            <input
+              class="w-20 rounded border border-border bg-bg-raised px-2 py-1 text-text-primary outline-none focus:border-accent"
+              type="number"
+              min="0"
+              placeholder="0"
+              bind:value={filterMinDurationMin}
+            />
+          </label>
+          <label class="flex flex-col gap-1">
+            <span class="uppercase tracking-wide text-text-muted">{$tr("arbi.filter.source")}</span>
+            <select
+              class="rounded border border-border bg-bg-raised px-2 py-1 text-text-primary outline-none focus:border-accent"
+              bind:value={filterSource}
+            >
+              <option value="all">{$tr("arbi.filter.allSources")}</option>
+              <option value="live">{$tr("arbi.source.live")}</option>
+              <option value="imported">{$tr("arbi.source.imported")}</option>
+            </select>
+          </label>
           {#if allTags.length > 0}
             <label class="flex flex-col gap-1">
               <span class="uppercase tracking-wide text-text-muted">{$tr("arbi.filter.tag")}</span>
@@ -186,8 +292,48 @@
             {/if}
           </div>
         </div>
+        {#if selectedIds.size > 0}
+          <div
+            class="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-accent/40 bg-accent/5 px-3 py-2 text-xs"
+          >
+            <span class="font-semibold text-text-primary"
+              >{$tr("arbi.selectedCount", { count: String(selectedIds.size) })}</span
+            >
+            <input
+              class="w-36 rounded border border-border bg-bg-raised px-2 py-1 text-text-primary outline-none focus:border-info"
+              type="text"
+              maxlength="32"
+              placeholder={$tr("arbi.tags.add")}
+              bind:value={massTagDraft}
+              on:keydown={(e) => e.key === "Enter" && massAddTag()}
+            />
+            <button
+              type="button"
+              class="cursor-pointer rounded border border-info/40 px-2 py-1 text-info transition-colors hover:bg-info/10 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={massBusy || !massTagDraft.trim()}
+              on:click={massAddTag}>{$tr("arbi.massTag")}</button
+            >
+            <button
+              type="button"
+              class="cursor-pointer rounded border border-danger/40 px-2 py-1 text-danger transition-colors hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={massBusy}
+              on:click={massDelete}>{$tr("arbi.massDelete")}</button
+            >
+            <button
+              type="button"
+              class="ml-auto cursor-pointer rounded border border-border px-2 py-1 text-text-secondary transition-colors hover:border-accent hover:text-accent"
+              on:click={() => (selectedIds = new Set())}>{$tr("arbi.filter.clear")}</button
+            >
+          </div>
+        {/if}
         <ThemedPanel className="p-2">
-          <ArbiRunList runs={filteredRuns} onSelect={(id) => (selectedRunId = id)} />
+          <ArbiRunList
+            runs={filteredRuns}
+            onSelect={(id) => (selectedRunId = id)}
+            selected={selectedIds}
+            onToggleSelect={toggleSelect}
+            onToggleSelectAll={toggleSelectAll}
+          />
         </ThemedPanel>
       {/if}
     {/if}

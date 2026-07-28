@@ -12,10 +12,16 @@
 
   export let runs: ArbiRunRecord[] = [];
   export let onSelect: (id: string) => void;
+  export let selected: Set<string> = new Set();
+  export let onToggleSelect: (id: string) => void = () => {};
+  export let onToggleSelectAll: () => void = () => {};
+
+  $: allSelected = runs.length > 0 && runs.every((r) => selected.has(r.id));
 
   function typeBadgeClass(run: ArbiRunRecord): string {
     if (run.missionType === "defense") return "text-warning border-warning/40";
     if (run.missionType === "interception") return "text-accent border-accent/40";
+    if (run.missionType === "disruption") return "text-accent border-accent/40";
     return "text-text-muted border-border";
   }
 
@@ -42,6 +48,16 @@
   <table class="w-full border-collapse text-sm">
     <thead>
       <tr class="border-b border-border text-left text-xs uppercase tracking-wide text-text-muted">
+        <th class="w-8 px-3 py-2">
+          <input
+            type="checkbox"
+            class="block h-3.5 w-3.5 cursor-pointer accent-[var(--accent)]"
+            checked={allSelected}
+            title={$t("arbi.selectAll")}
+            aria-label={$t("arbi.selectAll")}
+            on:change={onToggleSelectAll}
+          />
+        </th>
         <th class="px-3 py-2 font-semibold">{$t("arbi.col.date")}</th>
         <th class="px-3 py-2 font-semibold">{$t("arbi.col.node")}</th>
         <th class="px-3 py-2 font-semibold">{$t("arbi.col.type")}</th>
@@ -59,6 +75,16 @@
           class="cursor-pointer border-b border-border/50 transition-colors duration-100 hover:bg-bg-raised"
           on:click={() => onSelect(run.id)}
         >
+          <td class="px-3 py-2">
+            <input
+              type="checkbox"
+              class="block h-3.5 w-3.5 cursor-pointer accent-[var(--accent)]"
+              checked={selected.has(run.id)}
+              aria-label={$t("arbi.selectRun")}
+              on:click|stopPropagation
+              on:change={() => onToggleSelect(run.id)}
+            />
+          </td>
           <td class="whitespace-nowrap px-3 py-2 text-text-secondary"
             >{formatRunDate(run.startedAt)}</td
           >
