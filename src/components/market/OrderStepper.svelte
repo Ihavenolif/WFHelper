@@ -40,9 +40,9 @@
     {max}
     value={String(value)}
     aria-label="Listed {label}"
-    style="width: {String(value).length + 0.75}ch"
-    class="border-0 bg-transparent p-0 text-center font-display text-base font-bold leading-none outline-none
-           focus:rounded-sm focus:bg-white/10
+    style="width: {String(value).length + 1.5}ch"
+    class="rounded-sm border border-border/70 bg-black/25 p-0 text-center font-display text-base font-bold leading-none outline-none
+           focus:border-accent/70 focus:bg-white/10
            [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none
            [&::-webkit-outer-spin-button]:appearance-none
            {accent ? 'text-accent' : 'text-text-primary'}"
