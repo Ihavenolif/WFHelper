@@ -26,7 +26,7 @@
 <ThemedPanel
   className={variant === "mastery"
     ? "inline-flex flex-wrap items-stretch px-7 py-5"
-    : "flex flex-wrap items-stretch px-6 py-4"}
+    : "flex flex-wrap items-stretch gap-y-2 px-4 py-3"}
 >
   {#each items as item, index (item.key)}
     {#if index > 0}
@@ -42,20 +42,20 @@
       </div>
     {:else}
       <!-- min-w-fit so nowrap cells never paint into their neighbor -->
-      <div class="flex min-w-fit flex-1 items-center gap-3 px-5">
+      <div class="flex min-w-fit flex-1 items-center gap-2.5 px-3.5">
         {#if item.icon}
-          <img src={item.icon} alt="" class="h-9 w-9 shrink-0 object-contain opacity-90" />
+          <img src={item.icon} alt="" class="h-8 w-8 shrink-0 object-contain opacity-90" />
         {/if}
         <div class="flex flex-1 flex-col gap-1">
           <div class="flex items-baseline gap-2 flex-wrap">
             <!-- nowrap so labels can't collide with values in image captures -->
             <span
-              class="whitespace-nowrap text-base font-semibold uppercase tracking-wide text-text-primary"
+              class="whitespace-nowrap text-sm font-semibold uppercase tracking-wide text-text-primary"
             >
               {item.label}
             </span>
             <span
-              class="whitespace-nowrap text-2xl font-bold leading-none tracking-tight {toneClass(
+              class="whitespace-nowrap text-xl font-bold leading-none tracking-tight {toneClass(
                 item.tone,
               )}"
             >
