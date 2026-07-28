@@ -125,8 +125,10 @@ test.describe("Market tab (fixture mode)", () => {
     await expect(page.getByText("Select an item to view WTS/WTB listings.")).toBeVisible();
 
     const apply = row.getByRole("button", { name: "Apply changes" });
+    await expect(apply).toBeEnabled();
     await apply.click();
-    await expect(apply).not.toBeVisible({ timeout: 15_000 });
+    // Once the fixture persists the update the drafts are clean again.
+    await expect(apply).toBeDisabled({ timeout: 15_000 });
     await expect(priceValue).toHaveValue("14");
     await expect(qtyValue).toHaveValue("4");
   });

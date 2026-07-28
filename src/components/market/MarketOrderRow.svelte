@@ -151,24 +151,24 @@
               onChange={(next) => (draftPlatinum = next)}
             />
           </span>
-          {#if dirty}
-            <button
-              class="btn-success btn-sm h-6 !px-1.5 text-xs font-black"
-              title="Apply new price/quantity"
-              aria-label="Apply changes"
-              disabled={savingInline}
-              on:click={stopAndApply}>&check;</button
-            >
-          {/if}
         </div>
         <MarketOrderSummary {isRankedListing} {summaryRank} {wtsLabel} {wtbLabel} {medianLabel} />
       </div>
     </svelte:fragment>
     <svelte:fragment slot="compactActions">
-      <div class="flex shrink-0 items-center gap-2">
-        <button class="btn-sm btn-secondary h-8" title="Edit" on:click={stopAndEdit}>Edit</button>
+      <div class="flex shrink-0 items-center gap-1.5">
         <button
-          class="btn-sm btn-danger h-8 w-8 px-0 text-base font-black"
+          class="btn-success btn-sm h-7 w-7 px-0 text-sm font-black"
+          title="Apply new price/quantity"
+          aria-label="Apply changes"
+          disabled={!dirty || savingInline}
+          on:click={stopAndApply}>&check;</button
+        >
+        <button class="btn-sm btn-secondary h-7 px-2 text-xs" title="Edit" on:click={stopAndEdit}
+          >Edit</button
+        >
+        <button
+          class="btn-sm btn-danger h-7 w-7 px-0 text-sm font-black"
           title="Delete"
           aria-label="Delete"
           on:click={stopAndDelete}>X</button
@@ -235,18 +235,16 @@
             onChange={(next) => (draftPlatinum = next)}
           />
         </span>
-        {#if dirty}
-          <button
-            class="btn-success btn-sm h-6 !px-1.5 text-xs font-black"
-            title="Apply new price/quantity"
-            aria-label="Apply changes"
-            disabled={savingInline}
-            on:click={stopAndApply}>&check;</button
-          >
-        {/if}
-        <button class="btn-sm btn-secondary h-8" on:click={stopAndEdit}>Edit</button>
         <button
-          class="btn-sm btn-danger h-8 w-8 px-0 text-base font-black"
+          class="btn-success btn-sm h-7 w-7 px-0 text-sm font-black"
+          title="Apply new price/quantity"
+          aria-label="Apply changes"
+          disabled={!dirty || savingInline}
+          on:click={stopAndApply}>&check;</button
+        >
+        <button class="btn-sm btn-secondary h-7 px-2 text-xs" on:click={stopAndEdit}>Edit</button>
+        <button
+          class="btn-sm btn-danger h-7 w-7 px-0 text-sm font-black"
           title="Delete"
           aria-label="Delete"
           on:click={stopAndDelete}>X</button
