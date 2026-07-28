@@ -1,8 +1,6 @@
 /**
- * E2E-only WFM stub: when WFHELPER_WFM_FIXTURES points at an orders JSON file
- * ({ sell: [], buy: [] }), the market IPC surface is served from an in-memory
- * copy instead of the network, and the trade-mutation dialog is skipped so
- * Playwright can drive the edit flow. Refused in packaged builds.
+ * E2E-only WFM stub: WFHELPER_WFM_FIXTURES points at an orders JSON file and
+ * the market IPC surface serves it in-memory. Refused in packaged builds.
  */
 import fs from "node:fs";
 import { app } from "electron";
@@ -56,7 +54,6 @@ function loadFixtureOrders(file: string): FixtureOrders {
   };
 }
 
-/** Registers the stub surface and reports whether fixture mode is active. */
 export function registerWfmFixtures(): boolean {
   const file = process.env.WFHELPER_WFM_FIXTURES;
   if (!file) return false;

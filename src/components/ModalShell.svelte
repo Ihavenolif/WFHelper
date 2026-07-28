@@ -64,8 +64,7 @@
   onMount(async () => {
     previouslyFocused = document.activeElement as HTMLElement | null;
     await tick();
-    // Focus the caller's preferred element, else the first tabbable inside the
-    // dialog, else the overlay itself (content renders next tick anyway).
+    // Content renders next tick; the overlay is the last-resort focus target.
     const preferred = initialFocus?.() ?? null;
     if (preferred) {
       preferred.focus();

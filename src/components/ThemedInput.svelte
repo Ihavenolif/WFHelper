@@ -11,7 +11,7 @@
   export let className = "";
   export let onInput: (() => void) | null = null;
   export let onFocus: (() => void) | null = null;
-  /** Underlying input element, exposed for parents that need to focus/select. */
+  /** Underlying input element, for focus control. */
   export let el: HTMLInputElement | null = null;
 </script>
 
