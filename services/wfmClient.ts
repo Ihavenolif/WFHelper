@@ -218,7 +218,9 @@ function _solveChallengeInWindow(): Promise<boolean> {
           const now = Date.now();
           if (!jwt && now - lastCookieLog > 4_000) {
             lastCookieLog = now;
-            log.info(`[WFMClient] challenge pending, cookies: [${cookies.map((c) => c.name).join(", ")}]`);
+            log.info(
+              `[WFMClient] challenge pending, cookies: [${cookies.map((c) => c.name).join(", ")}]`,
+            );
           }
           if (jwt) {
             const cf = cookies.filter((c) => /^(cf_clearance|__cf)/i.test(c.name));
@@ -281,7 +283,8 @@ async function _reSolveClearance(label: string): Promise<boolean> {
   _clearanceUa = null;
   if (!(await _challengeSolver())) return false;
   const payload = _cookieJwt ? _decodeJwtPayload(_cookieJwt) : null;
-  if (typeof payload?.csrf_token === "string" && payload.csrf_token) _csrfToken = payload.csrf_token;
+  if (typeof payload?.csrf_token === "string" && payload.csrf_token)
+    _csrfToken = payload.csrf_token;
   return true;
 }
 
@@ -362,8 +365,13 @@ function _makeResponse(
 // Prefer Electron's Chromium net stack: it carries a real browser TLS
 // fingerprint, which WFM's bot filtering 403s node TLS for on flagged IPs.
 let _transportLogged = false;
+// Chromium's stack fails outright on setups node https survives (broken
+// system proxy, AV interception) - after one proven failure, stay on node.
+let _nodeTransportLatched = false;
+let _chromiumNetOverride: typeof import("electron").net | null | undefined;
 
 function _chromiumNet(): typeof import("electron").net | null {
+  if (_chromiumNetOverride !== undefined) return _chromiumNetOverride;
   try {
     const electron = require("electron") as typeof import("electron");
     if (electron?.net && electron.app?.isReady()) return electron.net;
@@ -373,13 +381,13 @@ function _chromiumNet(): typeof import("electron").net | null {
   return null;
 }
 
-function _request(
+async function _request(
   method: string,
   url: string,
   headers: Record<string, string>,
   body: string | null,
 ): Promise<WfmResponseLike> {
-  const net = _chromiumNet();
+  const net = _nodeTransportLatched ? null : _chromiumNet();
   if (!_transportLogged) {
     _transportLogged = true;
     log.info(`[WFMClient] transport: ${net ? "chromium" : "node"}`);
@@ -394,9 +402,18 @@ function _request(
       ? `${headers["Cookie"]}; ${_clearanceCookie}`
       : _clearanceCookie;
   }
-  return net
-    ? _chromiumRequest(net, method, url, headers, body)
-    : _nodeRequest(method, url, headers, body);
+  if (!net) return _nodeRequest(method, url, headers, body);
+  try {
+    return await _chromiumRequest(net, method, url, headers, body);
+  } catch (err) {
+    const message = normalizeErrorMessage(err);
+    if (!/net::ERR_/.test(message)) throw err;
+    log.warn(`[WFMClient] chromium transport failed (${message}) - retrying via node https`);
+    const res = await _nodeRequest(method, url, headers, body);
+    _nodeTransportLatched = true;
+    log.warn("[WFMClient] node transport latched for this session");
+    return res;
+  }
 }
 
 function _chromiumRequest(
@@ -455,7 +472,9 @@ function _chromiumRequest(
 
     req.on("error", settleErr);
     timeoutId = setTimeout(() => {
-      settleErr(new WfmApiError(`WFM request timeout after ${REQUEST_TIMEOUT_MS}ms`, "WFM_TIMEOUT"));
+      settleErr(
+        new WfmApiError(`WFM request timeout after ${REQUEST_TIMEOUT_MS}ms`, "WFM_TIMEOUT"),
+      );
       req.abort();
     }, REQUEST_TIMEOUT_MS);
 
@@ -611,8 +630,7 @@ async function applyMutationHeaders(
   // Double-submit: the header must carry the csrf_token claim of the SAME JWT
   // we present as the cookie - a token cached from another JWT mismatches.
   const claim = cookieJwt ? _decodeJwtPayload(cookieJwt)?.csrf_token : undefined;
-  const csrfToken =
-    typeof claim === "string" && claim ? claim : await _ensureCsrfToken();
+  const csrfToken = typeof claim === "string" && claim ? claim : await _ensureCsrfToken();
   const authorizationJwt = jwtForAuthorization === undefined ? cookieJwt : jwtForAuthorization;
   if (csrfToken && !headers["X-CSRFToken"]) headers["X-CSRFToken"] = csrfToken;
   if (cookieJwt && !headers["Cookie"]) headers["Cookie"] = `JWT=${cookieJwt}`;
@@ -774,6 +792,10 @@ export const __test__ = {
   setClearanceForTest(cookie: string | null, ua: string | null): void {
     _clearanceCookie = cookie;
     _clearanceUa = ua;
+  },
+  setChromiumNetForTest(net: typeof import("electron").net | null | undefined): void {
+    _chromiumNetOverride = net;
+    _nodeTransportLatched = false;
   },
   setChallengeSolverForTest(fn: (() => Promise<boolean>) | null): void {
     _challengeSolver = fn ?? _solveChallengeInWindow;
