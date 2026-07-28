@@ -44,6 +44,23 @@
   const nowClock = clockStore(1000);
   $: nowMs = $nowClock;
 
+  // The sidebar starts below the view header, so a pure 100vh calc either
+  // overflows the fold (unscrolled) or leaves a gap (stuck). Measure instead.
+  let asideEl: HTMLElement | null = null;
+  function updateAsideHeight(): void {
+    if (!asideEl) return;
+    if (window.innerWidth <= 1000) {
+      asideEl.style.height = "";
+      return;
+    }
+    const statusbar =
+      parseFloat(
+        getComputedStyle(document.documentElement).getPropertyValue("--statusbar-height"),
+      ) || 0;
+    const available = window.innerHeight - asideEl.getBoundingClientRect().top - statusbar - 12;
+    asideEl.style.height = `${Math.max(280, available)}px`;
+  }
+
   $: catalog = buildNodeCatalog(entries);
   $: searchState = buildSearchState(searchRaw, catalog);
   $: unmatchedTokens = searchUnmatchedFeedback(searchState);
@@ -62,6 +79,13 @@
 
   onMount(() => {
     void refresh();
+    updateAsideHeight();
+    window.addEventListener("resize", updateAsideHeight);
+    window.addEventListener("scroll", updateAsideHeight, true);
+    return () => {
+      window.removeEventListener("resize", updateAsideHeight);
+      window.removeEventListener("scroll", updateAsideHeight, true);
+    };
   });
 
   async function refresh(): Promise<void> {
@@ -174,7 +198,8 @@
   <!-- NODE SIDEBAR -->
   <aside
     data-tour="arbi-filters"
-    class="sticky top-0 flex min-w-0 flex-col gap-2 self-start h-[calc(100vh-var(--titlebar-height)-var(--statusbar-height)-3rem)] max-[1000px]:static max-[1000px]:h-auto"
+    bind:this={asideEl}
+    class="sticky top-0 flex min-w-0 flex-col gap-2 self-start max-[1000px]:static max-[1000px]:!h-auto"
   >
     <div class="flex items-center justify-between">
       <span class="text-xs font-bold uppercase tracking-[0.06em] text-text-secondary"

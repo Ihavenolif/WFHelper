@@ -20,11 +20,17 @@
   } from "../lib/world/useWorldView.js";
   import { parseIsoDate, timeTo } from "../lib/format.js";
   import {
+    CIRCUIT_HARD_ROTATION,
+    CIRCUIT_NORMAL_ROTATION,
     RELIC_ICON_PATHS,
     buildFeaturedPrimes,
     buildBaroOwnedSet,
+    circuitRotationIndex,
     resolveCircuitChoices,
+    resolveCircuitRotation,
+    type CircuitChoice,
   } from "../lib/world.js";
+  import type { ItemDbEntry, RawInventoryData } from "../types/inventory.js";
   import { overlaySettings } from "../stores/overlaySettings.js";
   import { activeItem } from "../stores/modals.js";
   import type { Invasion, SteelPathHonors } from "../types/world.js";
@@ -114,6 +120,33 @@
   $: duviriHard = (duviri.choices || []).find((c) => c.category === "hard")?.choices || [];
   $: circuitNormalItems = resolveCircuitChoices(duviriNormal, $itemDb, $inventoryData);
   $: circuitHardItems = resolveCircuitChoices(duviriHard, $itemDb, $inventoryData);
+
+  let circuitFullView = false;
+  $: circuitNormalIdx = circuitRotationIndex(CIRCUIT_NORMAL_ROTATION, duviriNormal);
+  $: circuitHardIdx = circuitRotationIndex(CIRCUIT_HARD_ROTATION, duviriHard);
+  $: circuitCanExpand = circuitNormalIdx >= 0 || circuitHardIdx >= 0;
+
+  function buildFullWeeks(
+    rotation: string[][],
+    idx: number,
+    db: Record<string, ItemDbEntry>,
+    inv: RawInventoryData | null,
+  ): Array<{ label: string; current: boolean; items: CircuitChoice[] }> {
+    if (idx < 0) return [];
+    const ordered = [...rotation.slice(idx), ...rotation.slice(0, idx)];
+    return resolveCircuitRotation(ordered, db, inv).map((items, i) => ({
+      label: i === 0 ? "This week" : i === 1 ? "Next week" : `In ${i} weeks`,
+      current: i === 0,
+      items,
+    }));
+  }
+
+  $: circuitNormalFull = circuitFullView
+    ? buildFullWeeks(CIRCUIT_NORMAL_ROTATION, circuitNormalIdx, $itemDb, $inventoryData)
+    : [];
+  $: circuitHardFull = circuitFullView
+    ? buildFullWeeks(CIRCUIT_HARD_ROTATION, circuitHardIdx, $itemDb, $inventoryData)
+    : [];
 
   // Recompute all countdowns from a single clock source.
   // This keeps seconds moving while staying on the World tab.
@@ -322,7 +355,7 @@
               Rotation ends in <strong>{times.varzia}</strong>
             </div>
             {#if featuredPrimes.length > 0}
-              <div class="flex gap-2.5 overflow-x-auto overflow-y-visible px-1 py-1">
+              <div class="-m-1 flex gap-2.5 overflow-x-auto p-2">
                 {#each featuredPrimes as p}
                   <IconButtonCard
                     name={p.name}
@@ -350,7 +383,17 @@
             collapsed={collapsed.circuit}
             onToggle={() => toggleSection("circuit")}
           >
-            {#each [{ label: "Normal rotation", items: circuitNormalItems, isSteelPath: false }, { label: "Steel Path rotation", items: circuitHardItems, isSteelPath: true }] as rot}
+            <svelte:fragment slot="actions">
+              {#if circuitCanExpand && !collapsed.circuit}
+                <button
+                  class="btn-secondary btn-sm"
+                  on:click={() => (circuitFullView = !circuitFullView)}
+                >
+                  {circuitFullView ? "Show current" : "Show full rotation"}
+                </button>
+              {/if}
+            </svelte:fragment>
+            {#each [{ label: "Normal rotation", items: circuitNormalItems, weeks: circuitNormalFull, isSteelPath: false }, { label: "Steel Path rotation", items: circuitHardItems, weeks: circuitHardFull, isSteelPath: true }] as rot}
               <div
                 class="mb-1 text-xs font-bold uppercase tracking-[0.06em] {rot.isSteelPath
                   ? 'text-warning'
@@ -358,21 +401,52 @@
               >
                 {rot.label}
               </div>
-              <div class="mb-2 flex gap-2 overflow-x-auto overflow-y-visible px-0.5 py-1">
-                {#each rot.items as item}
-                  <IconButtonCard
-                    name={item.name}
-                    imageUrl={item.imageUrl}
-                    owned={item.owned}
-                    onClick={() => openItemDetail(item.uniqueName)}
-                    size={80}
-                    hoverScale={108}
-                    borderWidth="1.5"
-                  />
-                {:else}
-                  <span class="text-sm text-text-secondary opacity-70">No data</span>
-                {/each}
-              </div>
+              {#if circuitFullView && rot.weeks.length > 0}
+                <div class="-mx-1.5 -mt-1 mb-1 flex gap-2.5 overflow-x-auto p-2">
+                  {#each rot.weeks as week}
+                    <div
+                      class="flex shrink-0 flex-col gap-1.5 rounded-[var(--radius-md)] border p-2 {week.current
+                        ? 'border-warning/60 bg-warning/5 shadow-[0_0_10px_rgba(245,166,35,0.25)]'
+                        : 'border-border/60'}"
+                    >
+                      <span
+                        class="text-[11px] font-semibold uppercase tracking-wide {week.current
+                          ? 'text-warning'
+                          : 'text-text-muted'}">{week.label}</span
+                      >
+                      <div class="flex gap-2">
+                        {#each week.items as item}
+                          <IconButtonCard
+                            name={item.name}
+                            imageUrl={item.imageUrl}
+                            owned={item.owned}
+                            onClick={() => openItemDetail(item.uniqueName)}
+                            size={80}
+                            hoverScale={108}
+                            borderWidth="1.5"
+                          />
+                        {/each}
+                      </div>
+                    </div>
+                  {/each}
+                </div>
+              {:else}
+                <div class="-mx-1.5 -mt-1 mb-1 flex gap-2 overflow-x-auto p-2">
+                  {#each rot.items as item}
+                    <IconButtonCard
+                      name={item.name}
+                      imageUrl={item.imageUrl}
+                      owned={item.owned}
+                      onClick={() => openItemDetail(item.uniqueName)}
+                      size={80}
+                      hoverScale={108}
+                      borderWidth="1.5"
+                    />
+                  {:else}
+                    <span class="text-sm text-text-secondary opacity-70">No data</span>
+                  {/each}
+                </div>
+              {/if}
             {/each}
           </CollapsibleSection>
         </div>

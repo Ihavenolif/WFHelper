@@ -226,11 +226,57 @@ export function buildFeaturedPrimes(
   return featured;
 }
 
-interface CircuitChoice {
+export interface CircuitChoice {
   name: string;
   imageUrl: string;
   owned: boolean;
   uniqueName: string;
+}
+
+/** Weekly warframe groups of the normal Circuit, in cycle order (wiki-sourced). */
+export const CIRCUIT_NORMAL_ROTATION: string[][] = [
+  ["Excalibur", "Trinity", "Ember"],
+  ["Loki", "Mag", "Rhino"],
+  ["Ash", "Frost", "Nyx"],
+  ["Saryn", "Vauban", "Nova"],
+  ["Nekros", "Valkyr", "Oberon"],
+  ["Hydroid", "Mirage", "Limbo"],
+  ["Mesa", "Chroma", "Atlas"],
+  ["Ivara", "Inaros", "Titania"],
+  ["Nidus", "Octavia", "Harrow"],
+  ["Gara", "Khora", "Revenant"],
+  ["Garuda", "Baruuk", "Hildryn"],
+];
+
+/** Weekly Incarnon Genesis groups of the Steel Path Circuit, in cycle order. */
+export const CIRCUIT_HARD_ROTATION: string[][] = [
+  ["Braton", "Lato", "Skana", "Paris", "Kunai"],
+  ["Boar", "Gammacor", "Angstrum", "Gorgon", "Anku"],
+  ["Bo", "Latron", "Furis", "Furax", "Strun"],
+  ["Lex", "Magistar", "Boltor", "Bronco", "Ceramic Dagger"],
+  ["Torid", "Dual Toxocyst", "Dual Ichor", "Miter", "Atomos"],
+  ["Ack & Brunt", "Soma", "Vasto", "Nami Solo", "Burston"],
+  ["Zylok", "Sibear", "Dread", "Despair", "Hate"],
+  ["Dera", "Sybaris", "Cestra", "Sicarus", "Okina"],
+  ["Vectis", "Stug", "Ballistica", "Destreza", "Obex"],
+];
+
+/**
+ * Week index the live choices belong to; -1 when they don't match any known
+ * group (DE changed the tables - callers should fall back to current-only).
+ */
+export function circuitRotationIndex(rotation: string[][], choices: string[]): number {
+  const set = new Set(choices.map((c) => c.toLowerCase()));
+  let best = -1;
+  let bestHits = 0;
+  rotation.forEach((week, i) => {
+    const hits = week.filter((n) => set.has(n.toLowerCase())).length;
+    if (hits > bestHits) {
+      bestHits = hits;
+      best = i;
+    }
+  });
+  return bestHits >= Math.ceil((rotation[best]?.length ?? 2) / 2) ? best : -1;
 }
 
 /**
@@ -244,7 +290,24 @@ export function resolveCircuitChoices(
   inventoryData: RawInventoryData | null,
 ): CircuitChoice[] {
   if (!choices.length || !itemDb) return [];
+  return circuitResolver(itemDb, inventoryData)(choices);
+}
 
+/** Resolve every week of a rotation with a single shared item-db lookup. */
+export function resolveCircuitRotation(
+  weeks: string[][],
+  itemDb: Record<string, ItemDbEntry>,
+  inventoryData: RawInventoryData | null,
+): CircuitChoice[][] {
+  if (!itemDb) return weeks.map(() => []);
+  const resolve = circuitResolver(itemDb, inventoryData);
+  return weeks.map(resolve);
+}
+
+function circuitResolver(
+  itemDb: Record<string, ItemDbEntry>,
+  inventoryData: RawInventoryData | null,
+): (names: string[]) => CircuitChoice[] {
   // Build name -> { uniqueName, imageUrl, category } lookup
   const byName = new Map<string, { uniqueName: string; imageUrl: string; category: string }>();
   for (const [uniqueName, entry] of Object.entries(itemDb)) {
@@ -288,13 +351,14 @@ export function resolveCircuitChoices(
 
   const WARFRAME_CATS = new Set(["warframe", "warframes", "suits"]);
 
-  return choices.map((name) => {
-    const match = byName.get(name.toLowerCase());
-    if (!match) return { name, imageUrl: "", owned: false, uniqueName: "" };
+  return (names) =>
+    names.map((name) => {
+      const match = byName.get(name.toLowerCase());
+      if (!match) return { name, imageUrl: "", owned: false, uniqueName: "" };
 
-    const isFrame = WARFRAME_CATS.has(match.category);
-    const owned = isFrame ? ownedSuits.has(match.uniqueName) : ownedWeapons.has(match.uniqueName);
+      const isFrame = WARFRAME_CATS.has(match.category);
+      const owned = isFrame ? ownedSuits.has(match.uniqueName) : ownedWeapons.has(match.uniqueName);
 
-    return { name, imageUrl: match.imageUrl, owned, uniqueName: match.uniqueName };
-  });
+      return { name, imageUrl: match.imageUrl, owned, uniqueName: match.uniqueName };
+    });
 }
