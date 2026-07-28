@@ -165,3 +165,7 @@ dist
 .env*
 !.env.example
 .wrangler/
+
+# local admin/ops scripts, not for the public repo
+
+scripts/
