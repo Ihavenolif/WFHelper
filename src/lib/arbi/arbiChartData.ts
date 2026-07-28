@@ -73,6 +73,11 @@ export function dpmSeries(stats: ArbiRunStats): number[] {
     stats.preciseStartSec ??
     stats.droneTimestamps[0] ??
     stats.lastActivitySec - stats.rewardTimestamps.length * 300;
+  // Imported logs can stamp the round start after the first reward (round 1's
+  // start line missing) - a clamped 10s window then yields absurd DPM.
+  if (start >= stats.rewardTimestamps[0]) {
+    start = stats.droneTimestamps[0] ?? stats.rewardTimestamps[0] - 300;
+  }
   const counts = dronesPerRotation(stats);
   return counts.map((count, i) => {
     const end = stats.rewardTimestamps[i];

@@ -73,6 +73,20 @@ describe("dpmSeries", () => {
   it("returns empty without rotations", () => {
     expect(dpmSeries(makeStats({ droneTimestamps: [1, 2] }))).toEqual([]);
   });
+
+  it("falls back to the first drone when the recorded start is after reward 1", () => {
+    const stats = makeStats({
+      preciseStartSec: 130,
+      droneTimestamps: [10, 20, 30, 70, 80, 110],
+      rewardTimestamps: [120, 240],
+      lastActivitySec: 240,
+    });
+    // start falls back to drone[0]=10: rotation 1 covers 6 drones in 110s,
+    // not 6 drones in a clamped 10s window (which read as 36 DPM).
+    const [r1, r2] = dpmSeries(stats);
+    expect(r1).toBeCloseTo(6 / (110 / 60), 5);
+    expect(r2).toBe(0);
+  });
 });
 
 describe("saturation helpers", () => {

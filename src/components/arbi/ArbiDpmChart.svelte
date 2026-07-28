@@ -30,9 +30,12 @@
   $: pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x},${p.y}`).join(" ");
 
   $: yStep = ((): number => {
-    if (range >= 20) return 5;
-    if (range >= 8) return 2;
-    return 1;
+    const target = range / 6;
+    const mag = Math.pow(10, Math.floor(Math.log10(Math.max(1, target))));
+    for (const mult of [1, 2, 5]) {
+      if (mag * mult >= target) return mag * mult;
+    }
+    return mag * 10;
   })();
   $: yTicks = ((): number[] => {
     const ticks: number[] = [];
