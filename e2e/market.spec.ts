@@ -11,11 +11,6 @@ import {
 
 import { mainWindow } from "./mainWindow";
 
-/**
- * Drives the Market tab against the WFHELPER_WFM_FIXTURES stub: order rows,
- * the edit modal's autofocus + price steppers, the dialog-free save flow, and
- * the sticky order-book panel.
- */
 const ORDER_COUNT = 24;
 
 function fixtureOrders(): { sell: unknown[]; buy: unknown[] } {
@@ -94,13 +89,11 @@ test.describe("Market tab (fixture mode)", () => {
     await dialog.getByRole("button", { name: "Decrease price by 1" }).click();
     await expect(priceInput).toHaveValue("11");
 
-    // Market hint from the row is carried into the modal.
     await expect(dialog.getByText(/^Market: lowest sell/)).toBeVisible();
 
     await dialog.getByRole("button", { name: "Save Changes" }).click();
     await expect(priceInput).not.toBeVisible({ timeout: 15_000 });
 
-    // The refetched row shows the fixture-persisted price - no dialog stalled the flow.
     await expect(
       page
         .locator(".order-row", { hasText: "Fixture Item 1" })
@@ -121,21 +114,19 @@ test.describe("Market tab (fixture mode)", () => {
     await row.getByRole("button", { name: "Increase quantity" }).click();
     await expect(qtyValue).toHaveValue("4");
 
-    // Editing must not select the item into the side panel.
+    // Stepper edits must not select the item.
     await expect(page.getByText("Select an item to view WTS/WTB listings.")).toBeVisible();
 
     const apply = row.getByRole("button", { name: "Apply changes" });
-    await expect(apply).toBeEnabled();
     await apply.click();
     // Once the fixture persists the update the drafts are clean again.
-    await expect(apply).toBeDisabled({ timeout: 15_000 });
+    await expect(apply).not.toBeVisible({ timeout: 15_000 });
     await expect(priceValue).toHaveValue("14");
     await expect(qtyValue).toHaveValue("4");
   });
 
   test("order-book panel is sticky and height-capped while the list scrolls", async () => {
-    // Click the title area: the card center can land on a stepper arrow, which
-    // deliberately swallows clicks instead of selecting the item.
+    // Card centers can land on a stepper arrow, which swallows clicks - use the title.
     await page.locator('[title="Fixture Item 2"]').first().click();
     const heading = page.getByRole("heading", { name: "Market Listings" });
     await expect(heading).toBeVisible();

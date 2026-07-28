@@ -391,7 +391,7 @@
     orderModalState.set({ mode: "edit", order, hint: hint ?? null });
   }
 
-  /** Card stepper save: patch the store in place so the list doesn't resort/jump. */
+  /** Patch in place - a refetch would resort the list mid-edit. */
   async function inlineUpdateOrder(
     order: WfmOrder,
     updates: { platinum: number; quantity: number },

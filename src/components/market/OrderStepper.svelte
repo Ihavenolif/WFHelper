@@ -1,5 +1,5 @@
 <script lang="ts">
-  /** Inline number control for order cards: typed value + stacked ▲▼ arrows. */
+  /** Inline number control: typed value + arrow steps. */
   export let value: number;
   export let min = 1;
   export let max = 99_999;
@@ -40,8 +40,8 @@
     {max}
     value={String(value)}
     aria-label="Listed {label}"
-    style="width: {String(value).length + 1.5}ch"
-    class="border-0 bg-transparent p-0 text-center font-display text-lg font-bold leading-none outline-none
+    style="width: {String(value).length + 0.75}ch"
+    class="border-0 bg-transparent p-0 text-center font-display text-base font-bold leading-none outline-none
            focus:rounded-sm focus:bg-white/10
            [&::-webkit-inner-spin-button]:m-0 [&::-webkit-inner-spin-button]:appearance-none
            [&::-webkit-outer-spin-button]:appearance-none
