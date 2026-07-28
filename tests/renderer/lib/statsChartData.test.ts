@@ -18,6 +18,7 @@ function entry(date: string, absDucats?: number): DailyStatEntry {
     endoDelta: 0,
     ducatsDelta: 0,
     ayaDelta: 0,
+    vitusDelta: 0,
     relicsOpened: 0,
     daysPlayed: 1,
     dailyTrades: 0,

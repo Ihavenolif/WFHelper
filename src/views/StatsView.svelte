@@ -183,7 +183,13 @@
   interface SessionSection {
     key: SessionStatKey;
     labelKey: MessageKey;
-    currentKey: "currentPlat" | "currentCredits" | "currentEndo" | "currentDucats" | "currentAya";
+    currentKey:
+      | "currentPlat"
+      | "currentCredits"
+      | "currentEndo"
+      | "currentDucats"
+      | "currentAya"
+      | "currentVitus";
   }
 
   const SESSION_SECTIONS: SessionSection[] = [
@@ -192,6 +198,7 @@
     { key: "ayaDelta", labelKey: "stats.aya", currentKey: "currentAya" },
     { key: "creditsDelta", labelKey: "stats.credits", currentKey: "currentCredits" },
     { key: "endoDelta", labelKey: "stats.endo", currentKey: "currentEndo" },
+    { key: "vitusDelta", labelKey: "stats.vitus", currentKey: "currentVitus" },
   ];
 
   const CHART_SECTIONS: Array<{ key: ChartKey; labelKey: MessageKey }> = [
@@ -200,6 +207,7 @@
     { key: "ayaDelta", labelKey: "stats.aya" },
     { key: "creditsDelta", labelKey: "stats.credits" },
     { key: "endoDelta", labelKey: "stats.endo" },
+    { key: "vitusDelta", labelKey: "stats.vitus" },
     { key: "relicsOpened", labelKey: "stats.relicsOpened" },
     { key: "dailyTrades", labelKey: "stats.dailyTrades" },
   ];
@@ -211,6 +219,7 @@
     ayaDelta: STAT_ICON_URLS.ayaDelta,
     creditsDelta: STAT_ICON_URLS.creditsDelta,
     endoDelta: STAT_ICON_URLS.endoDelta,
+    vitusDelta: STAT_ICON_URLS.vitusDelta,
     relicsOpened: STAT_ICON_URLS.relicsOpened,
     dailyTrades: STAT_ICON_URLS.dailyTrades,
   };

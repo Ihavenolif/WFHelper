@@ -41,6 +41,7 @@ export interface DailyStatEntry {
   endoDelta: number;
   ducatsDelta: number;    // net Void Ducat change (MiscItems/PrimeBucks)
   ayaDelta: number;       // net Aya (PrimeTokens) change
+  vitusDelta: number;     // net Vitus Essence change (MiscItems/Elitium)
   relicsOpened: number;   // relics consumed (LevelKeys net decrease, >=0)
   daysPlayed: number;     // 1 = played; 0 = no inventory data (imported gap)
   dailyTrades: number;    // number of trades detected or imported for this day
@@ -49,6 +50,7 @@ export interface DailyStatEntry {
   absEndo?: number;       // absolute endo balance at end of day
   absDucats?: number;     // absolute ducats balance at end of day
   absAya?: number;        // absolute aya balance at end of day
+  absVitus?: number;      // absolute vitus essence balance at end of day
 }
 
 export interface SessionStats {
@@ -57,10 +59,12 @@ export interface SessionStats {
   endoDelta: number;
   ducatsDelta: number;
   ayaDelta: number;
+  vitusDelta: number;
   currentPlat: number | null;
   currentCredits: number | null;
   currentEndo: number | null;
   currentDucats: number | null;
   currentAya: number | null;
+  currentVitus: number | null;
   hasData: boolean;
 }

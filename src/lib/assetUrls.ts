@@ -35,6 +35,7 @@ export const STAT_ICON_URLS = {
   ayaDelta: new URL("../../assets/icons/misc/aya.webp", import.meta.url).href,
   creditsDelta: CREDITS_ICON_URL,
   endoDelta: new URL("../../assets/Bounties/Endo.png", import.meta.url).href,
+  vitusDelta: new URL("../../assets/icons/misc/vitus.png", import.meta.url).href,
   relicsOpened: new URL("../../assets/world-icons/relic-lith.png", import.meta.url).href,
   dailyTrades: new URL("../../assets/icons/misc/trade.png", import.meta.url).href,
 } as const;

@@ -6,7 +6,8 @@ export type SessionStatKey =
   | "creditsDelta"
   | "endoDelta"
   | "ducatsDelta"
-  | "ayaDelta";
+  | "ayaDelta"
+  | "vitusDelta";
 export type ChartKey = SessionStatKey | "relicsOpened" | "dailyTrades";
 
 interface BarData {
@@ -53,6 +54,7 @@ const ABS_FIELD_MAP: Partial<Record<ChartKey, keyof DailyStatEntry>> = {
   endoDelta: "absEndo",
   ducatsDelta: "absDucats",
   ayaDelta: "absAya",
+  vitusDelta: "absVitus",
 };
 
 export function formatDelta(n: number, fmt: (abs: number) => string): string {
@@ -85,6 +87,7 @@ export const formatters: Record<ChartKey, (abs: number) => string> = {
   ayaDelta: fmtCount,
   creditsDelta: fmtCredits,
   endoDelta: fmtEndo,
+  vitusDelta: fmtCount,
   relicsOpened: fmtCount,
   dailyTrades: fmtCount,
 };
@@ -157,6 +160,8 @@ function pickNumericField(entry: DailyStatEntry, key: ChartKey): number {
       return entry.ducatsDelta;
     case "ayaDelta":
       return entry.ayaDelta;
+    case "vitusDelta":
+      return entry.vitusDelta ?? 0;
     case "relicsOpened":
       return entry.relicsOpened;
     case "dailyTrades":

@@ -173,6 +173,7 @@ export const en = {
   "stats.aya": "Aya",
   "stats.credits": "Credits",
   "stats.endo": "Endo",
+  "stats.vitus": "Vitus Essence",
   "stats.relicsOpened": "Relics Opened",
   "stats.dailyTrades": "Daily Trades",
   "stats.noDays": "No history yet.",

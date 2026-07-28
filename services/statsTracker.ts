@@ -14,12 +14,14 @@ let _baselineCredits: number | null = null;
 let _baselineEndo: number | null = null;
 let _baselineDucats: number | null = null;
 let _baselineAya: number | null = null;
+let _baselineVitus: number | null = null;
 
 let _currentPlat: number | null = null;
 let _currentCredits: number | null = null;
 let _currentEndo: number | null = null;
 let _currentDucats: number | null = null;
 let _currentAya: number | null = null;
+let _currentVitus: number | null = null;
 
 // Relic tracking: accumulate decreases in total LevelKeys count throughout the day
 let _lastRelicTotal: number | null = null;
@@ -37,6 +39,7 @@ let _resumedCreditsDelta = 0;
 let _resumedEndoDelta = 0;
 let _resumedDucatsDelta = 0;
 let _resumedAyaDelta = 0;
+let _resumedVitusDelta = 0;
 
 let _history: DailyStatEntry[] = [];
 const HISTORY_MAX_DAYS = 90;
@@ -95,6 +98,8 @@ function _upsertToday(): void {
       : 0);
   const ayaDelta = _resumedAyaDelta +
     (_currentAya !== null && _baselineAya !== null ? _currentAya - _baselineAya : 0);
+  const vitusDelta = _resumedVitusDelta +
+    (_currentVitus !== null && _baselineVitus !== null ? _currentVitus - _baselineVitus : 0);
 
   const entry: DailyStatEntry = {
     date: today,
@@ -103,6 +108,7 @@ function _upsertToday(): void {
     endoDelta,
     ducatsDelta,
     ayaDelta,
+    vitusDelta,
     relicsOpened: _todayRelicsOpened,
     daysPlayed: 1,
     dailyTrades: _todayDailyTrades,
@@ -112,6 +118,7 @@ function _upsertToday(): void {
   if (_currentEndo !== null) entry.absEndo = _currentEndo;
   if (_currentDucats !== null) entry.absDucats = _currentDucats;
   if (_currentAya !== null) entry.absAya = _currentAya;
+  if (_currentVitus !== null) entry.absVitus = _currentVitus;
 
   const idx = _history.findIndex((e) => e.date === today);
   if (idx >= 0) {
@@ -147,9 +154,10 @@ export function loadHistory(): void {
     }
     if (Array.isArray(entries)) {
       // Back-fill any fields missing from older schema so the shape is always complete
-      const backFillDefaults: Pick<DailyStatEntry, "ducatsDelta" | "ayaDelta" | "relicsOpened" | "daysPlayed" | "dailyTrades"> = {
+      const backFillDefaults: Pick<DailyStatEntry, "ducatsDelta" | "ayaDelta" | "vitusDelta" | "relicsOpened" | "daysPlayed" | "dailyTrades"> = {
         ducatsDelta: 0,
         ayaDelta: 0,
+        vitusDelta: 0,
         relicsOpened: 0,
         daysPlayed: 1,
         dailyTrades: 0,
@@ -187,6 +195,7 @@ export function loadHistory(): void {
         _resumedEndoDelta = todayEntry.endoDelta;
         _resumedDucatsDelta = todayEntry.ducatsDelta;
         _resumedAyaDelta = todayEntry.ayaDelta;
+        _resumedVitusDelta = todayEntry.vitusDelta;
       }
       log.info(`[StatsTracker] Loaded ${_history.length} history entries`);
     }
@@ -206,6 +215,8 @@ export function onInventoryData(data: Record<string, unknown>): void {
   const ducats  = _findMiscItemCount(data, "/Lotus/Types/Items/MiscItems/PrimeBucks");
   // PrimeTokens is the raw field name for Aya in the Warframe inventory JSON
   const aya     = _num(data.PrimeTokens);
+  // Vitus Essence's internal name is Elitium
+  const vitus   = _findMiscItemCount(data, "/Lotus/Types/Items/MiscItems/Elitium");
 
   // Relics (VoidProjection items) appear in LevelKeys for some inventory
   // export formats, but in modern Warframe exports they live in MiscItems.
@@ -225,11 +236,13 @@ export function onInventoryData(data: Record<string, unknown>): void {
     _resumedEndoDelta = 0;
     _resumedDucatsDelta = 0;
     _resumedAyaDelta = 0;
+    _resumedVitusDelta = 0;
     _baselinePlat = null;
     _baselineCredits = null;
     _baselineEndo = null;
     _baselineDucats = null;
     _baselineAya = null;
+    _baselineVitus = null;
   }
   if (_todayDateForTrades !== today) {
     _todayDailyTrades = 0;
@@ -260,12 +273,14 @@ export function onInventoryData(data: Record<string, unknown>): void {
   if (_baselineEndo    === null && endo    !== null) _baselineEndo    = endo;
   if (_baselineDucats  === null && ducats  !== null) _baselineDucats  = ducats;
   if (_baselineAya     === null && aya     !== null) _baselineAya     = aya;
+  if (_baselineVitus   === null && vitus   !== null) _baselineVitus   = vitus;
 
   _currentPlat    = plat;
   _currentCredits = credits;
   _currentEndo    = endo;
   _currentDucats  = ducats;
   _currentAya     = aya;
+  _currentVitus   = vitus;
 
   _upsertToday();
 }
@@ -319,13 +334,14 @@ export function importHistory(raw: unknown[]): number {
       endoDelta: _firstNum(r, "endoDelta"),
       ducatsDelta: _firstNum(r, "ducatsDelta"),
       ayaDelta: _firstNum(r, "ayaDelta"),
+      vitusDelta: _firstNum(r, "vitusDelta"),
       relicsOpened: _firstNum(r, "relicsOpened", "relicOpened"),
       daysPlayed: _num(r.daysPlayed) ?? 1,
       dailyTrades: _firstNum(r, "dailyTrades"),
     };
 
     // Store absolute values if provided by the import.
-    for (const k of ["absPlat", "absCredits", "absEndo", "absDucats", "absAya"] as const) {
+    for (const k of ["absPlat", "absCredits", "absEndo", "absDucats", "absAya", "absVitus"] as const) {
       const v = _num(r[k]);
       if (v !== null) entry[k] = v;
     }
@@ -355,7 +371,8 @@ export function getCurrentSession(): SessionStats {
     _currentCredits !== null ||
     _currentEndo !== null ||
     _currentDucats !== null ||
-    _currentAya !== null;
+    _currentAya !== null ||
+    _currentVitus !== null;
   return {
     platDelta: _resumedPlatDelta +
       (_currentPlat !== null && _baselinePlat !== null ? _currentPlat - _baselinePlat : 0),
@@ -371,11 +388,14 @@ export function getCurrentSession(): SessionStats {
         : 0),
     ayaDelta: _resumedAyaDelta +
       (_currentAya !== null && _baselineAya !== null ? _currentAya - _baselineAya : 0),
+    vitusDelta: _resumedVitusDelta +
+      (_currentVitus !== null && _baselineVitus !== null ? _currentVitus - _baselineVitus : 0),
     currentPlat:    _currentPlat,
     currentCredits: _currentCredits,
     currentEndo:    _currentEndo,
     currentDucats:  _currentDucats,
     currentAya:     _currentAya,
+    currentVitus:   _currentVitus,
     hasData,
   };
 }
