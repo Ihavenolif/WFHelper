@@ -527,31 +527,29 @@
           related assets are property of Digital Extremes Ltd.
         </p>
       </article>
+    </div>
 
-      <div class="settings-wide-actions">
-        <div class="flex flex-wrap items-center gap-2.5">
-          <button class="btn-secondary btn-sm" on:click={resetDefaults}
-            >{$tr("settings.resetDefaults")}</button
-          >
-          <button class="btn-secondary btn-sm" on:click={() => startTour()}
-            >Show feature tour</button
-          >
-          <button class="btn-secondary btn-sm" on:click={openScanDebugFolder}
-            >{$tr("settings.openScanDebug")}</button
-          >
-          <button class="btn-secondary btn-sm" on:click={openLogFolder}>Open log folder</button>
-          <button class="btn-secondary btn-sm" on:click={() => currentView.set("setup")}
-            >Redo setup</button
-          >
-          <span class="text-xs text-text-muted">Changes apply automatically.</span>
-        </div>
-
-        {#if statusMsg}
-          <p class="m-0 min-h-4 text-sm text-text-secondary" class:text-danger={statusError}>
-            {statusMsg}
-          </p>
-        {/if}
+    <div class="settings-wide-actions pb-3">
+      <div class="flex flex-wrap items-center gap-2.5">
+        <button class="btn-secondary btn-sm" on:click={resetDefaults}
+          >{$tr("settings.resetDefaults")}</button
+        >
+        <button class="btn-secondary btn-sm" on:click={() => startTour()}>Show feature tour</button>
+        <button class="btn-secondary btn-sm" on:click={openScanDebugFolder}
+          >{$tr("settings.openScanDebug")}</button
+        >
+        <button class="btn-secondary btn-sm" on:click={openLogFolder}>Open log folder</button>
+        <button class="btn-secondary btn-sm" on:click={() => currentView.set("setup")}
+          >Redo setup</button
+        >
+        <span class="text-xs text-text-muted">Changes apply automatically.</span>
       </div>
+
+      {#if statusMsg}
+        <p class="m-0 min-h-4 text-sm text-text-secondary" class:text-danger={statusError}>
+          {statusMsg}
+        </p>
+      {/if}
     </div>
   {:else if settingsTab === "appearance"}
     <div class="settings-tab-grid settings-masonry py-3">
@@ -746,24 +744,24 @@
           </label>
         </div>
       </article>
+    </div>
 
-      <div class="settings-wide-actions">
-        <div class="flex flex-wrap items-center gap-2.5">
-          <button class="btn-secondary btn-sm" on:click={resetDefaults}
-            >{$tr("settings.resetDefaults")}</button
-          >
-          <button class="btn-secondary btn-sm" on:click={testTrigger}
-            >{$tr("settings.testTrigger")}</button
-          >
-          <span class="text-xs text-text-muted">Changes apply automatically.</span>
-        </div>
-
-        {#if statusMsg}
-          <p class="m-0 min-h-4 text-sm text-text-secondary" class:text-danger={statusError}>
-            {statusMsg}
-          </p>
-        {/if}
+    <div class="settings-wide-actions pb-3">
+      <div class="flex flex-wrap items-center gap-2.5">
+        <button class="btn-secondary btn-sm" on:click={resetDefaults}
+          >{$tr("settings.resetDefaults")}</button
+        >
+        <button class="btn-secondary btn-sm" on:click={testTrigger}
+          >{$tr("settings.testTrigger")}</button
+        >
+        <span class="text-xs text-text-muted">Changes apply automatically.</span>
       </div>
+
+      {#if statusMsg}
+        <p class="m-0 min-h-4 text-sm text-text-secondary" class:text-danger={statusError}>
+          {statusMsg}
+        </p>
+      {/if}
     </div>
   {/if}
 </section>
@@ -855,11 +853,6 @@
   .settings-masonry > :global(article) {
     break-inside: avoid;
     margin-bottom: 0.85rem;
-  }
-
-  .settings-masonry > :global(.settings-wide-actions) {
-    column-span: all;
-    break-inside: avoid;
   }
 
   .settings-link {
