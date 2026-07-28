@@ -33,8 +33,18 @@ function readJson(filePath, fallback) {
   }
 }
 
-function isPng(bytes) {
-  return bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e;
+function sniffImageExt(bytes) {
+  if (bytes.length >= 4 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e) {
+    return ".png";
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes.toString("ascii", 0, 4) === "RIFF" &&
+    bytes.toString("ascii", 8, 12) === "WEBP"
+  ) {
+    return ".webp";
+  }
+  return null;
 }
 
 async function earnClearance(win, part) {
@@ -73,7 +83,11 @@ async function fetchThumb(win, sourceUrl) {
     return { ok: false, reason: `HTTP ${result.status}` };
   }
   const bytes = Buffer.from(result.base64, "base64");
-  if (!isPng(bytes)) return { ok: false, reason: "payload is not a PNG" };
+  const ext = sniffImageExt(bytes);
+  if (!ext) return { ok: false, reason: "payload is not a PNG/WEBP image" };
+  if (!sourceUrl.toLowerCase().endsWith(ext)) {
+    return { ok: false, reason: `payload is ${ext} but source URL is not` };
+  }
   return { ok: true, bytes };
 }
 
