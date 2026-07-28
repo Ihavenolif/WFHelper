@@ -674,7 +674,7 @@
                           {#each cd.absLine as pt}
                             {@const bar = cd.bars[pt.idx]}
                             {@const absVal = cd.absValues[pt.idx] ?? NaN}
-                            {#if bar && cd.realData[pt.idx] && bar.value !== 0}
+                            {#if bar && cd.realData[pt.idx] && (bar.value !== 0 || cd.absLine.length === 1)}
                               <button
                                 type="button"
                                 class="absolute w-3 h-3 p-0 rounded-full bg-bg-surface border-2 border-white/80 -translate-x-1/2 -translate-y-1/2 pointer-events-auto transition-[transform,box-shadow,border-color,background] duration-[0.12s] cursor-pointer hover:scale-[1.35] hover:border-white hover:bg-white/15 hover:shadow-[0_0_6px_rgba(255,255,255,0.35)]"

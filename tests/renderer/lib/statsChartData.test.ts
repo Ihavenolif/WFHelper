@@ -47,4 +47,15 @@ describe("barsForKey abs line", () => {
     expect(res.absLine![0].idx).toBeGreaterThan(0);
     expect(Number.isNaN(res.absValues[0])).toBe(true);
   });
+
+  it("renders axis and point when only today has a balance (newly tracked stat)", () => {
+    const hist = [entry(dayStr(0), 10)];
+    const res = barsForKey("ducatsDelta", hist, 7);
+
+    expect(res.hasAbsData).toBe(true);
+    expect(res.yTicks.length).toBeGreaterThan(0);
+    expect(res.absLine).not.toBeNull();
+    expect(res.absLine!.length).toBe(1);
+    expect(res.absLine![0].idx).toBe(res.bars.length - 1);
+  });
 });

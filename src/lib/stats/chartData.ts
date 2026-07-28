@@ -306,7 +306,8 @@ export function barsForKey(
     const validAbs = rawAbs.filter((v): v is number => v !== undefined);
     hasAbsData = validAbs.length > 0;
     absValues = rawAbs.map((v) => v ?? NaN);
-    if (validAbs.length >= 2) {
+    // >= 1: a newly tracked stat has only today's balance - still show it
+    if (validAbs.length >= 1) {
       const maxV = Math.max(...validAbs);
       const targetTicks = barH >= BAR_H_EXPAND ? 8 : 5;
       const nice = computeNiceTicks(maxV, targetTicks);
