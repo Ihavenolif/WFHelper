@@ -39,8 +39,9 @@ jobs:
           title="$TITLE"
           [ -z "$title" ] && title="$TAG"
           # jq escapes + truncates by codepoint; allowed_mentions keeps notes from pinging.
-          # Discord allows 4096 in an embed description; cut back to a line break
-          # so the post never ends mid-bullet.
+          # Plain content spans the full chat width (embeds cap at ~520px) but
+          # only allows 2000 chars; cut back to a line break so the post never
+          # ends mid-bullet.
           payload=$(jq -n \
             --arg title "$title" \
             --arg url "$URL" \
@@ -49,26 +50,21 @@ jobs:
             '
             ($body
               | if length == 0 then "A new version of WFHelper is available - see the release for details."
-                elif length > 3900 then
-                  (.[0:3900] | (rindex("\n") // 3900) as $cut | .[0:$cut])
+                elif length > 1700 then
+                  (.[0:1700] | (rindex("\n") // 1700) as $cut | .[0:$cut])
                   + "\n\n**[Full changelog →](" + $url + ")**"
                 else . end) as $desc
             | {
                 username: "WFHelper Releases",
-                content: ("**WFHelper " + $title + " is out** 🎉"
-                  + (if $role == "" then "" else " <@&" + $role + ">" end)),
-                allowed_mentions: (if $role == "" then { parse: [] } else { roles: [$role] } end),
-                embeds: [ {
-                  title: ("WFHelper " + $title),
-                  url: $url,
-                  description: $desc,
-                  color: 13936707,
-                  footer: { text: "Download at wfhelper.com" }
-                } ]
+                content: ("## [WFHelper " + $title + "](" + $url + ") is out 🎉"
+                  + (if $role == "" then "" else " <@&" + $role + ">" end)
+                  + "\n" + $desc
+                  + "\n-# [Release notes](" + $url + ") · Download at wfhelper.com"),
+                allowed_mentions: (if $role == "" then { parse: [] } else { roles: [$role] } end)
               }')
-          chars=$(printf '%s' "$payload" | jq -r '.embeds[0].description | length')
-          if [ "$chars" -gt 4096 ]; then
-            echo "::error::Embed description is $chars chars; Discord rejects over 4096."
+          chars=$(printf '%s' "$payload" | jq -r '.content | length')
+          if [ "$chars" -gt 2000 ]; then
+            echo "::error::Message content is $chars chars; Discord rejects over 2000."
             exit 1
           fi
           if [ "$dry_run" = true ]; then
@@ -78,7 +74,7 @@ jobs:
             else
               echo "No release role ping configured (DISCORD_RELEASE_ROLE_ID unset)."
             fi
-            echo "Payload built OK; embed description $chars chars."
+            echo "Payload built OK; message content $chars chars."
             exit 0
           fi
           curl -sS -f -X POST -H "Content-Type: application/json" \
