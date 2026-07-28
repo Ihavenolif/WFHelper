@@ -4,6 +4,7 @@
 	"private": true,
 	"scripts": {
 		"deploy": "wrangler deploy --env=\"\"",
+		"dau": "node scripts/dau.mjs",
 		"dev": "wrangler dev --env dev",
 		"start": "wrangler dev --env dev",
 		"test": "vitest",

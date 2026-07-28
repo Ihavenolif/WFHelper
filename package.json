@@ -44,6 +44,7 @@
     "test:keyhook": "node scripts/keyhook-regression/run.mjs",
     "test:e2e": "pnpm run build && playwright test --config playwright.config.ts",
     "backend:dev": "npm --prefix backend/worker run dev",
+    "backend:dau": "npm --prefix backend/worker run dau --",
     "backend:deploy": "npm --prefix backend/worker run deploy --",
     "backend:test": "npm --prefix backend/worker run test -- --run",
     "backend:typecheck": "npm --prefix backend/worker run typecheck",

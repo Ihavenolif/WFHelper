@@ -30,8 +30,9 @@ export function recordActiveUser(req: Request, env: Env, ctx?: ExecutionContext)
 				if ((await env.ITEM_META.get(key)) === null) {
 					await env.ITEM_META.put(key, '1', { expirationTtl: DAU_TTL_SEC });
 				}
-			} catch {
-				// Keep analytics failures off the request path.
+			} catch (err) {
+				// Keep analytics failures off the request path, but visible in tail.
+				console.log('[DAU] error', String(err));
 			}
 		})(),
 	);

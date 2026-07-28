@@ -18,7 +18,8 @@
     "e2e/**/*.ts",
     "scripts/**/*.cjs",
     "scripts/**/*.js",
-    "scripts/**/*.mjs"
+    "scripts/**/*.mjs",
+    "backend/worker/scripts/**/*.mjs"
   ],
   "project": ["**/*.{ts,js,mjs,cjs,svelte}"],
   "ignoreBinaries": ["powershell", "wrangler"],
