@@ -65,8 +65,7 @@ app talks to its own caching backend for warframe.market prices and icons, the
 public game-data sources listed below, and GitHub for updates. No crash
 reporting or telemetry is built into the app. Backend requests produce route,
 status, timing and item-slug observability records in Cloudflare/Grafana, plus
-an anonymous daily active-user count (a salted, day-scoped hash of the
-connecting IP; hashes are unlinkable across days and store nothing else).
+an anonymous daily active-user count.
 Overlay windows also request the Rajdhani and Barlow fonts from Google Fonts.
 Update checks are manual.
 
