@@ -17,9 +17,11 @@
     computeGroupDucatEv,
     configureRelicRuntimeCacheFingerprint,
     createRelicWarmupController,
+    QUALITY_MODES,
     RELIC_TIER_ORDER,
     evHasFreshNoData,
     getCachedEv,
+    highestOwnedQuality,
     parseOwnedRelics,
     relicGroupMatchesSearch,
   } from "../lib/relic.js";
@@ -72,7 +74,7 @@
     ["unvaulted", "Unvaulted"],
   ];
 
-  const RELIC_QUALITY_COLUMNS: RelicQuality[] = ["intact", "exceptional", "flawless", "radiant"];
+  const RELIC_QUALITY_COLUMNS = QUALITY_MODES;
   const RELIC_PREVIEW_REWARD_LIMIT = 6;
 
   function compareRelicTierThenName(a: RelicGroup, b: RelicGroup): number {
@@ -375,14 +377,8 @@
     if (selected && ownedCount(group, selected) > 0) {
       return selected;
     }
-
-    for (const quality of RELIC_QUALITY_COLUMNS) {
-      if (ownedCount(group, quality) > 0) {
-        return quality;
-      }
-    }
-
-    return null;
+    // A radiant in the vault beats defaulting to intact.
+    return highestOwnedQuality(RELIC_QUALITY_COLUMNS, (quality) => ownedCount(group, quality));
   }
 
   function setOwnedQuality(group: RelicGroup, quality: RelicQuality): void {

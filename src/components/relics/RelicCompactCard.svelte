@@ -1,7 +1,7 @@
 <script lang="ts">
   import ItemImage from "../ItemImage.svelte";
   import MarketMetricStrip from "../MarketMetricStrip.svelte";
-  import { fissureTierClass, RELIC_ICON_PATHS } from "../../lib/relic.js";
+  import { fissureTierClass, QUALITY_MODES, RELIC_ICON_PATHS } from "../../lib/relic.js";
   import type { RelicGroup, RelicQuality, RelicReward } from "../../types/relics.js";
   import type { RelicQualityMode } from "../../stores/relics.js";
 
@@ -25,7 +25,7 @@
   export let setOwnedQuality: (group: RelicGroup, quality: RelicQuality) => void;
   export let openRelic: (group: RelicGroup) => void;
 
-  const RELIC_QUALITY_COLUMNS: RelicQuality[] = ["intact", "exceptional", "flawless", "radiant"];
+  const RELIC_QUALITY_COLUMNS = QUALITY_MODES;
   const RELIC_QUALITY_LABEL: Record<RelicQuality, string> = {
     intact: "Intact",
     exceptional: "Exceptional",

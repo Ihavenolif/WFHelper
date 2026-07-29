@@ -8,7 +8,12 @@
   import WikiButton from "../components/WikiButton.svelte";
   import ComponentPanel from "../components/ComponentPanel.svelte";
   import DetailModalBase from "./DetailModalBase.svelte";
-  import { computeSquadEV, fissureTierClass, RELIC_ICON_PATHS } from "../lib/relic.js";
+  import {
+    computeSquadEV,
+    fissureTierClass,
+    highestOwnedQuality,
+    RELIC_ICON_PATHS,
+  } from "../lib/relic.js";
   import type {
     OwnedQualityCounts,
     RelicGroup,
@@ -59,7 +64,12 @@
 
   $: if (group && group !== currentGroup) {
     currentGroup = group;
-    activeQuality = qualities[0] || "intact";
+    // Default to the highest owned grade; fall back to the first defined quality.
+    const ownedNow = $relicOwnedCounts[group.key] || EMPTY_OWNED;
+    activeQuality =
+      highestOwnedQuality(qualities, (quality) => ownedNow[quality] || 0) ||
+      qualities[0] ||
+      "intact";
     void loadQuality(group, activeQuality);
   }
 

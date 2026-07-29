@@ -13,6 +13,17 @@ export const RELIC_TIER_ORDER: Record<string, number> = {
 
 export const QUALITY_MODES: RelicQuality[] = ["intact", "exceptional", "flawless", "radiant"];
 
+/** Highest owned grade, scanning best-first. Null when none owned. */
+export function highestOwnedQuality(
+  qualities: readonly RelicQuality[],
+  ownedCount: (quality: RelicQuality) => number,
+): RelicQuality | null {
+  for (let i = qualities.length - 1; i >= 0; i--) {
+    if (ownedCount(qualities[i]) > 0) return qualities[i];
+  }
+  return null;
+}
+
 export function fissureTierClass(tier: string = ""): string {
   const t = tier.toLowerCase();
   if (t.includes("lith")) return "lith";
