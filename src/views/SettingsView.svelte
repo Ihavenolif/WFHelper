@@ -490,7 +490,7 @@
           <div class="settings-credit-row">
             <span>Arbitration stats model</span>
             <button class="settings-link" on:click={() => openLink("https://svesk.github.io/arbi/")}
-              >svesk's arbi analyzer</button
+              >sves' arbi analyzer</button
             >
           </div>
           <div class="settings-credit-row">

@@ -1,8 +1,8 @@
 # WFHelper
 
-Unofficial Warframe companion app for Windows. Reads your inventory, prices it
-with live warframe.market data, scans relic rewards on screen and tracks your
-arbitration runs straight from EE.log.
+Unofficial Warframe companion app for Windows, with a Linux beta. Reads your
+inventory, prices it with live warframe.market data, scans relic rewards on
+screen and tracks your arbitration runs straight from EE.log.
 
 **[wfhelper.com](https://wfhelper.com)** — download, the full feature tour, and FAQ.
 
@@ -47,6 +47,36 @@ Download the latest `WFHelper-<version>-Setup.exe` from
 Windows SmartScreen may warn on first run because the installer is not
 code-signed: click "More info", then "Run anyway".
 
+### Linux (beta)
+
+Download `WFHelper-<version>.AppImage` from
+[Releases](https://github.com/WFHelper/WFHelper/releases), make it executable
+and run it:
+
+```
+chmod +x WFHelper-*.AppImage
+./WFHelper-*.AppImage
+```
+
+(Or in your file manager: right-click the file → Properties → Permissions →
+"Allow executing as program", then double-click it.)
+
+Good to know:
+
+- **Warframe through Steam (Proton)** on the same machine is expected - the app
+  finds the game's log inside the Proton prefix automatically (native Steam,
+  Flatpak and Snap installs).
+- **Inventory** is read directly from the running game - no helper download
+  needed on Linux.
+- **Wayland works out of the box** - the app runs via XWayland automatically so
+  overlays can sit on top of the game.
+- **Screen capture** - the first overlay scan of a session shows the system
+  screen-share dialog once; pick the monitor Warframe runs on.
+- **Instant in-game detection** (overlays reacting the moment relics crack) -
+  add `PROTON_LOG=1 %command%` to Warframe's launch options (Steam →
+  right-click Warframe → Properties → Launch Options). The setup wizard walks
+  you through it; without it, events arrive with a short delay.
+
 ### Inventory data
 
 The game client offers no local inventory API, so the first-run wizard offers
@@ -88,7 +118,7 @@ pnpm run dist:win   # build the NSIS installer
   ([warframe-items](https://github.com/WFCD/warframe-items)), drop tables
   ([drops.warframestat.us](https://drops.warframestat.us)) and world-state API
 - [browse.wf](https://browse.wf) - supplemental item icons
-- [svesk's arbi analyzer](https://svesk.github.io/arbi/) - the arbitration
+- [sves' arbi analyzer](https://svesk.github.io/arbi/) - the arbitration
   stats model this app's analyzer is ported from
 - [Sainan/warframe-api-helper](https://github.com/Sainan/warframe-api-helper) -
   inventory snapshot tool
