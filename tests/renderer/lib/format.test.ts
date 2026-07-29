@@ -43,6 +43,14 @@ describe("format helpers", () => {
     expect(formatNumber(2_200_000)).toBe("2.2M");
   });
 
+  it("handles unit thresholds without 1000.0K or trailing .0", () => {
+    expect(formatNumber(1_000)).toBe("1K");
+    expect(formatNumber(999_949)).toBe("999.9K");
+    expect(formatNumber(999_950)).toBe("1M");
+    expect(formatNumber(1_000_000)).toBe("1M");
+    expect(formatNumber(1_100_000)).toBe("1.1M");
+  });
+
   it("formats remaining duration for foundry cards", () => {
     const end = new Date(Date.now() + (49 * 3600 + 10 * 60) * 1000);
     expect(formatTimeRemaining(end)).toBe("2d 1h");

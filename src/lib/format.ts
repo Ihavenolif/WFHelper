@@ -55,9 +55,14 @@ export function timeToStrict(date: Date | null, nowMs: number = Date.now()): str
   return formatDurationMs(date.getTime() - nowMs, "strictCountdown");
 }
 
+function compactUnit(value: number): string {
+  return value.toFixed(1).replace(/\.0$/, "");
+}
+
 export function formatNumber(num: number): string {
-  if (num >= 1e6) return `${(num / 1e6).toFixed(1)}M`;
-  if (num >= 1e3) return `${(num / 1e3).toFixed(1)}K`;
+  // 999,950+ would render as "1000.0K" - bump to the next unit instead.
+  if (num >= 999_950) return `${compactUnit(num / 1e6)}M`;
+  if (num >= 1e3) return `${compactUnit(num / 1e3)}K`;
   return num.toLocaleString();
 }
 

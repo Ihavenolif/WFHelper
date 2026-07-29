@@ -1,17 +1,13 @@
 <script lang="ts">
   import type { CraftingTreeNode } from "../lib/craftingTree.js";
-  import { formatBuildTime } from "../lib/format.js";
+  import { formatBuildTime, formatNumber } from "../lib/format.js";
   import ItemImage from "./ItemImage.svelte";
 
   export let node: CraftingTreeNode;
 
   $: gotEnough = node.owned >= node.count;
   $: qtyLabel =
-    node.count >= 1000
-      ? `${Math.round(node.count / 1000)}K`
-      : node.count > 1
-        ? `${node.count}x`
-        : "";
+    node.count >= 1000 ? formatNumber(node.count) : node.count > 1 ? `${node.count}x` : "";
 </script>
 
 <div class="tree-node flex flex-col items-center">

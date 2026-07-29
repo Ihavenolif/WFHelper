@@ -3,7 +3,7 @@
 
   import type { CraftingTreeNode } from "../lib/craftingTree.js";
   import { computeCraftingSummary } from "../lib/craftingTree.js";
-  import { formatBuildTime } from "../lib/format.js";
+  import { formatBuildTime, formatNumber } from "../lib/format.js";
   import { CREDITS_ICON_URL } from "../lib/assetUrls.js";
   import CraftingTreeNodeCard from "./CraftingTreeNode.svelte";
   import ItemImage from "./ItemImage.svelte";
@@ -38,7 +38,7 @@
 
   $: creditsLabel =
     summary.totalCredits >= 1000
-      ? `${Math.round(summary.totalCredits / 1000)}K`
+      ? formatNumber(summary.totalCredits)
       : String(summary.totalCredits);
 
   function applyTreeFilters(
