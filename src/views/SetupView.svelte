@@ -19,6 +19,7 @@
   import type { RawInventoryData } from "../types/inventory.js";
   import type { HelperDownloadProgress, HelperStatus } from "../types/ipc.js";
   import SegmentedControl from "../components/SegmentedControl.svelte";
+  import GlassBlurControl from "../components/settings/GlassBlurControl.svelte";
   import ProtonLaunchOption from "../components/ProtonLaunchOption.svelte";
 
   type Step = "configure" | "inventory" | "downloading" | "done" | "overlays" | "error";
@@ -883,6 +884,23 @@
                   options={cornerOptions}
                   onChange={(cornerStyle) => themeSettings.setEffects({ cornerStyle })}
                 />
+              </div>
+
+              <div
+                class="rounded-lg border border-[var(--ui-panel-border)] bg-[var(--ui-control-bg)] px-3 py-3 [backdrop-filter:var(--ui-backdrop-blur)]"
+              >
+                <GlassBlurControl
+                  labelClass="flex cursor-pointer items-start justify-between gap-3"
+                >
+                  <div>
+                    <h3 class="m-0 font-display text-sm font-semibold text-text-primary">
+                      Glass blur
+                    </h3>
+                    <p class="mt-0.5 text-xs leading-snug text-text-muted">
+                      Frosted-glass panels. Uses real blur on larger panels only.
+                    </p>
+                  </div>
+                </GlassBlurControl>
               </div>
             </div>
           {:else if step === "inventory"}

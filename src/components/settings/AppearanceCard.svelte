@@ -14,7 +14,8 @@
   $: contrastSafe = $themeSettings.contrastSafeMode;
 </script>
 
-<article class="appearance-card {panelClass}">
+<!-- Clear sibling card stacking contexts. -->
+<article class="appearance-card relative z-20 {panelClass}">
   <div class="mb-2.5">
     <h3
       class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"

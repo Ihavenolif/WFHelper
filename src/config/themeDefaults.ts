@@ -37,11 +37,14 @@ export const DEFAULT_FONT_SIZES: Readonly<ThemeFontSizes> = Object.freeze({
   globalScale: 1.0,
 });
 
+export const GLASS_BLUR_MIN_PX = 2;
+export const GLASS_BLUR_MAX_PX = 24;
+
 export const DEFAULT_EFFECTS: Readonly<ThemeEffects> = Object.freeze({
   cornerStyle: "soft",
   surfaceStyle: "full",
   glass: false,
-  glassBlurPx: 10,
+  glassBlurPx: 5,
   relicCardStyle: "ornate",
 });
 

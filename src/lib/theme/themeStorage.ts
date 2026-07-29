@@ -14,6 +14,8 @@ import {
   DEFAULT_EFFECTS,
   DEFAULT_FONT_SIZES,
   DEFAULT_THEME,
+  GLASS_BLUR_MAX_PX,
+  GLASS_BLUR_MIN_PX,
 } from "../../config/themeDefaults.js";
 
 const STORAGE_KEY = "wf_theme_settings";
@@ -138,7 +140,9 @@ function asRelicCardStyle(value: unknown, fallback: RelicCardStyle): RelicCardSt
 
 function asBlurPx(value: unknown, fallback: number): number {
   const parsed = typeof value === "number" && Number.isFinite(value) ? Math.round(value) : NaN;
-  return Number.isNaN(parsed) ? fallback : Math.min(32, Math.max(2, parsed));
+  return Number.isNaN(parsed)
+    ? fallback
+    : Math.min(GLASS_BLUR_MAX_PX, Math.max(GLASS_BLUR_MIN_PX, parsed));
 }
 
 function normalizeEffects(rawEffects: Record<string, unknown>): ThemeEffects {

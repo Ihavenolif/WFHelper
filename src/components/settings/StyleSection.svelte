@@ -7,6 +7,7 @@
   import type { UiDensity } from "../../stores/uiDensity.js";
   import ThemedControlCard from "../ThemedControlCard.svelte";
   import SegmentedControl from "../SegmentedControl.svelte";
+  import GlassBlurControl from "./GlassBlurControl.svelte";
 
   const cornerOptions: Array<{ value: ThemeCornerStyle; labelKey: MessageKey }> = [
     { value: "sharp", labelKey: "appearance.cornerSharp" },
@@ -64,41 +65,14 @@
     </ThemedControlCard>
 
     <ThemedControlCard>
-      <label class="flex cursor-pointer items-center justify-between gap-2.5">
+      <GlassBlurControl>
         <span class="text-text-secondary text-xs font-medium">
           {$tr("appearance.glass")}
           <span class="block text-xs text-text-muted font-normal mt-0.5"
             >{$tr("appearance.glassHint")}</span
           >
         </span>
-        <input
-          class="accent-accent"
-          type="checkbox"
-          checked={effects.glass}
-          on:change={(e) =>
-            themeSettings.setEffects({ glass: (e.target as HTMLInputElement).checked })}
-        />
-      </label>
-      {#if effects.glass}
-        <div class="mt-2 flex items-center gap-2">
-          <input
-            type="range"
-            min="2"
-            max="32"
-            step="1"
-            class="w-full accent-accent"
-            aria-label="Glass blur strength"
-            value={effects.glassBlurPx}
-            on:input={(e) =>
-              themeSettings.setEffects({
-                glassBlurPx: Number((e.target as HTMLInputElement).value),
-              })}
-          />
-          <span class="w-9 shrink-0 text-right text-xs text-text-primary tabular-nums"
-            >{effects.glassBlurPx}px</span
-          >
-        </div>
-      {/if}
+      </GlassBlurControl>
     </ThemedControlCard>
 
     <ThemedControlCard>
