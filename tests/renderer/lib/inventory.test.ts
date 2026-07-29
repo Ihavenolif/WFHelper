@@ -768,6 +768,51 @@ describe("inventory parsing", () => {
     expect(mod?.equippedIn).toBeUndefined();
   });
 
+  it("flags mods as equipped when a gear config references their ItemId", () => {
+    const db: Record<string, ItemDbEntry> = {
+      "/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod": {
+        name: "Serration",
+        category: "Mods",
+      },
+      "/Lotus/Upgrades/Mods/Rifle/WeaponFireRateMod": {
+        name: "Speed Trigger",
+        category: "Mods",
+      },
+    };
+
+    const data = {
+      Upgrades: [
+        {
+          ItemType: "/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod",
+          ItemId: { $oid: "aaa111" },
+          UpgradeFingerprint: '{"lvl":5}',
+        },
+        {
+          ItemType: "/Lotus/Upgrades/Mods/Rifle/WeaponFireRateMod",
+          ItemId: { $oid: "bbb222" },
+          UpgradeFingerprint: '{"lvl":3}',
+        },
+      ],
+      LongGuns: [
+        {
+          ItemType: "/Lotus/Weapons/Tenno/Rifle/Rifle",
+          Configs: [{ Upgrades: ["aaa111", ""] }, { Upgrades: [] }],
+        },
+      ],
+    } as RawInventoryData;
+
+    const items = parseInventory(data, db);
+    const equippedMod = items.find(
+      (item) => item.internalName === "/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod",
+    );
+    const benchedMod = items.find(
+      (item) => item.internalName === "/Lotus/Upgrades/Mods/Rifle/WeaponFireRateMod",
+    );
+
+    expect(equippedMod?.equipped).toBe(true);
+    expect(benchedMod?.equipped).toBeUndefined();
+  });
+
   it("keeps all-parts focused on tradable build components", () => {
     const db: Record<string, ItemDbEntry> = {
       "/Lotus/Powersuits/Volt/VoltPrime": {

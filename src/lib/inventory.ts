@@ -42,6 +42,8 @@ import {
   preferGroup,
   mergeOptionalBoolean,
   mergeEquipContexts,
+  collectEquippedUpgradeIds,
+  entryInstanceId,
 } from "./inventory/entryNormalization.js";
 
 import { buildFullSetItems } from "./inventory/fullSets.js";
@@ -53,6 +55,7 @@ export function parseInventory(
   itemDb: Record<string, ItemDbEntry>,
 ): ParsedItem[] {
   const itemMap = new Map<string, ParsedItem>();
+  const equippedUpgradeIds = collectEquippedUpgradeIds(data);
 
   const toRankedInstanceKey = (
     baseInternalName: string,
@@ -115,8 +118,14 @@ export function parseInventory(
       "IsInstalled",
       "InUse",
     ]);
+    // Mods/arcanes have no boolean flag - equipment configs reference the
+    // equipped instance's ItemId instead.
+    const instanceId = entryInstanceId(entry);
+    const configEquipped = instanceId && equippedUpgradeIds.has(instanceId) ? true : undefined;
     const inferredEquipped =
-      equipped !== undefined ? equipped : equippedIn.length > 0 ? true : undefined;
+      equipped !== undefined
+        ? equipped
+        : (configEquipped ?? (equippedIn.length > 0 ? true : undefined));
 
     const displayName = canonicalBuildPartName(internalName, resolved.name);
 

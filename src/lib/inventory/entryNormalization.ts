@@ -97,6 +97,41 @@ export function extractEquipContexts(entry: RawInventoryEntry): string[] {
   return [...contexts].slice(0, 4);
 }
 
+/** Upgrade ItemIds referenced by any gear Config (all loadouts, PvP included). */
+export function collectEquippedUpgradeIds(data: unknown): Set<string> {
+  const ids = new Set<string>();
+  if (!data || typeof data !== "object") return ids;
+  for (const collection of Object.values(data as Record<string, unknown>)) {
+    if (!Array.isArray(collection)) continue;
+    for (const gear of collection) {
+      if (!gear || typeof gear !== "object") continue;
+      const configs = (gear as Record<string, unknown>).Configs;
+      if (!Array.isArray(configs)) continue;
+      for (const config of configs) {
+        if (!config || typeof config !== "object") continue;
+        for (const key of ["Upgrades", "PvpUpgrades"]) {
+          const refs = (config as Record<string, unknown>)[key];
+          if (!Array.isArray(refs)) continue;
+          for (const ref of refs) {
+            if (typeof ref === "string" && ref) ids.add(ref);
+          }
+        }
+      }
+    }
+  }
+  return ids;
+}
+
+export function entryInstanceId(entry: RawInventoryEntry): string | null {
+  const raw = (entry as Record<string, unknown>).ItemId;
+  if (typeof raw === "string" && raw) return raw;
+  if (raw && typeof raw === "object") {
+    const oid = (raw as Record<string, unknown>).$oid;
+    if (typeof oid === "string" && oid) return oid;
+  }
+  return null;
+}
+
 export function normalizeCollectionEntries(
   value: unknown,
   maxDepth = 4,
