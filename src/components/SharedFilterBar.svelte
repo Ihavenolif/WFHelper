@@ -243,6 +243,25 @@
         </div>
       </div>
 
+      <div
+        class="shared-chip-group"
+        title="Owned amount - hide single copies so you don't sell your only one"
+      >
+        <span class="shared-chip-label">Amount</span>
+        <div class="filter-tabs">
+          <button
+            class="filter-tab"
+            class:active={state.minimumAmount === 0}
+            on:click={() => updateSharedFilters(scope, { minimumAmount: 0 })}>Any</button
+          >
+          <button
+            class="filter-tab"
+            class:active={state.minimumAmount === 2}
+            on:click={() => updateSharedFilters(scope, { minimumAmount: 2 })}>&gt;1</button
+          >
+        </div>
+      </div>
+
       <div class="shared-chip-group" title="Set complete">
         <span class="shared-chip-label">Set complete</span>
         <div class="filter-tabs">

@@ -138,6 +138,7 @@ describe("inventoryMarket view mapping", () => {
         partType: "all",
         favorite: "all",
         minimumPlatinum: 0,
+        minimumAmount: 0,
         setComplete: "all",
         equipped: "all",
         leveledUp: "all",

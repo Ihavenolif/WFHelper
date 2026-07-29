@@ -3,6 +3,7 @@
 
   import ItemImage from "../ItemImage.svelte";
   import MarketMetricStrip from "../MarketMetricStrip.svelte";
+  import { NAV_ICON_URLS } from "../../lib/assetUrls.js";
   import type { InventoryViewItem } from "../../lib/inventoryMarket.js";
   import { isRankedGroup } from "../../../config/shared/numeric.js";
 
@@ -106,6 +107,14 @@
       alt={item.name}
     />
     {#if item.vaulted}<span class="vault-badge">V</span>{/if}
+    {#if item.orderPlaced}
+      <span
+        class="absolute top-1.5 left-1.5 inline-flex items-center justify-center rounded-full border border-border bg-black/50 p-1"
+        title="Listed on warframe.market"
+      >
+        <img src={NAV_ICON_URLS.market} alt="Listed on warframe.market" class="h-3 w-3" />
+      </span>
+    {/if}
     {#if item.inventoryGroup === "incomplete_sets"}
       <span
         class="absolute right-2 bottom-1.5 font-display text-base font-bold text-info drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"

@@ -172,6 +172,13 @@ export function matchesSharedFilters(item: FilterableItem, filters: SharedFilter
     return false;
   }
 
+  if (
+    filters.minimumAmount > 0 &&
+    (typeof item.amount !== "number" || item.amount < filters.minimumAmount)
+  ) {
+    return false;
+  }
+
   return true;
 }
 
