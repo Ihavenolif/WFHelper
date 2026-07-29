@@ -5,6 +5,18 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
+// Native Wayland cannot stack always-on-top windows over the game or read its
+// pixels; Proton renders Warframe under XWayland, so joining it there restores
+// both. DISPLAY present = XWayland exists. WFHELPER_NATIVE_WAYLAND=1 opts out.
+if (
+  process.platform === "linux" &&
+  (process.env.WAYLAND_DISPLAY || process.env.XDG_SESSION_TYPE === "wayland") &&
+  process.env.DISPLAY &&
+  process.env.WFHELPER_NATIVE_WAYLAND !== "1"
+) {
+  app.commandLine.appendSwitch("ozone-platform", "x11");
+}
+
 import { withScope } from "./services/logger";
 import { MAIN_WINDOW_CSP, PERMISSIONS_POLICY } from "./config/runtime/security";
 import * as windowSecurity from "./services/windowSecurity";
