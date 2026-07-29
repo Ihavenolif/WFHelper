@@ -479,6 +479,20 @@
     color: var(--text-muted);
   }
 
+  /* Filter rows pinned to the top of #content while the view scrolls.
+     Negative inline margins + matching padding bleed over #content's side
+     gutters so cards never peek out beside the pinned bar. */
+  .view-sticky-filters {
+    position: sticky;
+    /* -1.5rem = #content's top padding; top: 0 would pin a padding-band lower,
+       letting scrolled cards peek out above the bar. */
+    top: -1.5rem;
+    z-index: 15;
+    background: var(--bg-base);
+    margin-inline: -1.75rem;
+    padding: 0.5rem 1.75rem 0;
+  }
+
   /* CollapsibleSection (world-* naming is historical; used by several views) */
   .world-section-header {
     display: flex;

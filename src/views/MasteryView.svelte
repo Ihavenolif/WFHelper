@@ -287,8 +287,6 @@
     <h2>Mastery Helper</h2>
   </div>
 
-  <SharedFilterBar scope="mastery" sortOptions={MASTERY_SORT_OPTIONS} />
-
   {#if displayMasteryData}
     {@const stats = displayMasteryData.stats}
     {@const masteredPct = formatPercent(stats.mastered, stats.total)}
@@ -428,8 +426,8 @@
       </CollapsibleSection>
     </div>
 
-    <!-- Filters -->
-    <div class="grid gap-2 mb-3">
+    <div class="view-sticky-filters grid gap-2 mb-3">
+      <SharedFilterBar scope="mastery" sortOptions={MASTERY_SORT_OPTIONS} />
       <div class="flex items-end border-b border-white/[0.09]">
         <HeaderTabs
           options={categoryTabs}
