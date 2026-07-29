@@ -25,6 +25,7 @@ function perTradeError(kind: "notAllowed" | "required"): WfmApiError {
 describe("createOrder perTrade adaptivity", () => {
   beforeEach(() => {
     requestV2Mock.mockReset();
+    wfmOrders.__resetWfmOrdersForTest();
   });
 
   it("omits perTrade by default (api 0.25 rejects it)", async () => {
@@ -57,13 +58,16 @@ describe("createOrder perTrade adaptivity", () => {
 
   it("flips back to omitting when a perTrade-sending create hits app.field.notAllowed", async () => {
     requestV2Mock
+      .mockRejectedValueOnce(perTradeError("required"))
+      .mockResolvedValueOnce(ORDER_RESPONSE)
       .mockRejectedValueOnce(perTradeError("notAllowed"))
       .mockResolvedValueOnce(ORDER_RESPONSE);
 
+    await wfmOrders.createOrder({ itemId: "i0", orderType: "sell", platinum: 10, quantity: 1 });
     await wfmOrders.createOrder({ itemId: "i1", orderType: "sell", platinum: 85, quantity: 1 });
 
-    expect(requestV2Mock).toHaveBeenCalledTimes(2);
-    const retryBody = requestV2Mock.mock.calls[1][2]?.json as Record<string, unknown>;
+    expect(requestV2Mock).toHaveBeenCalledTimes(4);
+    const retryBody = requestV2Mock.mock.calls[3][2]?.json as Record<string, unknown>;
     expect(retryBody).not.toHaveProperty("perTrade");
   });
 
@@ -75,6 +79,37 @@ describe("createOrder perTrade adaptivity", () => {
     await expect(
       wfmOrders.createOrder({ itemId: "i1", orderType: "sell", platinum: -1, quantity: 1 }),
     ).rejects.toThrow(/platinum/);
+    expect(requestV2Mock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries with rank 0 when the server requires rank and none was given", async () => {
+    requestV2Mock
+      .mockRejectedValueOnce(
+        new WfmApiError("WFMClient v2 API error: rank: app.field.required", "WFM_API_ERROR", 400),
+      )
+      .mockResolvedValueOnce(ORDER_RESPONSE);
+
+    await wfmOrders.createOrder({ itemId: "i1", orderType: "sell", platinum: 85, quantity: 1 });
+
+    expect(requestV2Mock).toHaveBeenCalledTimes(2);
+    const retryBody = requestV2Mock.mock.calls[1][2]?.json as Record<string, unknown>;
+    expect(retryBody.rank).toBe(0);
+  });
+
+  it("does not rank-retry when a rank was already sent", async () => {
+    requestV2Mock.mockRejectedValueOnce(
+      new WfmApiError("WFMClient v2 API error: rank: app.field.required", "WFM_API_ERROR", 400),
+    );
+
+    await expect(
+      wfmOrders.createOrder({
+        itemId: "i1",
+        orderType: "sell",
+        platinum: 85,
+        quantity: 1,
+        modRank: 3,
+      }),
+    ).rejects.toThrow(/rank/);
     expect(requestV2Mock).toHaveBeenCalledTimes(1);
   });
 
@@ -93,12 +128,26 @@ describe("createOrder perTrade adaptivity", () => {
     expect(a.id).toBe("o1");
     expect(b.id).toBe("o1");
     expect(requestV2Mock).toHaveBeenCalledTimes(4);
-    const bodies = requestV2Mock.mock.calls.map(
-      (call) => call[2]?.json as Record<string, unknown>,
-    );
+    const bodies = requestV2Mock.mock.calls.map((call) => call[2]?.json as Record<string, unknown>);
     expect(bodies[0]).not.toHaveProperty("perTrade");
     expect(bodies[1]).not.toHaveProperty("perTrade");
     expect(bodies[2]).toHaveProperty("perTrade");
     expect(bodies[3]).toHaveProperty("perTrade");
+  });
+
+  it("applies perTrade and rank fixes across successive retries", async () => {
+    requestV2Mock
+      .mockRejectedValueOnce(perTradeError("required"))
+      .mockRejectedValueOnce(
+        new WfmApiError("WFMClient v2 API error: rank: app.field.required", "WFM_API_ERROR", 400),
+      )
+      .mockResolvedValueOnce(ORDER_RESPONSE);
+
+    await wfmOrders.createOrder({ itemId: "i1", orderType: "sell", platinum: 85, quantity: 1 });
+
+    expect(requestV2Mock).toHaveBeenCalledTimes(3);
+    const finalBody = requestV2Mock.mock.calls[2][2]?.json as Record<string, unknown>;
+    expect(finalBody.perTrade).toBe(1);
+    expect(finalBody.rank).toBe(0);
   });
 });

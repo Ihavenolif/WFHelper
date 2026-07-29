@@ -80,6 +80,7 @@ export interface WfmSearchItem {
   url_name?: string | null;
   thumb?: string | null;
   icon?: string | null;
+  maxRank?: number | null;
   [key: string]: unknown;
 }
 

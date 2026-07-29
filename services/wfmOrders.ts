@@ -128,6 +128,10 @@ export async function getMyOrders(): Promise<{ sell: NormalisedOrder[]; buy: Nor
 // accepts and retry once on the opposite 400.
 let _sendPerTrade = false;
 
+export function __resetWfmOrdersForTest(): void {
+  _sendPerTrade = false;
+}
+
 export async function createOrder({
   itemId,
   orderType,
@@ -166,23 +170,39 @@ export async function createOrder({
     return body;
   };
 
-  // v2: POST /order
-  // Classify races by the request shape actually sent.
-  const sentPerTrade = _sendPerTrade;
+  // v2: POST /order. The server can demand two independent shape fixes
+  // (perTrade flip, missing rank) on successive responses - apply each at
+  // most once and retry until the request sticks or the error is unknown.
+  let sendPerTrade = _sendPerTrade;
+  let perTradeFlipped = false;
   let data: unknown;
-  try {
-    data = await requestV2("POST", "/order", { json: buildBody(sentPerTrade) });
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    const wantsFlip = sentPerTrade ? /notAllowed/i : /required/i;
-    if (!/perTrade/i.test(message) || !wantsFlip.test(message)) throw err;
-    _sendPerTrade = !sentPerTrade;
-    log.info(
-      `[WFMOrders] server ${!sentPerTrade ? "requires" : "rejects"} perTrade - retrying ${
-        !sentPerTrade ? "with" : "without"
-      } it`,
-    );
-    data = await requestV2("POST", "/order", { json: buildBody(!sentPerTrade) });
+  for (;;) {
+    try {
+      data = await requestV2("POST", "/order", { json: buildBody(sendPerTrade) });
+      break;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const wantsFlip = sendPerTrade ? /notAllowed/i : /required/i;
+      if (!perTradeFlipped && /perTrade/i.test(message) && wantsFlip.test(message)) {
+        perTradeFlipped = true;
+        sendPerTrade = !sendPerTrade;
+        _sendPerTrade = sendPerTrade;
+        log.info(
+          `[WFMOrders] server ${sendPerTrade ? "requires" : "rejects"} perTrade - retrying ${
+            sendPerTrade ? "with" : "without"
+          } it`,
+        );
+        continue;
+      }
+      if (modRank == null && /\brank\b/i.test(message) && /required/i.test(message)) {
+        // v2 hard-requires rank for mods/arcanes; a caller with a stale
+        // catalog entry can still omit it - rank 0 beats a failed post.
+        modRank = 0;
+        log.info("[WFMOrders] server requires rank - retrying with rank 0");
+        continue;
+      }
+      throw err;
+    }
   }
   const unwrapped = unwrapWfmResponse<WfmOrderMutationData>(data);
   const raw = (unwrapped?.order || unwrapped || data) as WfmRawOrder;

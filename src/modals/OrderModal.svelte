@@ -127,7 +127,9 @@
     itemSelected = item;
     itemSearchQuery = "";
     itemDropdown = [];
-    showRankField = false;
+    // WFM v2 rejects rank-less orders for mods/arcanes (rank: app.field.required).
+    showRankField = typeof item.maxRank === "number" && item.maxRank > 0;
+    modRank = 0;
   }
 
   function clearItem(): void {
@@ -379,13 +381,16 @@
             </div>
           </div>
 
-          <!-- Mod rank (optional) -->
           {#if showRankField}
             <div class="grid gap-1 mb-2">
-              <label for="order-rank" class="text-sm font-medium text-text-secondary"
-                >Mod Rank</label
-              >
-              <ThemedInput id="order-rank" type="number" min="0" max="20" bind:value={modRank} />
+              <label for="order-rank" class="text-sm font-medium text-text-secondary">Rank</label>
+              <ThemedInput
+                id="order-rank"
+                type="number"
+                min="0"
+                max={itemSelected?.maxRank ?? 20}
+                bind:value={modRank}
+              />
             </div>
           {/if}
 
