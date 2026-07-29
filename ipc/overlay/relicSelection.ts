@@ -1,8 +1,4 @@
-import {
-  normalizeDucats,
-  toFiniteOr,
-  clampNumber,
-} from "../../config/shared/numeric";
+import { normalizeDucats, toFiniteOr, clampNumber } from "../../config/shared/numeric";
 import { normalizeErrorMessage } from "../../config/shared/errors";
 import { RELIC_RECOMMENDATIONS, RELIC_PLANNER_TRIGGER } from "../../config/shared/ipcChannels";
 import { getWindowsOcrHealth } from "../../services/ocrServer";
@@ -40,7 +36,6 @@ const QUALITY_LABEL: Readonly<Record<keyof OwnedCountRow, string>> = Object.free
   radiant: "Radiant",
 });
 
-
 type Reward = {
   urlName?: string | null;
   chance?: number;
@@ -56,6 +51,7 @@ type RelicGroup = {
   key: string;
   name: string;
   tier?: string;
+  vaulted?: boolean;
   qualities?: Record<string, QualityData | undefined>;
 };
 
@@ -73,6 +69,7 @@ type RecommendationRow = {
   count: number;
   platEv: number | null;
   ducatEv: number | null;
+  vaulted: boolean;
 };
 
 type OverlayRecommendationControllerOptions = {
@@ -409,6 +406,7 @@ function pickBestOwnedQuality(
       count,
       platEv,
       ducatEv,
+      vaulted: Boolean(group.vaulted),
     };
 
     if (!best) {
@@ -617,7 +615,9 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
       const cacheAge = Date.now() - activeMissionTierSetAt;
       let era: string | null =
         logMissionTier ||
-        (activeMissionTier && cacheAge < RELIC_MISSION_TIER_CACHE_TTL_MS ? activeMissionTier : null);
+        (activeMissionTier && cacheAge < RELIC_MISSION_TIER_CACHE_TTL_MS
+          ? activeMissionTier
+          : null);
       let eraConfidence = era ? 1.0 : 0;
 
       if (era) {
@@ -767,7 +767,6 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
           effectiveEra || "none"
         } conf=${eraConfidence.toFixed(3)} elapsed=${Date.now() - refineStartedAt}ms token=${scanToken}`,
       );
-
     } catch (err) {
       if (scanToken !== activeScanToken) return;
       log.error("[RelicSelection] recommendation refinement failed:", normalizeErrorMessage(err));
@@ -886,7 +885,12 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
   }
 
   function setActiveMissionTag(tag: string): void {
-    const era = VOID_TAG_ERAS[String(tag || "").trim().toUpperCase()] ?? null;
+    const era =
+      VOID_TAG_ERAS[
+        String(tag || "")
+          .trim()
+          .toUpperCase()
+      ] ?? null;
     if (era) {
       if (logMissionTier !== era) {
         log.info(`[RelicSelection] mission tier from EE.log tag ${tag}: ${era}`);

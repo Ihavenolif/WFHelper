@@ -426,6 +426,11 @@ function renderPlannerRows(payload) {
     title.className = "plan-title";
     title.textContent = String(row.label || row.relicName || "-");
 
+    const vaultTag = document.createElement("span");
+    vaultTag.className = `plan-vault-tag ${row.vaulted ? "vaulted" : "unvaulted"}`;
+    vaultTag.textContent = row.vaulted ? "Vaulted" : "Unvaulted";
+    title.appendChild(vaultTag);
+
     const profit = document.createElement("div");
     profit.className = "plan-profit";
 
