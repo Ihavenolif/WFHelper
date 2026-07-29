@@ -18,7 +18,8 @@
     overflow-y: auto;
     overflow-x: hidden;
     background: var(--bg-base);
-    padding: 1.5rem 1.75rem;
+    /* Padding here clips sticky rows. */
+    padding: 0 1.75rem 1.5rem;
   }
   #app:has(#content.setup-active) {
     height: calc(100vh - var(--titlebar-height));
@@ -35,6 +36,7 @@
   .view {
     display: block;
     animation: fade-in 0.18s ease;
+    padding-top: 1.5rem;
   }
 
   #content.stats-active {
@@ -479,21 +481,17 @@
     color: var(--text-muted);
   }
 
-  /* Filter rows pinned to the top of #content while the view scrolls.
-     Negative inline margins + matching padding bleed over #content's side
-     gutters so cards never peek out beside the pinned bar. */
+  /* Bleed pinned filters across the content gutters. */
   .view-sticky-filters {
     position: sticky;
-    /* -1.5rem = #content's top padding; top: 0 would pin a padding-band lower,
-       letting scrolled cards peek out above the bar. */
-    top: -1.5rem;
+    top: 0;
     z-index: 15;
     background: var(--bg-base);
     margin-inline: -1.75rem;
     padding: 0.5rem 1.75rem 0;
   }
 
-  /* CollapsibleSection (world-* naming is historical; used by several views) */
+  /* Shared collapsible sections retain their historical names. */
   .world-section-header {
     display: flex;
     align-items: center;

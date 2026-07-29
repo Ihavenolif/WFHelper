@@ -360,21 +360,25 @@
     <h2>Foundry</h2>
   </div>
 
-  <!-- Search + sort toolbar -->
-  <div class="mb-3">
-    <SharedFilterBar
-      scope="foundry"
-      singleLine
-      showAdvanced={false}
-      basicVariant="full"
-      sortOptions={foundrySortOptions}
-      showSubsumed
-    />
-  </div>
+  <div class="view-sticky-filters mb-3">
+    <div class="mb-3">
+      <SharedFilterBar
+        scope="foundry"
+        singleLine
+        showAdvanced={false}
+        basicVariant="full"
+        sortOptions={foundrySortOptions}
+        showSubsumed
+      />
+    </div>
 
-  <!-- Unified filter row: All / status / categories -->
-  <div class="mb-3 flex items-end border-b border-white/[0.09]">
-    <HeaderTabs options={foundryFilterTabs} activeKey={$activeFilter} onSelect={setActiveFilter} />
+    <div class="flex items-end border-b border-white/[0.09]">
+      <HeaderTabs
+        options={foundryFilterTabs}
+        activeKey={$activeFilter}
+        onSelect={setActiveFilter}
+      />
+    </div>
   </div>
 
   <!-- Pinned blueprints: combined resource needs across everything pinned -->

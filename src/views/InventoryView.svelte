@@ -309,19 +309,19 @@
     {showFilterPanel}
     on:filter={handleFilterSelect}
     on:toggle={handleToggleFilterPanel}
-  />
-
-  {#if filter === "resources"}
-    <ResourcesView resources={filteredResources} />
-  {:else}
-    {#if showFilterPanel}
+  >
+    {#if showFilterPanel && filter !== "resources"}
       <div
         class="inventory-filter-popover mb-3.5 max-h-[67vh] overflow-y-auto rounded-[var(--radius-lg)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-2.5 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
       >
         <SharedFilterBar scope="inventory" showBasic={false} showAdvanced={true} />
       </div>
     {/if}
+  </InventoryHeader>
 
+  {#if filter === "resources"}
+    <ResourcesView resources={filteredResources} />
+  {:else}
     <div
       class="grid grid-cols-1 items-start gap-3 {orderBookPanelOpen
         ? 'min-[1101px]:grid-cols-[minmax(0,1fr)_360px]'

@@ -28,8 +28,7 @@
   }
 </script>
 
-<!-- h2 and tab row are siblings: the sticky row must not be boxed in by a
-     header-only wrapper or it stops sticking once the header scrolls past. -->
+<!-- Keep the sticky row outside the scrolling heading. -->
 <h2
   class="m-0 mb-2 font-display text-4xl leading-none font-semibold tracking-[0.03em] text-text-primary"
 >
@@ -60,4 +59,5 @@
       </button>
     </div>
   </div>
+  <slot />
 </div>
