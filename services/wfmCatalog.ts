@@ -14,16 +14,11 @@ const log = withScope("wfmCatalog");
  * Exposes lookups used by order forms and the renderer item-link mapping IPC.
  */
 
-
-const ITEM_PATH_CANDIDATES: ReadonlyArray<string> = Object.freeze([
-  "/items",
-  "/collections/items",
-]);
+const ITEM_PATH_CANDIDATES: ReadonlyArray<string> = Object.freeze(["/items", "/collections/items"]);
 const NAME_SET_SUFFIX = " set";
 const SLUG_SET_SUFFIX_RE = /_set$/;
 const SEARCH_MIN_QUERY_LENGTH = 2;
 const SEARCH_SCAN_MULTIPLIER = 2;
-
 
 interface CatalogItem {
   id: string | null;
@@ -42,7 +37,6 @@ let _byNameLc = new Map<string, CatalogItem>();
 let _byGameRefLc = new Map<string, CatalogItem>();
 let _loaded = false;
 let _loading: Promise<void> | null = null;
-
 
 function _normalise(raw: unknown): CatalogItem {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- deeply nested untyped WFM API response
@@ -76,7 +70,6 @@ function _normalise(raw: unknown): CatalogItem {
     gameRef,
   };
 }
-
 
 async function _load(): Promise<void> {
   if (_loaded) return;
@@ -148,11 +141,7 @@ async function _load(): Promise<void> {
   return _loading;
 }
 
-
-export async function searchItems(
-  query: string,
-  limit: number = 20,
-): Promise<CatalogItem[]> {
+export async function searchItems(query: string, limit: number = 20): Promise<CatalogItem[]> {
   await _load();
   if (!query || query.length < SEARCH_MIN_QUERY_LENGTH) return [];
 
@@ -222,6 +211,84 @@ export function getRendererLookup(): Record<string, Record<string, unknown>> {
       gameRef: item.gameRef,
     };
   }
+  return lookup;
+}
+
+interface SetPart {
+  slug: string;
+  quantityInSet: number;
+}
+
+type SetLookup =
+  | { kind: "set"; setSlug: string; parts: SetPart[] }
+  | { kind: "not-set" }
+  | { kind: "unavailable" };
+
+const NOT_SET: SetLookup = { kind: "not-set" };
+const UNAVAILABLE: SetLookup = { kind: "unavailable" };
+const _setLookupCache = new Map<string, SetLookup>();
+const _setLookupInFlight = new Map<string, Promise<SetLookup>>();
+
+async function loadSetMembership(itemSlug: string): Promise<SetLookup> {
+  let items: unknown[];
+  try {
+    const json = await wfmClient.requestV2("GET", `/item/${encodeURIComponent(itemSlug)}/set`);
+    const data = unwrapWfmResponse(json) as { items?: unknown[] } | null;
+    if (!Array.isArray(data?.items)) return UNAVAILABLE;
+    items = data.items;
+  } catch (e) {
+    if (e instanceof wfmClient.WfmApiError && e.status === 404) {
+      _setLookupCache.set(itemSlug, NOT_SET);
+      return NOT_SET;
+    }
+    log.warn(`[WFMCatalog] set lookup ${itemSlug} failed:`, normalizeErrorMessage(e));
+    return UNAVAILABLE;
+  }
+
+  const roots: string[] = [];
+  const parts: SetPart[] = [];
+  for (const raw of items) {
+    if (!raw || typeof raw !== "object") return UNAVAILABLE;
+    const item = raw as Record<string, unknown>;
+    if (typeof item.slug !== "string" || !item.slug) return UNAVAILABLE;
+    if (item.setRoot === true) {
+      roots.push(item.slug);
+      continue;
+    }
+    const quantityInSet = item.quantityInSet;
+    if (
+      typeof quantityInSet !== "number" ||
+      !Number.isInteger(quantityInSet) ||
+      quantityInSet < 1
+    ) {
+      return UNAVAILABLE;
+    }
+    parts.push({ slug: item.slug, quantityInSet });
+  }
+
+  if (roots.length !== 1 || parts.length < 2) return UNAVAILABLE;
+  const setSlug = roots[0];
+  if (itemSlug !== setSlug && !parts.some((part) => part.slug === itemSlug)) return UNAVAILABLE;
+
+  const result: SetLookup = { kind: "set", setSlug, parts };
+  _setLookupCache.set(setSlug, result);
+  for (const part of parts) _setLookupCache.set(part.slug, result);
+  return result;
+}
+
+/** Resolves a traded item to its complete set without guessing on API failures. */
+export function resolveSetMembership(itemSlug: string): Promise<SetLookup> {
+  if (!itemSlug) return Promise.resolve(UNAVAILABLE);
+  const cached = _setLookupCache.get(itemSlug);
+  if (cached) return Promise.resolve(cached);
+
+  const active = _setLookupInFlight.get(itemSlug);
+  if (active) return active;
+
+  const lookup = loadSetMembership(itemSlug).finally(() => {
+    if (_setLookupInFlight.get(itemSlug) === lookup) _setLookupInFlight.delete(itemSlug);
+  });
+  _setLookupInFlight.set(itemSlug, lookup);
   return lookup;
 }
 

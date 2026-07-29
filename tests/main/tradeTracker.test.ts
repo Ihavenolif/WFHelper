@@ -62,6 +62,51 @@ describe("tradeTracker", () => {
     expect(module.getTradeLog()).toEqual([]);
   });
 
+  it("suppresses the file-poll re-delivery but records an identical later trade", async () => {
+    vi.useFakeTimers();
+    try {
+      const module = await tracker();
+      const trade = {
+        partner: "K9178",
+        platChange: 15,
+        type: "sale" as const,
+        items: [{ displayName: "Vitus Essence", count: 1, direction: "given" as const }],
+      };
+      expect(module.recordTradeFromLog(trade)).not.toBeNull();
+      // Observed in the wild: EE.log flush lag beat the old 10 s cooldown.
+      vi.advanceTimersByTime(14_000);
+      expect(module.recordTradeFromLog(trade)).toBeNull();
+      expect(module.getTradeLog()).toHaveLength(1);
+      // The same player repeating the same trade later must not be swallowed.
+      vi.advanceTimersByTime(60_000);
+      expect(module.recordTradeFromLog(trade)).not.toBeNull();
+      expect(module.getTradeLog()).toHaveLength(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("records distinct back-to-back trades", async () => {
+    const module = await tracker();
+    expect(
+      module.recordTradeFromLog({
+        partner: "BuyerA",
+        platChange: 10,
+        type: "sale",
+        items: [{ displayName: "Forma Blueprint", count: 1, direction: "given" }],
+      }),
+    ).not.toBeNull();
+    expect(
+      module.recordTradeFromLog({
+        partner: "BuyerB",
+        platChange: 25,
+        type: "sale",
+        items: [{ displayName: "Ash Prime Chassis", count: 1, direction: "given" }],
+      }),
+    ).not.toBeNull();
+    expect(module.getTradeLog()).toHaveLength(2);
+  });
+
   // Entries recorded by pre-fix parser versions (v1.1.3 Stats view screenshot).
   it("repairs persisted entries corrupted by the old trade-dialog parser", async () => {
     const module = await tracker();
@@ -102,9 +147,6 @@ describe("tradeTracker", () => {
     expect(events.map((e) => e.id)).toEqual(["glyphs"]);
     expect(events[0].partner).toBe("Ainikki");
     // Glyphs and Dialog arg tails stripped; the glyph-only item removed.
-    expect(events[0].items.map((i) => i.displayName)).toEqual([
-      "Zid-an Asheir",
-      "Zid-an Asheir",
-    ]);
+    expect(events[0].items.map((i) => i.displayName)).toEqual(["Zid-an Asheir", "Zid-an Asheir"]);
   });
 });

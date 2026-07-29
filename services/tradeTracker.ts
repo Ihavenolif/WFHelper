@@ -27,9 +27,12 @@ const log = withScope("tradeTracker");
 const MAX_EVENTS = 2000;
 const MAX_IMPORT_EVENTS = 10_000;
 const MAX_ITEMS_PER_TRADE = 12;
-const MIN_COOLDOWN_MS = 10_000; // 10 s - suppresses duplicate events
+// A trade arrives twice (DBWIN live + file poll after the lazy EE.log flush,
+// observed ~14s apart). The window must outlast the flush lag but stay well
+// under a repeat of the identical trade, which the in-game flow can't do in 30s.
+const DUPLICATE_WINDOW_MS = 30_000;
 
-let _lastEventTime = 0;
+let _recentSignatures = new Map<string, number>();
 let _tradeLog: TradeEvent[] = [];
 
 function boundedString(value: unknown, maxLength: number): string | null {
@@ -102,7 +105,9 @@ function sanitizeTradeEvent(value: unknown): TradeEvent | null {
     return null;
   }
   if (items.length < event.items.length) {
-    log.info(`[TradeTracker] Dropped ${event.items.length - items.length} corrupt item(s) from trade ${id}`);
+    log.info(
+      `[TradeTracker] Dropped ${event.items.length - items.length} corrupt item(s) from trade ${id}`,
+    );
   }
   const rawPartner = boundedString(event.partner, 120);
   const partner = rawPartner ? stripPlatformGlyphs(rawPartner) || null : null;
@@ -163,9 +168,6 @@ export function recordTradeFromLog(parsed: {
   items: Array<{ displayName: string; count: number; direction: TradeDirection }>;
 }): TradeEvent | null {
   const now = Date.now();
-  if (now - _lastEventTime < MIN_COOLDOWN_MS) return null;
-
-  const id = `${new Date().toISOString()}-${Math.random().toString(36).slice(2, 6)}`;
   const partner = stripPlatformGlyphs(parsed.partner);
 
   const items: TradeItem[] = parsed.items.map((i) => {
@@ -183,6 +185,20 @@ export function recordTradeFromLog(parsed: {
     };
   });
 
+  const signature = [
+    parsed.type,
+    parsed.platChange,
+    partner.toLowerCase(),
+    ...items.map((i) => `${i.direction}:${i.displayName.toLowerCase()}:${i.count}`).sort(),
+  ].join("|");
+  for (const [key, ts] of _recentSignatures) {
+    if (now - ts > DUPLICATE_WINDOW_MS) _recentSignatures.delete(key);
+  }
+  if (_recentSignatures.has(signature)) return null;
+  _recentSignatures.set(signature, now);
+
+  const id = `${new Date().toISOString()}-${Math.random().toString(36).slice(2, 6)}`;
+
   const event: TradeEvent = {
     id,
     date: new Date().toISOString(),
@@ -194,7 +210,6 @@ export function recordTradeFromLog(parsed: {
 
   _tradeLog.unshift(event);
   if (_tradeLog.length > MAX_EVENTS) _tradeLog = _tradeLog.slice(0, MAX_EVENTS);
-  _lastEventTime = now;
   _saveLog();
   statsTracker.incrementTodayTrades();
 
@@ -249,6 +264,6 @@ export function getTradeLog(): TradeEvent[] {
 }
 
 export function __resetTradeTrackerForTest(): void {
-  _lastEventTime = 0;
+  _recentSignatures = new Map();
   _tradeLog = [];
 }

@@ -47,4 +47,70 @@ describe("wfmCatalog item lookups", () => {
       item_name: "Ash Prime Set",
     });
   });
+
+  it("caches one valid set response under every member slug", async () => {
+    const wfmClient = await import("../../services/wfmClient");
+    const request = vi.spyOn(wfmClient, "requestV2").mockResolvedValue({
+      data: {
+        items: [
+          { slug: "akbronco_prime_set", setRoot: true },
+          { slug: "akbronco_prime_blueprint", setRoot: false, quantityInSet: 1 },
+          { slug: "bronco_prime_set", setRoot: false, quantityInSet: 2 },
+        ],
+      },
+    });
+    const wfmCatalog = await import("../../services/wfmCatalog");
+
+    const first = await wfmCatalog.resolveSetMembership("akbronco_prime_blueprint");
+    const second = await wfmCatalog.resolveSetMembership("bronco_prime_set");
+
+    expect(first).toEqual({
+      kind: "set",
+      setSlug: "akbronco_prime_set",
+      parts: [
+        { slug: "akbronco_prime_blueprint", quantityInSet: 1 },
+        { slug: "bronco_prime_set", quantityInSet: 2 },
+      ],
+    });
+    expect(second).toEqual(first);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not cache malformed set quantities", async () => {
+    const wfmClient = await import("../../services/wfmClient");
+    const request = vi.spyOn(wfmClient, "requestV2").mockResolvedValue({
+      data: {
+        items: [
+          { slug: "broken_set", setRoot: true },
+          { slug: "broken_blueprint", setRoot: false, quantityInSet: 1 },
+          { slug: "broken_part", setRoot: false },
+        ],
+      },
+    });
+    const wfmCatalog = await import("../../services/wfmCatalog");
+
+    await expect(wfmCatalog.resolveSetMembership("broken_part")).resolves.toEqual({
+      kind: "unavailable",
+    });
+    await expect(wfmCatalog.resolveSetMembership("broken_part")).resolves.toEqual({
+      kind: "unavailable",
+    });
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("caches a 404 as a non-set item", async () => {
+    const wfmClient = await import("../../services/wfmClient");
+    const request = vi
+      .spyOn(wfmClient, "requestV2")
+      .mockRejectedValue(new wfmClient.WfmApiError("not found", "WFM_API_ERROR", 404));
+    const wfmCatalog = await import("../../services/wfmCatalog");
+
+    await expect(wfmCatalog.resolveSetMembership("forma_blueprint")).resolves.toEqual({
+      kind: "not-set",
+    });
+    await expect(wfmCatalog.resolveSetMembership("forma_blueprint")).resolves.toEqual({
+      kind: "not-set",
+    });
+    expect(request).toHaveBeenCalledTimes(1);
+  });
 });

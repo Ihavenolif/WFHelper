@@ -20,6 +20,7 @@ vi.mock("../../services/wfmOrders", () => ({
 
 vi.mock("../../services/wfmCatalog", () => ({
   lookupByName: vi.fn(),
+  resolveSetMembership: vi.fn(),
 }));
 
 import { matchTradeToOrder, closeMatchedOrder } from "../../services/tradeWfmMatcher";
@@ -31,12 +32,32 @@ const mockGetToken = vi.mocked(wfmSession.getToken);
 const mockGetMyOrders = vi.mocked(wfmOrders.getMyOrders);
 const mockCloseOrder = vi.mocked(wfmOrders.closeOrder);
 const mockLookupByName = vi.mocked(wfmCatalog.lookupByName);
+const mockResolveSetMembership = vi.mocked(wfmCatalog.resolveSetMembership);
+
+function catalogItem(url_name: string): ReturnType<typeof wfmCatalog.lookupByName> {
+  return {
+    id: null,
+    url_name,
+    item_name: url_name,
+    thumb: null,
+    icon: null,
+    maxRank: null,
+    gameRef: null,
+  } as ReturnType<typeof wfmCatalog.lookupByName>;
+}
+
+function resolvedSet(parts: Array<{ slug: string; quantityInSet: number }>) {
+  const firstPart = parts[0]?.slug || "";
+  const setSlug = firstPart.replace(/_(?:blueprint|barrel|blade)$/, "_set");
+  return { kind: "set" as const, setSlug, parts };
+}
 
 describe("tradeWfmMatcher", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockGetToken.mockReturnValue("test-jwt");
     mockLookupByName.mockReturnValue(null);
+    mockResolveSetMembership.mockResolvedValue({ kind: "not-set" });
   });
 
   describe("matchTradeToOrder", () => {
@@ -289,6 +310,384 @@ describe("tradeWfmMatcher", () => {
 
       expect(result).not.toBeNull();
       expect(result!.quantity).toBe(3); // traded 5 but only 3 listed
+    });
+
+    it("closes a set order when the trade delivers every part", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          {
+            id: "set_order",
+            orderType: "sell",
+            platinum: 60,
+            quantity: 1,
+            visible: true,
+            modRank: null,
+            itemId: null,
+            itemName: "Corinth Prime Set",
+            itemUrlName: "corinth_prime_set",
+            itemThumb: null,
+          },
+        ],
+        buy: [],
+      });
+      const partSlugs: Record<string, string> = {
+        "Corinth Prime Blueprint": "corinth_prime_blueprint",
+        "Corinth Prime Barrel": "corinth_prime_barrel",
+        "Corinth Prime Receiver": "corinth_prime_receiver",
+        "Corinth Prime Stock": "corinth_prime_stock",
+      };
+      mockLookupByName.mockImplementation((name: string) =>
+        partSlugs[name] ? catalogItem(partSlugs[name]) : null,
+      );
+      mockResolveSetMembership.mockResolvedValue(
+        resolvedSet(Object.values(partSlugs).map((slug) => ({ slug, quantityInSet: 1 }))),
+      );
+
+      const result = await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 60,
+        type: "sale",
+        items: Object.keys(partSlugs).map((displayName) => ({
+          displayName,
+          count: 1,
+          direction: "given" as const,
+        })),
+      });
+
+      expect(result).not.toBeNull();
+      expect(result!.orderId).toBe("set_order");
+      expect(result!.quantity).toBe(1);
+    });
+
+    it("does not close a set order on partial part coverage", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          {
+            id: "set_order_partial",
+            orderType: "sell",
+            platinum: 60,
+            quantity: 1,
+            visible: true,
+            modRank: null,
+            itemId: null,
+            itemName: "Corinth Prime Set",
+            itemUrlName: "corinth_prime_set",
+            itemThumb: null,
+          },
+        ],
+        buy: [],
+      });
+      const partSlugs: Record<string, string> = {
+        "Corinth Prime Blueprint": "corinth_prime_blueprint",
+        "Corinth Prime Barrel": "corinth_prime_barrel",
+      };
+      mockLookupByName.mockImplementation((name: string) =>
+        partSlugs[name] ? catalogItem(partSlugs[name]) : null,
+      );
+      mockResolveSetMembership.mockResolvedValue(
+        resolvedSet(
+          [
+            "corinth_prime_blueprint",
+            "corinth_prime_barrel",
+            "corinth_prime_receiver",
+            "corinth_prime_stock",
+          ].map((slug) => ({ slug, quantityInSet: 1 })),
+        ),
+      );
+
+      const result = await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 60,
+        type: "sale",
+        items: Object.keys(partSlugs).map((displayName) => ({
+          displayName,
+          count: 1,
+          direction: "given" as const,
+        })),
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it("prefers the set order over a lone part order when the full set is traded", async () => {
+      const partSlugs: Record<string, string> = {
+        "Corinth Prime Blueprint": "corinth_prime_blueprint",
+        "Corinth Prime Barrel": "corinth_prime_barrel",
+        "Corinth Prime Receiver": "corinth_prime_receiver",
+        "Corinth Prime Stock": "corinth_prime_stock",
+      };
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          {
+            id: "part_order",
+            orderType: "sell",
+            platinum: 60,
+            quantity: 1,
+            visible: true,
+            modRank: null,
+            itemId: null,
+            itemName: "Corinth Prime Barrel",
+            itemUrlName: "corinth_prime_barrel",
+            itemThumb: null,
+          },
+          {
+            id: "set_order",
+            orderType: "sell",
+            platinum: 60,
+            quantity: 1,
+            visible: true,
+            modRank: null,
+            itemId: null,
+            itemName: "Corinth Prime Set",
+            itemUrlName: "corinth_prime_set",
+            itemThumb: null,
+          },
+        ],
+        buy: [],
+      });
+      mockLookupByName.mockImplementation((name: string) =>
+        partSlugs[name] ? catalogItem(partSlugs[name]) : null,
+      );
+      mockResolveSetMembership.mockResolvedValue(
+        resolvedSet(Object.values(partSlugs).map((slug) => ({ slug, quantityInSet: 1 }))),
+      );
+
+      const result = await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 60,
+        type: "sale",
+        items: Object.keys(partSlugs).map((displayName) => ({
+          displayName,
+          count: 1,
+          direction: "given" as const,
+        })),
+      });
+
+      expect(result!.orderId).toBe("set_order");
+    });
+
+    it("requires per-part quantities before closing a set (2x blade sets)", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          {
+            id: "kronen_set_order",
+            orderType: "sell",
+            platinum: 80,
+            quantity: 1,
+            visible: true,
+            modRank: null,
+            itemId: null,
+            itemName: "Kronen Prime Set",
+            itemUrlName: "kronen_prime_set",
+            itemThumb: null,
+          },
+        ],
+        buy: [],
+      });
+      const partSlugs: Record<string, string> = {
+        "Kronen Prime Blueprint": "kronen_prime_blueprint",
+        "Kronen Prime Blade": "kronen_prime_blade",
+        "Kronen Prime Handle": "kronen_prime_handle",
+      };
+      mockLookupByName.mockImplementation((name: string) =>
+        partSlugs[name] ? catalogItem(partSlugs[name]) : null,
+      );
+      mockResolveSetMembership.mockResolvedValue({
+        kind: "set",
+        setSlug: "kronen_prime_set",
+        parts: [
+          { slug: "kronen_prime_blueprint", quantityInSet: 1 },
+          { slug: "kronen_prime_blade", quantityInSet: 2 },
+          { slug: "kronen_prime_handle", quantityInSet: 2 },
+        ],
+      });
+
+      // one of each traded: blades/handles need 2x, so this is NOT a full set
+      const partial = await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 80,
+        type: "sale",
+        items: Object.keys(partSlugs).map((displayName) => ({
+          displayName,
+          count: 1,
+          direction: "given" as const,
+        })),
+      });
+      expect(partial).toBeNull();
+
+      const full = await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 80,
+        type: "sale",
+        items: [
+          { displayName: "Kronen Prime Blueprint", count: 1, direction: "given" as const },
+          { displayName: "Kronen Prime Blade", count: 2, direction: "given" as const },
+          { displayName: "Kronen Prime Handle", count: 2, direction: "given" as const },
+        ],
+      });
+      expect(full!.orderId).toBe("kronen_set_order");
+      expect(full!.quantity).toBe(1);
+    });
+
+    it("does not close a set whose contents cannot be resolved", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          {
+            id: "unresolved_set",
+            orderType: "sell",
+            platinum: 60,
+            quantity: 1,
+            visible: true,
+            modRank: null,
+            itemId: null,
+            itemName: "Corinth Prime Set",
+            itemUrlName: "corinth_prime_set",
+            itemThumb: null,
+          },
+        ],
+        buy: [],
+      });
+      mockLookupByName.mockImplementation((name: string) => catalogItem(name.toLowerCase()));
+      mockResolveSetMembership.mockResolvedValue({ kind: "unavailable" });
+
+      const result = await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 60,
+        type: "sale",
+        items: [
+          { displayName: "corinth_prime_blueprint", count: 1, direction: "given" as const },
+          { displayName: "corinth_prime_barrel", count: 1, direction: "given" as const },
+        ],
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it("does not fall through to a part order when set metadata is unavailable", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          {
+            id: "barrel_order",
+            orderType: "sell",
+            platinum: 20,
+            quantity: 1,
+            visible: true,
+            modRank: null,
+            itemId: null,
+            itemName: "Corinth Prime Barrel",
+            itemUrlName: "corinth_prime_barrel",
+            itemThumb: null,
+          },
+          {
+            id: "set_order",
+            orderType: "sell",
+            platinum: 60,
+            quantity: 1,
+            visible: true,
+            modRank: null,
+            itemId: null,
+            itemName: "Corinth Prime Set",
+            itemUrlName: "corinth_prime_set",
+            itemThumb: null,
+          },
+        ],
+        buy: [],
+      });
+      mockLookupByName.mockImplementation((name: string) =>
+        catalogItem(name.toLowerCase().replaceAll(" ", "_")),
+      );
+      mockResolveSetMembership.mockResolvedValue({ kind: "unavailable" });
+
+      const result = await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 60,
+        type: "sale",
+        items: [
+          { displayName: "Corinth Prime Barrel", count: 1, direction: "given" },
+          { displayName: "Corinth Prime Stock", count: 1, direction: "given" },
+        ],
+      });
+
+      expect(result).toBeNull();
+    });
+
+    it("bounds set lookups by traded items, not active orders", async () => {
+      const manySetOrders = Array.from({ length: 200 }, (_, index) => ({
+        id: `set_${index}`,
+        orderType: "sell",
+        platinum: 50,
+        quantity: 1,
+        visible: true,
+        modRank: null,
+        itemId: null,
+        itemName: `Prime Set ${index}`,
+        itemUrlName: `prime_${index}_set`,
+        itemThumb: null,
+      }));
+      mockGetMyOrders.mockResolvedValue({
+        sell: manySetOrders,
+        buy: [],
+      });
+      mockLookupByName.mockImplementation((name: string) =>
+        catalogItem(name.toLowerCase().replaceAll(" ", "_")),
+      );
+      mockResolveSetMembership.mockResolvedValue({ kind: "not-set" });
+
+      await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 50,
+        type: "sale",
+        items: [
+          { displayName: "Forma Blueprint", count: 1, direction: "given" },
+          { displayName: "Orokin Catalyst Blueprint", count: 1, direction: "given" },
+        ],
+      });
+
+      expect(mockResolveSetMembership).toHaveBeenCalledTimes(2);
+    });
+
+    it("closes as many sets as the trade covers, bounded by order qty", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          {
+            id: "multi_set_order",
+            orderType: "sell",
+            platinum: 60,
+            quantity: 3,
+            visible: true,
+            modRank: null,
+            itemId: null,
+            itemName: "Corinth Prime Set",
+            itemUrlName: "corinth_prime_set",
+            itemThumb: null,
+          },
+        ],
+        buy: [],
+      });
+      const partSlugs: Record<string, string> = {
+        "Corinth Prime Blueprint": "corinth_prime_blueprint",
+        "Corinth Prime Barrel": "corinth_prime_barrel",
+      };
+      mockLookupByName.mockImplementation((name: string) =>
+        partSlugs[name] ? catalogItem(partSlugs[name]) : null,
+      );
+      mockResolveSetMembership.mockResolvedValue(
+        resolvedSet(Object.values(partSlugs).map((slug) => ({ slug, quantityInSet: 1 }))),
+      );
+
+      const result = await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 120,
+        type: "sale",
+        items: Object.keys(partSlugs).map((displayName) => ({
+          displayName,
+          count: 2,
+          direction: "given" as const,
+        })),
+      });
+
+      expect(result!.orderId).toBe("multi_set_order");
+      expect(result!.quantity).toBe(2);
     });
 
     it("ignores items with wrong direction for sale trades", async () => {
