@@ -854,49 +854,6 @@
     border-bottom: none;
   }
 
-  /* :global() because CollapsibleSection renders the actual header element. */
-  :global(.world-section-header) {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.5rem;
-    margin-bottom: 0.55rem;
-  }
-  :global(.world-section-title) {
-    line-height: inherit;
-  }
-  :global(.world-section-toggle) {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-
-    font-family: var(--font-display);
-    font-size: 0.84rem;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    line-height: 1;
-
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-    color: inherit;
-  }
-  /* SVG caret shares the section title line-height, so alignment is controlled once. */
-  :global(.world-toggle-icon) {
-    width: 1.12lh;
-    height: 1.12lh;
-    flex: 0 0 auto;
-    display: block;
-
-    color: var(--text-secondary);
-    transition: transform 0.15s ease;
-    transform-origin: center;
-  }
-  :global(.world-toggle-icon.collapsed) {
-    transform: rotate(-90deg);
-  }
-
   /* :global() because state classes are applied via class: directive in CycleRow. */
   :global(.world-state-day) {
     color: var(--world-state-day-text);

@@ -11,6 +11,8 @@
   import HeaderTabs from "../components/HeaderTabs.svelte";
   import SummaryStrip, { type SummaryStripItem } from "../components/SummaryStrip.svelte";
   import ThemedPanel from "../components/ThemedPanel.svelte";
+  import CollapsibleSection from "../components/CollapsibleSection.svelte";
+  import { persistedBoolean } from "../lib/persistence.js";
   import { applySharedFiltersAndSort } from "../lib/filters.js";
   import { sharedFilters } from "../stores/filters.js";
   import ItemImage from "../components/ItemImage.svelte";
@@ -38,6 +40,9 @@
 
   let catFilter = "all";
   let statusFilter = "all";
+  // Collapsed by default: the detail bars pushed the search/filter bar off
+  // screen, forcing a scroll round-trip for every filter tweak.
+  const breakdownExpanded = persistedBoolean("mastery-breakdown-expanded", false);
   const masteryFilters = sharedFilters("mastery");
   const STATUS_TABS = [
     { key: "all", label: "All" },
@@ -335,85 +340,92 @@
         <SummaryStrip items={masterySummaryItems} variant="mastery" />
       </div>
 
-      <ThemedPanel className="grid gap-2 p-2.5">
-        {#each categories as cat}
-          {@const cs = stats.byCategory[cat]}
-          {@const masteredWidth = boundedPercent(cs.mastered, cs.total)}
-          {@const progressWidth = boundedPercent(cs.inProgress, cs.total)}
-          <div class="grid items-center gap-2 grid-cols-[minmax(72px,110px)_1fr_auto]">
-            <span class="text-xs text-text-secondary">{cat}</span>
-            <svg
-              class="block h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]"
-              viewBox="0 0 100 1"
-              preserveAspectRatio="none"
-              aria-hidden="true"
-            >
-              <rect class="fill-success" x="0" y="0" width={masteredWidth} height="1"></rect>
-              <rect
-                class="fill-warning opacity-60"
-                x={masteredWidth}
-                y="0"
-                width={progressWidth}
-                height="1"
-              ></rect>
-            </svg>
-            <span class="whitespace-nowrap text-xs text-text-secondary"
-              >{cs.mastered}/{cs.total}
-              <small class="text-text-muted">({formatPercent(cs.mastered, cs.total)}%)</small></span
-            >
+      <CollapsibleSection
+        title="Detailed breakdown"
+        collapsed={!$breakdownExpanded}
+        onToggle={() => breakdownExpanded.update((value) => !value)}
+      >
+        <ThemedPanel className="grid gap-2 p-2.5">
+          {#each categories as cat}
+            {@const cs = stats.byCategory[cat]}
+            {@const masteredWidth = boundedPercent(cs.mastered, cs.total)}
+            {@const progressWidth = boundedPercent(cs.inProgress, cs.total)}
+            <div class="grid items-center gap-2 grid-cols-[minmax(72px,110px)_1fr_auto]">
+              <span class="text-xs text-text-secondary">{cat}</span>
+              <svg
+                class="block h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]"
+                viewBox="0 0 100 1"
+                preserveAspectRatio="none"
+                aria-hidden="true"
+              >
+                <rect class="fill-success" x="0" y="0" width={masteredWidth} height="1"></rect>
+                <rect
+                  class="fill-warning opacity-60"
+                  x={masteredWidth}
+                  y="0"
+                  width={progressWidth}
+                  height="1"
+                ></rect>
+              </svg>
+              <span class="whitespace-nowrap text-xs text-text-secondary"
+                >{cs.mastered}/{cs.total}
+                <small class="text-text-muted">({formatPercent(cs.mastered, cs.total)}%)</small
+                ></span
+              >
+            </div>
+          {/each}
+        </ThemedPanel>
+
+        {#if completion}
+          <div class="mt-3 grid gap-2 min-[900px]:grid-cols-2">
+            <ThemedPanel className="grid gap-2 p-2.5">
+              <span class="font-display text-sm font-semibold text-text-secondary">Star chart</span>
+              {#each starChartRows as [label, pair] (label)}
+                {@const width = boundedPercent(pair.done, pair.total)}
+                <div class="grid items-center gap-2 grid-cols-[minmax(96px,130px)_1fr_auto]">
+                  <span class="text-xs text-text-secondary">{label}</span>
+                  <svg
+                    class="block h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]"
+                    viewBox="0 0 100 1"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
+                    <rect class="fill-info" x="0" y="0" {width} height="1"></rect>
+                  </svg>
+                  <span class="whitespace-nowrap text-xs text-text-secondary"
+                    >{pair.done}/{pair.total}
+                    <small class="text-text-muted">({formatPercent(pair.done, pair.total)}%)</small
+                    ></span
+                  >
+                </div>
+              {/each}
+            </ThemedPanel>
+
+            <ThemedPanel className="grid content-start gap-2 p-2.5">
+              <span class="font-display text-sm font-semibold text-text-secondary">Intrinsics</span>
+              {#each intrinsicRows as [label, pair] (label)}
+                {@const width = boundedPercent(pair.done, pair.total)}
+                <div class="grid items-center gap-2 grid-cols-[minmax(96px,130px)_1fr_auto]">
+                  <span class="text-xs text-text-secondary">{label}</span>
+                  <svg
+                    class="block h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]"
+                    viewBox="0 0 100 1"
+                    preserveAspectRatio="none"
+                    aria-hidden="true"
+                  >
+                    <rect class="fill-accent" x="0" y="0" {width} height="1"></rect>
+                  </svg>
+                  <span class="whitespace-nowrap text-xs text-text-secondary"
+                    >{pair.done}/{pair.total}
+                    <small class="text-text-muted">({formatPercent(pair.done, pair.total)}%)</small
+                    ></span
+                  >
+                </div>
+              {/each}
+            </ThemedPanel>
           </div>
-        {/each}
-      </ThemedPanel>
-
-      {#if completion}
-        <div class="mt-3 grid gap-2 min-[900px]:grid-cols-2">
-          <ThemedPanel className="grid gap-2 p-2.5">
-            <span class="font-display text-sm font-semibold text-text-secondary">Star chart</span>
-            {#each starChartRows as [label, pair] (label)}
-              {@const width = boundedPercent(pair.done, pair.total)}
-              <div class="grid items-center gap-2 grid-cols-[minmax(96px,130px)_1fr_auto]">
-                <span class="text-xs text-text-secondary">{label}</span>
-                <svg
-                  class="block h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]"
-                  viewBox="0 0 100 1"
-                  preserveAspectRatio="none"
-                  aria-hidden="true"
-                >
-                  <rect class="fill-info" x="0" y="0" {width} height="1"></rect>
-                </svg>
-                <span class="whitespace-nowrap text-xs text-text-secondary"
-                  >{pair.done}/{pair.total}
-                  <small class="text-text-muted">({formatPercent(pair.done, pair.total)}%)</small
-                  ></span
-                >
-              </div>
-            {/each}
-          </ThemedPanel>
-
-          <ThemedPanel className="grid content-start gap-2 p-2.5">
-            <span class="font-display text-sm font-semibold text-text-secondary">Intrinsics</span>
-            {#each intrinsicRows as [label, pair] (label)}
-              {@const width = boundedPercent(pair.done, pair.total)}
-              <div class="grid items-center gap-2 grid-cols-[minmax(96px,130px)_1fr_auto]">
-                <span class="text-xs text-text-secondary">{label}</span>
-                <svg
-                  class="block h-1.5 w-full overflow-hidden rounded-full bg-white/[0.07]"
-                  viewBox="0 0 100 1"
-                  preserveAspectRatio="none"
-                  aria-hidden="true"
-                >
-                  <rect class="fill-accent" x="0" y="0" {width} height="1"></rect>
-                </svg>
-                <span class="whitespace-nowrap text-xs text-text-secondary"
-                  >{pair.done}/{pair.total}
-                  <small class="text-text-muted">({formatPercent(pair.done, pair.total)}%)</small
-                  ></span
-                >
-              </div>
-            {/each}
-          </ThemedPanel>
-        </div>
-      {/if}
+        {/if}
+      </CollapsibleSection>
     </div>
 
     <!-- Filters -->
