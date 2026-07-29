@@ -25,7 +25,7 @@
 
 <ThemedPanel
   className={variant === "mastery"
-    ? "inline-flex flex-wrap items-stretch px-7 py-5"
+    ? "inline-flex min-w-0 flex-wrap items-stretch px-7 py-5"
     : "flex flex-wrap items-stretch gap-y-2 px-4 py-3"}
 >
   {#each items as item, index (item.key)}

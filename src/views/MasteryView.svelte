@@ -40,8 +40,7 @@
 
   let catFilter = "all";
   let statusFilter = "all";
-  // Collapsed by default: the detail bars pushed the search/filter bar off
-  // screen, forcing a scroll round-trip for every filter tweak.
+  // Keep filters visible on entry.
   const breakdownExpanded = persistedBoolean("mastery-breakdown-expanded", false);
   const masteryFilters = sharedFilters("mastery");
   const STATUS_TABS = [
@@ -293,7 +292,7 @@
 
     <!-- Stats overview -->
     <div class="grid gap-3 mb-3.5">
-      <div class="flex flex-wrap items-center gap-3.5">
+      <div class="flex items-center gap-3.5">
         <div class="shrink-0">
           <svg class="h-[120px] w-[120px]" viewBox="0 0 120 120">
             <circle
