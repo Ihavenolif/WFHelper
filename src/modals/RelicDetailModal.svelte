@@ -64,7 +64,6 @@
 
   $: if (group && group !== currentGroup) {
     currentGroup = group;
-    // Default to the highest owned grade; fall back to the first defined quality.
     const ownedNow = $relicOwnedCounts[group.key] || EMPTY_OWNED;
     activeQuality =
       highestOwnedQuality(qualities, (quality) => ownedNow[quality] || 0) ||
@@ -263,10 +262,10 @@
         <span class="text-xs text-text-secondary">Squad:</span>
         {#each SQUAD_OPTIONS as [size, label]}
           <button
-            class="rounded-md border border-border bg-bg-surface px-2 py-1 font-display text-xs font-semibold text-text-secondary transition-all duration-[0.14s] hover:border-text-secondary hover:text-text-primary"
-            class:border-accent={localSquadSize === size}
-            class:bg-accent-glow={localSquadSize === size}
-            class:text-accent={localSquadSize === size}
+            class="rounded-md border px-2 py-1 font-display text-xs font-semibold transition-all duration-[0.14s] {localSquadSize ===
+            size
+              ? 'border-accent bg-accent-glow text-accent'
+              : 'border-border bg-bg-surface text-text-secondary hover:border-text-secondary hover:text-text-primary'}"
             on:click={() => (localSquadSize = size)}>{label}</button
           >
         {/each}
