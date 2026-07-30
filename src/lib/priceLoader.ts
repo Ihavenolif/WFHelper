@@ -1,9 +1,26 @@
-import { fetchPriceByName } from "./wfm/wfmPrice.js";
+import { fetchPriceByName, fetchPriceBySlug } from "./wfm/wfmPrice.js";
 import { send } from "./ipc.js";
 
 interface PriceState {
   text: string;
   slug: string | null;
+}
+
+/** WFM price via a known slug. Null on transient/unusable-slug results so the
+ *  caller can fall back to name-based resolution. */
+export async function loadItemPriceBySlug(slug: string): Promise<PriceState | null> {
+  try {
+    const result = await fetchPriceBySlug(slug, { priority: "high" });
+    if (result?.median != null) {
+      return { text: `~${result.median} platinum (48h median)`, slug: result.slug };
+    }
+    if (result?.status === "no_data") {
+      return { text: "No recent price data.", slug: result.slug };
+    }
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 /** WFM price for an item/component - { text, slug }. */
