@@ -15,6 +15,8 @@ jobs:
   release-windows:
     needs: ci
     runs-on: windows-latest
+    # Normally ~3 min; a stalled runner should go red, not sit for 6 hours.
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -61,8 +63,8 @@ jobs:
       - name: Validate release runtime configuration
         env:
           VITE_WFM_BACKEND_URL: ${{ secrets.VITE_WFM_BACKEND_URL }}
-          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ secrets.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
-          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ secrets.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
+          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ vars.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
+          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ vars.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
         run: pnpm run validate:release-env
 
       - name: Ensure release exists
@@ -119,8 +121,8 @@ jobs:
           # baked into the renderer bundle; without these a CI installer
           # bypasses the worker backend
           VITE_WFM_BACKEND_URL: ${{ secrets.VITE_WFM_BACKEND_URL }}
-          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ secrets.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
-          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ secrets.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
+          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ vars.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
+          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ vars.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
 
       - name: Upload release assets
         shell: pwsh
@@ -150,6 +152,7 @@ jobs:
   release-linux:
     needs: [ci, release-windows]
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
     steps:
       - name: Checkout
@@ -175,8 +178,8 @@ jobs:
       - name: Validate release runtime configuration
         env:
           VITE_WFM_BACKEND_URL: ${{ secrets.VITE_WFM_BACKEND_URL }}
-          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ secrets.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
-          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ secrets.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
+          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ vars.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
+          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ vars.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
         run: pnpm run validate:release-env
 
       - name: Remove existing release assets
@@ -202,8 +205,8 @@ jobs:
           # baked into the renderer bundle; without these a CI installer
           # bypasses the worker backend
           VITE_WFM_BACKEND_URL: ${{ secrets.VITE_WFM_BACKEND_URL }}
-          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ secrets.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
-          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ secrets.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
+          VITE_WFM_BACKEND_DIRECT_FALLBACK: ${{ vars.VITE_WFM_BACKEND_DIRECT_FALLBACK }}
+          VITE_WFM_BACKEND_BOOTSTRAP_ENABLED: ${{ vars.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED }}
 
       - name: Upload release assets
         env:
