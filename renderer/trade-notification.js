@@ -8,8 +8,16 @@
   const FALLBACK_VISIBLE_MS = 5000;
   const FALLBACK_FADE_MS = 400;
 
+  const STATUS_LABELS = {
+    closed: "Listing Closed",
+    "no-match": "No Listing Matched",
+    "close-failed": "Closing Failed",
+    detected: "Trade Finished",
+  };
+
   const notification = document.getElementById("notification");
   const itemThumb = document.getElementById("item-thumb");
+  const tradeLabel = document.getElementById("trade-label");
   const tradeBadge = document.getElementById("trade-badge");
   const itemName = document.getElementById("item-name");
   const platAmount = document.getElementById("plat-amount");
@@ -37,21 +45,25 @@
       itemThumb.style.display = "none";
     }
 
-    // Badge
-    const isSale = match.type === "sale";
-    tradeBadge.textContent = isSale ? "Sale" : "Purchase";
-    tradeBadge.className = isSale ? "sale" : "purchase";
+    const status = STATUS_LABELS[payload.status] ? payload.status : "detected";
+    tradeLabel.textContent = STATUS_LABELS[status];
+    tradeLabel.className = status === "closed" ? "closed" : "unmatched";
 
-    // Item name + quantity
+    const isSale = match.type === "sale";
+    const isPurchase = match.type === "purchase";
+    tradeBadge.textContent = isSale ? "Sale" : isPurchase ? "Purchase" : "Trade";
+    tradeBadge.className = isSale ? "sale" : isPurchase ? "purchase" : "trade";
+
     const qty = match.quantity > 1 ? match.quantity + "× " : "";
     itemName.textContent = qty + (match.itemName || "Unknown Item");
 
-    // Plat
-    const sign = isSale ? "+" : "−";
-    platAmount.textContent = sign + match.platinum + "p";
-    platAmount.className = isSale ? "positive" : "negative";
+    const showPlatinum = (isSale || isPurchase) && match.platinum > 0;
+    platAmount.hidden = !showPlatinum;
+    if (showPlatinum) {
+      platAmount.textContent = (isSale ? "+" : "−") + match.platinum + "p";
+      platAmount.className = isSale ? "positive" : "negative";
+    }
 
-    // Partner
     partnerName.textContent = match.partner || "";
 
     // Show with animation

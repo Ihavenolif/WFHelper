@@ -69,6 +69,8 @@ import * as arbiIpc from "./ipc/arbiIpc";
 import * as arbiScheduleIpc from "./ipc/arbiScheduleIpc";
 import * as tradeTracker from "./services/tradeTracker";
 import * as tradeWfmMatcher from "./services/tradeWfmMatcher";
+import { summarizeTrade } from "./config/shared/tradeMatch";
+import type { TradeMatchPayload, TradeNotificationStatus } from "./config/shared/tradeMatch";
 import * as apiHelperRunner from "./services/apiHelperRunner";
 import { disposeLinuxStreamCapture } from "./services/linuxStreamCapture";
 import { isTradeNotificationOverlayEnabled } from "./config/runtime/overlaySettings";
@@ -395,20 +397,31 @@ app.whenReady().then(async () => {
         win.webContents.send(TRADE_RECORDED, { trade: event, wfmMatch: null });
       }
 
-      // Attempt WFM auto-close (async, fire-and-forget)
-      if (!ctx.overlaySettings.autoCloseWfmOrders) return;
-
+      // Always report the auto-close outcome.
       void (async () => {
+        const notify = (status: TradeNotificationStatus, match?: TradeMatchPayload) => {
+          if (!isTradeNotificationOverlayEnabled(ctx.overlaySettings)) return;
+          tradeNotificationIpc.showTradeNotification(match ?? summarizeTrade(event), status);
+        };
+
+        if (!ctx.overlaySettings.autoCloseWfmOrders || !wfmSession.getToken()) {
+          notify("detected");
+          return;
+        }
+
         try {
           const match = await tradeWfmMatcher.matchTradeToOrder(trade);
-          if (!match) return;
-
-          const closed = await tradeWfmMatcher.closeMatchedOrder(match);
-          if (!closed) return;
+          if (!match) {
+            notify("no-match");
+            return;
+          }
+          if (!(await tradeWfmMatcher.closeMatchedOrder(match))) {
+            notify("close-failed", match);
+            return;
+          }
 
           tradeTracker.markTradeWfmClosed(event.id);
 
-          // Update renderer with the WFM match info
           if (win && !win.isDestroyed()) {
             win.webContents.send(TRADE_RECORDED, {
               trade: { ...event, wfmClosed: true },
@@ -416,12 +429,10 @@ app.whenReady().then(async () => {
             });
           }
 
-          // Show trade notification overlay (if enabled)
-          if (isTradeNotificationOverlayEnabled(ctx.overlaySettings)) {
-            tradeNotificationIpc.showTradeNotification(match);
-          }
+          notify("closed", match);
         } catch (err) {
           log.warn("[Trade] Auto-close error:", String(err));
+          notify("no-match");
         }
       })();
     },

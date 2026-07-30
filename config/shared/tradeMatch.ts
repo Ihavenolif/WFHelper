@@ -16,11 +16,12 @@ export interface TradeMatchPayload {
 /** Listing closed, nothing matched, close rejected, or never checked. */
 export type TradeNotificationStatus = "closed" | "no-match" | "close-failed" | "detected";
 
-/** Toast content for a trade that closed no listing - built from the trade. */
+/** Toast content when no listing closed. */
 export function summarizeTrade(trade: TradeEvent): TradeMatchPayload {
-  const sideItems = trade.items.filter((item) =>
-    trade.type === "sale" ? item.direction === "given" : item.direction === "received",
-  );
+  const sideItems = trade.items.filter((item) => {
+    if (trade.type === "trade") return item.displayName.toLowerCase() !== "platinum";
+    return trade.type === "sale" ? item.direction === "given" : item.direction === "received";
+  });
   const items = sideItems.length > 0 ? sideItems : trade.items;
   const first = items[0];
   const extra = items.length - 1;

@@ -1,16 +1,11 @@
-/**
- * Manages the trade notification overlay window.
- *
- * Shows a small, transient, always-on-top toast when a WFM order is
- * auto-closed after an in-game trade completes.
- */
+/** Trade result toast window. */
 
 import ctx from "./context";
 import { assertTradeNotificationSender, onAuthorized } from "./ipcSecurity";
 import { withScope } from "../services/logger";
 import { hardenBrowserWindowNavigation } from "../services/windowSecurity";
 import { TRADE_NOTIFICATION_SHOW, TRADE_NOTIFICATION_DISMISS } from "../config/shared/ipcChannels";
-import type { TradeMatchPayload } from "../config/shared/tradeMatch";
+import type { TradeMatchPayload, TradeNotificationStatus } from "../config/shared/tradeMatch";
 
 const log = withScope("tradeNotificationIpc");
 
@@ -22,18 +17,16 @@ const WIN_H = 80;
 const MARGIN = 16;
 const NOTIFICATION_FILE = path.join(app.getAppPath(), "renderer", "trade-notification.html");
 
-// Timing: the renderer shows the toast for RENDERER_VISIBLE_MS, then fades out
-// over RENDERER_FADE_MS. The main process hides the window slightly later so
-// the renderer always finishes its animation before visibility is revoked.
+// Hide after the renderer fade completes.
 const RENDERER_VISIBLE_MS = 5_000;
 const RENDERER_FADE_MS = 400;
 const MAIN_HIDE_BUFFER_MS = 600;
 const AUTO_HIDE_MS = RENDERER_VISIBLE_MS + RENDERER_FADE_MS + MAIN_HIDE_BUFFER_MS;
 
-/** Payload sent to the notification renderer. Shape is stable so the vanilla
- *  JS renderer can read it without importing TypeScript types. */
+/** Payload for the vanilla notification renderer. */
 export interface TradeNotificationShowPayload {
   match: TradeMatchPayload;
+  status: TradeNotificationStatus;
   timing: {
     visibleMs: number;
     fadeMs: number;
@@ -129,26 +122,26 @@ function _getOrCreateWindow(): InstanceType<typeof BrowserWindow> {
   return win;
 }
 
-/**
- * Show a trade-finished notification for a matched WFM order.
- */
-export function showTradeNotification(match: TradeNotificationShowPayload["match"]): void {
+/** Shows the result of a completed trade. */
+export function showTradeNotification(
+  match: TradeNotificationShowPayload["match"],
+  status: TradeNotificationStatus,
+): void {
   const win = _getOrCreateWindow();
   const payload: TradeNotificationShowPayload = {
     match,
+    status,
     timing: { visibleMs: RENDERER_VISIBLE_MS, fadeMs: RENDERER_FADE_MS },
   };
   if (_rendererReady) _displayNotification(win, payload);
   else _pendingPayload = payload;
 
   log.info(
-    `[TradeNotification] Showing: ${match.type} ${match.itemName} ${match.platinum}p with ${match.partner}`,
+    `[TradeNotification] Showing (${status}): ${match.type} ${match.itemName} ${match.platinum}p with ${match.partner}`,
   );
 }
 
-/**
- * Register IPC handlers from the notification overlay window.
- */
+/** Registers notification overlay IPC. */
 export function register(): void {
   onAuthorized(TRADE_NOTIFICATION_DISMISS, assertTradeNotificationSender, () => {
     const win = ctx.tradeNotificationWindow;

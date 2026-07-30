@@ -308,7 +308,7 @@ export async function closeMatchedOrder(match: WfmTradeMatch): Promise<boolean> 
     if (match.kind === "contract") await wfmContracts.closeContract(match.orderId);
     else await wfmOrders.closeOrder(match.orderId, match.quantity);
     _recentlyClosedOrders.set(match.orderId, Date.now());
-    log.info(`[Matcher] ✓ Order ${match.orderId} closed successfully`);
+    log.info(`[Matcher] ${match.kind} ${match.orderId} closed successfully`);
     return true;
   } catch (err) {
     log.warn(`[Matcher] Failed to close order ${match.orderId}:`, String(err));
