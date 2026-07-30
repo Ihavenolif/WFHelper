@@ -23,16 +23,54 @@ vi.mock("../../services/wfmCatalog", () => ({
   resolveSetMembership: vi.fn(),
 }));
 
+vi.mock("../../services/wfmContracts", () => ({
+  getMyContracts: vi.fn(),
+  closeContract: vi.fn(),
+}));
+
 import { matchTradeToOrder, closeMatchedOrder } from "../../services/tradeWfmMatcher";
 import * as wfmSession from "../../services/wfmSession";
 import * as wfmOrders from "../../services/wfmOrders";
 import * as wfmCatalog from "../../services/wfmCatalog";
+import * as wfmContracts from "../../services/wfmContracts";
 
 const mockGetToken = vi.mocked(wfmSession.getToken);
 const mockGetMyOrders = vi.mocked(wfmOrders.getMyOrders);
 const mockCloseOrder = vi.mocked(wfmOrders.closeOrder);
 const mockLookupByName = vi.mocked(wfmCatalog.lookupByName);
 const mockResolveSetMembership = vi.mocked(wfmCatalog.resolveSetMembership);
+const mockGetMyContracts = vi.mocked(wfmContracts.getMyContracts);
+const mockCloseContract = vi.mocked(wfmContracts.closeContract);
+
+type Contract = Awaited<ReturnType<typeof wfmContracts.getMyContracts>>["contracts"][number];
+
+function contract(overrides: Partial<Contract> & { id: string }): Contract {
+  return {
+    itemName: "Riven",
+    itemId: null,
+    itemUrlName: null,
+    weaponUrlName: null,
+    rivenSuffix: null,
+    itemThumb: null,
+    platinum: 100,
+    buyoutPlatinum: null,
+    startingPlatinum: null,
+    quantity: 1,
+    visible: true,
+    modRank: 0,
+    rerolls: 0,
+    masteryLevel: null,
+    polarity: null,
+    isDirectSell: true,
+    listedAt: null,
+    updatedAt: null,
+    note: null,
+    stats: [],
+    listingUrl: "",
+    sourceType: "riven",
+    ...overrides,
+  };
+}
 
 function catalogItem(url_name: string): ReturnType<typeof wfmCatalog.lookupByName> {
   return {
@@ -58,6 +96,12 @@ describe("tradeWfmMatcher", () => {
     mockGetToken.mockReturnValue("test-jwt");
     mockLookupByName.mockReturnValue(null);
     mockResolveSetMembership.mockResolvedValue({ kind: "not-set" });
+    mockGetMyContracts.mockResolvedValue({
+      contracts: [],
+      page: 1,
+      totalPages: null,
+      hasMore: false,
+    });
   });
 
   describe("matchTradeToOrder", () => {
@@ -721,11 +765,170 @@ describe("tradeWfmMatcher", () => {
     });
   });
 
+  describe("ranked items", () => {
+    it("matches a mod listed without the trade dialog's rank suffix", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          {
+            id: "mod-order",
+            orderType: "sell",
+            platinum: 15,
+            quantity: 1,
+            visible: true,
+            modRank: 10,
+            itemId: null,
+            itemName: "Serration",
+            itemUrlName: "serration",
+            itemThumb: null,
+          },
+        ],
+        buy: [],
+      });
+
+      const result = await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 15,
+        type: "sale",
+        items: [{ displayName: "Serration (RANK 10)", count: 1, direction: "given" }],
+      });
+
+      expect(result?.orderId).toBe("mod-order");
+    });
+
+    it("prefers the listing whose rank matches the traded one", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          {
+            id: "rank-0",
+            orderType: "sell",
+            platinum: 20,
+            quantity: 1,
+            visible: true,
+            modRank: 0,
+            itemId: null,
+            itemName: "Primed Continuity",
+            itemUrlName: "primed_continuity",
+            itemThumb: null,
+          },
+          {
+            id: "rank-10",
+            orderType: "sell",
+            platinum: 20,
+            quantity: 1,
+            visible: true,
+            modRank: 10,
+            itemId: null,
+            itemName: "Primed Continuity",
+            itemUrlName: "primed_continuity",
+            itemThumb: null,
+          },
+        ],
+        buy: [],
+      });
+
+      const result = await matchTradeToOrder({
+        partner: "Buyer",
+        platChange: 20,
+        type: "sale",
+        items: [{ displayName: "Primed Continuity (RANK 10)", count: 1, direction: "given" }],
+      });
+
+      expect(result?.orderId).toBe("rank-10");
+    });
+  });
+
+  describe("riven auctions", () => {
+    const rivenSale = {
+      partner: "Buyer",
+      platChange: 300,
+      type: "sale" as const,
+      items: [{ displayName: "Rubico Visio-Critatis (RIVEN RANK 0)", count: 1, direction: "given" as const }],
+    };
+
+    beforeEach(() => {
+      mockGetMyOrders.mockResolvedValue({ sell: [], buy: [] });
+    });
+
+    it("matches the auction by weapon and roll name", async () => {
+      mockGetMyContracts.mockResolvedValue({
+        contracts: [
+          contract({ id: "auction-1", weaponUrlName: "rubico", rivenSuffix: "visio-critatis" }),
+          contract({ id: "auction-2", weaponUrlName: "rubico", rivenSuffix: "croni-tempis" }),
+        ],
+        page: 1,
+        totalPages: null,
+        hasMore: false,
+      });
+
+      const result = await matchTradeToOrder(rivenSale);
+
+      expect(result?.kind).toBe("contract");
+      expect(result?.orderId).toBe("auction-1");
+      expect(result?.quantity).toBe(1);
+    });
+
+    it("falls back to the only auction for that weapon", async () => {
+      mockGetMyContracts.mockResolvedValue({
+        contracts: [contract({ id: "auction-solo", weaponUrlName: "rubico", rivenSuffix: null })],
+        page: 1,
+        totalPages: null,
+        hasMore: false,
+      });
+
+      expect((await matchTradeToOrder(rivenSale))?.orderId).toBe("auction-solo");
+    });
+
+    it("closes nothing when several rivens for the weapon are listed", async () => {
+      mockGetMyContracts.mockResolvedValue({
+        contracts: [
+          contract({ id: "auction-1", weaponUrlName: "rubico", rivenSuffix: "sati-manti" }),
+          contract({ id: "auction-2", weaponUrlName: "rubico", rivenSuffix: "croni-tempis" }),
+        ],
+        page: 1,
+        totalPages: null,
+        hasMore: false,
+      });
+
+      expect(await matchTradeToOrder(rivenSale)).toBeNull();
+    });
+
+    it("ignores auctions when the riven was bought, not sold", async () => {
+      await matchTradeToOrder({
+        ...rivenSale,
+        type: "purchase",
+        items: [{ ...rivenSale.items[0], direction: "received" }],
+      });
+
+      expect(mockGetMyContracts).not.toHaveBeenCalled();
+    });
+  });
+
   describe("closeMatchedOrder", () => {
+    it("closes a riven auction through the contracts route", async () => {
+      mockCloseContract.mockResolvedValue(undefined);
+
+      const result = await closeMatchedOrder({
+        kind: "contract",
+        orderId: "auction-1",
+        itemName: "Rubico Visio-Critatis",
+        itemUrlName: "rubico",
+        itemThumb: null,
+        quantity: 1,
+        platinum: 300,
+        partner: "Buyer",
+        type: "sale",
+      });
+
+      expect(result).toBe(true);
+      expect(mockCloseContract).toHaveBeenCalledWith("auction-1");
+      expect(mockCloseOrder).not.toHaveBeenCalled();
+    });
+
     it("calls closeOrder and returns true on success", async () => {
       mockCloseOrder.mockResolvedValue({ closed: true, id: "order123", remainingQuantity: 0 });
 
       const result = await closeMatchedOrder({
+        kind: "order",
         orderId: "order123",
         itemName: "Test Item",
         itemUrlName: "test_item",
@@ -744,6 +947,7 @@ describe("tradeWfmMatcher", () => {
       mockCloseOrder.mockRejectedValue(new Error("Network error"));
 
       const result = await closeMatchedOrder({
+        kind: "order",
         orderId: "order123",
         itemName: "Test Item",
         itemUrlName: "test_item",

@@ -32,6 +32,8 @@ interface NormalisedContract {
   itemId: string | null;
   itemUrlName: string | null;
   weaponUrlName: string | null;
+  /** Generated roll name ("visio-critatis") - identifies which riven sold. */
+  rivenSuffix: string | null;
   itemThumb: string | null;
   platinum: number;
   buyoutPlatinum: number | null;
@@ -174,6 +176,7 @@ function normalizeContract(raw: unknown): NormalisedContract | null {
     itemId: firstNonEmpty(item.id, r.itemId),
     itemUrlName: itemSlug || weaponSlug || null,
     weaponUrlName: weaponSlug || null,
+    rivenSuffix: weaponSlug ? firstNonEmpty(item.name, r.riven_name) : null,
     itemThumb,
     platinum: Math.max(0, Math.round(Math.abs(listedPrice))),
     buyoutPlatinum:
@@ -417,6 +420,13 @@ export async function getMyContracts({
   throw new Error(
     "Unable to load riven contracts. Endpoint path may have changed; verify Warframe.market API route and shape.",
   );
+}
+
+/** Close a sold riven auction. v2 has no auction route yet, so this stays v1. */
+export async function closeContract(contractId: string): Promise<void> {
+  if (!contractId) throw new Error("closeContract: contractId is required.");
+  log.info(`[WFMContracts] PUT /auctions/entry/${contractId}/close`);
+  await request("PUT", `/auctions/entry/${encodeURIComponent(contractId)}/close`);
 }
 
 export const __test__ = {

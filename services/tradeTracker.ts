@@ -18,7 +18,7 @@ import { app } from "electron";
 import { withScope } from "./logger";
 import { writeFileAtomicSync } from "./atomicFile";
 import * as statsTracker from "./statsTracker";
-import * as wfmCatalog from "./wfmCatalog";
+import { lookupTradedCatalogItem } from "./tradeItemName";
 import { stripPlatformGlyphs, isLogFrameworkLine, stripDialogArgTail } from "./tradeLogSanitize";
 import type { TradeType, TradeDirection, TradeItem, TradeEvent } from "../config/shared/statsTypes";
 
@@ -172,9 +172,7 @@ export function recordTradeFromLog(parsed: {
 
   const items: TradeItem[] = parsed.items.map((i) => {
     const displayName = stripPlatformGlyphs(i.displayName);
-    const catalogItem =
-      wfmCatalog.lookupByName(displayName) ||
-      wfmCatalog.lookupByName(displayName.replace(/ Blueprint$/i, ""));
+    const catalogItem = lookupTradedCatalogItem(displayName);
     return {
       internalName: "",
       displayName,

@@ -8,7 +8,9 @@ import * as wfmOrders from "./wfmOrders";
 import type { NormalisedOrder } from "./wfmOrders";
 import * as wfmSession from "./wfmSession";
 import * as wfmCatalog from "./wfmCatalog";
-import { normalizeForSearch } from "../config/shared/textNormalize";
+import * as wfmContracts from "./wfmContracts";
+import { lookupTradedCatalogItem, parseTradedItemName } from "./tradeItemName";
+import { normalizeForSearch, normalizeForSlug } from "../config/shared/textNormalize";
 import type { TradeType, TradeDirection } from "../config/shared/statsTypes";
 import type { TradeMatchPayload } from "../config/shared/tradeMatch";
 
@@ -26,9 +28,15 @@ type WfmTradeMatch = TradeMatchPayload;
 /** Prevent double-close on the same order within a short window */
 const _recentlyClosedOrders = new Map<string, number>();
 const CLOSE_DEDUP_MS = 30_000;
+const CONTRACT_PAGE_LIMIT = 100;
 
 function normalizeName(name: string): string {
   return normalizeForSearch(name.replace(/ Blueprint$/i, ""));
+}
+
+function rankScore(order: NormalisedOrder, tradedRank: number | null): number {
+  if (tradedRank == null) return order.modRank ?? -1;
+  return Math.abs((order.modRank ?? 0) - tradedRank);
 }
 
 function cleanupRecentlyClosed(): void {
@@ -63,6 +71,12 @@ export async function matchTradeToOrder(
     return null;
   }
 
+  cleanupRecentlyClosed();
+
+  // Unveiled rivens live in auctions, so they never appear in the order list.
+  const rivenMatch = await matchRivenContract(relevantItems, trade);
+  if (rivenMatch) return rivenMatch;
+
   // Fetch user's current orders
   let orders: { sell: NormalisedOrder[]; buy: NormalisedOrder[] };
   try {
@@ -78,15 +92,11 @@ export async function matchTradeToOrder(
     return null;
   }
 
-  cleanupRecentlyClosed();
-
   // Sets first: the buyer receives the individual parts, so a full-set sale
   // must close the set listing, not a lone part listing that happens to match.
   const tradedCounts = new Map<string, number>();
   for (const item of relevantItems) {
-    const catalogItem =
-      wfmCatalog.lookupByName(item.displayName) ||
-      wfmCatalog.lookupByName(item.displayName.replace(/ Blueprint$/i, ""));
+    const catalogItem = lookupTradedCatalogItem(item.displayName);
     if (catalogItem?.url_name) {
       const slug = catalogItem.url_name;
       tradedCounts.set(slug, (tradedCounts.get(slug) || 0) + item.count);
@@ -101,13 +111,12 @@ export async function matchTradeToOrder(
 
   // Match the first traded item that resolves to an active order.
   for (const item of relevantItems) {
-    const normalizedItem = normalizeName(item.displayName);
+    const parsed = parseTradedItemName(item.displayName);
+    const normalizedItem = normalizeName(parsed.baseName);
     if (!normalizedItem) continue;
 
     // Also try catalog lookup to get the canonical WFM item name
-    const catalogItem =
-      wfmCatalog.lookupByName(item.displayName) ||
-      wfmCatalog.lookupByName(item.displayName.replace(/ Blueprint$/i, ""));
+    const catalogItem = lookupTradedCatalogItem(item.displayName);
 
     // Filter orders that match this item by name
     const matching = candidateOrders.filter((order: NormalisedOrder) => {
@@ -130,9 +139,9 @@ export async function matchTradeToOrder(
       const platDiffB = Math.abs((b.platinum || 0) - trade.platChange);
       if (platDiffA !== platDiffB) return platDiffA - platDiffB;
 
-      // Rank proximity (lower is better, null ranks sort last)
-      const rankA = a.modRank ?? -1;
-      const rankB = b.modRank ?? -1;
+      // The traded rank when the dialog carried one, lowest rank otherwise.
+      const rankA = rankScore(a, parsed.rank);
+      const rankB = rankScore(b, parsed.rank);
       if (rankA !== rankB) return rankA - rankB;
 
       // Quantity (lower is better)
@@ -145,6 +154,7 @@ export async function matchTradeToOrder(
     const closeQty = Math.min(item.count, bestMatch.quantity || 1);
 
     return {
+      kind: "order",
       orderId: bestMatch.id,
       itemName: bestMatch.itemName || item.displayName,
       itemUrlName: bestMatch.itemUrlName || catalogItem?.url_name || null,
@@ -164,6 +174,59 @@ export async function matchTradeToOrder(
       `(${candidateOrders.length} ${trade.type === "sale" ? "sell" : "buy"} order(s) checked)`,
   );
   return null;
+}
+
+/** Close the riven auction for a sold unveiled riven ("<weapon> <suffix>"). */
+async function matchRivenContract(
+  items: ParsedTradeForMatching["items"],
+  trade: ParsedTradeForMatching,
+): Promise<WfmTradeMatch | null> {
+  if (trade.type !== "sale") return null;
+  const rivens = items
+    .map((item) => parseTradedItemName(item.displayName))
+    .filter((parsed) => parsed.riven);
+  if (rivens.length !== 1) return null;
+  const { baseName, riven } = rivens[0];
+  if (!riven) return null;
+
+  let contracts: Awaited<ReturnType<typeof wfmContracts.getMyContracts>>["contracts"];
+  try {
+    contracts = (await wfmContracts.getMyContracts({ limit: CONTRACT_PAGE_LIMIT })).contracts;
+  } catch (err) {
+    log.warn("[Matcher] Failed to fetch riven auctions:", String(err));
+    return null;
+  }
+
+  const weaponSlug = normalizeForSlug(riven.weapon);
+  const sameWeapon = contracts.filter(
+    (contract) =>
+      !_recentlyClosedOrders.has(contract.id) &&
+      contract.weaponUrlName &&
+      normalizeForSlug(contract.weaponUrlName) === weaponSlug,
+  );
+  // The generated suffix identifies the roll; weapon alone only decides it when
+  // there is exactly one auction for that weapon.
+  const suffixSlug = normalizeForSlug(riven.suffix);
+  const exact = sameWeapon.filter(
+    (contract) => contract.rivenSuffix && normalizeForSlug(contract.rivenSuffix) === suffixSlug,
+  );
+  const best = exact[0] || (sameWeapon.length === 1 ? sameWeapon[0] : null);
+  if (!best) {
+    log.info(`[Matcher] No riven auction matched "${baseName}" (${sameWeapon.length} for weapon)`);
+    return null;
+  }
+
+  return {
+    kind: "contract",
+    orderId: best.id,
+    itemName: baseName,
+    itemUrlName: best.weaponUrlName,
+    itemThumb: best.itemThumb,
+    quantity: 1,
+    platinum: trade.platChange || best.platinum,
+    partner: trade.partner,
+    type: trade.type,
+  };
 }
 
 /** Resolve traded parts instead of walking every active set order. */
@@ -222,6 +285,7 @@ async function matchSetOrder(
   const best = covered[0];
   return {
     match: {
+      kind: "order",
       orderId: best.order.id,
       itemName: best.order.itemName || "(set)",
       itemUrlName: best.order.itemUrlName || null,
@@ -240,8 +304,9 @@ async function matchSetOrder(
  */
 export async function closeMatchedOrder(match: WfmTradeMatch): Promise<boolean> {
   try {
-    log.info(`[Matcher] Closing order ${match.orderId} (${match.itemName}) qty=${match.quantity}`);
-    await wfmOrders.closeOrder(match.orderId, match.quantity);
+    log.info(`[Matcher] Closing ${match.kind} ${match.orderId} (${match.itemName})`);
+    if (match.kind === "contract") await wfmContracts.closeContract(match.orderId);
+    else await wfmOrders.closeOrder(match.orderId, match.quantity);
     _recentlyClosedOrders.set(match.orderId, Date.now());
     log.info(`[Matcher] ✓ Order ${match.orderId} closed successfully`);
     return true;
