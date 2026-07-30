@@ -16,6 +16,20 @@ export interface TradeMatchPayload {
 /** Listing closed, nothing matched, close rejected, or never checked. */
 export type TradeNotificationStatus = "closed" | "no-match" | "close-failed" | "detected";
 
+/** Toast content for however many listings one trade closed. */
+export function summarizeMatches(
+  matches: TradeMatchPayload[],
+  tradePlatinum: number,
+): TradeMatchPayload | null {
+  const first = matches[0];
+  if (!first) return null;
+  return {
+    ...first,
+    itemName: `${first.itemName}${matches.length > 1 ? ` +${matches.length - 1}` : ""}`,
+    platinum: tradePlatinum,
+  };
+}
+
 /** Toast content when no listing closed. */
 export function summarizeTrade(trade: TradeEvent): TradeMatchPayload {
   const sideItems = trade.items.filter((item) => {

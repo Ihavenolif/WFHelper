@@ -69,7 +69,7 @@ import * as arbiIpc from "./ipc/arbiIpc";
 import * as arbiScheduleIpc from "./ipc/arbiScheduleIpc";
 import * as tradeTracker from "./services/tradeTracker";
 import * as tradeWfmMatcher from "./services/tradeWfmMatcher";
-import { summarizeTrade } from "./config/shared/tradeMatch";
+import { summarizeMatches, summarizeTrade } from "./config/shared/tradeMatch";
 import type { TradeMatchPayload, TradeNotificationStatus } from "./config/shared/tradeMatch";
 import * as apiHelperRunner from "./services/apiHelperRunner";
 import { disposeLinuxStreamCapture } from "./services/linuxStreamCapture";
@@ -399,7 +399,7 @@ app.whenReady().then(async () => {
 
       // Always report the auto-close outcome.
       void (async () => {
-        const notify = (status: TradeNotificationStatus, match?: TradeMatchPayload) => {
+        const notify = (status: TradeNotificationStatus, match?: TradeMatchPayload | null) => {
           if (!isTradeNotificationOverlayEnabled(ctx.overlaySettings)) return;
           tradeNotificationIpc.showTradeNotification(match ?? summarizeTrade(event), status);
         };
@@ -410,13 +410,18 @@ app.whenReady().then(async () => {
         }
 
         try {
-          const match = await tradeWfmMatcher.matchTradeToOrder(trade);
-          if (!match) {
+          const matches = await tradeWfmMatcher.matchTradeToOrders(trade);
+          if (matches.length === 0) {
             notify("no-match");
             return;
           }
-          if (!(await tradeWfmMatcher.closeMatchedOrder(match))) {
-            notify("close-failed", match);
+
+          const closed: TradeMatchPayload[] = [];
+          for (const match of matches) {
+            if (await tradeWfmMatcher.closeMatchedOrder(match)) closed.push(match);
+          }
+          if (closed.length === 0) {
+            notify("close-failed", matches[0]);
             return;
           }
 
@@ -425,11 +430,11 @@ app.whenReady().then(async () => {
           if (win && !win.isDestroyed()) {
             win.webContents.send(TRADE_RECORDED, {
               trade: { ...event, wfmClosed: true },
-              wfmMatch: match,
+              wfmMatch: closed[0],
             });
           }
 
-          notify("closed", match);
+          notify("closed", summarizeMatches(closed, event.platChange));
         } catch (err) {
           log.warn("[Trade] Auto-close error:", String(err));
           notify("no-match");

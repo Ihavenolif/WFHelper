@@ -28,7 +28,7 @@ vi.mock("../../services/wfmContracts", () => ({
   closeContract: vi.fn(),
 }));
 
-import { matchTradeToOrder, closeMatchedOrder } from "../../services/tradeWfmMatcher";
+import { matchTradeToOrders, closeMatchedOrder } from "../../services/tradeWfmMatcher";
 import * as wfmSession from "../../services/wfmSession";
 import * as wfmOrders from "../../services/wfmOrders";
 import * as wfmCatalog from "../../services/wfmCatalog";
@@ -72,6 +72,13 @@ function contract(overrides: Partial<Contract> & { id: string }): Contract {
   };
 }
 
+async function matchOne(
+  trade: Parameters<typeof matchTradeToOrders>[0],
+): Promise<Awaited<ReturnType<typeof matchTradeToOrders>>[number] | null> {
+  const [first] = await matchTradeToOrders(trade);
+  return first ?? null;
+}
+
 function catalogItem(url_name: string): ReturnType<typeof wfmCatalog.lookupByName> {
   return {
     id: null,
@@ -104,11 +111,11 @@ describe("tradeWfmMatcher", () => {
     });
   });
 
-  describe("matchTradeToOrder", () => {
+  describe("matchTradeToOrders", () => {
     it("returns null when not logged in", async () => {
       mockGetToken.mockReturnValue(null);
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "TestPlayer",
         platChange: 50,
         type: "sale",
@@ -120,7 +127,7 @@ describe("tradeWfmMatcher", () => {
     });
 
     it("returns null when no relevant items exist", async () => {
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "TestPlayer",
         platChange: 50,
         type: "sale",
@@ -149,7 +156,7 @@ describe("tradeWfmMatcher", () => {
         buy: [],
       });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer123",
         platChange: 50,
         type: "sale",
@@ -183,7 +190,7 @@ describe("tradeWfmMatcher", () => {
         buy: [],
       });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer456",
         platChange: 30,
         type: "sale",
@@ -225,7 +232,7 @@ describe("tradeWfmMatcher", () => {
         buy: [],
       });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 50,
         type: "sale",
@@ -255,7 +262,7 @@ describe("tradeWfmMatcher", () => {
         ],
       });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Seller",
         platChange: 25,
         type: "purchase",
@@ -286,7 +293,7 @@ describe("tradeWfmMatcher", () => {
         buy: [],
       });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 50,
         type: "sale",
@@ -315,7 +322,7 @@ describe("tradeWfmMatcher", () => {
         buy: [],
       });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 50,
         type: "sale",
@@ -345,7 +352,7 @@ describe("tradeWfmMatcher", () => {
         buy: [],
       });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 50,
         type: "sale",
@@ -387,7 +394,7 @@ describe("tradeWfmMatcher", () => {
         resolvedSet(Object.values(partSlugs).map((slug) => ({ slug, quantityInSet: 1 }))),
       );
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 60,
         type: "sale",
@@ -439,7 +446,7 @@ describe("tradeWfmMatcher", () => {
         ),
       );
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 60,
         type: "sale",
@@ -496,7 +503,7 @@ describe("tradeWfmMatcher", () => {
         resolvedSet(Object.values(partSlugs).map((slug) => ({ slug, quantityInSet: 1 }))),
       );
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 60,
         type: "sale",
@@ -546,8 +553,7 @@ describe("tradeWfmMatcher", () => {
         ],
       });
 
-      // one of each traded: blades/handles need 2x, so this is NOT a full set
-      const partial = await matchTradeToOrder({
+      const partial = await matchOne({
         partner: "Buyer",
         platChange: 80,
         type: "sale",
@@ -559,7 +565,7 @@ describe("tradeWfmMatcher", () => {
       });
       expect(partial).toBeNull();
 
-      const full = await matchTradeToOrder({
+      const full = await matchOne({
         partner: "Buyer",
         platChange: 80,
         type: "sale",
@@ -594,7 +600,7 @@ describe("tradeWfmMatcher", () => {
       mockLookupByName.mockImplementation((name: string) => catalogItem(name.toLowerCase()));
       mockResolveSetMembership.mockResolvedValue({ kind: "unavailable" });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 60,
         type: "sale",
@@ -642,7 +648,7 @@ describe("tradeWfmMatcher", () => {
       );
       mockResolveSetMembership.mockResolvedValue({ kind: "unavailable" });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 60,
         type: "sale",
@@ -677,7 +683,7 @@ describe("tradeWfmMatcher", () => {
       );
       mockResolveSetMembership.mockResolvedValue({ kind: "not-set" });
 
-      await matchTradeToOrder({
+      await matchOne({
         partner: "Buyer",
         platChange: 50,
         type: "sale",
@@ -719,7 +725,7 @@ describe("tradeWfmMatcher", () => {
         resolvedSet(Object.values(partSlugs).map((slug) => ({ slug, quantityInSet: 1 }))),
       );
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 120,
         type: "sale",
@@ -732,6 +738,45 @@ describe("tradeWfmMatcher", () => {
 
       expect(result!.orderId).toBe("multi_set_order");
       expect(result!.quantity).toBe(2);
+    });
+
+    it("does not close quantities that violate the listing perTrade bundle", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          {
+            id: "bundle_order",
+            orderType: "sell",
+            platinum: 10,
+            quantity: 12,
+            perTrade: 6,
+            visible: true,
+            modRank: null,
+            itemId: null,
+            itemName: "Vitus Essence",
+            itemUrlName: "vitus_essence",
+            itemThumb: null,
+          },
+        ],
+        buy: [],
+      });
+
+      expect(
+        await matchOne({
+          partner: "Buyer",
+          platChange: 30,
+          type: "sale",
+          items: [{ displayName: "Vitus Essence", count: 3, direction: "given" }],
+        }),
+      ).toBeNull();
+
+      expect(
+        await matchOne({
+          partner: "Buyer",
+          platChange: 60,
+          type: "sale",
+          items: [{ displayName: "Vitus Essence", count: 6, direction: "given" }],
+        }),
+      ).toMatchObject({ orderId: "bundle_order", quantity: 6 });
     });
 
     it("ignores items with wrong direction for sale trades", async () => {
@@ -754,7 +799,7 @@ describe("tradeWfmMatcher", () => {
       });
 
       // In a sale, the 'received' items are what we got (plat), not what we sold
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 50,
         type: "sale",
@@ -762,6 +807,257 @@ describe("tradeWfmMatcher", () => {
       });
 
       expect(result).toBeNull();
+    });
+  });
+
+  describe("mixed baskets", () => {
+    function sellOrder(
+      id: string,
+      itemName: string,
+      itemUrlName: string,
+      platinum: number,
+      modRank: number | null = null,
+    ) {
+      return {
+        id,
+        orderType: "sell",
+        platinum,
+        quantity: 3,
+        visible: true,
+        modRank,
+        itemId: null,
+        itemName,
+        itemUrlName,
+        itemThumb: null,
+      };
+    }
+
+    it("closes one listing per distinct item in the trade", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          sellOrder("stock_order", "Boar Prime Stock", "boar_prime_stock", 30),
+          sellOrder("barrel_order", "Boar Prime Barrel", "boar_prime_barrel", 25),
+          sellOrder("energize_order", "Arcane Energize", "arcane_energize", 40, 5),
+        ],
+        buy: [],
+      });
+
+      const matches = await matchTradeToOrders({
+        partner: "Pig_player",
+        platChange: 95,
+        type: "sale",
+        items: [
+          { displayName: "Boar Prime Stock", count: 2, direction: "given" },
+          { displayName: "Boar Prime Barrel", count: 2, direction: "given" },
+          { displayName: "Arcane Energize (RANK 5)", count: 2, direction: "given" },
+        ],
+      });
+
+      expect(matches.map((match) => match.orderId)).toEqual([
+        "stock_order",
+        "barrel_order",
+        "energize_order",
+      ]);
+      expect(matches.every((match) => match.quantity === 2)).toBe(true);
+    });
+
+    it("never closes the same listing twice for one trade", async () => {
+      mockGetMyOrders.mockResolvedValue({
+        sell: [sellOrder("stock_order", "Boar Prime Stock", "boar_prime_stock", 30)],
+        buy: [],
+      });
+
+      const matches = await matchTradeToOrders({
+        partner: "Pig_player",
+        platChange: 60,
+        type: "sale",
+        items: [
+          { displayName: "Boar Prime Stock", count: 1, direction: "given" },
+          { displayName: "Boar Prime Stock Blueprint", count: 1, direction: "given" },
+        ],
+      });
+
+      expect(matches).toHaveLength(1);
+    });
+
+    it("closes the set listing plus the unrelated item beside it", async () => {
+      const slugs: Record<string, string> = {
+        "Braton Prime Blueprint": "braton_prime_blueprint",
+        "Braton Prime Barrel": "braton_prime_barrel",
+        "Vitus Essence": "vitus_essence",
+      };
+      mockLookupByName.mockImplementation((name: string) =>
+        slugs[name] ? catalogItem(slugs[name]) : null,
+      );
+      mockResolveSetMembership.mockImplementation(async (slug: string) =>
+        slug.startsWith("braton")
+          ? resolvedSet([
+              { slug: "braton_prime_blueprint", quantityInSet: 1 },
+              { slug: "braton_prime_barrel", quantityInSet: 1 },
+            ])
+          : { kind: "not-set" },
+      );
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          sellOrder("braton_set_order", "Braton Prime Set", "braton_prime_set", 90),
+          sellOrder("barrel_order", "Braton Prime Barrel", "braton_prime_barrel", 20),
+          sellOrder("vitus_order", "Vitus Essence", "vitus_essence", 15),
+        ],
+        buy: [],
+      });
+
+      const matches = await matchTradeToOrders({
+        partner: "Buyer",
+        platChange: 105,
+        type: "sale",
+        items: [
+          { displayName: "Braton Prime Blueprint", count: 1, direction: "given" },
+          { displayName: "Braton Prime Barrel", count: 1, direction: "given" },
+          { displayName: "Vitus Essence", count: 1, direction: "given" },
+        ],
+      });
+
+      expect(matches.map((match) => match.orderId)).toEqual(["braton_set_order", "vitus_order"]);
+    });
+
+    it("closes two copies of the same full set", async () => {
+      const definition = resolvedSet([
+        { slug: "braton_prime_blueprint", quantityInSet: 1 },
+        { slug: "braton_prime_barrel", quantityInSet: 1 },
+      ]);
+      mockLookupByName.mockImplementation((name: string) =>
+        catalogItem(name.toLowerCase().replaceAll(" ", "_")),
+      );
+      mockResolveSetMembership.mockResolvedValue(definition);
+      mockGetMyOrders.mockResolvedValue({
+        sell: [sellOrder("braton_set_order", "Braton Prime Set", "braton_prime_set", 90)],
+        buy: [],
+      });
+
+      const matches = await matchTradeToOrders({
+        partner: "Buyer",
+        platChange: 180,
+        type: "sale",
+        items: [
+          { displayName: "Braton Prime Blueprint", count: 2, direction: "given" },
+          { displayName: "Braton Prime Barrel", count: 2, direction: "given" },
+        ],
+      });
+
+      expect(matches).toMatchObject([{ orderId: "braton_set_order", quantity: 2 }]);
+    });
+
+    it("closes a full set and the extra component beside it", async () => {
+      const definition = resolvedSet([
+        { slug: "braton_prime_blueprint", quantityInSet: 1 },
+        { slug: "braton_prime_barrel", quantityInSet: 1 },
+      ]);
+      mockLookupByName.mockImplementation((name: string) =>
+        catalogItem(name.toLowerCase().replaceAll(" ", "_")),
+      );
+      mockResolveSetMembership.mockResolvedValue(definition);
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          sellOrder("braton_set_order", "Braton Prime Set", "braton_prime_set", 90),
+          sellOrder("barrel_order", "Braton Prime Barrel", "braton_prime_barrel", 20),
+        ],
+        buy: [],
+      });
+
+      const matches = await matchTradeToOrders({
+        partner: "Buyer",
+        platChange: 110,
+        type: "sale",
+        items: [
+          { displayName: "Braton Prime Blueprint", count: 1, direction: "given" },
+          { displayName: "Braton Prime Barrel", count: 2, direction: "given" },
+        ],
+      });
+
+      expect(matches).toMatchObject([
+        { orderId: "braton_set_order", quantity: 1 },
+        { orderId: "barrel_order", quantity: 1 },
+      ]);
+    });
+
+    it("closes every distinct full set covered by one trade", async () => {
+      const definitions = {
+        braton: resolvedSet([
+          { slug: "braton_prime_blueprint", quantityInSet: 1 },
+          { slug: "braton_prime_barrel", quantityInSet: 1 },
+        ]),
+        burston: {
+          kind: "set" as const,
+          setSlug: "burston_prime_set",
+          parts: [
+            { slug: "burston_prime_blueprint", quantityInSet: 1 },
+            { slug: "burston_prime_barrel", quantityInSet: 1 },
+          ],
+        },
+      };
+      mockLookupByName.mockImplementation((name: string) =>
+        catalogItem(name.toLowerCase().replaceAll(" ", "_")),
+      );
+      mockResolveSetMembership.mockImplementation(async (slug: string) =>
+        slug.startsWith("braton") ? definitions.braton : definitions.burston,
+      );
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          sellOrder("braton_set_order", "Braton Prime Set", "braton_prime_set", 90),
+          sellOrder("burston_set_order", "Burston Prime Set", "burston_prime_set", 80),
+        ],
+        buy: [],
+      });
+
+      const matches = await matchTradeToOrders({
+        partner: "Buyer",
+        platChange: 170,
+        type: "sale",
+        items: [
+          { displayName: "Braton Prime Blueprint", count: 1, direction: "given" },
+          { displayName: "Braton Prime Barrel", count: 1, direction: "given" },
+          { displayName: "Burston Prime Blueprint", count: 1, direction: "given" },
+          { displayName: "Burston Prime Barrel", count: 1, direction: "given" },
+        ],
+      });
+
+      expect(matches.map((match) => match.orderId)).toEqual([
+        "braton_set_order",
+        "burston_set_order",
+      ]);
+    });
+
+    it("keeps unavailable parts blocked when another set matches", async () => {
+      const definition = resolvedSet([
+        { slug: "braton_prime_blueprint", quantityInSet: 1 },
+        { slug: "braton_prime_barrel", quantityInSet: 1 },
+      ]);
+      mockLookupByName.mockImplementation((name: string) =>
+        catalogItem(name.toLowerCase().replaceAll(" ", "_")),
+      );
+      mockResolveSetMembership.mockImplementation(async (slug: string) =>
+        slug.startsWith("braton") ? definition : { kind: "unavailable" },
+      );
+      mockGetMyOrders.mockResolvedValue({
+        sell: [
+          sellOrder("braton_set_order", "Braton Prime Set", "braton_prime_set", 90),
+          sellOrder("mystery_order", "Mystery Prime Barrel", "mystery_prime_barrel", 20),
+        ],
+        buy: [],
+      });
+
+      const matches = await matchTradeToOrders({
+        partner: "Buyer",
+        platChange: 110,
+        type: "sale",
+        items: [
+          { displayName: "Braton Prime Blueprint", count: 1, direction: "given" },
+          { displayName: "Braton Prime Barrel", count: 1, direction: "given" },
+          { displayName: "Mystery Prime Barrel", count: 1, direction: "given" },
+        ],
+      });
+
+      expect(matches.map((match) => match.orderId)).toEqual(["braton_set_order"]);
     });
   });
 
@@ -785,7 +1081,7 @@ describe("tradeWfmMatcher", () => {
         buy: [],
       });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 15,
         type: "sale",
@@ -795,7 +1091,7 @@ describe("tradeWfmMatcher", () => {
       expect(result?.orderId).toBe("mod-order");
     });
 
-    it("prefers the listing whose rank matches the traded one", async () => {
+    it("requires the traded rank even when another rank matches the total price", async () => {
       mockGetMyOrders.mockResolvedValue({
         sell: [
           {
@@ -813,7 +1109,7 @@ describe("tradeWfmMatcher", () => {
           {
             id: "rank-10",
             orderType: "sell",
-            platinum: 20,
+            platinum: 25,
             quantity: 1,
             visible: true,
             modRank: 10,
@@ -826,7 +1122,7 @@ describe("tradeWfmMatcher", () => {
         buy: [],
       });
 
-      const result = await matchTradeToOrder({
+      const result = await matchOne({
         partner: "Buyer",
         platChange: 20,
         type: "sale",
@@ -842,7 +1138,13 @@ describe("tradeWfmMatcher", () => {
       partner: "Buyer",
       platChange: 300,
       type: "sale" as const,
-      items: [{ displayName: "Rubico Visio-Critatis (RIVEN RANK 0)", count: 1, direction: "given" as const }],
+      items: [
+        {
+          displayName: "Rubico Visio-Critatis (RIVEN RANK 0)",
+          count: 1,
+          direction: "given" as const,
+        },
+      ],
     };
 
     beforeEach(() => {
@@ -860,7 +1162,7 @@ describe("tradeWfmMatcher", () => {
         hasMore: false,
       });
 
-      const result = await matchTradeToOrder(rivenSale);
+      const result = await matchOne(rivenSale);
 
       expect(result?.kind).toBe("contract");
       expect(result?.orderId).toBe("auction-1");
@@ -875,7 +1177,7 @@ describe("tradeWfmMatcher", () => {
         hasMore: false,
       });
 
-      expect((await matchTradeToOrder(rivenSale))?.orderId).toBe("auction-solo");
+      expect((await matchOne(rivenSale))?.orderId).toBe("auction-solo");
     });
 
     it("closes nothing when several rivens for the weapon are listed", async () => {
@@ -889,11 +1191,11 @@ describe("tradeWfmMatcher", () => {
         hasMore: false,
       });
 
-      expect(await matchTradeToOrder(rivenSale)).toBeNull();
+      expect(await matchOne(rivenSale)).toBeNull();
     });
 
     it("ignores auctions when the riven was bought, not sold", async () => {
-      await matchTradeToOrder({
+      await matchOne({
         ...rivenSale,
         type: "purchase",
         items: [{ ...rivenSale.items[0], direction: "received" }],

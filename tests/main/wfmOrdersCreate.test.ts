@@ -2,13 +2,19 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { requestV2, WfmApiError } from "../../services/wfmClient";
 import * as wfmOrders from "../../services/wfmOrders";
+import * as wfmSession from "../../services/wfmSession";
 
 vi.mock("../../services/wfmClient", async (importOriginal) => {
   const actual = await importOriginal<typeof import("../../services/wfmClient")>();
   return { ...actual, requestV2: vi.fn() };
 });
 
+vi.mock("../../services/wfmSession", () => ({
+  getInGameName: vi.fn(),
+}));
+
 const requestV2Mock = vi.mocked(requestV2);
+const getInGameNameMock = vi.mocked(wfmSession.getInGameName);
 
 const ORDER_RESPONSE = {
   data: { order: { id: "o1", type: "sell", platinum: 85, quantity: 1, visible: true } },
@@ -149,5 +155,33 @@ describe("createOrder perTrade adaptivity", () => {
     const finalBody = requestV2Mock.mock.calls[2][2]?.json as Record<string, unknown>;
     expect(finalBody.perTrade).toBe(1);
     expect(finalBody.rank).toBe(0);
+  });
+});
+
+describe("getMyOrders normalization", () => {
+  beforeEach(() => {
+    requestV2Mock.mockReset();
+    getInGameNameMock.mockReturnValue("TestUser");
+  });
+
+  it("preserves the listing perTrade bundle", async () => {
+    requestV2Mock.mockResolvedValue({
+      data: [
+        {
+          id: "bundle-order",
+          type: "sell",
+          platinum: 5,
+          quantity: 12,
+          perTrade: 6,
+          visible: true,
+          item: { item_name: "Vitus Essence", url_name: "vitus_essence" },
+        },
+      ],
+    });
+
+    await expect(wfmOrders.getMyOrders()).resolves.toMatchObject({
+      sell: [{ id: "bundle-order", quantity: 12, perTrade: 6 }],
+      buy: [],
+    });
   });
 });

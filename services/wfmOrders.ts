@@ -19,6 +19,7 @@ export interface NormalisedOrder {
   orderType: string;
   platinum: number;
   quantity: number;
+  perTrade?: number;
   visible: boolean;
   modRank: number | null;
   itemId: string | null;
@@ -33,12 +34,18 @@ function normalise(raw: WfmRawOrder, forcedType?: string): NormalisedOrder {
   const thumb = item.thumb || item.icon || "";
   const imageUrl = formatWfmAssetUrl(thumb);
 
+  const quantity = Number.isInteger(raw.quantity) && raw.quantity > 0 ? raw.quantity : 1;
+  const perTradeRaw = raw.perTrade ?? raw.per_trade ?? 1;
+  const perTrade =
+    Number.isInteger(perTradeRaw) && perTradeRaw > 0 ? Math.min(perTradeRaw, quantity) : 1;
+
   return {
     id: raw.id,
     // v2 uses 'type', v1 used 'order_type'
     orderType: raw.type || raw.order_type || forcedType || "sell",
     platinum: raw.platinum ?? 0,
-    quantity: raw.quantity ?? 1,
+    quantity,
+    perTrade,
     visible: raw.visible ?? true,
     // v2 uses 'rank', v1 used 'mod_rank'
     modRank: raw.rank ?? raw.mod_rank ?? null,
@@ -170,9 +177,7 @@ export async function createOrder({
     return body;
   };
 
-  // v2: POST /order. The server can demand two independent shape fixes
-  // (perTrade flip, missing rank) on successive responses - apply each at
-  // most once and retry until the request sticks or the error is unknown.
+  // Each compatibility retry applies once.
   let sendPerTrade = _sendPerTrade;
   let perTradeFlipped = false;
   let data: unknown;
@@ -195,8 +200,7 @@ export async function createOrder({
         continue;
       }
       if (modRank == null && /\brank\b/i.test(message) && /required/i.test(message)) {
-        // v2 hard-requires rank for mods/arcanes; a caller with a stale
-        // catalog entry can still omit it - rank 0 beats a failed post.
+        // Stale catalog entries can omit the required rank.
         modRank = 0;
         log.info("[WFMOrders] server requires rank - retrying with rank 0");
         continue;

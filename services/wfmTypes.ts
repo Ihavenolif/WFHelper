@@ -51,6 +51,8 @@ export interface WfmRawOrder {
   order_type?: string;
   platinum: number;
   quantity: number;
+  perTrade?: number;
+  per_trade?: number;
   visible: boolean;
   rank?: number | null;
   mod_rank?: number | null;

@@ -1,7 +1,4 @@
-/**
- * Matches a completed in-game trade to the user's active WFM orders and closes
- * the best match - by item name, tiebroken on platinum then rank proximity.
- */
+/** Matches traded quantities to active WFM listings. */
 
 import { withScope } from "./logger";
 import * as wfmOrders from "./wfmOrders";
@@ -25,7 +22,6 @@ interface ParsedTradeForMatching {
 
 type WfmTradeMatch = TradeMatchPayload;
 
-/** Prevent double-close on the same order within a short window */
 const _recentlyClosedOrders = new Map<string, number>();
 const CLOSE_DEDUP_MS = 30_000;
 const CONTRACT_PAGE_LIMIT = 100;
@@ -34,9 +30,17 @@ function normalizeName(name: string): string {
   return normalizeForSearch(name.replace(/ Blueprint$/i, ""));
 }
 
-function rankScore(order: NormalisedOrder, tradedRank: number | null): number {
-  if (tradedRank == null) return order.modRank ?? -1;
-  return Math.abs((order.modRank ?? 0) - tradedRank);
+interface PreparedTradeItem {
+  item: ParsedTradeForMatching["items"][number];
+  parsed: ReturnType<typeof parseTradedItemName>;
+  slug: string | null;
+  remaining: number;
+}
+
+function closeableQuantity(order: NormalisedOrder, tradedQuantity: number): number {
+  const available = Math.min(tradedQuantity, order.quantity || 1);
+  const perTrade = Math.max(1, order.perTrade ?? 1);
+  return available % perTrade === 0 ? available : 0;
 }
 
 function cleanupRecentlyClosed(): void {
@@ -46,196 +50,211 @@ function cleanupRecentlyClosed(): void {
   }
 }
 
-/**
- * Attempt to match a completed trade against the user's active WFM orders.
- * Returns the matched order info, or null if no match found.
- */
-export async function matchTradeToOrder(
-  trade: ParsedTradeForMatching,
-): Promise<WfmTradeMatch | null> {
-  // Guard: must be logged in to WFM
+export async function matchTradeToOrders(trade: ParsedTradeForMatching): Promise<WfmTradeMatch[]> {
   if (!wfmSession.getToken()) {
     log.info("[Matcher] Skipping - not logged in to WFM");
-    return null;
+    return [];
   }
 
-  // Determine which items to match:
-  // For sales, we match items we GAVE (the buyer receives them)
-  // For purchases, we match items we RECEIVED
   const relevantItems = trade.items.filter((i) =>
     trade.type === "sale" ? i.direction === "given" : i.direction === "received",
   );
 
   if (relevantItems.length === 0) {
     log.info("[Matcher] No relevant items to match");
-    return null;
+    return [];
   }
 
   cleanupRecentlyClosed();
 
-  // Unveiled rivens live in auctions, so they never appear in the order list.
-  const rivenMatch = await matchRivenContract(relevantItems, trade);
-  if (rivenMatch) return rivenMatch;
+  const matches: WfmTradeMatch[] = [];
+  const usedOrderIds = new Set<string>();
+  const preparedItems: PreparedTradeItem[] = relevantItems.map((item) => {
+    const parsed = parseTradedItemName(item.displayName);
+    const catalogItem = lookupTradedCatalogItem(item.displayName);
+    return {
+      item,
+      parsed,
+      slug: catalogItem?.url_name ?? null,
+      remaining: item.count,
+    };
+  });
 
-  // Fetch user's current orders
+  matches.push(...(await matchRivenContracts(preparedItems, trade)));
+
   let orders: { sell: NormalisedOrder[]; buy: NormalisedOrder[] };
   try {
     orders = await wfmOrders.getMyOrders();
   } catch (err) {
     log.warn("[Matcher] Failed to fetch orders:", String(err));
-    return null;
+    return matches;
   }
 
   const candidateOrders = trade.type === "sale" ? orders.sell : orders.buy;
   if (candidateOrders.length === 0) {
     log.info(`[Matcher] No ${trade.type === "sale" ? "sell" : "buy"} orders to match against`);
-    return null;
+    return matches;
   }
 
-  // Sets first: the buyer receives the individual parts, so a full-set sale
-  // must close the set listing, not a lone part listing that happens to match.
   const tradedCounts = new Map<string, number>();
-  for (const item of relevantItems) {
-    const catalogItem = lookupTradedCatalogItem(item.displayName);
-    if (catalogItem?.url_name) {
-      const slug = catalogItem.url_name;
-      tradedCounts.set(slug, (tradedCounts.get(slug) || 0) + item.count);
+  for (const item of preparedItems) {
+    if (!item.slug || item.remaining < 1) continue;
+    tradedCounts.set(item.slug, (tradedCounts.get(item.slug) || 0) + item.remaining);
+  }
+  const setResult = await matchSetOrders(candidateOrders, tradedCounts, trade);
+  matches.push(...setResult.matches);
+  for (const match of setResult.matches) usedOrderIds.add(match.orderId);
+  for (const [slug, consumed] of setResult.consumedCounts) {
+    let remainingToConsume = consumed;
+    for (const item of preparedItems) {
+      if (item.slug !== slug || remainingToConsume < 1) continue;
+      const used = Math.min(item.remaining, remainingToConsume);
+      item.remaining -= used;
+      remainingToConsume -= used;
     }
   }
-  const setResult = await matchSetOrder(candidateOrders, tradedCounts, trade);
-  if (setResult.match) return setResult.match;
-  if (setResult.unavailable) {
-    log.warn("[Matcher] Set metadata unavailable - skipping automatic order closure");
-    return null;
-  }
 
-  // Match the first traded item that resolves to an active order.
-  for (const item of relevantItems) {
-    const parsed = parseTradedItemName(item.displayName);
-    const normalizedItem = normalizeName(parsed.baseName);
+  for (const prepared of preparedItems) {
+    if (prepared.remaining < 1) continue;
+    if (prepared.slug && setResult.blockedSlugs.has(prepared.slug)) continue;
+
+    const normalizedItem = normalizeName(prepared.parsed.baseName);
     if (!normalizedItem) continue;
 
-    // Also try catalog lookup to get the canonical WFM item name
-    const catalogItem = lookupTradedCatalogItem(item.displayName);
-
-    // Filter orders that match this item by name
-    const matching = candidateOrders.filter((order: NormalisedOrder) => {
-      if (_recentlyClosedOrders.has(order.id)) return false;
+    let matching = candidateOrders.filter((order: NormalisedOrder) => {
+      if (_recentlyClosedOrders.has(order.id) || usedOrderIds.has(order.id)) return false;
 
       const orderItemName = normalizeName(String(order.itemName || ""));
       if (orderItemName === normalizedItem) return true;
-
-      // Also try matching via url_name if we resolved the catalog
-      if (catalogItem?.url_name && order.itemUrlName === catalogItem.url_name) return true;
+      if (prepared.slug && order.itemUrlName === prepared.slug) return true;
 
       return false;
     });
 
+    if (prepared.parsed.rank != null) {
+      matching = matching.filter((order) => order.modRank === prepared.parsed.rank);
+    }
     if (matching.length === 0) continue;
 
-    // Sort by platinum proximity, rank proximity, then quantity.
     matching.sort((a: NormalisedOrder, b: NormalisedOrder) => {
-      const platDiffA = Math.abs((a.platinum || 0) - trade.platChange);
-      const platDiffB = Math.abs((b.platinum || 0) - trade.platChange);
-      if (platDiffA !== platDiffB) return platDiffA - platDiffB;
-
-      // The traded rank when the dialog carried one, lowest rank otherwise.
-      const rankA = rankScore(a, parsed.rank);
-      const rankB = rankScore(b, parsed.rank);
-      if (rankA !== rankB) return rankA - rankB;
-
-      // Quantity (lower is better)
+      if (relevantItems.length === 1) {
+        const platDiffA = Math.abs((a.platinum || 0) - trade.platChange);
+        const platDiffB = Math.abs((b.platinum || 0) - trade.platChange);
+        if (platDiffA !== platDiffB) return platDiffA - platDiffB;
+      }
       return (a.quantity || 1) - (b.quantity || 1);
     });
 
     const bestMatch = matching[0];
-    // A single trade slot can hold a stack, so the only real bound is the
-    // order's own quantity - you can't close more than you listed.
-    const closeQty = Math.min(item.count, bestMatch.quantity || 1);
+    const closeQty = closeableQuantity(bestMatch, prepared.remaining);
+    if (closeQty < 1) {
+      log.warn(`[Matcher] Order ${bestMatch.id} cannot close ${prepared.remaining} unit(s)`);
+      continue;
+    }
 
-    return {
+    usedOrderIds.add(bestMatch.id);
+    prepared.remaining -= closeQty;
+    matches.push({
       kind: "order",
       orderId: bestMatch.id,
-      itemName: bestMatch.itemName || item.displayName,
-      itemUrlName: bestMatch.itemUrlName || catalogItem?.url_name || null,
+      itemName: bestMatch.itemName || prepared.item.displayName,
+      itemUrlName: bestMatch.itemUrlName || prepared.slug,
       itemThumb: bestMatch.itemThumb || null,
       quantity: closeQty,
       platinum: bestMatch.platinum || 0,
       partner: trade.partner,
       type: trade.type,
-    };
+    });
   }
 
-  const tradedSummary = relevantItems
-    .map((item) => `"${item.displayName}" x${item.count}`)
-    .join(", ");
-  log.info(
-    `[Matcher] No matching WFM orders found for traded items: ${tradedSummary} ` +
-      `(${candidateOrders.length} ${trade.type === "sale" ? "sell" : "buy"} order(s) checked)`,
-  );
-  return null;
+  if (matches.length === 0) {
+    const tradedSummary = relevantItems
+      .map((item) => `"${item.displayName}" x${item.count}`)
+      .join(", ");
+    log.info(
+      `[Matcher] No matching WFM orders found for traded items: ${tradedSummary} ` +
+        `(${candidateOrders.length} ${trade.type === "sale" ? "sell" : "buy"} order(s) checked)`,
+    );
+  }
+  return matches;
 }
 
-/** Close the riven auction for a sold unveiled riven ("<weapon> <suffix>"). */
-async function matchRivenContract(
-  items: ParsedTradeForMatching["items"],
+async function matchRivenContracts(
+  items: PreparedTradeItem[],
   trade: ParsedTradeForMatching,
-): Promise<WfmTradeMatch | null> {
-  if (trade.type !== "sale") return null;
-  const rivens = items
-    .map((item) => parseTradedItemName(item.displayName))
-    .filter((parsed) => parsed.riven);
-  if (rivens.length !== 1) return null;
-  const { baseName, riven } = rivens[0];
-  if (!riven) return null;
+): Promise<WfmTradeMatch[]> {
+  if (trade.type !== "sale") return [];
+  const rivenItems = items.filter((item) => item.parsed.riven);
+  if (rivenItems.length === 0) return [];
 
   let contracts: Awaited<ReturnType<typeof wfmContracts.getMyContracts>>["contracts"];
   try {
     contracts = (await wfmContracts.getMyContracts({ limit: CONTRACT_PAGE_LIMIT })).contracts;
   } catch (err) {
     log.warn("[Matcher] Failed to fetch riven auctions:", String(err));
-    return null;
+    return [];
   }
 
-  const weaponSlug = normalizeForSlug(riven.weapon);
-  const sameWeapon = contracts.filter(
-    (contract) =>
-      !_recentlyClosedOrders.has(contract.id) &&
-      contract.weaponUrlName &&
-      normalizeForSlug(contract.weaponUrlName) === weaponSlug,
-  );
-  // The generated suffix identifies the roll; weapon alone only decides it when
-  // there is exactly one auction for that weapon.
-  const suffixSlug = normalizeForSlug(riven.suffix);
-  const exact = sameWeapon.filter(
-    (contract) => contract.rivenSuffix && normalizeForSlug(contract.rivenSuffix) === suffixSlug,
-  );
-  const best = exact[0] || (sameWeapon.length === 1 ? sameWeapon[0] : null);
-  if (!best) {
-    log.info(`[Matcher] No riven auction matched "${baseName}" (${sameWeapon.length} for weapon)`);
-    return null;
-  }
+  const matches: WfmTradeMatch[] = [];
+  const usedAuctionIds = new Set<string>();
+  for (const item of rivenItems) {
+    const { baseName, riven } = item.parsed;
+    if (!riven) continue;
 
-  return {
-    kind: "contract",
-    orderId: best.id,
-    itemName: baseName,
-    itemUrlName: best.weaponUrlName,
-    itemThumb: best.itemThumb,
-    quantity: 1,
-    platinum: trade.platChange || best.platinum,
-    partner: trade.partner,
-    type: trade.type,
-  };
+    const weaponSlug = normalizeForSlug(riven.weapon);
+    const sameWeapon = contracts.filter(
+      (contract) =>
+        !_recentlyClosedOrders.has(contract.id) &&
+        !usedAuctionIds.has(contract.id) &&
+        contract.weaponUrlName &&
+        normalizeForSlug(contract.weaponUrlName) === weaponSlug,
+    );
+    const suffixSlug = normalizeForSlug(riven.suffix);
+    const exact = sameWeapon.filter(
+      (contract) => contract.rivenSuffix && normalizeForSlug(contract.rivenSuffix) === suffixSlug,
+    );
+    const best = exact[0] || (sameWeapon.length === 1 ? sameWeapon[0] : null);
+    if (!best) {
+      log.info(
+        `[Matcher] No riven auction matched "${baseName}" (${sameWeapon.length} for weapon)`,
+      );
+      continue;
+    }
+
+    usedAuctionIds.add(best.id);
+    item.remaining = Math.max(0, item.remaining - 1);
+    matches.push({
+      kind: "contract",
+      orderId: best.id,
+      itemName: baseName,
+      itemUrlName: best.weaponUrlName,
+      itemThumb: best.itemThumb,
+      quantity: 1,
+      platinum: rivenItems.length === 1 ? trade.platChange || best.platinum : best.platinum,
+      partner: trade.partner,
+      type: trade.type,
+    });
+  }
+  return matches;
 }
 
-/** Resolve traded parts instead of walking every active set order. */
-async function matchSetOrder(
+interface SetMatchResult {
+  matches: WfmTradeMatch[];
+  consumedCounts: ReadonlyMap<string, number>;
+  blockedSlugs: ReadonlySet<string>;
+}
+
+async function matchSetOrders(
   candidateOrders: NormalisedOrder[],
   tradedCounts: Map<string, number>,
   trade: ParsedTradeForMatching,
-): Promise<{ match: WfmTradeMatch | null; unavailable: boolean }> {
-  if (tradedCounts.size < 2) return { match: null, unavailable: false };
+): Promise<SetMatchResult> {
+  const noMatch: SetMatchResult = {
+    matches: [],
+    consumedCounts: new Map(),
+    blockedSlugs: new Set(),
+  };
+  if (tradedCounts.size < 2) return noMatch;
 
   const setOrders = new Map<string, NormalisedOrder[]>();
   for (const order of candidateOrders) {
@@ -246,9 +265,9 @@ async function matchSetOrder(
     if (matchingOrders) matchingOrders.push(order);
     else setOrders.set(slug, [order]);
   }
-  if (setOrders.size === 0) return { match: null, unavailable: false };
+  if (setOrders.size === 0) return noMatch;
 
-  let unavailable = false;
+  const blockedSlugs = new Set<string>();
   const definitions = new Map<
     string,
     { kind: "set"; setSlug: string; parts: Array<{ slug: string; quantityInSet: number }> }
@@ -256,52 +275,56 @@ async function matchSetOrder(
   for (const slug of tradedCounts.keys()) {
     const result = await wfmCatalog.resolveSetMembership(slug);
     if (result.kind === "unavailable") {
-      unavailable = true;
-    } else if (result.kind === "set" && setOrders.has(result.setSlug)) {
-      definitions.set(result.setSlug, result);
+      blockedSlugs.add(slug);
+    } else if (result.kind === "set") {
+      for (const part of result.parts) blockedSlugs.delete(part.slug);
+      if (setOrders.has(result.setSlug)) definitions.set(result.setSlug, result);
     }
   }
 
-  const covered: Array<{ order: NormalisedOrder; setsCovered: number }> = [];
+  const availableCounts = new Map(tradedCounts);
+  const consumedCounts = new Map<string, number>();
+  const matches: WfmTradeMatch[] = [];
   for (const definition of definitions.values()) {
     let setsCovered = Infinity;
     for (const part of definition.parts) {
-      const have = tradedCounts.get(part.slug) || 0;
+      const have = availableCounts.get(part.slug) || 0;
       setsCovered = Math.min(setsCovered, Math.floor(have / part.quantityInSet));
     }
-    if (Number.isFinite(setsCovered) && setsCovered >= 1) {
-      for (const order of setOrders.get(definition.setSlug) || []) {
-        covered.push({ order, setsCovered });
-      }
-    }
-  }
-  if (covered.length === 0) return { match: null, unavailable };
+    if (!Number.isFinite(setsCovered) || setsCovered < 1) continue;
 
-  covered.sort(
-    (a, b) =>
-      Math.abs((a.order.platinum || 0) - trade.platChange) -
-      Math.abs((b.order.platinum || 0) - trade.platChange),
-  );
-  const best = covered[0];
-  return {
-    match: {
+    const orders = setOrders.get(definition.setSlug) || [];
+    const best = orders.sort((a, b) => (a.quantity || 1) - (b.quantity || 1))[0];
+    if (!best) continue;
+
+    for (const part of definition.parts) {
+      const consumed = setsCovered * part.quantityInSet;
+      availableCounts.set(part.slug, (availableCounts.get(part.slug) || 0) - consumed);
+      consumedCounts.set(part.slug, (consumedCounts.get(part.slug) || 0) + consumed);
+    }
+
+    const closeQty = closeableQuantity(best, setsCovered);
+    if (closeQty < 1) {
+      for (const part of definition.parts) blockedSlugs.add(part.slug);
+      continue;
+    }
+    matches.push({
       kind: "order",
-      orderId: best.order.id,
-      itemName: best.order.itemName || "(set)",
-      itemUrlName: best.order.itemUrlName || null,
-      itemThumb: best.order.itemThumb || null,
-      quantity: Math.min(best.setsCovered, best.order.quantity || 1),
-      platinum: best.order.platinum || 0,
+      orderId: best.id,
+      itemName: best.itemName || "(set)",
+      itemUrlName: best.itemUrlName || null,
+      itemThumb: best.itemThumb || null,
+      quantity: closeQty,
+      platinum: best.platinum || 0,
       partner: trade.partner,
       type: trade.type,
-    },
-    unavailable: false,
-  };
+    });
+  }
+
+  return { matches, consumedCounts, blockedSlugs };
 }
 
-/**
- * Close the matched WFM order and mark it as recently closed to prevent duplicates.
- */
+/** Closes a match once despite duplicate EE.log delivery. */
 export async function closeMatchedOrder(match: WfmTradeMatch): Promise<boolean> {
   try {
     log.info(`[Matcher] Closing ${match.kind} ${match.orderId} (${match.itemName})`);

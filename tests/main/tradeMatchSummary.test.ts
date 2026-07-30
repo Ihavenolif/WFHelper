@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { summarizeTrade } from "../../config/shared/tradeMatch";
+import { summarizeMatches, summarizeTrade } from "../../config/shared/tradeMatch";
+import type { TradeMatchPayload } from "../../config/shared/tradeMatch";
 import type { TradeEvent } from "../../config/shared/statsTypes";
 
 function trade(overrides: Partial<TradeEvent> = {}): TradeEvent {
@@ -24,6 +25,42 @@ function trade(overrides: Partial<TradeEvent> = {}): TradeEvent {
     ...overrides,
   };
 }
+
+function match(itemName: string, platinum: number): TradeMatchPayload {
+  return {
+    kind: "order",
+    orderId: itemName,
+    itemName,
+    itemUrlName: null,
+    itemThumb: null,
+    quantity: 1,
+    platinum,
+    partner: "Buyer",
+    type: "sale",
+  };
+}
+
+describe("summarizeMatches", () => {
+  it("passes a lone match through untouched", () => {
+    expect(summarizeMatches([match("Boar Prime Stock", 30)], 30)).toEqual(
+      match("Boar Prime Stock", 30),
+    );
+  });
+
+  it("counts the rest and keeps the negotiated trade total", () => {
+    const summary = summarizeMatches(
+      [match("Boar Prime Stock", 30), match("Boar Prime Barrel", 25), match("Arcane Energize", 40)],
+      80,
+    );
+
+    expect(summary?.itemName).toBe("Boar Prime Stock +2");
+    expect(summary?.platinum).toBe(80);
+  });
+
+  it("returns null when nothing closed", () => {
+    expect(summarizeMatches([], 0)).toBeNull();
+  });
+});
 
 describe("summarizeTrade", () => {
   it("describes a sale by what was given away", () => {
