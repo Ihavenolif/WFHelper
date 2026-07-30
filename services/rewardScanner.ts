@@ -7,8 +7,10 @@
  *   - rewardScannerEra.ts       (relic selection era OCR)
  */
 
+import fs from "node:fs";
 import { withScope } from "./logger";
-import { createRewardOcrRunner } from "./rewardScannerOcr";
+import { createEraOcr, createRewardOcrRunner } from "./rewardScannerOcr";
+import { recognizeRewardStripOnnx, rewardOcrOnnxAvailable } from "./rewardOcrOnnx";
 import { SCANNER_TUNING } from "./rewardScannerSupport";
 import { detectRelicSelectionEra as detectRelicSelectionEraWithOcr } from "./rewardScannerEra";
 import {
@@ -48,10 +50,18 @@ export function setRelicItems(items: SortedItem[]): void {
   log.info(`[RewardScanner] Item list updated: ${relicItems.length} items`);
 }
 
+const eraOcr = createEraOcr({
+  runOCR,
+  runOCRBuffer,
+  recognizeStrip: recognizeRewardStripOnnx,
+  stripAvailable: rewardOcrOnnxAvailable,
+  readFile: (imagePath) => fs.readFileSync(imagePath),
+});
+
 export function detectRelicSelectionEra(
   options: { timeoutMs?: number; preferredDisplayId?: string | null; labelOnly?: boolean } = {},
 ): ReturnType<typeof detectRelicSelectionEraWithOcr> {
-  return detectRelicSelectionEraWithOcr(options, { runOCR, runOCRBuffer }, REWARD_SCAN_SETTINGS);
+  return detectRelicSelectionEraWithOcr(options, eraOcr, REWARD_SCAN_SETTINGS);
 }
 
 export async function scanRewardsDetailed(

@@ -2,6 +2,7 @@ import { normalizeDucats, toFiniteOr, clampNumber } from "../../config/shared/nu
 import { normalizeErrorMessage } from "../../config/shared/errors";
 import { RELIC_RECOMMENDATIONS, RELIC_PLANNER_TRIGGER } from "../../config/shared/ipcChannels";
 import { getWindowsOcrHealth } from "../../services/ocrServer";
+import { rewardOcrOnnxAvailable } from "../../services/rewardOcrOnnx";
 import { normalizeWfmSlugKey } from "../../config/shared/wfm";
 import { RELIC_MISSION_TIER_CACHE_TTL_MS } from "../../config/runtime/cacheConfig";
 
@@ -136,6 +137,10 @@ type OverlayRecommendationControllerOptions = {
   fs: typeof import("node:fs");
   cacheFilePath: string;
 };
+
+function eraOcrUnavailable(): boolean {
+  return !getWindowsOcrHealth().available && !rewardOcrOnnxAvailable();
+}
 
 function normalizeEra(value: unknown): string | null {
   const low = String(value || "")
@@ -577,7 +582,7 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
         era,
         rows,
         totalOwnedCount,
-        ocrUnavailable: !getWindowsOcrHealth().available,
+        ocrUnavailable: eraOcrUnavailable(),
         detection: {
           confidence: 0,
           textPreview: "",
@@ -750,7 +755,7 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
         era: effectiveEra,
         rows,
         totalOwnedCount,
-        ocrUnavailable: !getWindowsOcrHealth().available,
+        ocrUnavailable: eraOcrUnavailable(),
         detection: {
           confidence: eraConfidence,
           textPreview: "",
@@ -774,7 +779,7 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
         source,
         era: null,
         rows: [],
-        ocrUnavailable: !getWindowsOcrHealth().available,
+        ocrUnavailable: eraOcrUnavailable(),
       });
       windows.scheduleOverlayAutoHide(OVERLAY_AUTO_HIDE_FAILURE_MS);
     } finally {
@@ -851,7 +856,7 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
         source,
         era: null,
         rows: [],
-        ocrUnavailable: !getWindowsOcrHealth().available,
+        ocrUnavailable: eraOcrUnavailable(),
       });
       windows.scheduleOverlayAutoHide(OVERLAY_AUTO_HIDE_FAILURE_MS);
     }

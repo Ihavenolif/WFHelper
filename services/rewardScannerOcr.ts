@@ -239,3 +239,64 @@ export function createRewardOcrRunner(options: OcrRunnerOptions): OcrRunner {
     runPowerShellOCR,
   };
 }
+
+interface EraOcrDeps {
+  runOCR(imagePath: string, timeoutMs: number): Promise<string>;
+  runOCRBuffer(imageBuffer: Buffer, timeoutMs: number): Promise<string>;
+  recognizeStrip(png: Buffer): Promise<{ text: string } | null>;
+  stripAvailable(): boolean;
+  readFile(imagePath: string): Buffer;
+  isWindows?: boolean;
+}
+
+/** Uses bounded Paddle OCR when Windows OCR is unavailable. */
+export function createEraOcr(deps: EraOcrDeps): {
+  runOCR(imagePath: string, timeoutMs: number): Promise<string>;
+  runOCRBuffer(imageBuffer: Buffer, timeoutMs: number): Promise<string>;
+} {
+  const isWindows = deps.isWindows ?? process.platform === "win32";
+
+  function boundedStrip(png: Buffer, timeoutMs: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => resolve(""), Math.max(1, timeoutMs));
+      deps.recognizeStrip(png).then(
+        (read) => {
+          clearTimeout(timer);
+          resolve(read?.text || "");
+        },
+        (err) => {
+          clearTimeout(timer);
+          reject(err);
+        },
+      );
+    });
+  }
+
+  async function runOCRBuffer(imageBuffer: Buffer, timeoutMs: number): Promise<string> {
+    if (isWindows) {
+      try {
+        return await deps.runOCRBuffer(imageBuffer, timeoutMs);
+      } catch (err) {
+        if (!deps.stripAvailable()) throw err;
+      }
+    } else if (!deps.stripAvailable()) {
+      throw new Error("No OCR engine available for era detection");
+    }
+    return boundedStrip(imageBuffer, timeoutMs);
+  }
+
+  async function runOCR(imagePath: string, timeoutMs: number): Promise<string> {
+    if (isWindows) {
+      try {
+        return await deps.runOCR(imagePath, timeoutMs);
+      } catch (err) {
+        if (!deps.stripAvailable()) throw err;
+      }
+    } else if (!deps.stripAvailable()) {
+      throw new Error("No OCR engine available for era detection");
+    }
+    return boundedStrip(deps.readFile(imagePath), timeoutMs);
+  }
+
+  return { runOCR, runOCRBuffer };
+}
