@@ -12,7 +12,7 @@ import { computeSteelPathHonors } from "./worldStateSteelPath";
 
 const log = withScope("worldStateParser");
 
-const FETCH_URL = WORLD_STATE_CONFIG.fetchUrl;
+const FETCH_URLS = WORLD_STATE_CONFIG.fetchUrls;
 const ORACLE_WORLDSTATE_URL = WORLD_STATE_CONFIG.oracleWorldStateUrl;
 const ORACLE_BOUNTY_CYCLE_URL = WORLD_STATE_CONFIG.oracleBountyCycleUrl;
 const EARTH_CYCLE_URL = WORLD_STATE_CONFIG.earthCycleUrl;
@@ -769,45 +769,66 @@ async function fetchAndComputeCycles(
   };
 }
 
-async function fetchPrimaryWorldState(): Promise<WorldStateRaw> {
+async function fetchOracleWorldState(): Promise<WorldStateRaw> {
   const raw = await fetchJsonWithTimeout(ORACLE_WORLDSTATE_URL, FETCH_TIMEOUT_MS) as WorldStateRaw;
-  if (!raw || typeof raw !== "object" || Object.keys(raw).length === 0) {
-    throw new Error("oracle returned empty object");
-  }
+  if (!isWorldStatePayload(raw)) throw new Error("oracle returned an invalid payload");
   log.info("[WorldState] fetched oracle world-state OK");
   return raw;
 }
 
-async function fetchFallbackWorldState(): Promise<WorldStateRaw | null> {
-  try {
-    const resp = await fetchWithTimeout(FETCH_URL, FETCH_TIMEOUT_MS, {
-      headers: { Accept: "application/json" },
-    });
-    if (!resp.ok) {
-      log.warn("[WorldState] DE world-state returned HTTP", resp.status);
-      return null;
+const WORLD_STATE_MARKERS: ReadonlyArray<keyof WorldStateRaw> = [
+  "ActiveMissions",
+  "VoidStorms",
+  "Invasions",
+  "VoidTraders",
+  "SyndicateMissions",
+  "EndlessXpSchedule",
+];
+
+function isWorldStatePayload(value: unknown): value is WorldStateRaw {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  return WORLD_STATE_MARKERS.some((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+async function fetchDeWorldState(): Promise<WorldStateRaw | null> {
+  for (const url of FETCH_URLS) {
+    try {
+      const resp = await fetchWithTimeout(url, FETCH_TIMEOUT_MS, {
+        headers: { Accept: "application/json" },
+      });
+      if (!resp.ok) {
+        log.warn(`[WorldState] ${url} returned HTTP ${resp.status}`);
+        continue;
+      }
+      const raw = await resp.json();
+      if (!isWorldStatePayload(raw)) {
+        log.warn(`[WorldState] ${url} returned an invalid payload`);
+        continue;
+      }
+      log.info("[WorldState] fetched DE world-state OK:", url);
+      return raw;
+    } catch (deErr) {
+      log.warn(`[WorldState] ${url} failed:`, normalizeErrorMessage(deErr));
     }
-    const raw = await resp.json() as WorldStateRaw;
-    log.info("[WorldState] fetched DE world-state OK");
-    return raw;
-  } catch (deErr) {
-    log.warn("[WorldState] DE world-state also failed:", normalizeErrorMessage(deErr));
-    return null;
   }
+  return null;
 }
 
 export async function fetchAndParse(): Promise<Record<string, unknown>> {
-  let raw: WorldStateRaw | null;
-  try {
-    raw = await fetchPrimaryWorldState();
-  } catch (oracleErr) {
-    log.warn("[WorldState] oracle failed:", normalizeErrorMessage(oracleErr), "- trying DE direct");
-    raw = await fetchFallbackWorldState();
-    if (!raw) return emptyWorldState();
+  // Prefer DE so normal polling does not overload the community oracle.
+  let raw = await fetchDeWorldState();
+  if (!raw) {
+    try {
+      raw = await fetchOracleWorldState();
+    } catch (oracleErr) {
+      throw new Error(`every world-state source failed: ${normalizeErrorMessage(oracleErr)}`, {
+        cause: oracleErr,
+      });
+    }
   }
 
   const parsed = parseRaw(raw);
-  if (!parsed) return emptyWorldState();
+  if (!parsed) throw new Error("world-state payload could not be parsed");
 
   // Fetch cycles and warframestat extras in parallel
   const parsedChoices =

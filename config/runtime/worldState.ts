@@ -1,5 +1,9 @@
 export const WORLD_STATE_CONFIG = Object.freeze({
-  fetchUrl: "https://content.warframe.com/dynamic/worldState.php",
+  // Keep the old DE path as a cheap fallback.
+  fetchUrls: Object.freeze([
+    "https://api.warframe.com/cdn/worldState.php",
+    "https://content.warframe.com/dynamic/worldState.php",
+  ]),
   oracleWorldStateUrl: "https://oracle.browse.wf/worldState.json",
   oracleBountyCycleUrl: "https://oracle.browse.wf/bounty-cycle",
   earthCycleUrl: "https://api.warframestat.us/pc",
