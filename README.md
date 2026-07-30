@@ -58,24 +58,25 @@ chmod +x WFHelper-*.AppImage
 ./WFHelper-*.AppImage
 ```
 
-(Or in your file manager: right-click the file → Properties → Permissions →
-"Allow executing as program", then double-click it.)
+In a file manager instead: right-click the file, open Properties, then
+Permissions, tick "Allow executing as program" and double-click it.
 
 Good to know:
 
-- **Warframe through Steam (Proton)** on the same machine is expected - the app
-  finds the game's log inside the Proton prefix automatically (native Steam,
-  Flatpak and Snap installs).
-- **Inventory** is read directly from the running game - no helper download
-  needed on Linux.
-- **Wayland works out of the box** - the app runs via XWayland automatically so
-  overlays can sit on top of the game.
-- **Screen capture** - the first overlay scan of a session shows the system
-  screen-share dialog once; pick the monitor Warframe runs on.
-- **Instant in-game detection** (overlays reacting the moment relics crack) -
-  add `PROTON_LOG=1 %command%` to Warframe's launch options (Steam →
-  right-click Warframe → Properties → Launch Options). The setup wizard walks
-  you through it; without it, events arrive with a short delay.
+- **Warframe runs through Steam (Proton).** WFHelper finds the game's log
+  inside the Proton prefix on its own, including Flatpak and Snap Steam
+  installs.
+- **Inventory comes straight from the running game.** Nothing extra to
+  download on Linux.
+- **Wayland needs no setup.** The app puts itself on XWayland so the overlays
+  can sit on top of the game.
+- **Screen capture asks once per session.** The first overlay scan opens your
+  desktop's screen-share dialog. Pick the monitor Warframe runs on.
+- **Instant overlays need one launch option.** Add `PROTON_LOG=1 %command%` to
+  Warframe's launch options (in Steam: right-click Warframe, Properties,
+  Launch Options) and restart the game. The setup wizard shows the same string
+  with a copy button. Without it the overlays still fire, just a few seconds
+  later.
 
 ### Inventory data
 

@@ -2,7 +2,9 @@
   import { onDestroy } from "svelte";
 
   // Proton real-time overlay triggers: feeds game log lines live vs EE.log poll.
-  const PROTON_LAUNCH_OPTION = "WINEDEBUG=+debugstr PROTON_LOG=1 %command%";
+  // No WINEDEBUG override - it replaces Proton's channels, and modern wine
+  // logs OutputDebugString on +seh, not +debugstr.
+  const PROTON_LAUNCH_OPTION = "PROTON_LOG=1 %command%";
 
   /** Tighter type sizes for the setup wizard, which has less room than Settings. */
   export let compact = false;
