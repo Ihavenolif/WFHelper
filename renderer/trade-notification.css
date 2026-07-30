@@ -6,6 +6,8 @@
 }
 
 body {
+  /* SCALE in tradeNotificationIpc.ts sizes the window to match. */
+  zoom: 1.5;
   background: transparent;
   overflow: hidden;
   font-family: "Barlow", "Segoe UI", sans-serif;

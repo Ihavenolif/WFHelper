@@ -12,8 +12,10 @@ const log = withScope("tradeNotificationIpc");
 import path from "node:path";
 import { app, BrowserWindow, screen } from "electron";
 
-const WIN_W = 370;
-const WIN_H = 80;
+// Must match the body zoom in trade-notification.css.
+const SCALE = 1.5;
+const WIN_W = 370 * SCALE;
+const WIN_H = 80 * SCALE;
 const MARGIN = 16;
 const NOTIFICATION_FILE = path.join(app.getAppPath(), "renderer", "trade-notification.html");
 
