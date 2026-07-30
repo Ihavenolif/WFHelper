@@ -193,6 +193,8 @@ interface ParsedLogTrade {
   platChange: number;
   type: TradeType;
   items: ParsedLogTradeItem[];
+  /** Game uptime stamp of the dialog line - identifies this exact trade. */
+  logStamp: string | null;
 }
 
 let _tradeDialogBuffer: string[] | null = null;
@@ -548,6 +550,7 @@ export function _parseTradeDialog(lines: string[]): ParsedLogTrade | null {
     platChange,
     type,
     items: [...offered.items, ...received.items],
+    logStamp: /^(\d+\.\d+)\b/.exec(lines[0] || "")?.[1] ?? null,
   };
 }
 

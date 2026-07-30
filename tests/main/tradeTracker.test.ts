@@ -73,17 +73,44 @@ describe("tradeTracker", () => {
         items: [{ displayName: "Vitus Essence", count: 1, direction: "given" as const }],
       };
       expect(module.recordTradeFromLog(trade)).not.toBeNull();
-      // Observed in the wild: EE.log flush lag beat the old 10 s cooldown.
       vi.advanceTimersByTime(14_000);
       expect(module.recordTradeFromLog(trade)).toBeNull();
       expect(module.getTradeLog()).toHaveLength(1);
-      // The same player repeating the same trade later must not be swallowed.
       vi.advanceTimersByTime(60_000);
       expect(module.recordTradeFromLog(trade)).not.toBeNull();
       expect(module.getTradeLog()).toHaveLength(2);
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("keeps an identical repeat inside the window when the log stamps differ", async () => {
+    const module = await tracker();
+    const trade = {
+      partner: "K9178",
+      platChange: 15,
+      type: "sale" as const,
+      items: [{ displayName: "Vitus Essence", count: 1, direction: "given" as const }],
+    };
+
+    expect(module.recordTradeFromLog({ ...trade, logStamp: "1200.500" })).not.toBeNull();
+    expect(module.recordTradeFromLog({ ...trade, logStamp: "1200.500" })).toBeNull();
+    expect(module.recordTradeFromLog({ ...trade, logStamp: "1212.750" })).not.toBeNull();
+    expect(module.getTradeLog()).toHaveLength(2);
+  });
+
+  it("still suppresses re-delivery when one side carries no stamp", async () => {
+    const module = await tracker();
+    const trade = {
+      partner: "K9178",
+      platChange: 15,
+      type: "sale" as const,
+      items: [{ displayName: "Vitus Essence", count: 1, direction: "given" as const }],
+    };
+
+    expect(module.recordTradeFromLog(trade)).not.toBeNull();
+    expect(module.recordTradeFromLog({ ...trade, logStamp: "1200.500" })).toBeNull();
+    expect(module.getTradeLog()).toHaveLength(1);
   });
 
   it("records distinct back-to-back trades", async () => {

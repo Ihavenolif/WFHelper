@@ -27,12 +27,15 @@ const log = withScope("tradeTracker");
 const MAX_EVENTS = 2000;
 const MAX_IMPORT_EVENTS = 10_000;
 const MAX_ITEMS_PER_TRADE = 12;
-// A trade arrives twice (DBWIN live + file poll after the lazy EE.log flush,
-// observed ~14s apart). The window must outlast the flush lag but stay well
-// under a repeat of the identical trade, which the in-game flow can't do in 30s.
+// Stamped dialogs dedupe exactly; unstamped input uses the delivery window.
 const DUPLICATE_WINDOW_MS = 30_000;
 
-let _recentSignatures = new Map<string, number>();
+interface RecentTrade {
+  at: number;
+  stamps: Set<string>;
+}
+
+let _recentSignatures = new Map<string, RecentTrade>();
 let _tradeLog: TradeEvent[] = [];
 
 function boundedString(value: unknown, maxLength: number): string | null {
@@ -44,8 +47,7 @@ function boundedString(value: unknown, maxLength: number): string | null {
 function sanitizeTradeItem(value: unknown): TradeItem | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const item = value as Record<string, unknown>;
-  // Repair names corrupted by pre-fix parser versions: platform glyphs,
-  // Dialog arg tails, and raw EE.log lines recorded as items.
+  // Repair entries written by older parsers.
   const rawName = boundedString(item.displayName, 160);
   const displayName = rawName ? stripPlatformGlyphs(stripDialogArgTail(rawName)) || null : null;
   if (displayName && isLogFrameworkLine(displayName)) return null;
@@ -93,8 +95,7 @@ function sanitizeTradeEvent(value: unknown): TradeEvent | null {
   if (!Number.isInteger(platChange) || platChange < 0 || platChange > 10_000_000) return null;
   if (!Array.isArray(event.items) || event.items.length > MAX_ITEMS_PER_TRADE) return null;
 
-  // Drop corrupt items (glyph-only names, raw log lines) but keep the event;
-  // an event whose items were ALL corrupt is itself garbage - drop it.
+  // Keep partially repairable trades.
   const items = event.items
     .map(sanitizeTradeItem)
     .filter((item): item is TradeItem => item != null);
@@ -166,6 +167,7 @@ export function recordTradeFromLog(parsed: {
   platChange: number;
   type: TradeType;
   items: Array<{ displayName: string; count: number; direction: TradeDirection }>;
+  logStamp?: string | null;
 }): TradeEvent | null {
   const now = Date.now();
   const partner = stripPlatformGlyphs(parsed.partner);
@@ -189,11 +191,19 @@ export function recordTradeFromLog(parsed: {
     partner.toLowerCase(),
     ...items.map((i) => `${i.direction}:${i.displayName.toLowerCase()}:${i.count}`).sort(),
   ].join("|");
-  for (const [key, ts] of _recentSignatures) {
-    if (now - ts > DUPLICATE_WINDOW_MS) _recentSignatures.delete(key);
+  for (const [key, seen] of _recentSignatures) {
+    if (now - seen.at > DUPLICATE_WINDOW_MS) _recentSignatures.delete(key);
   }
-  if (_recentSignatures.has(signature)) return null;
-  _recentSignatures.set(signature, now);
+  const stamp = typeof parsed.logStamp === "string" ? parsed.logStamp : null;
+  const seen = _recentSignatures.get(signature);
+  if (seen) {
+    const distinctTrade = stamp != null && seen.stamps.size > 0 && !seen.stamps.has(stamp);
+    if (!distinctTrade) return null;
+    seen.stamps.add(stamp);
+    seen.at = now;
+  } else {
+    _recentSignatures.set(signature, { at: now, stamps: new Set(stamp ? [stamp] : []) });
+  }
 
   const id = `${new Date().toISOString()}-${Math.random().toString(36).slice(2, 6)}`;
 
