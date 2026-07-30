@@ -111,9 +111,7 @@
 
   function handleItemExpand(event: CustomEvent<InventoryViewItem>): void {
     const parsed = $parsedItems.find((entry) => entry.internalName === event.detail.internalName);
-    // Base parsed items predate hydration - carry the resolved market slug
-    // over so the detail modal prices by slug (name lookup misses items whose
-    // WFM name differs, e.g. Ambassador part blueprints).
+    // Base items predate hydration - carry the slug so the modal prices by it.
     if (parsed) activeItem.set({ ...parsed, marketSlug: event.detail.marketSlug });
   }
 

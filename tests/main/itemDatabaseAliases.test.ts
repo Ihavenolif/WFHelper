@@ -41,6 +41,24 @@ describe("itemDatabase WFCD alias enrichment", () => {
     );
   });
 
+  it("links renamed part blueprints to their parent + product via resultType", () => {
+    const receiverBp = itemDb.lookupItem(
+      "/Lotus/Types/Recipes/Weapons/WeaponParts/AmbassadorReceiverBlueprint",
+    );
+    expect(receiverBp?.isBuildComponent).toBe(true);
+    expect(receiverBp?.componentOf).toBe(
+      "/Lotus/Weapons/Corpus/LongGuns/CrpArSniper/CrpArSniperRifle",
+    );
+
+    const lookup = itemDb.getRendererLookup();
+    const rendererBp =
+      lookup["/Lotus/Types/Recipes/Weapons/WeaponParts/AmbassadorReceiverBlueprint"];
+    expect(rendererBp?.buildsProduct).toBe(
+      "/Lotus/Types/Recipes/Weapons/WeaponParts/CrpArSniperReceiver",
+    );
+    expect(lookup[rendererBp?.buildsProduct || ""]?.recipe).toBeTruthy();
+  });
+
   it("preserves unresolved weapon-part tradability as unknown for renderer heuristics", () => {
     const corufellHandle = itemDb.lookupItem(
       "/Lotus/Types/Recipes/Weapons/WeaponParts/GunScytheHandle",

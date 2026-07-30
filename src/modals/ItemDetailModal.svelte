@@ -35,10 +35,16 @@
   $: dbEntry = itemKey ? ($itemDb || {})[itemKey] : null;
   $: parentUniqueName = dbEntry?.isBuildComponent ? dbEntry.componentOf || null : null;
   $: parentEntry = parentUniqueName ? ($itemDb || {})[parentUniqueName] || null : null;
-  $: hasCraftingTree = !!dbEntry?.recipe;
+  // Blueprints have no recipe; root the tree at the product they build.
+  $: treeRootKey = dbEntry?.recipe
+    ? itemKey
+    : dbEntry?.buildsProduct && ($itemDb || {})[dbEntry.buildsProduct]?.recipe
+      ? dbEntry.buildsProduct
+      : null;
+  $: hasCraftingTree = !!treeRootKey;
   $: craftingTree =
-    hasCraftingTree && showCraftingTree
-      ? buildCraftingTree(itemKey, $itemDb || {}, $componentOwnership)
+    treeRootKey && showCraftingTree
+      ? buildCraftingTree(treeRootKey, $itemDb || {}, $componentOwnership)
       : null;
 
   // Reset selected component when the active item changes.
@@ -61,7 +67,9 @@
     if (!item) return;
     const lookup = $wfmItems || {};
     const plan = resolveItemPriceLookup(item, lookup);
-    await priceLoader.load(plan.name, lookup, plan.isTradable);
+    await priceLoader.load(plan.name, lookup, plan.isTradable, {
+      preferredSlug: typeof item.marketSlug === "string" ? item.marketSlug : null,
+    });
   }
 
   function selectComponent(comp: ComponentInfo) {

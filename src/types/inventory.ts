@@ -55,6 +55,8 @@ export interface ItemDbEntry {
   exalted?: boolean;
   ducats?: number | null;
   recipe?: RecipeData;
+  /** For blueprint entries: uniqueName of the item this blueprint crafts. */
+  buildsProduct?: string;
   [key: string]: unknown;
 }
 

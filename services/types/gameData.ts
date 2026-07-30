@@ -81,6 +81,8 @@ export interface RendererItemEntry {
   drops: DropEntry[];
   wikiaUrl?: string | null;
   recipe?: RecipeData;
+  /** For blueprint entries: uniqueName of the item this blueprint crafts. */
+  buildsProduct?: string;
 }
 
 export interface WorldStateDate {

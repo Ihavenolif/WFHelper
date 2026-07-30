@@ -34,9 +34,7 @@ export function createPriceLoader(assign: (state: PriceState) => void): {
       const currentToken = ++token;
       assign({ text: "Loading price...", slug: null });
 
-      // A hydrated market slug beats name resolution - some items trade under
-      // a different WFM name (e.g. "Ambassador Receiver Blueprint" is
-      // ambassador_receiver on WFM).
+      // Hydrated slug first - some items trade under a different WFM name.
       if (options.preferredSlug) {
         const bySlug = await loadItemPriceBySlug(options.preferredSlug);
         if (currentToken !== token) return;

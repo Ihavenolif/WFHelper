@@ -174,6 +174,8 @@ let itemsByUniqueName: Record<string, ItemEntry> = {};
 let wfcdItemsByUniqueName: Record<string, ItemEntry> = {};
 /** Maps resultType (the produced item's uniqueName) -> recipe data. */
 let recipesByResultType: Record<string, RecipeData> = {};
+/** Maps blueprint uniqueName -> resultType it builds. */
+let resultTypeByBlueprint: Record<string, string> = {};
 
 function loadDict(): Record<string, string> {
   const attempts: string[] = [];
@@ -643,9 +645,11 @@ function buildRecipeIndex(): void {
     if (!exportData || typeof exportData !== "object") return;
 
     recipesByResultType = {};
+    resultTypeByBlueprint = {};
     let count = 0;
     for (const [recipeKey, item] of Object.entries(exportData) as [string, PepRecipeItem][]) {
       if (!item.resultType || !Array.isArray(item.ingredients)) continue;
+      resultTypeByBlueprint[recipeKey] = item.resultType;
       recipesByResultType[item.resultType] = {
         buildPrice: item.buildPrice || 0,
         buildTime: item.buildTime || 0,
@@ -666,6 +670,21 @@ function buildRecipeIndex(): void {
   }
 }
 
+// Recipe aliases inherit their crafted item's mappings.
+function linkBlueprintsToResults(): void {
+  let linked = 0;
+  for (const [blueprintUn, resultUn] of Object.entries(resultTypeByBlueprint)) {
+    const blueprint = itemsByUniqueName[blueprintUn];
+    const result = itemsByUniqueName[resultUn];
+    if (!blueprint || !result) continue;
+    if (blueprint.componentOf || !result.isBuildComponent || !result.componentOf) continue;
+    blueprint.isBuildComponent = true;
+    blueprint.componentOf = result.componentOf;
+    linked++;
+  }
+  if (linked > 0) log.info(`[ItemDB] Linked ${linked} part blueprints to parents via resultType`);
+}
+
 export function buildDatabase(): void {
   log.time("[ItemDB] Total build time");
 
@@ -673,10 +692,12 @@ export function buildDatabase(): void {
   itemsByUniqueName = {};
   wfcdItemsByUniqueName = {};
   recipesByResultType = {};
+  resultTypeByBlueprint = {};
 
   const pepCount = loadPublicExportPlus();
   buildRecipeIndex();
   const wfcdCount = loadWfcdItems();
+  linkBlueprintsToResults();
   resolveAllImages();
 
   log.info(`[ItemDB] Total: ${Object.keys(itemsByUniqueName).length} items`);
@@ -754,6 +775,9 @@ export function getRendererLookup(): Record<string, RendererItemEntry> {
       })),
       wikiaUrl: item.wikiaUrl || null,
       ...(recipesByResultType[key] ? { recipe: recipesByResultType[key] } : {}),
+      ...(resultTypeByBlueprint[key] && itemsByUniqueName[resultTypeByBlueprint[key]]
+        ? { buildsProduct: resultTypeByBlueprint[key] }
+        : {}),
     };
   }
   return lookup;
