@@ -69,6 +69,10 @@ export interface PreloadAPI {
   simulateRelicTrigger: () => void;
   updateOverlayTheme: (themeVars: Record<string, string>) => void;
   pushRelicFilters: (filters: { squadSize: number; tierFilter: string | null }) => void;
+  getLinuxDisplay: () => Promise<IpcInvokeMap["getLinuxDisplay"]["return"]>;
+  setLinuxDisplay: (
+    preference: IpcInvokeMap["setLinuxDisplay"]["args"][0],
+  ) => Promise<IpcInvokeMap["setLinuxDisplay"]["return"]>;
   getOverlaySettings: () => Promise<IpcInvokeMap["getOverlaySettings"]["return"]>;
   setOverlaySettings: (
     settings: IpcInvokeMap["setOverlaySettings"]["args"][0],

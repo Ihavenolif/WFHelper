@@ -69,7 +69,10 @@ Good to know:
 - **Inventory comes straight from the running game.** Nothing extra to
   download on Linux.
 - **Wayland needs no setup.** The app puts itself on XWayland so the overlays
-  can sit on top of the game.
+  can sit on top of the game. Compositors without a real XWayland (niri) show
+  no window at all, so WFHelper notices, restarts on native Wayland and
+  remembers it. Settings lets you pick the backend by hand. Wayland gives no
+  app a way to force itself above another, so overlays are best-effort there.
 - **Screen capture asks once per session.** The first overlay scan opens your
   desktop's screen-share dialog. Pick the monitor Warframe runs on.
 - **Instant overlays need one launch option.** Add `PROTON_LOG=1 %command%` to

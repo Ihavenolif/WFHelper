@@ -40,6 +40,8 @@ import {
   APP_RUNTIME_INFO,
   SCAN_DEBUG_OPEN_FOLDER,
   LOGS_OPEN_FOLDER,
+  LINUX_DISPLAY_GET,
+  LINUX_DISPLAY_SET,
   WINDOW_MINIMIZE,
   WINDOW_MAXIMIZE,
   WINDOW_CLOSE,
@@ -167,6 +169,8 @@ try {
     simulateRelicTrigger: () => ipcRenderer.send(SIMULATE_RELIC_TRIGGER),
     updateOverlayTheme: (themeVars) => ipcRenderer.send(OVERLAY_THEME_UPDATED, themeVars),
     pushRelicFilters: (filters) => ipcRenderer.send(OVERLAY_PUSH_RELIC_FILTERS, filters),
+    getLinuxDisplay: inv<"getLinuxDisplay">(LINUX_DISPLAY_GET),
+    setLinuxDisplay: inv<"setLinuxDisplay">(LINUX_DISPLAY_SET),
     getOverlaySettings: inv<"getOverlaySettings">(OVERLAY_GET_SETTINGS),
     setOverlaySettings: inv<"setOverlaySettings">(OVERLAY_SET_SETTINGS),
 

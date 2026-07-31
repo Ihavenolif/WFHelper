@@ -39,6 +39,9 @@ export const APP_RUNTIME_INFO = "app:runtime-info";
 export const SCAN_DEBUG_OPEN_FOLDER = "scan-debug:open-folder";
 export const LOGS_OPEN_FOLDER = "logs:open-folder";
 
+export const LINUX_DISPLAY_GET = "linux-display:get";
+export const LINUX_DISPLAY_SET = "linux-display:set";
+
 export const WINDOW_MINIMIZE = "window-minimize";
 export const WINDOW_MAXIMIZE = "window-maximize";
 export const WINDOW_CLOSE = "window-close";

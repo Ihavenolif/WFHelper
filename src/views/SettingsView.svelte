@@ -9,6 +9,7 @@
   } from "../stores/overlaySettings.js";
   import AppearanceCard from "../components/settings/AppearanceCard.svelte";
   import ProtonLaunchOption from "../components/ProtonLaunchOption.svelte";
+  import LinuxDisplayBackend from "../components/LinuxDisplayBackend.svelte";
   import { invoke, send, getPlatform } from "../lib/ipc.js";
   import { tr } from "../lib/i18n.js";
   import { hideFounderMasteryItems } from "../stores/preferences.js";
@@ -441,6 +442,12 @@
           class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
         >
           <ProtonLaunchOption />
+        </article>
+
+        <article
+          class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
+        >
+          <LinuxDisplayBackend />
         </article>
       {/if}
 

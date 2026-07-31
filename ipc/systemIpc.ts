@@ -24,6 +24,8 @@ import {
   APP_RUNTIME_INFO,
   SCAN_DEBUG_OPEN_FOLDER,
   LOGS_OPEN_FOLDER,
+  LINUX_DISPLAY_GET,
+  LINUX_DISPLAY_SET,
   WINDOW_MINIMIZE,
   WINDOW_MAXIMIZE,
   WINDOW_CLOSE,
@@ -32,6 +34,7 @@ import {
 } from "../config/shared/ipcChannels";
 import fs from "node:fs";
 import { getScanDebugDir } from "../services/rewardScanDebug";
+import * as linuxDisplay from "../services/linuxDisplayBackend";
 import { isObject, trimmedString } from "./ipcValidators";
 
 const log = withScope("systemIpc");
@@ -120,6 +123,12 @@ function register(): void {
 
   handleAuthorized(DB_GET_RELIC_DATABASE, assertMainRendererSender, () =>
     relicService.getRelicDatabase(),
+  );
+
+  handleAuthorized(LINUX_DISPLAY_GET, assertMainRendererSender, () => linuxDisplay.info());
+
+  handleAuthorized(LINUX_DISPLAY_SET, assertMainRendererSender, (_event, preference: unknown) =>
+    linuxDisplay.applyPreference(preference),
   );
 
   onAuthorized(WINDOW_MINIMIZE, assertMainRendererSender, () => {

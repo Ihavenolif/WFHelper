@@ -18,6 +18,7 @@ import type {
 import type { DropSearchMode, DropSearchResult } from "./drops.js";
 import type { RelicDatabase } from "./relics.js";
 import type { WorldState } from "./world.js";
+import type { DisplayPreference, LinuxDisplayInfo } from "../../config/shared/linuxDisplay.js";
 
 interface CycleAlerts {
   earth: boolean;
@@ -298,6 +299,14 @@ export interface IpcInvokeMap {
   searchDrops: {
     args: [query: string, mode: DropSearchMode];
     return: DropSearchResult;
+  };
+  getLinuxDisplay: {
+    args: [];
+    return: LinuxDisplayInfo;
+  };
+  setLinuxDisplay: {
+    args: [preference: DisplayPreference];
+    return: LinuxDisplayInfo;
   };
   getOverlaySettings: {
     args: [];

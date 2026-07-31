@@ -1,19 +1,19 @@
 import "./config/runtime/appIdentity";
 
-import { app, BrowserWindow, crashReporter, globalShortcut } from "electron";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-// Native Wayland cannot stack always-on-top windows over the game or read its
-// pixels; Proton renders Warframe under XWayland, so joining it there restores
-// both. DISPLAY present = XWayland exists. WFHELPER_NATIVE_WAYLAND=1 opts out.
-if (
-  process.platform === "linux" &&
-  (process.env.WAYLAND_DISPLAY || process.env.XDG_SESSION_TYPE === "wayland") &&
-  process.env.DISPLAY &&
-  process.env.WFHELPER_NATIVE_WAYLAND !== "1"
-) {
+import { app, BrowserWindow, crashReporter, desktopCapturer, globalShortcut } from "electron";
+
+import * as linuxDisplay from "./services/linuxDisplayBackend";
+
+const DISPLAY_BACKEND = linuxDisplay.initialize(
+  app.getPath("userData"),
+  process.env,
+  process.platform,
+);
+if (DISPLAY_BACKEND === "x11") {
   app.commandLine.appendSwitch("ozone-platform", "x11");
 }
 
@@ -198,6 +198,18 @@ function createWindow(): void {
   });
 }
 
+async function isMainWindowPresented(window: BrowserWindow): Promise<boolean> {
+  if (window.isDestroyed()) return false;
+  const sourceId = window.getMediaSourceId();
+  const sources = await desktopCapturer.getSources({
+    types: ["window"],
+    thumbnailSize: { width: 64, height: 64 },
+    fetchWindowIcons: false,
+  });
+  const source = sources.find((candidate) => candidate.id === sourceId);
+  return Boolean(source && !source.thumbnail.isEmpty());
+}
+
 app.whenReady().then(async () => {
   const startupStartedAt = Date.now();
   const profileStage = (label: string, startedAt: number): void => {
@@ -311,6 +323,19 @@ app.whenReady().then(async () => {
   const windowStart = Date.now();
   createWindow();
   profileStage("window:create", windowStart);
+
+  if (DISPLAY_BACKEND === "x11") {
+    const mainWindow = ctx.mainWindow!;
+    log.info("[Display] joined XWayland - waiting for a capturable window");
+    linuxDisplay.armWindowPresentationWatchdog(
+      () => isMainWindowPresented(mainWindow),
+      () => {
+        log.error("[Display] XWayland window was not presented - relaunching on native Wayland");
+        app.relaunch();
+        app.exit(0);
+      },
+    );
+  }
 
   const sessionRestoreStart = Date.now();
   void wfmSession
@@ -509,6 +534,7 @@ function stopOverlayHotkeyGate(): void {
 }
 
 app.on("before-quit", () => {
+  linuxDisplay.disposeWindowPresentationWatchdog();
   if (ctx.watcher) ctx.watcher.close();
   apiHelperRunner.stopPolling();
   eeLogMonitor.stopWatching();
