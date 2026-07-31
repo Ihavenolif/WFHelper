@@ -20,6 +20,8 @@ type HarnessStatus = {
   focusedDisplayId?: string | null;
 };
 
+type StatusOptions = { force?: boolean };
+
 function createHarness(
   result: ScanResult = foundReward,
   options: { results?: ScanResult[]; status?: () => HarnessStatus } = {},
@@ -27,6 +29,7 @@ function createHarness(
   const scanTimes: number[] = [];
   const autoHideDelays: number[] = [];
   const sentItems: unknown[][] = [];
+  const statusCalls: Array<StatusOptions | undefined> = [];
   const statusFn = options.status;
 
   const controller = createOverlayScanController({
@@ -51,10 +54,19 @@ function createHarness(
       clearOverlayAutoHideTimer: noop,
       createOverlayWindow: noop,
     },
-    ...(statusFn ? { warframeStatus: { getStatus: async () => statusFn() } } : {}),
+    ...(statusFn
+      ? {
+          warframeStatus: {
+            getStatus: async (statusOptions?: StatusOptions) => {
+              statusCalls.push(statusOptions);
+              return statusFn();
+            },
+          },
+        }
+      : {}),
   });
 
-  return { controller, scanTimes, autoHideDelays, sentItems };
+  return { controller, scanTimes, autoHideDelays, sentItems, statusCalls };
 }
 
 describe("overlay scan timing (eelog trigger)", () => {
@@ -115,6 +127,18 @@ describe("overlay scan timing (eelog trigger)", () => {
 
     // 14.5s vote window minus the 500ms spent before the scan resolved.
     expect(autoHideDelays).toEqual([14_000]);
+  });
+
+  it("refreshes status before anchoring an eelog scan", async () => {
+    const { controller, statusCalls } = createHarness(foundReward, {
+      status: () => ({ isOpen: true, isFocused: true, focusedDisplayId: "display-1" }),
+    });
+
+    const done = controller.dispatchRewardScan("eelog");
+    await vi.advanceTimersByTimeAsync(600);
+    await done;
+
+    expect(statusCalls[0]).toEqual({ force: true });
   });
 
   it("gives up after three scans that find no reward layout", async () => {

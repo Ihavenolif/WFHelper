@@ -33,8 +33,11 @@ const EELOG_UI_READY_FRESH_MS = 3_000;
 const REWARD_VOTE_WINDOW_MS = 14_500;
 // Omnia missions crack relics back-to-back mid-gameplay; a 14.5s card sits in
 // the way. Hide sooner - the next crack redraws it anyway.
-const OMNIA_REWARD_VOTE_WINDOW_MS = 7_000;
+const OMNIA_REWARD_VOTE_WINDOW_MS = 10_000;
 const OVERLAY_AUTO_HIDE_SUCCESS_MS = 8_500;
+// The vote window is anchored to the trigger, so a slow scan would otherwise
+// eat the reading time - never show the card for less than this.
+const REWARD_MIN_VISIBLE_MS = 5_000;
 const OVERLAY_AUTO_HIDE_FAILURE_MS = 3_500;
 // Keep the overlay visible while Warframe is unfocused.
 const AUTO_HIDE_FOCUS_RECHECK_MS = 2_000;
@@ -337,7 +340,7 @@ export function createOverlayScanController(options: OverlayScanControllerOption
     if (source !== "eelog" || !eelogTriggerAt) return OVERLAY_AUTO_HIDE_SUCCESS_MS;
     const voteWindowMs =
       ctx.activeFissureTier === "omnia" ? OMNIA_REWARD_VOTE_WINDOW_MS : REWARD_VOTE_WINDOW_MS;
-    return Math.max(2_500, eelogTriggerAt + voteWindowMs - Date.now());
+    return Math.max(REWARD_MIN_VISIBLE_MS, eelogTriggerAt + voteWindowMs - Date.now());
   }
 
   async function runRewardScanWithRetries(triggerSource: string): Promise<RewardScanResult> {
@@ -417,7 +420,8 @@ export function createOverlayScanController(options: OverlayScanControllerOption
 
     try {
       if (source === "eelog" && warframeStatus?.getStatus) {
-        const status = await warframeStatus.getStatus();
+        // Anchors the card to a monitor, so a cached poll could pick a stale one.
+        const status = await warframeStatus.getStatus({ force: true });
         if (!status.isOpen) {
           log.info("[Trigger] skipped reward scan: Warframe is not open");
           windows.sendOverlayEvent(RELIC_REWARD_ITEMS, []);
@@ -435,6 +439,10 @@ export function createOverlayScanController(options: OverlayScanControllerOption
           log.info(
             `[Trigger] Warframe not focused (${focusedName}) - scanning anyway, overlay follows the focused display`,
           );
+        }
+        // Without an anchor the card lands on whichever display holds the
+        // cursor, which is the other monitor whenever WFHelper is open there.
+        if (status.focusedDisplayId) {
           windows.setAnchorMeta({ sourceDisplayId: status.focusedDisplayId });
         }
       }
