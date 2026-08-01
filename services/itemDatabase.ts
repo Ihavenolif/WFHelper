@@ -689,6 +689,36 @@ function linkBlueprintsToResults(): void {
   if (linked > 0) log.info(`[ItemDB] Linked ${linked} part blueprints to parents via resultType`);
 }
 
+// ExportRecipes loads before ExportGear/Customs/Misc, so a recipe whose result
+// sits in a later export missed both its name and its inherited icon.
+function inheritBlueprintDisplayFromResults(): void {
+  let renamed = 0;
+  let icons = 0;
+  for (const [blueprintUn, resultUn] of Object.entries(resultTypeByBlueprint)) {
+    const blueprint = itemsByUniqueName[blueprintUn];
+    const result = itemsByUniqueName[resultUn];
+    if (!blueprint || !result) continue;
+
+    if (!blueprint.browseWfUrl && result.browseWfUrl) {
+      blueprint.browseWfUrl = result.browseWfUrl;
+      icons++;
+    }
+
+    // Only rename what nothing else named, and only when the result itself
+    // resolved - swapping one path-derived name for another gains nothing.
+    if (!result.name) continue;
+    if (blueprint.name !== fallbackNameFromUniqueName(blueprintUn)) continue;
+    if (result.name === fallbackNameFromUniqueName(resultUn)) continue;
+    const derived = sanitizeDisplayName(`${result.name} Blueprint`);
+    if (derived === blueprint.name) continue;
+    blueprint.name = derived;
+    blueprint.isPrime = derived.includes("Prime");
+    renamed++;
+  }
+  if (renamed > 0) log.info(`[ItemDB] Renamed ${renamed} blueprints after their crafted item`);
+  if (icons > 0) log.info(`[ItemDB] Inherited ${icons} blueprint icons from their crafted item`);
+}
+
 export function buildDatabase(): void {
   log.time("[ItemDB] Total build time");
 
@@ -703,6 +733,7 @@ export function buildDatabase(): void {
   buildRecipeIndex();
   const wfcdCount = loadWfcdItems();
   linkBlueprintsToResults();
+  inheritBlueprintDisplayFromResults();
   resolveAllImages();
 
   log.info(`[ItemDB] Total: ${Object.keys(itemsByUniqueName).length} items`);

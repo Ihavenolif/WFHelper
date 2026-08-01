@@ -68,6 +68,18 @@ describe("itemDatabase WFCD alias enrichment", () => {
     expect(corufellHandle?.tradable).toBeUndefined();
   });
 
+  it("names blueprints whose crafted item loads after ExportRecipes", () => {
+    const largeEnergy = itemDb.lookupItem(
+      "/Lotus/Weapons/ClanTech/Energy/LargeHundredTeamEnergyBlueprint",
+    );
+    const mediumEnergy = itemDb.lookupItem(
+      "/Lotus/Weapons/ClanTech/Energy/ClanTeamEnergyBlueprint",
+    );
+
+    expect(largeEnergy?.name).toBe("Squad Energy Restore (Large) Blueprint");
+    expect(mediumEnergy?.name).toBe("Squad Energy Restore (Medium) Blueprint");
+  });
+
   it("mirrors browse.wf icons instead of exposing upstream URLs", () => {
     const boarPrime = itemDb.lookupItem("/Lotus/Weapons/Tenno/Shotgun/PrimeBoar");
     const boarBarrel = itemDb.lookupItem(
