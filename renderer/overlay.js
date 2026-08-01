@@ -128,11 +128,14 @@ function appendSetParts(container, parts) {
     const owned = Number(part.ownedCount);
     const ok =
       Number.isFinite(required) && required > 0 && Number.isFinite(owned) && owned >= required;
+    const building = part.building === true;
     const chip = document.createElement("span");
-    chip.className = `slot-set-part ${ok ? "owned" : "missing"}${part.isReward ? " is-reward" : ""}`;
-    chip.title = `${part.name || "Part"}: ${formatCount(part.ownedCount)}/${formatCount(part.requiredCount)}${
-      part.isReward ? " (this reward)" : ""
+    chip.className = `slot-set-part ${ok ? "owned" : "missing"}${building ? " building" : ""}${
+      part.isReward ? " is-reward" : ""
     }`;
+    chip.title = `${part.name || "Part"}: ${formatCount(part.ownedCount)}/${formatCount(part.requiredCount)}${
+      building ? " (in the foundry)" : ""
+    }${part.isReward ? " (this reward)" : ""}`;
 
     if (part.imageUrl) {
       const img = document.createElement("img");
@@ -224,6 +227,8 @@ function renderSlot(index) {
       "owned",
     );
   }
+
+  if (item.building) appendMetaChip(metaEl, "In foundry", "building");
 
   const setRequired = Number(item.setRequiredCount);
   if (Number.isFinite(setRequired) && setRequired > 0) {

@@ -5,7 +5,7 @@ import {
   ownedComponentCount,
 } from "../../config/shared/componentNames";
 import { normalizeErrorMessage } from "../../config/shared/errors";
-import { withoutFoundryPending } from "../../config/shared/foundryPending";
+import { pendingRecipeCounts, withoutFoundryPending } from "../../config/shared/foundryPending";
 import { RELIC_REWARD_ITEMS, RELIC_REWARD_TRIGGER } from "../../config/shared/ipcChannels";
 import { normalizeWfmSlug } from "../../config/shared/wfm";
 import * as itemDatabase from "../../services/itemDatabase";
@@ -74,6 +74,8 @@ type SetPartProgress = {
   requiredCount: number;
   /** The part this reward actually is - bow grips and the like are hard to spot. */
   isReward: boolean;
+  /** Its blueprint is in the foundry, so one is already on the way. */
+  building: boolean;
 };
 
 type InventoryData = Record<string, unknown> | null;
@@ -150,9 +152,15 @@ function componentRequiredCount(parent: ItemEntry | null, uniqueName: string | n
   return finitePositiveInteger(component?.itemCount) ?? 1;
 }
 
+function isInFoundry(uniqueName: string | null | undefined, pending: Set<string>): boolean {
+  if (!uniqueName || pending.size === 0) return false;
+  return componentUniqueNameAliases(uniqueName).some((alias) => pending.has(alias));
+}
+
 function setProgress(
   parent: ItemEntry | null,
   ownedCounts: Map<string, number>,
+  pending: Set<string>,
   rewardUniqueName: string | null,
 ): { owned: number; required: number; completeSets: number; parts: SetPartProgress[] } | null {
   if (!parent || !Array.isArray(parent.components) || parent.components.length === 0) return null;
@@ -177,6 +185,7 @@ function setProgress(
       ownedCount: count,
       requiredCount: needed,
       isReward: rewardAliases.includes(component.uniqueName),
+      building: isInFoundry(component.uniqueName, pending),
     });
   }
 
@@ -195,8 +204,14 @@ function buildOwnedCounts(inventoryData: InventoryData): Map<string, number> {
   return aggregateComponentOwnership(usable.MiscItems, usable.Recipes);
 }
 
+function buildPendingBlueprints(inventoryData: InventoryData): Set<string> {
+  if (!inventoryData) return new Set();
+  return new Set(pendingRecipeCounts(inventoryData.PendingRecipes).keys());
+}
+
 function enrichRewardItems(items: unknown[], inventoryData: InventoryData): unknown[] {
   const ownedCounts = buildOwnedCounts(inventoryData);
+  const pending = buildPendingBlueprints(inventoryData);
 
   return items.map((rawItem) => {
     if (!rawItem || typeof rawItem !== "object") return rawItem;
@@ -209,7 +224,7 @@ function enrichRewardItems(items: unknown[], inventoryData: InventoryData): unkn
     const setName = parentName ? `${parentName} Set` : null;
     const partRequiredCount = componentRequiredCount(parent, uniqueName);
     const partOwnedCount = ownedComponentCount(uniqueName, ownedCounts);
-    const progress = setProgress(parent, ownedCounts, uniqueName);
+    const progress = setProgress(parent, ownedCounts, pending, uniqueName);
     const ducats = finitePositiveInteger(item.ducats) ?? entry?.ducats ?? null;
 
     return {
@@ -218,6 +233,7 @@ function enrichRewardItems(items: unknown[], inventoryData: InventoryData): unkn
       ducats,
       partOwnedCount,
       partRequiredCount,
+      ...(isInFoundry(uniqueName, pending) ? { building: true } : {}),
       ...(progress
         ? {
             setOwnedCount: progress.owned,

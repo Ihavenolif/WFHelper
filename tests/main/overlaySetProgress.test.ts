@@ -37,7 +37,10 @@ vi.mock("../../services/itemDatabase", () => ({
 
 const noop = () => {};
 
-async function scanWithInventory(recipes: Array<{ ItemType: string; ItemCount: number }>) {
+async function scanWithInventory(
+  recipes: Array<{ ItemType: string; ItemCount: number }>,
+  pendingRecipes: Array<{ ItemType: string }> = [],
+) {
   const events: Array<{ channel: string; payload: unknown }> = [];
 
   const controller = createOverlayScanController({
@@ -51,7 +54,7 @@ async function scanWithInventory(recipes: Array<{ ItemType: string; ItemCount: n
     ctx: {
       overlaySettings: {},
       overlayWindow: null,
-      currentInventoryData: { MiscItems: [], Recipes: recipes },
+      currentInventoryData: { MiscItems: [], Recipes: recipes, PendingRecipes: pendingRecipes },
     },
     windows: {
       setAnchorMeta: noop,
@@ -83,6 +86,34 @@ describe("overlay set progress", () => {
     expect(item?.setOwnedCount).toBe(3);
     expect(item?.setRequiredCount).toBe(4);
     expect(parts.map((part) => part.ownedCount)).toEqual([11, 5, 2, 0]);
+  });
+
+  it("marks the reward and its part as building while the foundry holds it", async () => {
+    const item = await scanWithInventory(
+      [
+        { ItemType: `${RECIPES}/ProteaPrimeChassisBlueprint`, ItemCount: 1 },
+        { ItemType: `${RECIPES}/ProteaPrimeHelmetBlueprint`, ItemCount: 1 },
+      ],
+      [{ ItemType: `${RECIPES}/ProteaPrimeChassisBlueprint` }],
+    );
+
+    const parts = item?.setParts as Array<{ building: boolean; ownedCount: number }>;
+
+    expect(item?.building).toBe(true);
+    expect(item?.partOwnedCount).toBe(0);
+    expect(parts.map((part) => part.building)).toEqual([false, true, false, false]);
+    expect(item?.setOwnedCount).toBe(1);
+  });
+
+  it("leaves the building flag off when nothing is in the foundry", async () => {
+    const item = await scanWithInventory([
+      { ItemType: `${RECIPES}/ProteaPrimeChassisBlueprint`, ItemCount: 1 },
+    ]);
+
+    const parts = item?.setParts as Array<{ building: boolean }>;
+
+    expect(item?.building).toBeUndefined();
+    expect(parts.every((part) => part.building === false)).toBe(true);
   });
 
   it("leaves genuinely missing parts at zero", async () => {

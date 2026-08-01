@@ -7,6 +7,7 @@
   --text: var(--text-primary, #e8e4dc);
   --muted: var(--text-secondary, #8b93a5);
   --danger: #f87171;
+  --building: #fb923c;
   --rare: #d4a843;
   --uncommon: #94a3b8;
   --common: #64748b;
@@ -441,6 +442,11 @@ body {
   color: var(--accent-bright);
 }
 
+.slot-meta-chip.building {
+  border-color: color-mix(in oklab, var(--building) 45%, transparent);
+  color: var(--building);
+}
+
 .slot-set-parts {
   display: flex;
   flex-wrap: wrap;
@@ -507,6 +513,13 @@ body {
 
 .slot-set-part.is-reward .slot-set-part-count {
   color: var(--accent-bright);
+}
+
+/* One is already in the foundry - tints after owned/missing/is-reward. */
+.slot-set-part.building,
+.slot-set-part.building .slot-set-part-count {
+  border-color: color-mix(in oklab, var(--building) 55%, transparent);
+  color: var(--building);
 }
 
 #error-banner {
