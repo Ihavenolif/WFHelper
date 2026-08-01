@@ -52,3 +52,49 @@ describe("foundryData", () => {
     unsubscribeAgain();
   });
 });
+
+describe("hideFoundryClaims", () => {
+  const BLUEPRINT = "/Lotus/Types/Recipes/WarframeRecipes/HildrynPrimeBlueprint";
+
+  beforeEach(() => {
+    vi.resetModules();
+    parseInventoryMock.mockClear();
+  });
+
+  async function parsedRecipes(hide: boolean, reusable = false): Promise<unknown> {
+    const stores = await import("../../../src/stores/data.js");
+    const prefs = await import("../../../src/stores/preferences.js");
+    prefs.hideFoundryClaims.set(hide);
+    stores.inventoryData.set({
+      Recipes: [{ ItemType: BLUEPRINT, ItemCount: 1 }],
+      PendingRecipes: [{ ItemType: BLUEPRINT }],
+    });
+    stores.itemDb.set({
+      [BLUEPRINT]: {
+        name: "Hildryn Prime Blueprint",
+        ...(reusable ? { reusableBlueprint: true } : {}),
+      },
+    });
+
+    const unsubscribe = stores.parsedItems.subscribe(() => {});
+    unsubscribe();
+    const calls = parseInventoryMock.mock.calls as unknown[][];
+    return calls[calls.length - 1][0];
+  }
+
+  it("strips the foundry copy before parsing when enabled", async () => {
+    expect((await parsedRecipes(true)) as { Recipes: unknown[] }).toMatchObject({ Recipes: [] });
+  });
+
+  it("leaves the raw counts alone when disabled", async () => {
+    expect((await parsedRecipes(false)) as { Recipes: unknown[] }).toMatchObject({
+      Recipes: [{ ItemType: BLUEPRINT, ItemCount: 1 }],
+    });
+  });
+
+  it("keeps a reusable blueprint the item db flags, even while it builds", async () => {
+    expect((await parsedRecipes(true, true)) as { Recipes: unknown[] }).toMatchObject({
+      Recipes: [{ ItemType: BLUEPRINT, ItemCount: 1 }],
+    });
+  });
+});

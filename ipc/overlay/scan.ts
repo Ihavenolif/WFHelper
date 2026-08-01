@@ -5,6 +5,7 @@ import {
   ownedComponentCount,
 } from "../../config/shared/componentNames";
 import { normalizeErrorMessage } from "../../config/shared/errors";
+import { withoutFoundryPending } from "../../config/shared/foundryPending";
 import { RELIC_REWARD_ITEMS, RELIC_REWARD_TRIGGER } from "../../config/shared/ipcChannels";
 import { normalizeWfmSlug } from "../../config/shared/wfm";
 import * as itemDatabase from "../../services/itemDatabase";
@@ -190,11 +191,8 @@ function setProgress(
 
 function buildOwnedCounts(inventoryData: InventoryData): Map<string, number> {
   if (!inventoryData) return new Map();
-  return aggregateComponentOwnership(
-    inventoryData.MiscItems,
-    inventoryData.Recipes,
-    inventoryData.PendingRecipes,
-  );
+  const usable = withoutFoundryPending(inventoryData, itemDatabase.isReusableBlueprint);
+  return aggregateComponentOwnership(usable.MiscItems, usable.Recipes);
 }
 
 function enrichRewardItems(items: unknown[], inventoryData: InventoryData): unknown[] {

@@ -14,22 +14,15 @@ function addOwnedCount(owned: Map<string, number>, entry: InventoryItemWithType)
   owned.set(itemType, (owned.get(itemType) || 0) + count);
 }
 
+/** Pass Recipes that already went through withoutFoundryPending. */
 export function aggregateComponentOwnership(
   miscItems: unknown,
   recipes: unknown,
-  pendingRecipes: unknown,
 ): Map<string, number> {
   const owned = new Map<string, number>();
   for (const slice of [miscItems, recipes]) {
     if (!Array.isArray(slice)) continue;
     for (const entry of slice) {
-      if (entry && typeof entry === "object") {
-        addOwnedCount(owned, entry as InventoryItemWithType);
-      }
-    }
-  }
-  if (Array.isArray(pendingRecipes)) {
-    for (const entry of pendingRecipes) {
       if (entry && typeof entry === "object") {
         addOwnedCount(owned, entry as InventoryItemWithType);
       }

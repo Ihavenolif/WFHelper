@@ -82,3 +82,25 @@ describe("itemDatabase WFCD alias enrichment", () => {
     );
   });
 });
+
+describe("itemDatabase reusable blueprints", () => {
+  const CELL_BP = "/Lotus/Types/Recipes/Components/OrokinCellResourceBlueprint";
+  const FORMA_BP = "/Lotus/Types/Recipes/Components/FormaBlueprint";
+
+  beforeAll(() => {
+    itemDb.buildDatabase();
+  });
+
+  it("reads consumeOnUse straight off DE's export", () => {
+    expect(itemDb.isReusableBlueprint(CELL_BP)).toBe(true);
+    expect(itemDb.isReusableBlueprint(FORMA_BP)).toBe(false);
+    expect(itemDb.isReusableBlueprint("/Lotus/Types/Nope")).toBe(false);
+  });
+
+  it("hands the flag to the renderer on the blueprint entry itself", () => {
+    const lookup = itemDb.getRendererLookup();
+
+    expect(lookup[CELL_BP]?.reusableBlueprint).toBe(true);
+    expect(lookup[FORMA_BP]?.reusableBlueprint).toBeUndefined();
+  });
+});

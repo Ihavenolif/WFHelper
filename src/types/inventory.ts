@@ -57,6 +57,8 @@ export interface ItemDbEntry {
   recipe?: RecipeData;
   /** For blueprint entries: uniqueName of the item this blueprint crafts. */
   buildsProduct?: string;
+  /** For blueprint entries: building it does not consume the owned copy. */
+  reusableBlueprint?: boolean;
   [key: string]: unknown;
 }
 

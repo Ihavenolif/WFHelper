@@ -12,7 +12,7 @@
   import LinuxDisplayBackend from "../components/LinuxDisplayBackend.svelte";
   import { invoke, send, getPlatform } from "../lib/ipc.js";
   import { tr } from "../lib/i18n.js";
-  import { hideFounderMasteryItems } from "../stores/preferences.js";
+  import { hideFoundryClaims, hideFounderMasteryItems } from "../stores/preferences.js";
   import { TOGGLEABLE_TABS, tabVisibility } from "../stores/sidebarTabs.js";
   import { startTour } from "../stores/tour.js";
   import { currentView } from "../stores/app.js";
@@ -382,6 +382,29 @@
               on:change={autoSave}
               class="accent-accent"
             />
+          </label>
+        </div>
+      </article>
+
+      <article
+        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
+      >
+        <div>
+          <h3
+            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
+          >
+            Inventory
+          </h3>
+          <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
+            The game keeps a blueprint listed until you claim its build, so copies sitting in the
+            foundry can look like stock you could sell.
+          </p>
+        </div>
+
+        <div class="mt-2.5 grid gap-1">
+          <label class="settings-control-row">
+            <span>Hide blueprints waiting in the foundry</span>
+            <input type="checkbox" bind:checked={$hideFoundryClaims} class="accent-accent" />
           </label>
         </div>
       </article>

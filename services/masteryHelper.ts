@@ -11,6 +11,7 @@ import type { ComponentEntry } from "./types/gameData";
 import { MAX_ITEM_RANK } from "../config/game/constants";
 import { aggregateComponentOwnership } from "../config/shared/componentOwnership";
 import { sanitizeDisplayName } from "../config/shared/displayName";
+import { withoutFoundryPending } from "../config/shared/foundryPending";
 import { toFiniteNumber } from "../config/shared/numeric";
 import type { MasteryStatus } from "../config/shared/masteryTypes";
 
@@ -926,10 +927,10 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
     };
 
   const allMasterable = getAllMasterableItems();
+  const usableInventory = withoutFoundryPending(inventoryData, itemDb.isReusableBlueprint);
   const componentOwnership = aggregateComponentOwnership(
-    inventoryData.MiscItems,
-    inventoryData.Recipes,
-    inventoryData.PendingRecipes,
+    usableInventory.MiscItems,
+    usableInventory.Recipes,
   );
 
   // Build owned map: uniqueName -> { rank, maxRank, owned }

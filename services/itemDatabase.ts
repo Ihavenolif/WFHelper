@@ -176,6 +176,8 @@ let wfcdItemsByUniqueName: Record<string, ItemEntry> = {};
 let recipesByResultType: Record<string, RecipeData> = {};
 /** Maps blueprint uniqueName -> resultType it builds. */
 let resultTypeByBlueprint: Record<string, string> = {};
+/** Blueprints DE marks consumeOnUse=false: the copy survives its own build. */
+let reusableBlueprints = new Set<string>();
 
 function loadDict(): Record<string, string> {
   const attempts: string[] = [];
@@ -646,10 +648,12 @@ function buildRecipeIndex(): void {
 
     recipesByResultType = {};
     resultTypeByBlueprint = {};
+    reusableBlueprints = new Set();
     let count = 0;
     for (const [recipeKey, item] of Object.entries(exportData) as [string, PepRecipeItem][]) {
       if (!item.resultType || !Array.isArray(item.ingredients)) continue;
       resultTypeByBlueprint[recipeKey] = item.resultType;
+      if (item.consumeOnUse === false) reusableBlueprints.add(recipeKey);
       recipesByResultType[item.resultType] = {
         buildPrice: item.buildPrice || 0,
         buildTime: item.buildTime || 0,
@@ -693,6 +697,7 @@ export function buildDatabase(): void {
   wfcdItemsByUniqueName = {};
   recipesByResultType = {};
   resultTypeByBlueprint = {};
+  reusableBlueprints = new Set();
 
   const pepCount = loadPublicExportPlus();
   buildRecipeIndex();
@@ -736,6 +741,11 @@ export function lookupItemByNameOrSlug(
   return fallback;
 }
 
+/** True when building this blueprint does not consume the owned copy. */
+export function isReusableBlueprint(uniqueName: string): boolean {
+  return reusableBlueprints.has(uniqueName);
+}
+
 export function getRendererLookup(): Record<string, RendererItemEntry> {
   const lookup: Record<string, RendererItemEntry> = {};
   for (const [key, item] of Object.entries(itemsByUniqueName)) {
@@ -775,6 +785,7 @@ export function getRendererLookup(): Record<string, RendererItemEntry> {
       })),
       wikiaUrl: item.wikiaUrl || null,
       ...(recipesByResultType[key] ? { recipe: recipesByResultType[key] } : {}),
+      ...(reusableBlueprints.has(key) ? { reusableBlueprint: true } : {}),
       ...(resultTypeByBlueprint[key] && itemsByUniqueName[resultTypeByBlueprint[key]]
         ? { buildsProduct: resultTypeByBlueprint[key] }
         : {}),

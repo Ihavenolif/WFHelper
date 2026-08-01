@@ -5,6 +5,7 @@ import { createOverlayScanController } from "../../ipc/overlay/scan";
 vi.mock("../../services/itemDatabase", () => ({
   lookupItem: () => null,
   lookupItemByNameOrSlug: () => null,
+  isReusableBlueprint: () => false,
 }));
 
 const noop = () => {};
