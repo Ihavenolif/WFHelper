@@ -35,7 +35,7 @@
   Inventory ({totalCount})
 </h2>
 <div class="view-sticky-filters mb-4">
-  <div class="flex items-end border-b border-white/10">
+  <div class="flex items-end border-b border-white/10" data-tour="inventory-tabs">
     <HeaderTabs options={filters} activeKey={activeFilter} onSelect={handleTabSelect} />
     <div class="ml-auto flex items-center gap-2 pb-2 shrink-0 flex-nowrap">
       <SharedFilterBar

@@ -25,15 +25,31 @@
   const steps: TourStep[] = [
     {
       view: "inventory",
-      text: "Your inventory with live market prices. Click an item to see its buy and sell orders.",
+      text: "Your whole account inventory, priced live from warframe.market.",
+    },
+    {
+      view: "inventory",
+      target: '[data-tour="inventory-grid"]',
+      text: "Click any item to open its order book on the right: who is buying, who is selling, and a button to list yours for sale. Hover a card for Details.",
+      interactive: true,
+    },
+    {
+      view: "inventory",
+      target: '[data-tour="inventory-tabs"]',
+      text: "These tabs split the inventory up. Full Sets lists sets you own every part of - they usually sell for more together than apart.",
+      interactive: true,
     },
     {
       view: "foundry",
-      text: "The foundry shows what you can build right now, what's in progress and what's ready to claim.",
+      text: "The foundry shows what you can build right now, what's in progress and what's ready to claim. Pin anything you're farming for to keep it on top.",
     },
     {
       view: "mastery",
       text: "Your MR progress and everything you still need to master.",
+    },
+    {
+      view: "stats",
+      text: "Daily platinum, credits and endo, plus every trade WFHelper picked up from the game log.",
     },
     {
       view: "world",
@@ -92,7 +108,13 @@
     },
     {
       view: "settings",
-      text: "Hide tabs you don't use, tune overlays and notifications. You can rerun this tour from here.",
+      text: "In-game overlays live here. Relic rewards get priced the moment your squad cracks, the planner ranks your relics on the selection screen, and rivens are read while you reroll.",
+      prepare: () => clickContentButton("Overlays"),
+    },
+    {
+      view: "settings",
+      text: "Hide tabs you don't use, tune notifications. You can rerun this tour from here.",
+      prepare: () => clickContentButton("General"),
     },
   ];
 

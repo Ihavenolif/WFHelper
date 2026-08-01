@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { withoutFoundryPending } from "../../../config/shared/foundryPending.js";
 import { parseFoundry, parseInventory, parseResources } from "../../../src/lib/inventory.js";
 import { buildFullSetItems } from "../../../src/lib/inventory/fullSets.js";
 import type {
@@ -1045,5 +1046,52 @@ describe("inventory parsing", () => {
     const items = parseInventory(data, db);
     expect(items).toHaveLength(1);
     expect(items[0].internalName).toBe("/Lotus/Types/Items/MiscItems/Forma");
+  });
+
+  it("does not call a set complete while one part sits in the foundry", () => {
+    const RECIPES = "/Lotus/Types/Recipes/WarframeRecipes";
+    const PARENT = "/Lotus/Powersuits/Odalisk/ProteaPrime";
+    // The set lists parts as ...Component; the inventory holds the ...Blueprint recipes.
+    const PARTS = ["Chassis", "Systems", "Neuroptics"];
+
+    const db: Record<string, ItemDbEntry> = {
+      [PARENT]: {
+        name: "Protea Prime",
+        isPrime: true,
+        components: [
+          {
+            uniqueName: `${RECIPES}/ProteaPrimeBlueprint`,
+            itemCount: 1,
+            tradable: true,
+            name: "Blueprint",
+          },
+          ...PARTS.map((part) => ({
+            uniqueName: `${RECIPES}/ProteaPrime${part}Component`,
+            itemCount: 1,
+            tradable: true,
+            name: part,
+          })),
+        ],
+      },
+    };
+    const data: RawInventoryData = {
+      Recipes: [
+        { ItemType: `${RECIPES}/ProteaPrimeBlueprint`, ItemCount: 1 },
+        ...PARTS.map((part) => ({
+          ItemType: `${RECIPES}/ProteaPrime${part}Blueprint`,
+          ItemCount: 1,
+        })),
+      ],
+      PendingRecipes: [{ ItemType: `${RECIPES}/ProteaPrimeSystemsBlueprint` }],
+    };
+
+    const raw = parseInventory(data, db);
+    expect(raw.find((item) => item.inventoryGroup === "full_sets")?.completeSets).toBe(1);
+
+    const usable = parseInventory(withoutFoundryPending(data), db);
+    expect(usable.find((item) => item.inventoryGroup === "full_sets")).toBeUndefined();
+    const incomplete = usable.find((item) => item.inventoryGroup === "incomplete_sets");
+    expect(incomplete?.ownedPartTypes).toBe(3);
+    expect(incomplete?.totalPartTypes).toBe(4);
   });
 });

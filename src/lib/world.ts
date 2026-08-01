@@ -248,6 +248,8 @@ export const CIRCUIT_NORMAL_ROTATION: string[][] = [
   ["Garuda", "Baruuk", "Hildryn"],
 ];
 
+const INCARNON_SUFFIX = " incarnon genesis";
+
 /** Weekly Incarnon Genesis groups of the Steel Path Circuit, in cycle order. */
 export const CIRCUIT_HARD_ROTATION: string[][] = [
   ["Braton", "Lato", "Skana", "Paris", "Kunai"],
@@ -310,6 +312,9 @@ function circuitResolver(
 ): (names: string[]) => CircuitChoice[] {
   // Build name -> { uniqueName, imageUrl, category } lookup
   const byName = new Map<string, { uniqueName: string; imageUrl: string; category: string }>();
+  // Steel Path rewards the Incarnon Genesis adapter, whose art is the evolved
+  // weapon - closer to what the reward actually is than the base weapon icon.
+  const incarnonArt = new Map<string, string>();
   for (const [uniqueName, entry] of Object.entries(itemDb)) {
     if (!entry?.name || !entry.imageUrl) continue;
     const key = entry.name.toLowerCase();
@@ -320,6 +325,8 @@ function circuitResolver(
         category: (entry.category || entry.productCategory || "").toLowerCase(),
       });
     }
+    const base = key.endsWith(INCARNON_SUFFIX) ? key.slice(0, -INCARNON_SUFFIX.length) : null;
+    if (base && !incarnonArt.has(base)) incarnonArt.set(base, entry.imageUrl);
   }
 
   const ownedSuits = new Set<string>();
@@ -358,7 +365,9 @@ function circuitResolver(
 
       const isFrame = WARFRAME_CATS.has(match.category);
       const owned = isFrame ? ownedSuits.has(match.uniqueName) : ownedWeapons.has(match.uniqueName);
+      // Art only - ownership still tracks the base weapon the adapter fits.
+      const imageUrl = incarnonArt.get(name.toLowerCase()) || match.imageUrl;
 
-      return { name, imageUrl: match.imageUrl, owned, uniqueName: match.uniqueName };
+      return { name, imageUrl, owned, uniqueName: match.uniqueName };
     });
 }

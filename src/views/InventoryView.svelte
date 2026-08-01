@@ -328,7 +328,7 @@
         ? 'min-[1101px]:grid-cols-[minmax(0,1fr)_360px]'
         : ''}"
     >
-      <div class="min-w-0">
+      <div class="min-w-0" data-tour="inventory-grid">
         {#if filter === "full_sets"}
           <label
             class="mb-2 flex w-fit cursor-pointer items-center gap-2 text-xs text-text-secondary"
