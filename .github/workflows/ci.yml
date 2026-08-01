@@ -74,6 +74,30 @@ jobs:
           pnpm exec playwright install-deps chromium
           xvfb-run -a pnpm run test:linux-boot
 
+  # Same checks as the git hooks, so --no-verify only defers the failure.
+  comment-style:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Comment style (added lines only)
+        run: node scripts/check-comment-style.mjs --ci
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
+      - name: Commit subjects
+        run: node scripts/check-commit-msg.mjs --ci
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+
   # Native E2E stays on Windows; Linux runs the advisory boot smoke.
 
   validate-windows:
