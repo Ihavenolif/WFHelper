@@ -80,6 +80,35 @@ describe("itemDatabase WFCD alias enrichment", () => {
     expect(mediumEnergy?.name).toBe("Squad Energy Restore (Medium) Blueprint");
   });
 
+  it("names a part blueprint once when its component already reads Blueprint", () => {
+    const chassis = itemDb.lookupItem(
+      "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeChassisBlueprint",
+    );
+    const systems = itemDb.lookupItem(
+      "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeSystemsBlueprint",
+    );
+
+    expect(chassis?.name).toBe("Caliban Prime Chassis Blueprint");
+    expect(systems?.name).toBe("Caliban Prime Systems Blueprint");
+
+    const doubled = Object.values(itemDb.getRendererLookup()).filter((entry) =>
+      /blueprint blueprint$/i.test(entry.name || ""),
+    );
+    expect(doubled).toEqual([]);
+  });
+
+  it("carries @wfcd vault status onto prime parts and their blueprints", () => {
+    const frame = itemDb.lookupItem("/Lotus/Powersuits/Wraith/SevagothPrime");
+    const chassisBp = itemDb.lookupItem(
+      "/Lotus/Types/Recipes/WarframeRecipes/SevagothPrimeChassisBlueprint",
+    );
+    const unvaulted = itemDb.lookupItem("/Lotus/Powersuits/Sentient/CalibanPrime");
+
+    expect(frame?.vaulted).toBe(true);
+    expect(chassisBp?.vaulted).toBe(true);
+    expect(unvaulted?.vaulted).toBe(false);
+  });
+
   it("mirrors browse.wf icons instead of exposing upstream URLs", () => {
     const boarPrime = itemDb.lookupItem("/Lotus/Weapons/Tenno/Shotgun/PrimeBoar");
     const boarBarrel = itemDb.lookupItem(

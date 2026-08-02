@@ -459,6 +459,10 @@ function loadWfcdItems(): number {
                 existingComponent.imageUrl = componentEntry.imageUrl;
               }
 
+              if (componentEntry.vaulted) {
+                existingComponent.vaulted = true;
+              }
+
               const mergedComponentTradable = pickTradable(
                 existingComponent.tradable,
                 componentEntry.tradable,
@@ -509,6 +513,10 @@ function loadWfcdItems(): number {
                   existingBlueprint.imageUrl = aliasImage;
                 }
 
+                if (wfcdEntry.vaulted) {
+                  existingBlueprint.vaulted = true;
+                }
+
                 const aliasTradable =
                   pickTradable(existingBlueprint.tradable, componentEntry.tradable) ??
                   pickTradable(existingBlueprint.tradable, item.tradable);
@@ -547,6 +555,10 @@ function loadWfcdItems(): number {
         const mergedItemTradable = pickTradable(existing.tradable, item.tradable);
         if (mergedItemTradable !== undefined) {
           existing.tradable = mergedItemTradable;
+        }
+        // DE's export has no vault status at all; @wfcd is the only source.
+        if (wfcdEntry.vaulted) {
+          existing.vaulted = true;
         }
         existing.drops = item.drops || [];
         existing.wikiaUrl = item.wikiaUrl || null;
@@ -709,7 +721,11 @@ function inheritBlueprintDisplayFromResults(): void {
     if (!result.name) continue;
     if (blueprint.name !== fallbackNameFromUniqueName(blueprintUn)) continue;
     if (result.name === fallbackNameFromUniqueName(resultUn)) continue;
-    const derived = sanitizeDisplayName(`${result.name} Blueprint`);
+    // A warframe part component is already named "... Chassis Blueprint" - that
+    // spelling is the item players own and trade, so appending doubles it.
+    const derived = sanitizeDisplayName(
+      /\bblueprint$/i.test(result.name) ? result.name : `${result.name} Blueprint`,
+    );
     if (derived === blueprint.name) continue;
     blueprint.name = derived;
     blueprint.isPrime = derived.includes("Prime");
