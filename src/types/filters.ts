@@ -18,7 +18,8 @@ export type SharedSortKey =
   | "grade"
   | "ducatonator"
   | "complete_sets"
-  | "missing_parts";
+  | "missing_parts"
+  | "mastery_xp";
 
 export type SortDirection = "asc" | "desc";
 
@@ -39,4 +40,8 @@ export interface SharedFiltersState {
   equipped: YesNoFilterMode;
   leveledUp: YesNoFilterMode;
   subsumed: YesNoFilterMode;
+  /** Its foundry build has finished and is waiting to be claimed. */
+  foundryReady: YesNoFilterMode;
+  /** Every part sits in the inventory but the item itself is not built. */
+  buildable: YesNoFilterMode;
 }

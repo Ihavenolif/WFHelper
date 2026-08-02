@@ -14,6 +14,7 @@
   import CollapsibleSection from "../components/CollapsibleSection.svelte";
   import { persistedBoolean } from "../lib/persistence.js";
   import { applySharedFiltersAndSort } from "../lib/filters.js";
+  import { getCachedPriceState } from "../lib/wfm/priceCache.js";
   import { sharedFilters } from "../stores/filters.js";
   import ItemImage from "../components/ItemImage.svelte";
   import { send } from "../lib/ipc.js";
@@ -33,7 +34,9 @@
   const MASTERY_SORT_OPTIONS = [
     ["name", "Name"],
     ["owned", "Owned"],
-  ] satisfies Array<["name" | "owned", string]>;
+    ["mastery_xp", "Mastery XP"],
+    ["platinum", "Platinum"],
+  ] satisfies Array<["name" | "owned" | "mastery_xp" | "platinum", string]>;
   const FOUNDER_ITEM_NAMES = new Set(["Excalibur Prime", "Lato Prime", "Skana Prime"]);
 
   const INCOMPLETE_SETS_TAB = "__incomplete_sets";
@@ -221,6 +224,7 @@
           ? componentUniqueNameAliases(comp.uniqueName).some((un) => foundry.byUnique.has(un))
           : false,
       }));
+      const owned = item.status !== "missing" || item.currentlyOwned === true;
       return {
         ...item,
         components,
@@ -233,7 +237,12 @@
         partType: item.isPrime ? ("prime" as const) : ("normal" as const),
         leveledUp: item.rank > 0,
         amount: item.status !== "missing" || item.currentlyOwned ? 1 : 0,
-        owned: item.status !== "missing" || item.currentlyOwned === true,
+        owned,
+        // Snapshot-only lookup: no per-card hydration for 800+ mastery rows.
+        platinum: wfm?.url_name ? (getCachedPriceState(wfm.url_name)?.median ?? null) : null,
+        foundryReady: foundryStatus === "claimable",
+        buildable:
+          !owned && components.length > 0 && components.every((comp) => comp.owned === true),
       };
     });
 
@@ -426,7 +435,7 @@
     </div>
 
     <div class="view-sticky-filters grid gap-2 mb-3">
-      <SharedFilterBar scope="mastery" sortOptions={MASTERY_SORT_OPTIONS} />
+      <SharedFilterBar scope="mastery" sortOptions={MASTERY_SORT_OPTIONS} showFoundry />
       <div class="flex items-end border-b border-white/[0.09]">
         <HeaderTabs
           options={categoryTabs}

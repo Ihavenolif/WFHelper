@@ -32,6 +32,9 @@ interface FilterableItem {
   rerolls?: number | null;
   grade?: string | number | null;
   gradeRank?: number | null;
+  masteryXpRemaining?: number | null;
+  foundryReady?: boolean;
+  buildable?: boolean;
 }
 
 const GRADE_ORDER: Record<string, number> = {
@@ -127,6 +130,9 @@ function toMetric(item: FilterableItem, sortBy: SharedFiltersState["sortBy"]): n
   if (sortBy === "missing_parts") {
     return typeof item.missingParts === "number" ? item.missingParts : null;
   }
+  if (sortBy === "mastery_xp") {
+    return typeof item.masteryXpRemaining === "number" ? item.masteryXpRemaining : null;
+  }
   return null;
 }
 
@@ -161,6 +167,8 @@ export function matchesSharedFilters(item: FilterableItem, filters: SharedFilter
   }
   if (!matchesYesNo(filters.equipped, item.equipped)) return false;
   if (!matchesYesNo(filters.leveledUp, item.leveledUp)) return false;
+  if (!matchesYesNo(filters.foundryReady, item.foundryReady)) return false;
+  if (!matchesYesNo(filters.buildable, item.buildable)) return false;
   // Strict tri-state: items without a subsumed flag (primes, non-frames) drop
   // out whenever the filter is active - they can never be subsumed.
   if (filters.subsumed !== "all" && item.subsumed !== (filters.subsumed === "yes")) return false;

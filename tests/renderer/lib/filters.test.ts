@@ -20,6 +20,8 @@ function defaultFilters(): SharedFiltersState {
     equipped: "all",
     leveledUp: "all",
     subsumed: "all",
+    foundryReady: "all",
+    buildable: "all",
   };
 }
 
@@ -138,5 +140,64 @@ describe("shared filters", () => {
     });
 
     expect(filtered.map((row) => row.name)).toEqual(["Vaulted Relic"]);
+  });
+});
+
+describe("mastery filters", () => {
+  it("ranks the biggest mastery gain first", () => {
+    const items = [
+      { name: "Dual Ether", masteryXpRemaining: 3000 },
+      { name: "Voidrig", masteryXpRemaining: 6200 },
+      { name: "Maxed Skana", masteryXpRemaining: 0 },
+    ];
+
+    const sorted = applySharedFiltersAndSort(items, {
+      ...defaultFilters(),
+      sortBy: "mastery_xp",
+      sortDirection: "desc",
+    });
+
+    expect(sorted.map((row) => row.name)).toEqual(["Voidrig", "Dual Ether", "Maxed Skana"]);
+  });
+
+  it("sorts items with no mastery figure last either way", () => {
+    const items = [{ name: "Unknown" }, { name: "Known", masteryXpRemaining: 100 }];
+
+    for (const sortDirection of ["asc", "desc"] as const) {
+      const sorted = applySharedFiltersAndSort(items, {
+        ...defaultFilters(),
+        sortBy: "mastery_xp",
+        sortDirection,
+      });
+      expect(sorted[sorted.length - 1].name).toBe("Unknown");
+    }
+  });
+
+  it("keeps only builds waiting to be claimed", () => {
+    const items = [
+      { name: "Ready Frame", foundryReady: true },
+      { name: "Still Cooking", foundryReady: false },
+    ];
+
+    const filtered = applySharedFiltersAndSort(items, {
+      ...defaultFilters(),
+      foundryReady: "yes",
+    });
+
+    expect(filtered.map((row) => row.name)).toEqual(["Ready Frame"]);
+  });
+
+  it("keeps only items whose parts are all sitting in the inventory", () => {
+    const items = [
+      { name: "All Parts Owned", buildable: true },
+      { name: "Missing A Part", buildable: false },
+    ];
+
+    const filtered = applySharedFiltersAndSort(items, {
+      ...defaultFilters(),
+      buildable: "yes",
+    });
+
+    expect(filtered.map((row) => row.name)).toEqual(["All Parts Owned"]);
   });
 });

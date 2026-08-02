@@ -19,6 +19,7 @@
   export let basicVariant: "full" | "quick" = "full";
   export let sortOptions: Array<[SharedSortKey, string]> | null = null;
   export let showSubsumed = false;
+  export let showFoundry = false;
 
   const PRIME_OPTIONS: Array<[PrimeFilterMode, string]> = [
     ["all", "All"],
@@ -74,8 +75,12 @@
     updateSharedFilters(scope, { masteredMode: mode });
   }
 
+  // "Biggest gain first" is the only reading of a mastery sort anyone wants.
+  const DESCENDING_BY_DEFAULT = new Set<SharedSortKey>(["mastery_xp"]);
+
   function setSortBy(sortBy: SharedSortKey): void {
-    updateSharedFilters(scope, { sortBy });
+    const sortDirection: SortDirection = DESCENDING_BY_DEFAULT.has(sortBy) ? "desc" : "asc";
+    updateSharedFilters(scope, { sortBy, sortDirection });
   }
 
   function toggleSortDirection(): void {
@@ -95,7 +100,9 @@
       | "setComplete"
       | "equipped"
       | "leveledUp"
-      | "subsumed",
+      | "subsumed"
+      | "foundryReady"
+      | "buildable",
     value: Exclude<YesNoFilterMode, "all">,
   ): void {
     const next = state[key] === value ? "all" : value;
@@ -145,6 +152,21 @@
               class="filter-tab"
               class:active={state.subsumed === "no"}
               on:click={() => setYesNoFilter("subsumed", "no")}>Not Subsumed</button
+            >
+          </div>
+        {/if}
+
+        {#if showFoundry}
+          <div class="filter-tabs" title="Waiting in the foundry or ready to build">
+            <button
+              class="filter-tab"
+              class:active={state.foundryReady === "yes"}
+              on:click={() => setYesNoFilter("foundryReady", "yes")}>Ready to Claim</button
+            >
+            <button
+              class="filter-tab"
+              class:active={state.buildable === "yes"}
+              on:click={() => setYesNoFilter("buildable", "yes")}>Can Build</button
             >
           </div>
         {/if}

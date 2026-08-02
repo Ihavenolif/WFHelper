@@ -793,12 +793,26 @@ interface MasterableItem {
   components: ComponentEntry[];
 }
 
+const SUIT_MASTERY_CATEGORIES = new Set(["Warframes", "Companions", "Necramech"]);
+// Archwing and Misc mix suits with weapons, so their database paths break the tie.
+const SUIT_MASTERY_PATH_RE = /\/(?:SpaceSuits?|Powersuits\/Archwing|Hoverboard)\//i;
+
+/** Owned items carry their own rate; missing ones fall back to their type. */
+function itemMasteryPerRank(category: string, uniqueName: string): number {
+  const isSuit =
+    SUIT_MASTERY_CATEGORIES.has(category) || SUIT_MASTERY_PATH_RE.test(uniqueName);
+  const perRankSquared = isSuit ? SUIT_AFFINITY_PER_RANK_SQUARED : WEAPON_AFFINITY_PER_RANK_SQUARED;
+  return perRankSquared / 5;
+}
+
 interface MasteryProgressItem extends MasterableItem {
   status: MasteryStatus;
   rank: number;
   maxRank: number;
   currentlyOwned: boolean;
   masteryXp: number;
+  /** Mastery still on the table: what maxing this item would add. */
+  masteryXpRemaining: number;
 }
 
 function betterMasteryRecord(
@@ -1050,7 +1064,19 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
       };
     });
 
-    return { ...item, status, rank, maxRank, currentlyOwned, masteryXp, components };
+    const perRank = owned?.masteryPerRank ?? itemMasteryPerRank(item.category, item.uniqueName);
+    const masteryXpRemaining = Math.max(0, (maxRank - rank) * perRank);
+
+    return {
+      ...item,
+      status,
+      rank,
+      maxRank,
+      currentlyOwned,
+      masteryXp,
+      masteryXpRemaining,
+      components,
+    };
   });
 
   // Account mastery XP only makes sense when the inventory actually has XP data.

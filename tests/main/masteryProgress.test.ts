@@ -146,6 +146,20 @@ describe("mastery progress", () => {
     expect(item?.status).toBe("progress");
   });
 
+  it("assigns suit-rate mastery to missing Archwings and K-Drive decks", () => {
+    const progress = masteryHelper.computeMasteryProgress({});
+    const byName = new Map(progress.items.map((item) => [item.name, item]));
+
+    expect(byName.get("Amesha")).toMatchObject({
+      status: "missing",
+      masteryXpRemaining: 6_000,
+    });
+    expect(byName.get("Bad Baby")).toMatchObject({
+      status: "missing",
+      masteryXpRemaining: 6_000,
+    });
+  });
+
   it("keeps sold hound weapons at weapon rate despite their /Pets/ path", () => {
     const akaten = "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetMeleeWeaponPS";
     const progress = masteryHelper.computeMasteryProgress({
