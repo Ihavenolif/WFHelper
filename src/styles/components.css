@@ -546,7 +546,7 @@
   }
   .vault-badge {
     top: 0.4rem;
-    right: 0.4rem;
+    left: 0.4rem;
     background: rgba(248, 113, 113, 0.18);
     color: var(--danger);
     border: 1px solid rgba(248, 113, 113, 0.35);

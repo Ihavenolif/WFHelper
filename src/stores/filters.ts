@@ -14,7 +14,6 @@ function createDefaultSharedFiltersState(): SharedFiltersState {
     favorite: "all",
     minimumPlatinum: 0,
     minimumAmount: 0,
-    setComplete: "all",
     equipped: "all",
     leveledUp: "all",
     subsumed: "all",

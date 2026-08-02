@@ -144,10 +144,6 @@ function lookupNameCandidates(itemName: string): string[] {
   return [...candidates];
 }
 
-function isSetSlug(slug: string | null | undefined): boolean {
-  return typeof slug === "string" && slug.endsWith("_set");
-}
-
 function resolveCachedPlatinum(item: InventoryBaseItem): number | null {
   if (!item.marketSlug) return null;
 
@@ -163,6 +159,10 @@ function resolveCachedRankPlatinum(slug: string | null | undefined, rank: number
   const entry = getCachedPriceState(rendererPriceCacheKey(slug, rank));
   if (!entry || entry.status !== "ok") return null;
   return toFiniteNumber(entry.median);
+}
+
+function isSetSlug(slug: string | null | undefined): boolean {
+  return typeof slug === "string" && slug.endsWith("_set");
 }
 
 function itemGroupFallback(item: ParsedItem): InventoryFilterTab {
@@ -296,6 +296,11 @@ export function buildBaseInventoryItems(
   orderedSlugs: Record<string, true>,
   relicDb?: RelicDatabase | null,
 ): InventoryBaseItem[] {
+  // The exports flag every non-prime weapon part untradable whether or not the
+  // set really sells (Shedu and Seer are identical there), so only the market
+  // catalog can tell them apart. Missing catalog keeps every set instead.
+  const catalogLoaded = Object.keys(wfmLookup).length > 0;
+
   return parsedItems
     .filter((item) => matchesFilterTab(item, activeTab))
     .map<InventoryBaseItem | null>((item) => {
@@ -326,7 +331,7 @@ export function buildBaseInventoryItems(
             (typeof item.marketSlug === "string" ? item.marketSlug : null),
         );
 
-      if (group === "full_sets" && !isSetSlug(mappedSlug)) {
+      if (group === "full_sets" && catalogLoaded && !isSetSlug(mappedSlug)) {
         return null;
       }
 

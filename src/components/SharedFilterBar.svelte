@@ -97,7 +97,6 @@
       | "orderPlaced"
       | "vaulted"
       | "favorite"
-      | "setComplete"
       | "equipped"
       | "leveledUp"
       | "subsumed"
@@ -281,19 +280,6 @@
             class:active={state.minimumAmount === 2}
             on:click={() => updateSharedFilters(scope, { minimumAmount: 2 })}>&gt;1</button
           >
-        </div>
-      </div>
-
-      <div class="shared-chip-group" title="Set complete">
-        <span class="shared-chip-label">Set complete</span>
-        <div class="filter-tabs">
-          {#each YES_NO_OPTIONS as [mode, label]}
-            <button
-              class="filter-tab"
-              class:active={state.setComplete === mode}
-              on:click={() => setYesNoFilter("setComplete", mode)}>{label}</button
-            >
-          {/each}
         </div>
       </div>
 

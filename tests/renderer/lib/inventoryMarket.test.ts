@@ -139,7 +139,6 @@ describe("inventoryMarket view mapping", () => {
         favorite: "all",
         minimumPlatinum: 0,
         minimumAmount: 0,
-        setComplete: "all",
         equipped: "all",
         leveledUp: "all",
         subsumed: "all",
@@ -153,16 +152,23 @@ describe("inventoryMarket view mapping", () => {
     expect(needs.ducats).toBe(true);
   });
 
-  it("drops generated full-sets without a real market _set slug", () => {
+  it("drops generated full-sets the catalog does not sell as a set", () => {
     const setItem = makeBaseItem({
       name: "Ayatan Amber Star Set",
       internalName: "/Lotus/Types/Items/FusionTreasures/OroFusexOrnamentB#set",
       inventoryGroup: "full_sets",
       category: "full_sets",
       categoryLabel: "Full Set",
+      marketSlug: null,
     });
 
-    const dropped = buildBaseInventoryItems([setItem], "full_sets", {}, {}, {});
+    const dropped = buildBaseInventoryItems(
+      [setItem],
+      "full_sets",
+      { "soma prime set": { url_name: "soma_prime_set", item_name: "Soma Prime Set" } },
+      {},
+      {},
+    );
     expect(dropped).toHaveLength(0);
 
     const kept = buildBaseInventoryItems(
@@ -181,6 +187,22 @@ describe("inventoryMarket view mapping", () => {
     );
     expect(kept).toHaveLength(1);
     expect(kept[0].marketSlug).toBe("ayatan_amber_star_set");
+  });
+
+  it("keeps full sets listed when the market catalog never loaded", () => {
+    const setItem = makeBaseItem({
+      name: "Caliban Prime Set",
+      internalName: "/Lotus/Powersuits/Sentient/CalibanPrime#set",
+      inventoryGroup: "full_sets",
+      category: "full_sets",
+      categoryLabel: "Full Set",
+      marketSlug: null,
+    });
+
+    const kept = buildBaseInventoryItems([setItem], "full_sets", {}, {}, {});
+
+    expect(kept).toHaveLength(1);
+    expect(kept[0].marketSlug).toBe("caliban_prime_set");
   });
 
   it("drops all-parts entries without market mapping when tradability is unknown", () => {

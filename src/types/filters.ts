@@ -36,7 +36,6 @@ export interface SharedFiltersState {
   minimumPlatinum: 0 | 5 | 10 | 15;
   /** 0 = any, 2 = only items owned more than once (">1"). */
   minimumAmount: 0 | 2;
-  setComplete: YesNoFilterMode;
   equipped: YesNoFilterMode;
   leveledUp: YesNoFilterMode;
   subsumed: YesNoFilterMode;

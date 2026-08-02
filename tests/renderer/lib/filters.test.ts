@@ -16,7 +16,6 @@ function defaultFilters(): SharedFiltersState {
     favorite: "all",
     minimumPlatinum: 0,
     minimumAmount: 0,
-    setComplete: "all",
     equipped: "all",
     leveledUp: "all",
     subsumed: "all",
@@ -185,6 +184,22 @@ describe("mastery filters", () => {
     });
 
     expect(filtered.map((row) => row.name)).toEqual(["Ready Frame"]);
+  });
+
+  it("shows either group when both foundry filters are on", () => {
+    const items = [
+      { name: "Ready Frame", foundryReady: true, buildable: false },
+      { name: "All Parts Owned", foundryReady: false, buildable: true },
+      { name: "Neither", foundryReady: false, buildable: false },
+    ];
+
+    const filtered = applySharedFiltersAndSort(items, {
+      ...defaultFilters(),
+      foundryReady: "yes",
+      buildable: "yes",
+    });
+
+    expect(filtered.map((row) => row.name)).toEqual(["All Parts Owned", "Ready Frame"]);
   });
 
   it("keeps only items whose parts are all sitting in the inventory", () => {
