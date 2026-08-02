@@ -81,6 +81,41 @@ describe("crafting tree", () => {
     expect(akBp?.count).toBe(1);
   });
 
+  it("does not list a part component and its blueprint as two children", () => {
+    const chassis = "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeChassisComponent";
+    const chassisBp = "/Lotus/Types/Recipes/WarframeRecipes/CalibanPrimeChassisBlueprint";
+    const db: Record<string, ItemDbEntry> = {
+      "/items/CalibanPrime": item("Caliban Prime", {
+        blueprintUniqueName: "/blueprints/CalibanPrime",
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: chassis, count: 1 }],
+      }),
+      [chassis]: item("Caliban Prime Chassis Blueprint", {
+        blueprintUniqueName: chassisBp,
+        buildPrice: 0,
+        buildTime: 0,
+        num: 1,
+        ingredients: [{ uniqueName: "/resources/Rubedo", count: 1600 }],
+      }),
+      "/resources/Rubedo": item("Rubedo"),
+      "/blueprints/CalibanPrime": item("Caliban Prime Blueprint"),
+      [chassisBp]: item("Caliban Prime Chassis Blueprint"),
+    };
+
+    // The inventory holds the blueprint spelling; the recipe names the component.
+    const tree = buildCraftingTree("/items/CalibanPrime", db, new Map([[chassisBp, 3]]));
+    const chassisNode = tree?.children.find((child) => child.uniqueName === chassis);
+
+    expect(chassisNode?.owned).toBe(3);
+    expect(chassisNode?.children.map((child) => child.uniqueName)).toEqual(["/resources/Rubedo"]);
+    // The main blueprint is a separate item and still shows.
+    expect(tree?.children.some((child) => child.uniqueName === "/blueprints/CalibanPrime")).toBe(
+      true,
+    );
+  });
+
   it("stops recursive recipe cycles at the repeated ingredient", () => {
     const db: Record<string, ItemDbEntry> = {
       "/items/A": item("A", {

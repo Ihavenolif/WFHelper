@@ -1,3 +1,7 @@
+import {
+  componentUniqueNameAliases,
+  ownedComponentCount,
+} from "../../config/shared/componentNames.js";
 import { fallbackNameFromUniqueName } from "../../config/shared/displayName.js";
 import type { ItemDbEntry, RecipeData } from "../types/inventory.js";
 
@@ -61,6 +65,11 @@ function isLeafResource(uniqueName: string): boolean {
   return LEAF_RESOURCE_PREFIXES.some((p) => uniqueName.startsWith(p));
 }
 
+/** Two spellings of one inventory pile - the game never hands out both. */
+function isSameOwnedItem(a: string, b: string): boolean {
+  return a === b || componentUniqueNameAliases(a).includes(b);
+}
+
 const materialNameCache = new WeakMap<Record<string, ItemDbEntry>, Map<string, string[]>>();
 
 /** All ingredient names in an item's crafting tree (direct + nested part recipes). */
@@ -116,7 +125,7 @@ function buildNode(
   const item = itemDb[uniqueName];
   const name = item?.name || fallbackNameFromUniqueName(uniqueName);
   const imageUrl = item?.imageUrl || null;
-  const owned = ownership.get(uniqueName) || 0;
+  const owned = ownedComponentCount(uniqueName, ownership);
   const missing = Math.max(0, count - owned);
 
   // Treat common resources as leaf nodes even if they have recipes
@@ -124,11 +133,16 @@ function buildNode(
 
   const children: CraftingTreeNode[] = [];
   if (effectiveRecipe && depth < MAX_DEPTH) {
-    // Add blueprint as first child (it's needed to craft but not listed in ingredients)
-    if (effectiveRecipe.blueprintUniqueName) {
+    // Add blueprint as first child (it's needed to craft but not listed in
+    // ingredients). A part component is its own blueprint under a second
+    // spelling, so listing both shows the same pile twice.
+    if (
+      effectiveRecipe.blueprintUniqueName &&
+      !isSameOwnedItem(uniqueName, effectiveRecipe.blueprintUniqueName)
+    ) {
       const bpUn = effectiveRecipe.blueprintUniqueName;
       const bpItem = itemDb[bpUn];
-      const bpOwned = ownership.get(bpUn) || 0;
+      const bpOwned = ownedComponentCount(bpUn, ownership);
       // Reusable (infinite-use) blueprints cover any build count with one copy.
       const bpNeeded = effectiveRecipe.reusableBlueprint ? 1 : count;
       children.push({
