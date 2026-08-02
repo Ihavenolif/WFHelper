@@ -47,9 +47,10 @@ describe("mastery progress", () => {
     expect(item?.rank).toBe(10); // level bar shows the current rank
     expect(item?.status).toBe("progress");
     expect(item?.masteryXp).toBe(2_200); // credit uses the historical rank 22
+    expect(item?.masteryXpRemaining).toBe(800);
   });
 
-  it("merges bayonet primary and melee mastery evidence after a Forma reset", () => {
+  it("merges Vinquibus evidence into one mastery item after a Forma reset", () => {
     const vinquibus = "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon";
     const vinquibusMelee = "/Lotus/Weapons/Tenno/Bayonet/TnBayonetMeleeWeapon";
     const progress = masteryHelper.computeMasteryProgress({
@@ -57,10 +58,12 @@ describe("mastery progress", () => {
       XPInfo: [{ ItemType: vinquibus, XP: weaponXpForRank(30) }],
     });
 
+    const primary = progress.items.find((entry) => entry.uniqueName === vinquibus);
     const melee = progress.items.find((entry) => entry.uniqueName === vinquibusMelee);
 
-    expect(melee?.rank).toBe(30);
-    expect(melee?.status).toBe("mastered");
+    expect(primary?.status).toBe("mastered");
+    expect(primary?.masteryXp).toBe(3_000);
+    expect(melee).toBeUndefined();
   });
 
   it("only marks unmastered owned gear below its max rank as in progress", () => {
@@ -91,7 +94,7 @@ describe("mastery progress", () => {
     const codaBubonico =
       "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaBubonico/CodaBubonicoCannon";
     const progress = masteryHelper.computeMasteryProgress({
-      LongGuns: [{ ItemType: codaBubonico, XP: 0, Features: 35 }],
+      LongGuns: [{ ItemType: codaBubonico, XP: 0, Features: 35, Polarized: 3 }],
     });
 
     const item = progress.items.find((entry) => entry.uniqueName === codaBubonico);
@@ -101,18 +104,42 @@ describe("mastery progress", () => {
     expect(item?.status).toBe("progress");
   });
 
+  it("caps rank-40 mastery at the rank unlocked by polarizations", () => {
+    const codaBubonico =
+      "/Lotus/Weapons/Infested/InfestedLich/LongGuns/CodaBubonico/CodaBubonicoCannon";
+    const progress = masteryHelper.computeMasteryProgress({
+      LongGuns: [
+        {
+          ItemType: codaBubonico,
+          XP: weaponXpForRank(36),
+          Features: 35,
+          Polarized: 1,
+        },
+      ],
+      XPInfo: [{ ItemType: codaBubonico, XP: weaponXpForRank(32) }],
+    });
+
+    const item = progress.items.find((entry) => entry.uniqueName === codaBubonico);
+
+    expect(item?.rank).toBe(32);
+    expect(item?.masteryXp).toBe(3_200);
+    expect(item?.masteryXpRemaining).toBe(800);
+  });
+
   it("credits modular pets to their model heads and lists no phantom chassis cards", () => {
     const progress = masteryHelper.computeMasteryProgress({
       MoaPets: [
         {
           ItemType: "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetPowerSuit",
           XP: suitXpForRank(30),
+          Features: 8,
           ModularParts: ["/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadLambeo"],
         },
         {
           // Hound builds without ModularParts still credit via the suit-model alias.
           ItemType: "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetAPowerSuit",
           XP: suitXpForRank(30),
+          Features: 8,
         },
       ],
       XPInfo: [
@@ -131,6 +158,51 @@ describe("mastery progress", () => {
     expect(byName.get("Plexus")?.status).toBe("mastered");
     expect(byName.has("Moa")).toBe(false);
     expect(byName.has("Hound")).toBe(false);
+  });
+
+  it("does not credit ungilded Hounds or Deimos companions", () => {
+    const houndHead = "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadC";
+    const panzer = "/Lotus/Types/Friendly/Pets/CreaturePets/ArmoredInfestedCatbrowPetPowerSuit";
+    const progress = masteryHelper.computeMasteryProgress({
+      MoaPets: [
+        {
+          ItemType: "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetCPowerSuit",
+          XP: suitXpForRank(30),
+          ModularParts: [houndHead],
+        },
+      ],
+      KubrowPets: [
+        {
+          ItemType: panzer,
+          XP: suitXpForRank(30),
+          ModularParts: [
+            "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterAntigenB",
+            "/Lotus/Types/Friendly/Pets/CreaturePets/CreaturePetParts/Deimos/InfestedCritterMutagenA",
+          ],
+        },
+      ],
+    });
+
+    const byName = new Map(progress.items.map((item) => [item.name, item]));
+
+    expect(byName.get("Hec Hound")?.masteryXp).toBe(0);
+    expect(byName.get("Panzer Vulpaphyla")?.masteryXp).toBe(0);
+  });
+
+  it("scores sold MOA and Hound model heads at companion rate", () => {
+    const lambeo = "/Lotus/Types/Friendly/Pets/MoaPets/MoaPetParts/MoaPetHeadLambeo";
+    const bhaira = "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadB";
+    const progress = masteryHelper.computeMasteryProgress({
+      XPInfo: [
+        { ItemType: lambeo, XP: suitXpForRank(30) },
+        { ItemType: bhaira, XP: suitXpForRank(30) },
+      ],
+    });
+
+    const byName = new Map(progress.items.map((item) => [item.name, item]));
+
+    expect(byName.get("Lambeo Moa")?.masteryXp).toBe(6_000);
+    expect(byName.get("Bhaira Hound")?.masteryXp).toBe(6_000);
   });
 
   it("scores sold K-Drives at suit rate so XP history cannot fake mastery", () => {
@@ -191,8 +263,105 @@ describe("mastery progress", () => {
     const names = new Set(masteryHelper.getAllMasterableItems().map((item) => item.name));
 
     expect([...names]).toEqual(
-      expect.arrayContaining(["Mote Amp", "Plexus", "Venari", "Venari Prime", "Sirocco"]),
+      expect.arrayContaining(["Mote Prism", "Plexus", "Venari", "Venari Prime", "Sirocco"]),
     );
+    expect(names.has("Mote Amp")).toBe(false);
+  });
+
+  it("does not credit an ungilded Mote Amp or duplicate its prism", () => {
+    const moteAmp =
+      "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon";
+    const motePrism =
+      "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel";
+    const progress = masteryHelper.computeMasteryProgress({
+      OperatorAmps: [
+        {
+          ItemType: moteAmp,
+          XP: weaponXpForRank(28),
+          Features: 1,
+          ModularParts: [motePrism],
+        },
+      ],
+    });
+
+    const prism = progress.items.find((entry) => entry.uniqueName === motePrism);
+
+    expect(progress.items.some((entry) => entry.name === "Mote Amp")).toBe(false);
+    expect(prism?.rank).toBe(0);
+    expect(prism?.masteryXp).toBe(0);
+  });
+
+  it("credits a gilded Mote Amp once through Mote Prism", () => {
+    const moteAmp =
+      "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon";
+    const motePrism =
+      "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/SentAmpTrainingBarrel";
+    const progress = masteryHelper.computeMasteryProgress({
+      OperatorAmps: [
+        {
+          ItemType: moteAmp,
+          XP: weaponXpForRank(30),
+          Features: 9,
+          ModularParts: [motePrism],
+        },
+      ],
+    });
+
+    const prism = progress.items.find((entry) => entry.uniqueName === motePrism);
+
+    expect(prism?.status).toBe("mastered");
+    expect(prism?.masteryXp).toBe(3_000);
+  });
+
+  it("credits Sirocco without requiring gilding", () => {
+    const sirocco = "/Lotus/Weapons/Operator/Pistols/DrifterPistol/DrifterPistolPlayerWeapon";
+    const progress = masteryHelper.computeMasteryProgress({
+      OperatorAmps: [{ ItemType: sirocco, XP: weaponXpForRank(30), Features: 1 }],
+    });
+
+    const item = progress.items.find((entry) => entry.uniqueName === sirocco);
+
+    expect(item?.status).toBe("mastered");
+    expect(item?.masteryXp).toBe(3_000);
+  });
+
+  it("includes both Infested Kitgun chambers and maps their mastery", () => {
+    const sporelacer =
+      "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelEgg/InfModularBarrelEggPart";
+    const vermisplicer =
+      "/Lotus/Weapons/Infested/Pistols/InfKitGun/Barrels/InfBarrelBeam/InfModularBarrelBeamPart";
+    const progress = masteryHelper.computeMasteryProgress({
+      LongGuns: [
+        {
+          ItemType: "/Lotus/Weapons/SolarisUnited/Primary/LotusModularPrimaryBeam",
+          XP: weaponXpForRank(30),
+          Features: 8,
+          ModularParts: [vermisplicer],
+        },
+      ],
+      XPInfo: [{ ItemType: sporelacer, XP: weaponXpForRank(30) }],
+    });
+
+    const byName = new Map(progress.items.map((item) => [item.name, item]));
+
+    expect(byName.get("Sporelacer")?.masteryXp).toBe(3_000);
+    expect(byName.get("Vermisplicer")?.masteryXp).toBe(3_000);
+  });
+
+  it("credits both Venari companions at companion rate", () => {
+    const venari = "/Lotus/Powersuits/Khora/Kavat/KhoraKavatPowerSuit";
+    const venariPrime = "/Lotus/Powersuits/Khora/Kavat/KhoraPrimeKavatPowerSuit";
+    const progress = masteryHelper.computeMasteryProgress({
+      XPInfo: [
+        { ItemType: venari, XP: suitXpForRank(30) },
+        { ItemType: venariPrime, XP: suitXpForRank(30) },
+      ],
+    });
+
+    const byName = new Map(progress.items.map((item) => [item.name, item]));
+
+    expect(byName.get("Venari")?.masteryXp).toBe(6_000);
+    expect(byName.get("Venari Prime")?.masteryXp).toBe(6_000);
   });
 
   it("computes account mastery XP from gear, nodes, junctions, and intrinsics", () => {

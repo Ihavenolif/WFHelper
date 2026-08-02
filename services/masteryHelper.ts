@@ -125,6 +125,21 @@ const EXALTED_NAMES = new Set([
   "shattered lash",
 ]);
 
+const KITGUN_CHAMBER_NAMES = new Set([
+  "catchmoon",
+  "gaze",
+  "rattleguts",
+  "sporelacer",
+  "tombfinger",
+  "vermisplicer",
+]);
+const ZAW_STRIKE_PATH_PATTERN = /\/Ostron\/Melee\/ModularMelee/i;
+const MODULAR_COMPANION_MODEL_PATTERN =
+  /\/Pets\/(?:MoaPets\/MoaPetParts\/MoaPetHead[^/]*|ZanukaPets\/ZanukaPetParts\/ZanukaPetPartHead[ABC])$/i;
+const VINQUIBUS_PRIMARY_UNIQUE_NAME = "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon";
+const VINQUIBUS_MELEE_UNIQUE_NAME = "/Lotus/Weapons/Tenno/Bayonet/TnBayonetMeleeWeapon";
+const GILDED_FEATURE_MASK = 8;
+
 // Inventory JSON key -> maxRank
 const INV_CATEGORIES: Record<string, number> = {
   Suits: MAX_ITEM_RANK,
@@ -151,6 +166,7 @@ function isSuitRateXpInfoItem(
   return (
     dbItem?.category === "Warframe" ||
     dbItem?.category === "Companion" ||
+    MODULAR_COMPANION_MODEL_PATTERN.test(itemType) ||
     /\/Hoverboard/i.test(itemType) ||
     /k-drive/i.test(String(dbItem?.type || "")) ||
     /\/CrewShip\/(?:RailJack\/Default)?Harness$/i.test(itemType) ||
@@ -159,8 +175,6 @@ function isSuitRateXpInfoItem(
 }
 
 const VENARI_UNIQUE_NAME_PATTERN = /\/Powersuits\/Khora\/Kavat\/Khora(?:Prime)?KavatPowerSuit$/i;
-const TRAINING_AMP_UNIQUE_NAME =
-  "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon";
 const WEAPON_AFFINITY_PER_RANK_SQUARED = 500;
 const SUIT_AFFINITY_PER_RANK_SQUARED = 1_000;
 
@@ -195,20 +209,6 @@ const MASTERED_FLAG_KEYS = [
 
 const SYNTHETIC_MASTERABLE_ITEMS: MasterableItem[] = [
   {
-    name: "Mote Amp",
-    uniqueName:
-      "/Lotus/Weapons/Sentients/OperatorAmplifiers/SentTrainingAmplifier/OperatorTrainingAmpWeapon",
-    category: "Amps",
-    imageUrl: null,
-    isPrime: false,
-    masteryReq: 0,
-    vaulted: false,
-    tradable: false,
-    keywords: ["amp", "operator"],
-    debugReason: "show:synthetic; cat:profile-amp; dbCat:?; product:OperatorAmps; type:Amp",
-    components: [],
-  },
-  {
     name: "Plexus",
     uniqueName: "/Lotus/Types/Game/CrewShip/RailjackHarness",
     category: "Companions",
@@ -238,12 +238,7 @@ const MASTERABLE_UNIQUE_NAME_ALIASES: Record<string, string[]> = {
   "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetParts/ZanukaPetPartHeadC": [
     "/Lotus/Types/Friendly/Pets/ZanukaPets/ZanukaPetCPowerSuit",
   ],
-  "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon": [
-    "/Lotus/Weapons/Tenno/Bayonet/TnBayonetMeleeWeapon",
-  ],
-  "/Lotus/Weapons/Tenno/Bayonet/TnBayonetMeleeWeapon": [
-    "/Lotus/Weapons/Tenno/Bayonet/TnBayonetRifleWeapon",
-  ],
+  [VINQUIBUS_PRIMARY_UNIQUE_NAME]: [VINQUIBUS_MELEE_UNIQUE_NAME],
 };
 
 function xpToRank(
@@ -330,6 +325,28 @@ function getInventoryAffinityPerRankSquared(invKey: string): number {
   return SUIT_INVENTORY_KEYS.has(invKey)
     ? SUIT_AFFINITY_PER_RANK_SQUARED
     : WEAPON_AFFINITY_PER_RANK_SQUARED;
+}
+
+function getUnlockedMaxRank(entry: InventoryMasteryEntry, maxRank: number, owned: boolean): number {
+  if (!owned || maxRank <= MAX_ITEM_RANK) return maxRank;
+  const polarized = Math.max(0, Math.floor(toFiniteNumber(entry.Polarized) ?? 0));
+  return Math.min(maxRank, MAX_ITEM_RANK + polarized * 2);
+}
+
+function hasGildedFeature(entry: InventoryMasteryEntry): boolean {
+  const features = toFiniteNumber(entry.Features);
+  return features != null && (Math.floor(features) & GILDED_FEATURE_MASK) !== 0;
+}
+
+function requiresGilding(
+  invKey: string,
+  entry: InventoryMasteryEntry,
+  modularPart: string | null,
+): boolean {
+  if (invKey === "MoaPets") return true;
+  if (invKey === "KubrowPets") return Array.isArray(entry.ModularParts);
+  if (invKey === "OperatorAmps") return modularPart != null;
+  return ["LongGuns", "Pistols", "Melee"].includes(invKey) && modularPart != null;
 }
 
 function getValueAtPath(obj: Record<string, unknown>, path: string[]): unknown {
@@ -623,6 +640,7 @@ function getExcludeReason(
   name: string | null,
   item: { exalted?: boolean; productCategory?: string | null; type?: string },
 ): string | null {
+  if (uniqueName === VINQUIBUS_MELEE_UNIQUE_NAME) return "shared-mastery-variant";
   if (uniqueName.includes("/Recipes/")) return "recipe";
   if (uniqueName.includes("/StoreItems/")) return "store-item";
   if (uniqueName.includes("/OperatorLoadOuts/")) return "operator-loadout";
@@ -696,6 +714,9 @@ function resolveDisplayCategoryInfo(
   if (/\/OperatorAmplifiers?\//i.test(uniqueName)) {
     return { category: "Amps", source: "path:OperatorAmplifiers" };
   }
+  if (ZAW_STRIKE_PATH_PATTERN.test(uniqueName)) {
+    return { category: "Melee", source: "override:zaw-strike" };
+  }
   if (item.productCategory && PRODUCT_DISPLAY[item.productCategory as string]) {
     return {
       category: PRODUCT_DISPLAY[item.productCategory as string],
@@ -722,6 +743,11 @@ function isAmpPrismMasterableOverride(item: { name?: string }, uniqueName: strin
   return n.includes(" prism");
 }
 
+function isKitgunChamberMasterableOverride(item: { name?: string }, uniqueName: string): boolean {
+  if (!/\/(?:Barrel|Barrels)\//i.test(uniqueName)) return false;
+  return KITGUN_CHAMBER_NAMES.has((item.name || "").trim().toLowerCase());
+}
+
 function isVenariMasterableOverride(uniqueName: string): boolean {
   return VENARI_UNIQUE_NAME_PATTERN.test(uniqueName);
 }
@@ -730,6 +756,8 @@ type InventoryMasteryEntry = Record<string, unknown> & {
   ItemType?: string;
   XP?: number;
   Features?: number;
+  Polarized?: number;
+  ModularParts?: unknown[];
 };
 
 interface OwnedMasteryRecord {
@@ -753,9 +781,10 @@ function readOwnedMasteryRecord(
   if (!entry.ItemType) return null;
 
   const maxRank = getMasteryMaxRank(entry.ItemType, fallbackMaxRank);
-  const xpRank = xpToRank(entry.XP || 0, maxRank, affinityPerRankSquared);
+  const unlockedMaxRank = getUnlockedMaxRank(entry, maxRank, owned);
+  const xpRank = xpToRank(entry.XP || 0, unlockedMaxRank, affinityPerRankSquared);
   const featuresRank = extractOvercapFeatureRank(entry, maxRank);
-  const rank = Math.max(xpRank, featuresRank ?? 0);
+  const rank = Math.min(unlockedMaxRank, Math.max(xpRank, featuresRank ?? 0));
   const masteredFlag = extractMasteredFlag(entry);
   const record: OwnedMasteryRecord = {
     rank,
@@ -856,8 +885,14 @@ export function getAllMasterableItems(): MasterableItem[] {
       continue;
     }
     const ampPrismOverride = isAmpPrismMasterableOverride(item, uniqueName);
+    const kitgunChamberOverride = isKitgunChamberMasterableOverride(item, uniqueName);
     const venariOverride = isVenariMasterableOverride(uniqueName);
-    if (item.masterable === false && !ampPrismOverride && !venariOverride) {
+    if (
+      item.masterable === false &&
+      !ampPrismOverride &&
+      !kitgunChamberOverride &&
+      !venariOverride
+    ) {
       continue;
     }
 
@@ -879,11 +914,13 @@ export function getAllMasterableItems(): MasterableItem[] {
     }
     const masterableSource = ampPrismOverride
       ? "amp-prism-override"
-      : venariOverride
-        ? "venari-override"
-        : item.masterable === true
-          ? "wfcd-masterable:true"
-          : "default";
+      : kitgunChamberOverride
+        ? "kitgun-chamber-override"
+        : venariOverride
+          ? "venari-override"
+          : item.masterable === true
+            ? "wfcd-masterable:true"
+            : "default";
 
     items.push({
       name: displayName,
@@ -970,12 +1007,12 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
       const record = readOwnedMasteryRecord(entry, maxRank as number, true, affinityPerRankSquared);
       if (!record) continue;
       const part = modularMasteryPart(entry);
-      // The Mote Amp is a preset: it masters the amp AND its prism off one XP
-      // pool. Real builds credit only the part.
-      const keys =
-        part && entry.ItemType === TRAINING_AMP_UNIQUE_NAME
-          ? [entry.ItemType, part]
-          : [part ?? entry.ItemType];
+      if (requiresGilding(invKey, entry, part) && !hasGildedFeature(entry)) {
+        record.rank = 0;
+        record.masteryRank = 0;
+        record.mastered = false;
+      }
+      const keys = [part ?? entry.ItemType];
       for (const key of keys) {
         if (!key) continue;
         // Several builds can share one part; mastery keeps the best rank reached.
@@ -1065,7 +1102,7 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
     });
 
     const perRank = owned?.masteryPerRank ?? itemMasteryPerRank(item.category, item.uniqueName);
-    const masteryXpRemaining = Math.max(0, (maxRank - rank) * perRank);
+    const masteryXpRemaining = Math.max(0, maxRank * perRank - masteryXp);
 
     return {
       ...item,

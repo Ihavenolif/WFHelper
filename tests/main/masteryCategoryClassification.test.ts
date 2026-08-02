@@ -38,4 +38,26 @@ describe("mastery category overrides", () => {
     expect(badBaby).toBeTruthy();
     expect(badBaby?.keywords).toEqual(expect.arrayContaining(["k-drive", "kdrive"]));
   });
+
+  it("places every Zaw strike under Melee instead of Secondary", () => {
+    const zawNames = [
+      "Balla",
+      "Cyath",
+      "Dehtat",
+      "Dokrahm",
+      "Kronsh",
+      "Mewan",
+      "Ooltha",
+      "Plague Keewar",
+      "Plague Kripath",
+      "Rabvee",
+      "Sepfahn",
+    ];
+
+    for (const name of zawNames) {
+      const item = allMasterable.find((entry) => entry.name === name);
+      expect(item?.category).toBe("Melee");
+      expect(item?.debugReason).toContain("cat:override:zaw-strike");
+    }
+  });
 });
