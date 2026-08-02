@@ -227,6 +227,7 @@
       const owned = item.status !== "missing" || item.currentlyOwned === true;
       return {
         ...item,
+        masteryXpRemaining: item.masteryXpRemaining ?? 0,
         components,
         mastered,
         missing,
@@ -529,8 +530,18 @@
                 <span class="item-type"
                   >{item.category}{item.masteryReq ? ` · MR ${item.masteryReq}` : ""}</span
                 >
-                {#if item.foundryStatus || item.subsumed}
+                {#if item.foundryStatus || item.subsumed || item.masteryXpRemaining > 0 || item.platinum != null}
                   <div class="mt-1 flex flex-wrap gap-1">
+                    {#if item.masteryXpRemaining > 0}
+                      <span class="mastery-badge xp" title="Mastery left to earn on this item"
+                        >+{item.masteryXpRemaining.toLocaleString()} XP</span
+                      >
+                    {/if}
+                    {#if item.platinum != null}
+                      <span class="mastery-badge plat" title="warframe.market median price"
+                        >{item.platinum}p</span
+                      >
+                    {/if}
                     {#if item.foundryStatus === "in-progress"}
                       <span class="mastery-badge building">Crafting</span>
                     {:else if item.foundryStatus === "claimable"}
@@ -669,5 +680,15 @@
     color: color-mix(in oklab, var(--info) 86%, white);
     border-color: color-mix(in oklab, var(--info) 42%, transparent);
     background: color-mix(in oklab, var(--info) 14%, transparent);
+  }
+  .mastery-badge.xp {
+    color: color-mix(in oklab, var(--accent) 86%, white);
+    border-color: color-mix(in oklab, var(--accent) 42%, transparent);
+    background: color-mix(in oklab, var(--accent) 14%, transparent);
+  }
+  .mastery-badge.plat {
+    color: color-mix(in oklab, var(--info) 90%, white);
+    border-color: color-mix(in oklab, var(--info) 34%, transparent);
+    background: color-mix(in oklab, var(--info) 10%, transparent);
   }
 </style>

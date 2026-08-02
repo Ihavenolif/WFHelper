@@ -120,6 +120,8 @@ export interface ParsedItem {
   drops: DropInfo[];
   wikiaUrl: string | null;
   status?: MasteryStatus;
+  /** Mastery still on the table: what ranking this item to max would add. */
+  masteryXpRemaining?: number;
   currentlyOwned?: boolean;
   uniqueName?: string;
   inventoryKey?: string;

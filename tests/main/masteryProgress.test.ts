@@ -173,6 +173,20 @@ describe("mastery progress", () => {
     expect(item?.masteryXp).toBe(3_000); // weapon credit, not suit-rate 4200
   });
 
+  it("reports the mastery an owned item still has to give", () => {
+    const excalibur = "/Lotus/Powersuits/Excalibur/Excalibur";
+    const progress = masteryHelper.computeMasteryProgress({
+      Suits: [{ ItemType: excalibur, XP: suitXpForRank(20) }],
+    });
+
+    const frame = progress.items.find((entry) => entry.uniqueName === excalibur);
+    const unowned = progress.items.find((entry) => entry.status === "missing");
+
+    // 10 ranks left at 200 mastery each; an unowned frame is worth all 30.
+    expect(frame?.masteryXpRemaining).toBe(2_000);
+    expect(unowned?.masteryXpRemaining).toBeGreaterThan(0);
+  });
+
   it("includes hidden mastery items represented by the Warframe profile", () => {
     const names = new Set(masteryHelper.getAllMasterableItems().map((item) => item.name));
 
