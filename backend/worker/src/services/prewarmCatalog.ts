@@ -1,4 +1,4 @@
-import { CATALOG_CACHE_KEY, ORDER_SUMMARY_CATALOG_KEY, SLUG_RE } from '../constants';
+import { CATALOG_CACHE_KEY, CATALOG_CLIENT_ITEMS_KEY, ORDER_SUMMARY_CATALOG_KEY, SLUG_RE } from '../constants';
 import type { Env, OrdersPayload, OrderSummaryCatalogEntry, OrderSummaryHotsetEntry } from '../types';
 import { getWorkerConfig } from '../config';
 import { getJsonFromKv } from '../utils';
@@ -90,6 +90,60 @@ function buildRankedSummaryCatalog(items: Array<Record<string, unknown>>): Order
 			maxRank: normalizeCatalogMaxRank(item),
 		})),
 	);
+}
+
+interface ClientCatalogItem {
+	id: string | null;
+	slug: string;
+	name: string;
+	thumb: string | null;
+	icon: string | null;
+	maxRank: number | null;
+	gameRef: string | null;
+}
+
+function stringOrNull(value: unknown): string | null {
+	return typeof value === 'string' && value.trim().length > 0 ? value : null;
+}
+
+// Slim projection of the WFM /v2/items payload down to the fields the client
+// catalog actually consumes; keeps the KV value and response small.
+function buildClientCatalogItems(list: Array<Record<string, unknown>>): ClientCatalogItem[] {
+	const items: ClientCatalogItem[] = [];
+	const seen = new Set<string>();
+	for (const item of list) {
+		const slug = normalizeCatalogSlug(item);
+		if (!SLUG_RE.test(slug) || seen.has(slug)) continue;
+		seen.add(slug);
+		const i18n = item.i18n as { en?: Record<string, unknown> } | undefined;
+		const en = i18n && typeof i18n === 'object' ? (i18n.en ?? {}) : {};
+		items.push({
+			id: stringOrNull(item.id),
+			slug,
+			name: stringOrNull(en.name) ?? stringOrNull(en.itemName) ?? stringOrNull(item.item_name) ?? '',
+			thumb: stringOrNull(en.thumb) ?? stringOrNull(item.thumb),
+			icon: stringOrNull(en.icon) ?? stringOrNull(item.icon),
+			maxRank: normalizeCatalogMaxRank(item),
+			gameRef: stringOrNull(item.gameRef) ?? stringOrNull(item.game_ref),
+		});
+	}
+	return items;
+}
+
+function sanitizeClientCatalogItems(value: unknown): ClientCatalogItem[] {
+	if (!Array.isArray(value)) return [];
+	return value.filter(
+		(entry): entry is ClientCatalogItem =>
+			Boolean(entry) && typeof entry === 'object' && SLUG_RE.test(String((entry as Record<string, unknown>).slug ?? '')),
+	);
+}
+
+export async function readClientCatalogFromKv(env: Env): Promise<{ updatedAt: number; items: ClientCatalogItem[] } | null> {
+	const cached = await getJsonFromKv(env.ITEM_META, CATALOG_CLIENT_ITEMS_KEY);
+	const items = sanitizeClientCatalogItems(cached?.items);
+	if (items.length === 0) return null;
+	const updatedAt = Number(cached?.updatedAt || 0);
+	return { updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0, items };
 }
 
 export function sanitizeOrderSummaryHotsetEntries(value: unknown): OrderSummaryHotsetEntry[] {
@@ -219,6 +273,22 @@ export async function fetchCatalogSlugs(env: Env, forceRefresh: boolean): Promis
 			expirationTtl: CATALOG_RETENTION_SEC,
 		},
 	);
+
+	// Client-shaped catalog for /v1/wfm-items - written only on refresh, so the
+	// write rate is bounded by CATALOG_REFRESH_HOURS, never by user traffic.
+	const clientItems = buildClientCatalogItems(list);
+	if (clientItems.length > 0) {
+		await env.ITEM_META.put(
+			CATALOG_CLIENT_ITEMS_KEY,
+			JSON.stringify({
+				updatedAt: Date.now(),
+				items: clientItems,
+			}),
+			{
+				expirationTtl: CATALOG_RETENTION_SEC,
+			},
+		);
+	}
 
 	return slugs;
 }

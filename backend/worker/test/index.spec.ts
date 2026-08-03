@@ -194,6 +194,81 @@ describe('backend worker', () => {
 		expect(await response.json()).toEqual({ ok: false, error: 'not_found' });
 	});
 
+	it('serves the client catalog on /v1/wfm-items', async () => {
+		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=1'));
+		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
+		await env.ITEM_META.put(
+			'catalog:client-items:v1',
+			JSON.stringify({
+				updatedAt: 1234,
+				items: [{ id: 'x', slug: 'ash_prime_set', name: 'Ash Prime Set', thumb: null, icon: null, maxRank: null, gameRef: null }],
+			}),
+		);
+
+		const request = new IncomingRequest('http://example.com/v1/wfm-items');
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as { ok: boolean; updatedAt: number; items: Array<{ slug: string; name: string }> };
+		expect(json.ok).toBe(true);
+		expect(json.updatedAt).toBe(1234);
+		expect(json.items).toHaveLength(1);
+		expect(json.items[0]).toMatchObject({ slug: 'ash_prime_set', name: 'Ash Prime Set' });
+		expect(logSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				type: 'request',
+				route: '/v1/wfm-items',
+				method: 'GET',
+				status: 200,
+			}),
+		);
+	});
+
+	it('force-hydrates the client catalog when the slug catalog is fresh but the key is missing', async () => {
+		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=1'));
+		// Fresh slug catalog from before the client-items key existed: the
+		// cadence-respecting refresh call no-ops on it.
+		await env.ITEM_META.put(
+			'catalog:slugs:v1',
+			JSON.stringify({ updatedAt: Date.now(), slugs: ['ash_prime_set'], rankedSummaryCatalog: [] }),
+		);
+		globalThis.fetch = vi.fn(
+			async () =>
+				new Response(
+					JSON.stringify({
+						data: {
+							items: [{ id: 'x', slug: 'ash_prime_set', i18n: { en: { name: 'Ash Prime Set', thumb: 'thumb/ash.png' } } }],
+						},
+					}),
+					{ status: 200, headers: { 'content-type': 'application/json' } },
+				),
+		) as typeof fetch;
+
+		const request = new IncomingRequest('http://example.com/v1/wfm-items');
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as { ok: boolean; items: Array<{ slug: string; name: string }> };
+		expect(json.items[0]).toMatchObject({ slug: 'ash_prime_set', name: 'Ash Prime Set' });
+	});
+
+	it('returns catalog_not_ready when the catalog is missing and upstream fails', async () => {
+		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=1'));
+		globalThis.fetch = vi.fn(async () => new Response('nope', { status: 500 })) as typeof fetch;
+
+		const request = new IncomingRequest('http://example.com/v1/wfm-items');
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(request, env, ctx);
+		await waitOnExecutionContext(ctx);
+
+		expect(response.status).toBe(503);
+		expect(await response.json()).toEqual({ ok: false, error: 'catalog_not_ready' });
+	});
+
 	it('requires admin auth for prewarm route', async () => {
 		const response = await SELF.fetch('https://example.com/admin/prewarm', {
 			method: 'POST',

@@ -6,7 +6,8 @@ covers runtime ownership and invariants. See `README.md` for setup and operator 
 ## Runtime layout
 
 - `src/index.ts` handles CORS rejection, route dispatch, 404 responses, request logging, and cron.
-- `src/routes/public.ts` owns health, bootstrap, snapshot, price, meta, and order routes.
+- `src/routes/public.ts` owns health, bootstrap, snapshot, item-catalog, price, meta, and order
+  routes.
 - `src/routes/admin.ts` owns authenticated prewarm, catalog, hotset, and status routes.
 - `src/services/readThrough.ts` owns cache-first reads, stale refresh, negative markers, and
   in-flight deduplication.
@@ -38,7 +39,7 @@ Rate Limiting binding defaults in `wrangler.jsonc` are per IP:
 - health: 5 per minute
 - bootstrap and full orders: 60 per minute
 - prices, meta, and order summaries: 200 per minute
-- snapshot: 2 per minute
+- snapshot and item catalog: 2 per minute
 - admin: 60 per minute
 
 Public limiter failures fail open to preserve app reads. Admin limiter failures fail closed with
@@ -67,6 +68,17 @@ scan and could replace a complete snapshot with partial data.
 
 Snapshot key translation must stay compatible with the desktop importers. Ranked worker keys such
 as `price:{slug}:r{n}` become `{slug}:rank-v3:r{n}` in the snapshot.
+
+## WFM item catalog
+
+`GET /v1/wfm-items` serves the desktop-safe projection of the Warframe Market item catalog from
+KV key `catalog:client-items:v1`. The catalog refresh writes this key alongside the slug catalog,
+and the route keeps its response in the edge cache for six hours.
+
+If the client-shaped key is absent, the route first follows the normal refresh cadence. A fresh
+slug catalog from an older deployment can make that refresh a no-op, so the route then forces one
+upstream refresh before returning `503 catalog_not_ready`. Empty upstream responses never replace
+a valid catalog.
 
 ## Read-through and prewarm
 

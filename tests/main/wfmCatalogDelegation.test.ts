@@ -2,12 +2,68 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.resetModules();
 });
 
+/** Catalog loads try the backend worker first - keep unit tests off the network. */
+function stubBackendCatalogOffline(): void {
+  vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+}
+
 describe("wfmCatalog item lookups", () => {
+  it("prefers the backend worker catalog and skips direct WFM", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: async () => ({
+          ok: true,
+          updatedAt: 123,
+          items: [
+            {
+              id: "wf-item-id",
+              slug: "ash_prime_set",
+              name: "Ash Prime Set",
+              thumb: "thumb/ash.png",
+              icon: null,
+              maxRank: null,
+              gameRef: null,
+            },
+          ],
+        }),
+      }),
+    );
+    const wfmClient = await import("../../services/wfmClient");
+    const request = vi.spyOn(wfmClient, "requestV2");
+    const wfmCatalog = await import("../../services/wfmCatalog");
+
+    await expect(wfmCatalog.ensureLoaded()).resolves.toBe(1);
+    expect(request).not.toHaveBeenCalled();
+    expect(wfmCatalog.lookupByName("Ash Prime Set")).toMatchObject({
+      url_name: "ash_prime_set",
+      thumb: "https://warframe.market/static/assets/thumb/ash.png",
+    });
+  });
+
+  it("falls back to direct WFM when the backend catalog is empty", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, json: async () => ({ ok: true, items: [] }) }),
+    );
+    const wfmClient = await import("../../services/wfmClient");
+    const request = vi.spyOn(wfmClient, "requestV2").mockResolvedValue({
+      data: { items: [{ id: "wf-item-id", slug: "ash_prime_set" }] },
+    });
+    const wfmCatalog = await import("../../services/wfmCatalog");
+
+    await expect(wfmCatalog.ensureLoaded()).resolves.toBe(1);
+    expect(request).toHaveBeenCalledTimes(1);
+  });
+
   it("loads and exposes name/url/renderer mapping", async () => {
+    stubBackendCatalogOffline();
     const wfmClient = await import("../../services/wfmClient");
     vi.spyOn(wfmClient, "requestV2").mockResolvedValue({
       data: {
@@ -51,6 +107,7 @@ describe("wfmCatalog item lookups", () => {
 
   it("does not latch an empty catalog and recovers on a later retry", async () => {
     vi.useFakeTimers();
+    stubBackendCatalogOffline();
     const wfmClient = await import("../../services/wfmClient");
     const request = vi.spyOn(wfmClient, "requestV2").mockRejectedValue(new Error("timeout"));
     const wfmCatalog = await import("../../services/wfmCatalog");

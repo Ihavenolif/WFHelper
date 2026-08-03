@@ -24,6 +24,7 @@ function routeMetadata(req: Request): RouteMetadata {
 	if (pathname === '/healthz') return { type: 'request', route: '/healthz' };
 	if (pathname === '/v1/bootstrap') return { type: 'request', route: '/v1/bootstrap' };
 	if (pathname === '/v1/snapshot') return { type: 'request', route: '/v1/snapshot' };
+	if (pathname === '/v1/wfm-items') return { type: 'request', route: '/v1/wfm-items' };
 
 	const publicSlugRoutes = [
 		['/v1/prices/', '/v1/prices/:slug'],

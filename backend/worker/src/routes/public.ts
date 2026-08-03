@@ -12,6 +12,7 @@ import {
 } from '../services/readThrough';
 import { recordActiveUser } from '../services/activeUsers';
 import { readRankedSummaryCatalogFromKv, sanitizeSnapshotForClient } from '../services/prewarm';
+import { fetchCatalogSlugs, readClientCatalogFromKv } from '../services/prewarmCatalog';
 import { annotateResponse } from '../services/logging';
 import type { Env } from '../types';
 import { getJsonFromKv, getSlug } from '../utils';
@@ -30,11 +31,14 @@ const routeStats = {
 	priceRequests: 0,
 	metaRequests: 0,
 	orderSummaryRequests: 0,
+	wfmItemsRequests: 0,
 };
 
 const PUBLIC_JSON_CACHE_HEADERS = { 'cache-control': 'public, max-age=60' };
 const EXCLUDED_MARKET_HEADERS = { 'cache-control': 'public, max-age=3600' };
 const SNAPSHOT_CACHE_CONTROL = 'public, max-age=7200';
+const WFM_ITEMS_CACHE_CONTROL = 'public, max-age=21600';
+const WFM_ITEMS_CACHE_VERSION = 1;
 
 type PublicRateLimitRoute = Parameters<typeof checkPublicRateLimit>[2];
 type HydrateResult<T> =
@@ -298,6 +302,48 @@ export async function handlePublicRoutes(req: Request, url: URL, env: Env, ctx?:
 			ctx.waitUntil(edgeCache.put(cacheKey, new Response(body, { status: 200, headers: responseHeaders })));
 		}
 
+		return annotateResponse(response, { cacheHit: false });
+	}
+
+	if (req.method === 'GET' && url.pathname === '/v1/wfm-items') {
+		// WFM item catalog pass-through. Reads only: the refresh cadence stays
+		// owned by the prewarm path; this route never re-fetches a present copy.
+		const guardResponse = await guardPublicRequest(req, env, 'wfm-items');
+		if (guardResponse) return guardResponse;
+
+		routeStats.wfmItemsRequests += 1;
+		const cacheKey = new Request(`${url.origin}/v1/wfm-items?v=${WFM_ITEMS_CACHE_VERSION}`, { method: 'GET' });
+		const edgeCache = caches.default;
+		const cachedResponse = await edgeCache.match(cacheKey);
+		if (cachedResponse) {
+			return annotateResponse(
+				rawJsonResponse(await cachedResponse.text(), req, env, 200, { 'cache-control': WFM_ITEMS_CACHE_CONTROL }),
+				{ cacheHit: true },
+			);
+		}
+
+		let catalog = await readClientCatalogFromKv(env);
+		if (!catalog) {
+			// A fresh legacy slug catalog makes the normal refresh a no-op, so retry once
+			// with force; empty upstream responses still cannot replace valid cache data.
+			await fetchCatalogSlugs(env, false);
+			catalog = await readClientCatalogFromKv(env);
+			if (!catalog) {
+				await fetchCatalogSlugs(env, true);
+				catalog = await readClientCatalogFromKv(env);
+			}
+		}
+		if (!catalog) {
+			return annotateResponse(jsonResponse({ ok: false, error: 'catalog_not_ready' }, req, env, 503), { cacheHit: false });
+		}
+
+		const body = JSON.stringify({ ok: true, updatedAt: catalog.updatedAt, items: catalog.items });
+		const response = rawJsonResponse(body, req, env, 200, { 'cache-control': WFM_ITEMS_CACHE_CONTROL });
+		if (ctx) {
+			ctx.waitUntil(
+				edgeCache.put(cacheKey, new Response(body, { status: 200, headers: { 'cache-control': WFM_ITEMS_CACHE_CONTROL } })),
+			);
+		}
 		return annotateResponse(response, { cacheHit: false });
 	}
 

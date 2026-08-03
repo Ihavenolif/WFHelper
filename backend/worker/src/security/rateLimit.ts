@@ -3,11 +3,11 @@ import type { Env } from '../types';
 import { getWorkerConfig } from '../config';
 import { clientIp } from '../utils';
 
-type PublicRateLimitRoute = 'healthz' | 'bootstrap' | 'prices' | 'meta' | 'order-summary' | 'orders' | 'snapshot';
+type PublicRateLimitRoute = 'healthz' | 'bootstrap' | 'prices' | 'meta' | 'order-summary' | 'orders' | 'snapshot' | 'wfm-items';
 
 function publicLimiter(env: Env, route: PublicRateLimitRoute): RateLimit {
 	if (route === 'healthz') return env.PUBLIC_HEALTH_RATE_LIMITER;
-	if (route === 'snapshot') return env.PUBLIC_SNAPSHOT_RATE_LIMITER;
+	if (route === 'snapshot' || route === 'wfm-items') return env.PUBLIC_SNAPSHOT_RATE_LIMITER;
 	if (route === 'bootstrap' || route === 'orders') return env.PUBLIC_LOW_RATE_LIMITER;
 	return env.PUBLIC_API_RATE_LIMITER;
 }

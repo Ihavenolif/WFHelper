@@ -3,6 +3,7 @@ import * as wfmClient from "./wfmClient";
 import { unwrapWfmResponse } from "./wfmTypes";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { formatWfmAssetUrl, titleFromSlug } from "../config/shared/wfm";
+import { BACKEND_URL } from "../config/shared/backendConfig";
 
 const log = withScope("wfmCatalog");
 
@@ -19,6 +20,7 @@ const ITEMS_PATH = "/items";
 // node transport, so an immediate retry usually succeeds.
 const ITEMS_LOAD_ATTEMPTS = 2;
 const LOAD_FAILURE_COOLDOWN_MS = 15_000;
+const BACKEND_CATALOG_TIMEOUT_MS = 10_000;
 const NAME_SET_SUFFIX = " set";
 const SLUG_SET_SUFFIX_RE = /_set$/;
 const SEARCH_MIN_QUERY_LENGTH = 2;
@@ -76,6 +78,31 @@ function _normalise(raw: unknown): CatalogItem {
   };
 }
 
+function backendCatalogUrl(): string {
+  const base = (process.env.VITE_WFM_BACKEND_URL || BACKEND_URL || "").trim().replace(/\/+$/, "");
+  return base ? `${base}/v1/wfm-items` : "";
+}
+
+// Worker pass-through cache: cheap, Cloudflare-fronted, and immune to the WFM
+// slowness that used to leave sessions with an empty catalog.
+async function _fetchBackendCatalog(): Promise<unknown[]> {
+  const url = backendCatalogUrl();
+  if (!url) return [];
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), BACKEND_CATALOG_TIMEOUT_MS);
+  try {
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: "application/json" },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const json = (await res.json()) as { ok?: boolean; items?: unknown[] };
+    return json?.ok && Array.isArray(json.items) ? json.items : [];
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function _load(): Promise<void> {
   if (_loaded) return;
   if (_loading) return _loading;
@@ -88,7 +115,14 @@ async function _load(): Promise<void> {
       log.info("[WFMCatalog] Fetching item catalog (v2)...");
 
       let rawItems: unknown[] = [];
+      let source = "backend";
+      try {
+        rawItems = await _fetchBackendCatalog();
+      } catch (e) {
+        log.warn("[WFMCatalog] backend catalog fetch failed:", normalizeErrorMessage(e));
+      }
 
+      if (!rawItems.length) source = "wfm";
       for (let attempt = 1; attempt <= ITEMS_LOAD_ATTEMPTS; attempt++) {
         if (rawItems.length) break;
         try {
@@ -151,7 +185,7 @@ async function _load(): Promise<void> {
       }
 
       _loaded = true;
-      log.info(`[WFMCatalog] Loaded ${_items.length} items.`);
+      log.info(`[WFMCatalog] Loaded ${_items.length} items (${source}).`);
     } finally {
       _loading = null;
     }
