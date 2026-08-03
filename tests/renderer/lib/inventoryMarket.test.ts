@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   buildBaseInventoryItems,
@@ -15,7 +15,32 @@ import {
   clearOrderSummaryCache,
   setCachedOrderSummary,
 } from "../../../src/lib/wfm/orderSummaryCache.js";
-import { importMetaFromSnapshot } from "../../../src/lib/wfm/wfmItemMeta.js";
+import {
+  importMetaFromSnapshot,
+  importSetCatalogFromSnapshotMeta,
+  resolveSnapshotSetSlug,
+} from "../../../src/lib/wfm/wfmItemMeta.js";
+
+afterEach(() => {
+  importSetCatalogFromSnapshotMeta({});
+});
+
+function snapshotSetMeta(slugs: string[]): Parameters<typeof importSetCatalogFromSnapshotMeta>[0] {
+  const allSlugs = [...slugs, ...Array.from({ length: 200 }, (_, index) => `catalog_${index}_set`)];
+  return Object.fromEntries(
+    allSlugs.map((slug) => [
+      slug,
+      {
+        slug,
+        ducats: null,
+        setRoot: true,
+        thumb: null,
+        icon: null,
+        timestamp: Date.now(),
+      },
+    ]),
+  );
+}
 
 function makeBaseItem(overrides: Partial<InventoryBaseItem> = {}): InventoryBaseItem {
   return {
@@ -203,6 +228,71 @@ describe("inventoryMarket view mapping", () => {
 
     expect(kept).toHaveLength(1);
     expect(kept[0].marketSlug).toBe("caliban_prime_set");
+  });
+
+  it("does not treat incomplete snapshot metadata as a deny list", () => {
+    const incompleteMeta = snapshotSetMeta(["caliban_prime_set"]);
+    for (const slug of Object.keys(incompleteMeta).slice(0, 2)) delete incompleteMeta[slug];
+
+    expect(importSetCatalogFromSnapshotMeta(incompleteMeta)).toBe(0);
+    expect(resolveSnapshotSetSlug(["seer_set"])).toBeUndefined();
+  });
+
+  it("uses the snapshot set catalog when the live catalog never loaded", () => {
+    importSetCatalogFromSnapshotMeta(
+      snapshotSetMeta(["caliban_prime_set", "silva_and_aegis_prime_set"]),
+    );
+    const caliban = makeBaseItem({
+      name: "Caliban Prime Set",
+      internalName: "/Lotus/Powersuits/Sentient/CalibanPrime#set",
+      inventoryGroup: "full_sets",
+      category: "full_sets",
+      categoryLabel: "Full Set",
+      marketSlug: null,
+    });
+    const seer = makeBaseItem({
+      name: "Seer Set",
+      internalName: "/Lotus/Weapons/Grineer/Pistols/GrineerPistol/GrnPistol#set",
+      inventoryGroup: "full_sets",
+      category: "full_sets",
+      categoryLabel: "Full Set",
+      marketSlug: null,
+    });
+    const silva = makeBaseItem({
+      name: "Silva & Aegis Prime Set",
+      internalName: "/Lotus/Weapons/Tenno/Melee/SwordsAndBoards/PrimeSilvaAegis#set",
+      inventoryGroup: "full_sets",
+      category: "full_sets",
+      categoryLabel: "Full Set",
+      marketSlug: null,
+    });
+
+    const kept = buildBaseInventoryItems([caliban, seer, silva], "full_sets", {}, {}, {});
+
+    expect(kept.map((item) => [item.name, item.marketSlug])).toEqual([
+      ["Caliban Prime Set", "caliban_prime_set"],
+      ["Silva & Aegis Prime Set", "silva_and_aegis_prime_set"],
+    ]);
+  });
+
+  it("applies snapshot membership to incomplete sets too", () => {
+    importSetCatalogFromSnapshotMeta(snapshotSetMeta(["caliban_prime_set"]));
+    const valid = makeBaseItem({
+      name: "Caliban Prime Set",
+      inventoryGroup: "incomplete_sets",
+      category: "incomplete_sets",
+      categoryLabel: "Incomplete Set",
+    });
+    const junk = makeBaseItem({
+      name: "Seer Set",
+      inventoryGroup: "incomplete_sets",
+      category: "incomplete_sets",
+      categoryLabel: "Incomplete Set",
+    });
+
+    const kept = buildBaseInventoryItems([valid, junk], "incomplete_sets", {}, {}, {});
+
+    expect(kept.map((item) => item.name)).toEqual(["Caliban Prime Set"]);
   });
 
   it("drops all-parts entries without market mapping when tradability is unknown", () => {

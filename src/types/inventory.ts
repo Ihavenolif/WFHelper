@@ -53,6 +53,7 @@ export interface ItemDbEntry {
   drops?: DropInfo[];
   wikiaUrl?: string | null;
   exalted?: boolean;
+  masterable?: boolean;
   ducats?: number | null;
   recipe?: RecipeData;
   /** For blueprint entries: uniqueName of the item this blueprint crafts. */

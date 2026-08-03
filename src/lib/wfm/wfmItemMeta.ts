@@ -15,6 +15,7 @@ import { createSingleFlightMap } from "./requestPolicy.js";
 
 const META_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const META_NO_DATA_TTL_MS = 6 * 60 * 60 * 1000;
+const MIN_COMPLETE_SNAPSHOT_SET_COUNT = 200;
 
 export interface WfmItemMeta {
   slug: string;
@@ -33,6 +34,7 @@ interface FetchMetaOptions {
 const metaCache = new Map<string, WfmItemMeta>();
 const metaNoDataCache = new Map<string, number>();
 const inFlight = createSingleFlightMap<string, WfmItemMeta | null>();
+let snapshotSetSlugs: Set<string> | null = null;
 // One-time-per-session warning set - avoids log spam on repeated hydration.
 const _warnedNoMetaSlugs = new Set<string>();
 
@@ -114,6 +116,35 @@ export function importMetaFromSnapshot(data: Record<string, WfmItemMeta>): numbe
     count++;
   }
   return count;
+}
+
+export function importSetCatalogFromSnapshotMeta(data: Record<string, WfmItemMeta>): number {
+  const next = new Set<string>();
+  for (const [key, entry] of Object.entries(data)) {
+    const keySlug = normalizeWfmSlug(key);
+    const entrySlug = normalizeWfmSlug(entry?.slug);
+    if (keySlug?.endsWith("_set") && entrySlug === keySlug && entry.setRoot === true) {
+      next.add(keySlug);
+    }
+  }
+  // A partial snapshot must never become an authoritative deny list.
+  if (next.size < MIN_COMPLETE_SNAPSHOT_SET_COUNT) {
+    snapshotSetSlugs = null;
+    return 0;
+  }
+  snapshotSetSlugs = next;
+  return next.size;
+}
+
+export function resolveSnapshotSetSlug(
+  candidates: ReadonlyArray<string | null | undefined>,
+): string | null | undefined {
+  if (snapshotSetSlugs == null) return undefined;
+  for (const candidate of candidates) {
+    const normalized = normalizeWfmSlug(candidate);
+    if (normalized && snapshotSetSlugs.has(normalized)) return normalized;
+  }
+  return null;
 }
 
 export function getCachedWfmItemMeta(slug: string | null | undefined): WfmItemMeta | null {

@@ -175,11 +175,13 @@ describe("inventory parsing", () => {
         name: "Braton Prime Barrel",
         tradable: true,
         isPrime: true,
+        isBuildComponent: true,
       },
       [receiverUniqueName]: {
         name: "Braton Prime Receiver",
         tradable: true,
         isPrime: true,
+        isBuildComponent: true,
       },
     };
 
@@ -246,71 +248,128 @@ describe("inventory parsing", () => {
     expect(mag?.completeSets).toBe(1);
   });
 
-  // Regression: special non-prime weapons (Ghoulsaw, Ambassador, Orvius) get every
-  // component flagged tradable:false by @wfcd. The warframe.market set is the main
-  // blueprint PLUS the parts under /WeaponParts/ (verified: ambassador_set and
-  // ghoulsaw_set both list the blueprint as a set part). Build resources must not
-  // count, and the set is not "full" without the main blueprint.
-  it("requires the main blueprint and WeaponParts for a non-prime weapon set", () => {
-    const root = "/Lotus/Weapons/Tenno/Melee/Glaives/TeshinGlaive/TnTeshinGlaiveWep";
+  it("excludes unlisted blueprints and resources from non-prime weapon sets", () => {
+    const root = "/Lotus/Weapons/Tenno/LongGuns/TnQuadSniper/TnQuadSniper";
+    const barrel = "/Lotus/Types/Recipes/Weapons/WeaponParts/TnQuadSniperRifleBarrel";
+    const receiver = "/Lotus/Types/Recipes/Weapons/WeaponParts/TnQuadSniperRifleReceiver";
+    const stock = "/Lotus/Types/Recipes/Weapons/WeaponParts/TnQuadSniperRifleStock";
+    const blueprint = "/Lotus/Types/Recipes/Weapons/TnQuadSniperRifleBlueprint";
+    const resource = "/Lotus/Types/Gameplay/Zariman/Resources/EclipseVoidWraithItem";
     const itemDb: Record<string, ItemDbEntry> = {
       [root]: {
-        name: "Orvius",
-        category: "Melee",
-        type: "Melee",
+        name: "Perigale",
+        category: "Primary",
+        type: "Rifle",
         components: [
-          {
-            uniqueName: "/Lotus/Types/Recipes/Weapons/WeaponParts/TeshinGlaiveBlade",
-            itemCount: 2,
-            tradable: false,
-            name: "Blade",
-          },
-          {
-            uniqueName: "/Lotus/Types/Recipes/Weapons/WeaponParts/TeshinGlaiveDisc",
-            itemCount: 1,
-            tradable: false,
-            name: "Disc",
-          },
-          {
-            uniqueName: "/Lotus/Types/Recipes/Weapons/TeshinGlaiveBlueprint",
-            itemCount: 1,
-            tradable: false,
-            name: "Blueprint",
-          },
-          {
-            uniqueName: "/Lotus/Types/Items/MiscItems/OrokinCell",
-            itemCount: 10,
-            tradable: false,
-            name: "Orokin Cell",
-          },
+          { uniqueName: barrel, itemCount: 1, tradable: false, name: "Barrel" },
+          { uniqueName: blueprint, itemCount: 1, tradable: false, name: "Blueprint" },
+          { uniqueName: resource, itemCount: 50, tradable: true, name: "Lua Thrax Plasm" },
+          { uniqueName: receiver, itemCount: 1, tradable: false, name: "Receiver" },
+          { uniqueName: stock, itemCount: 1, tradable: false, name: "Stock" },
         ],
       },
+      [barrel]: { name: "Perigale Barrel", isBuildComponent: true },
+      [blueprint]: { name: "Perigale Blueprint", isBuildComponent: true, tradable: false },
+      [resource]: { name: "Lua Thrax Plasm", isBuildComponent: false, tradable: true },
+      [receiver]: { name: "Perigale Receiver", isBuildComponent: true },
+      [stock]: { name: "Perigale Stock", isBuildComponent: true },
     };
 
-    // Spare parts but no main blueprint -> not a complete (sellable) set; it
-    // surfaces as an incomplete set (missing the blueprint) instead of vanishing.
-    const partsOnly = new Map<string, number>([
-      ["/Lotus/Types/Recipes/Weapons/WeaponParts/TeshinGlaiveBlade", 2],
-      ["/Lotus/Types/Recipes/Weapons/WeaponParts/TeshinGlaiveDisc", 13],
+    const owned = new Map<string, number>([
+      [barrel, 1],
+      [receiver, 1],
+      [stock, 1],
+      [blueprint, 1],
+      [resource, 50],
     ]);
-    const orviusPartsOnly = buildFullSetItems(itemDb, partsOnly).find(
-      (s) => s.name === "Orvius Set",
-    );
-    expect(orviusPartsOnly?.inventoryGroup).toBe("incomplete_sets");
-    expect(orviusPartsOnly?.completeSets).toBe(0);
-    expect(orviusPartsOnly?.missingParts).toBe(1);
-    expect(orviusPartsOnly?.ownedPartTypes).toBe(2);
-    expect(orviusPartsOnly?.totalPartTypes).toBe(3);
+    const perigale = buildFullSetItems(itemDb, owned).find((set) => set.name === "Perigale Set");
 
-    // Parts + main blueprint -> one full set; the Orokin Cell resource is ignored.
-    const withBlueprint = new Map<string, number>([
-      ["/Lotus/Types/Recipes/Weapons/WeaponParts/TeshinGlaiveBlade", 2],
-      ["/Lotus/Types/Recipes/Weapons/WeaponParts/TeshinGlaiveDisc", 13],
-      ["/Lotus/Types/Recipes/Weapons/TeshinGlaiveBlueprint", 1],
+    expect(perigale?.completeSets).toBe(1);
+    expect(perigale?.components.map((component) => component.name)).toEqual([
+      "Barrel",
+      "Receiver",
+      "Stock",
     ]);
-    const orvius = buildFullSetItems(itemDb, withBlueprint).find((s) => s.name === "Orvius Set");
-    expect(orvius?.completeSets).toBe(1);
-    expect(orvius?.components).toHaveLength(3);
+  });
+
+  it("keeps a market-tradable main blueprint such as Ambassador's", () => {
+    const root = "/Lotus/Weapons/Corpus/LongGuns/CrpArSniper/CrpArSniperRifle";
+    const barrel = "/Lotus/Types/Recipes/Weapons/WeaponParts/CrpArSniperBarrel";
+    const blueprint = "/Lotus/Types/Recipes/Weapons/CrpArSniperBlueprint";
+    const receiver = "/Lotus/Types/Recipes/Weapons/WeaponParts/CrpArSniperReceiver";
+    const stock = "/Lotus/Types/Recipes/Weapons/WeaponParts/CrpArSniperStock";
+    const itemDb: Record<string, ItemDbEntry> = {
+      [root]: {
+        name: "Ambassador",
+        category: "Primary",
+        type: "Rifle",
+        components: [
+          { name: "Barrel", uniqueName: barrel, tradable: false },
+          { name: "Blueprint", uniqueName: blueprint, tradable: false },
+          { name: "Receiver", uniqueName: receiver, tradable: false },
+          { name: "Stock", uniqueName: stock, tradable: false },
+        ],
+      },
+      [barrel]: { name: "Ambassador Barrel", isBuildComponent: true },
+      [blueprint]: { name: "Ambassador Blueprint", isBuildComponent: true, tradable: true },
+      [receiver]: { name: "Ambassador Receiver", isBuildComponent: true },
+      [stock]: { name: "Ambassador Stock", isBuildComponent: true },
+    };
+    const parts = new Map([
+      [barrel, 1],
+      [receiver, 1],
+      [stock, 1],
+    ]);
+    const incomplete = buildFullSetItems(itemDb, parts).find(
+      (set) => set.name === "Ambassador Set",
+    );
+    parts.set(blueprint, 1);
+    const complete = buildFullSetItems(itemDb, parts).find((set) => set.name === "Ambassador Set");
+
+    expect(incomplete?.inventoryGroup).toBe("incomplete_sets");
+    expect(incomplete?.missingParts).toBe(1);
+    expect(complete?.inventoryGroup).toBe("full_sets");
+    expect(complete?.components).toHaveLength(4);
+  });
+
+  it("counts only unranked finished equipment toward a Prisma Shade set", () => {
+    const shade = "/Lotus/Types/Sentinels/SentinelPowersuits/PrismaShadePowerSuit";
+    const weapon = "/Lotus/Types/Sentinels/SentinelWeapons/PrismaBurstLaserPistol";
+    const db: Record<string, ItemDbEntry> = {
+      [shade]: {
+        name: "Prisma Shade",
+        category: "Sentinels",
+        type: "Sentinel",
+        masterable: true,
+      },
+      [weapon]: {
+        name: "Prisma Burst Laser",
+        category: "SentinelWeapons",
+        type: "Sentinel Weapon",
+        masterable: true,
+      },
+    };
+    const unranked = parseInventory(
+      {
+        Sentinels: [{ ItemType: shade, XP: 0 }],
+        SentinelWeapons: [{ ItemType: weapon, XP: 0 }],
+      },
+      db,
+    );
+    const ranked = parseInventory(
+      {
+        Sentinels: [{ ItemType: shade, XP: 30_000 }],
+        SentinelWeapons: [{ ItemType: weapon, XP: 0 }],
+      },
+      db,
+    );
+
+    expect(unranked.find((item) => item.name === "Prisma Shade Set")?.inventoryGroup).toBe(
+      "full_sets",
+    );
+    expect(ranked.find((item) => item.name === "Prisma Shade Set")?.inventoryGroup).toBe(
+      "incomplete_sets",
+    );
   });
 
   it("parses nested object collections and leveled rank signals", () => {

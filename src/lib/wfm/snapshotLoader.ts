@@ -2,7 +2,7 @@ import { importCache } from "./priceCache.js";
 import type { CachedPriceEntry } from "./priceCache.js";
 import { importOrderSummaryCache } from "./orderSummaryCache.js";
 import type { CachedOrderSummaryEntry } from "./orderSummaryCache.js";
-import { importMetaFromSnapshot } from "./wfmItemMeta.js";
+import { importMetaFromSnapshot, importSetCatalogFromSnapshotMeta } from "./wfmItemMeta.js";
 import type { WfmItemMeta } from "./wfmItemMeta.js";
 import { fetchBackendRaw, isBackendLiteConfigured } from "./backendLite.js";
 import { schedulePriceCacheRevision } from "../../stores/pricing.js";
@@ -46,6 +46,7 @@ export async function tryLoadSnapshot(): Promise<void> {
 
   try {
     let snapshot: SnapshotBlob | null = null;
+    let staleMeta: Record<string, WfmItemMeta> | undefined;
 
     // disk cache first
     try {
@@ -54,6 +55,8 @@ export async function tryLoadSnapshot(): Promise<void> {
         if (Date.now() - disk.generatedAt < SNAPSHOT_FRESH_MS) {
           snapshot = disk;
           log.info("[Snapshot] Using fresh disk cache");
+        } else {
+          staleMeta = disk.meta;
         }
       }
     } catch {
@@ -78,6 +81,7 @@ export async function tryLoadSnapshot(): Promise<void> {
         },
       );
       if (!response) {
+        if (staleMeta) importSetCatalogFromSnapshotMeta(staleMeta);
         log.warn("[Snapshot] Fetch failed - skipping snapshot");
         return;
       }
@@ -92,11 +96,13 @@ export async function tryLoadSnapshot(): Promise<void> {
       try {
         parsed = await response.json();
       } catch {
+        if (staleMeta) importSetCatalogFromSnapshotMeta(staleMeta);
         log.warn("[Snapshot] Failed to parse response JSON - skipping");
         return;
       }
 
       if (!isValidSnapshot(parsed)) {
+        if (staleMeta) importSetCatalogFromSnapshotMeta(staleMeta);
         log.warn("[Snapshot] Invalid snapshot shape - skipping");
         return;
       }
@@ -118,11 +124,13 @@ export async function tryLoadSnapshot(): Promise<void> {
     const pCount = importCache(snapshot.prices);
     const mCount = importMetaFromSnapshot(snapshot.meta);
     const oCount = importOrderSummaryCache(snapshot.orderSummaries);
+    let sCount = importSetCatalogFromSnapshotMeta(snapshot.meta);
+    if (sCount === 0 && staleMeta) sCount = importSetCatalogFromSnapshotMeta(staleMeta);
     const ageMins = Math.round((Date.now() - snapshot.generatedAt) / 60_000);
 
     log.info(
       `[Snapshot] Imported - prices: ${pCount}, meta: ${mCount}, ` +
-        `orderSummaries: ${oCount} (age: ${ageMins} min)`,
+        `orderSummaries: ${oCount}, sets: ${sCount} (age: ${ageMins} min)`,
     );
 
     // Signal reactive subscribers (e.g. RelicsView) that the price cache has

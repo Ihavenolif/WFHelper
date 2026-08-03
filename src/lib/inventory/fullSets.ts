@@ -1,5 +1,5 @@
 import { ownedComponentCount } from "../../../config/shared/componentNames.js";
-import type { ItemDbEntry, ParsedItem, PartType } from "../../types/inventory.js";
+import type { ComponentInfo, ItemDbEntry, ParsedItem, PartType } from "../../types/inventory.js";
 import {
   type ResolvedItem,
   resolveItem,
@@ -7,16 +7,39 @@ import {
   isSceneLikeItem,
   isRelicLikeItem,
 } from "./itemClassification.js";
+import { FULL_SET_OVERRIDES, getFullSetOverride } from "./fullSetOverrides.js";
 
-// Special non-prime weapons (Ghoulsaw, Ambassador, ...) get every component flagged
-// tradable:false by @wfcd, even the pieces the set is actually sold as. The
-// warframe.market set for these weapons is the main build blueprint PLUS the parts
-// under .../Recipes/Weapons/WeaponParts/ — verified against WFM, where ambassador_set
-// and ghoulsaw_set both list the blueprint as a set part. Count both regardless of
-// the flag. Build resources (Orokin Cell, ...) live outside /Recipes/Weapons/ and
-// stay out.
-function isWeaponSetComponent(uniqueName: string): boolean {
-  return /\/Recipes\/Weapons\/(WeaponParts?\/|.*Blueprint$)/i.test(uniqueName);
+function isGenericSetComponent(
+  component: ComponentInfo,
+  itemDb: Record<string, ItemDbEntry>,
+  isPrimeRoot: boolean,
+): boolean {
+  const uniqueName = component.uniqueName || "";
+  if (!uniqueName || /\/(MiscItems|Research)\//i.test(uniqueName)) return false;
+
+  const entry = itemDb[uniqueName];
+  if (entry?.isBuildComponent === false || entry?.masterable === true) return false;
+  if (entry?.isBuildComponent !== true && !/\/Types\/Recipes\//i.test(uniqueName)) {
+    return false;
+  }
+
+  if (component.tradable === true || entry?.tradable === true || isPrimeRoot) return true;
+  return /\/Types\/Recipes\/Weapons\/WeaponParts?\//i.test(uniqueName);
+}
+
+function overrideComponents(
+  rootUniqueName: string,
+  itemDb: Record<string, ItemDbEntry>,
+): ComponentInfo[] | null {
+  const override = getFullSetOverride(rootUniqueName);
+  if (!override) return null;
+  return override.components.map((component) => ({
+    name: component.name,
+    uniqueName: component.uniqueName,
+    itemCount: component.itemCount || 1,
+    tradable: true,
+    drops: itemDb[component.uniqueName]?.drops || [],
+  }));
 }
 
 function isEligibleFullSetRoot(
@@ -71,26 +94,42 @@ function isEligibleFullSetRoot(
 export function buildFullSetItems(
   itemDb: Record<string, ItemDbEntry>,
   ownedCounts: Map<string, number>,
+  sellableEquipmentCounts?: Map<string, number>,
 ): ParsedItem[] {
   const setItems: ParsedItem[] = [];
+  const roots = Object.entries(itemDb);
+  for (const override of FULL_SET_OVERRIDES) {
+    if (!itemDb[override.rootUniqueName] && override.rootName) {
+      roots.push([
+        override.rootUniqueName,
+        { name: override.rootName, category: "Misc", type: "Set" },
+      ]);
+    }
+  }
 
-  for (const [uniqueName, dbEntry] of Object.entries(itemDb)) {
-    const components = Array.isArray(dbEntry.components) ? dbEntry.components : [];
+  for (const [uniqueName, dbEntry] of roots) {
+    const explicitComponents = overrideComponents(uniqueName, itemDb);
+    const components =
+      explicitComponents || (Array.isArray(dbEntry.components) ? dbEntry.components : []);
     // Don't gate on the root's `tradable` flag: assembled Warframes are
     // tradable:false even though their parts and the set are tradable. The
     // tradable-component count below + isEligibleFullSetRoot handle eligibility.
     if (components.length === 0) continue;
 
-    const resolved = resolveItem(uniqueName, itemDb);
+    const resolved = itemDb[uniqueName]
+      ? resolveItem(uniqueName, itemDb)
+      : { ...dbEntry, name: dbEntry.name || "Unknown", imageUrl: dbEntry.imageUrl ?? null };
 
-    const setComponents = components.filter(
-      (component) =>
-        component.uniqueName &&
-        (component.tradable !== false || isWeaponSetComponent(component.uniqueName)),
-    );
+    const isPrimeRoot = resolved.isPrime === true || /\bPrime\b/.test(resolved.name);
+    const setComponents = explicitComponents
+      ? components
+      : components.filter((component) => isGenericSetComponent(component, itemDb, isPrimeRoot));
     if (setComponents.length === 0) continue;
 
-    if (!isEligibleFullSetRoot(uniqueName, dbEntry, resolved, setComponents.length)) {
+    if (
+      !explicitComponents &&
+      !isEligibleFullSetRoot(uniqueName, dbEntry, resolved, setComponents.length)
+    ) {
       continue;
     }
 
@@ -102,7 +141,12 @@ export function buildFullSetItems(
         typeof component.itemCount === "number" && component.itemCount > 0
           ? component.itemCount
           : 1;
-      const ownedCount = ownedComponentCount(unique, ownedCounts);
+      const componentEntry = itemDb[unique];
+      const ownership =
+        componentEntry?.masterable === true && sellableEquipmentCounts
+          ? sellableEquipmentCounts
+          : ownedCounts;
+      const ownedCount = ownedComponentCount(unique, ownership);
       completeSets = Math.min(completeSets, Math.floor(ownedCount / required));
 
       return {
@@ -119,7 +163,8 @@ export function buildFullSetItems(
     const missingParts = totalPartTypes - ownedPartTypes;
 
     const setName = resolved.name.endsWith(" Set") ? resolved.name : `${resolved.name} Set`;
-    const isPrime = resolved.isPrime === true || /\bPrime\b/.test(resolved.name);
+    const isPrime = isPrimeRoot;
+    const marketSlug = getFullSetOverride(uniqueName)?.slug;
 
     const common = {
       name: setName,
@@ -137,6 +182,7 @@ export function buildFullSetItems(
       wikiaUrl: typeof dbEntry.wikiaUrl === "string" ? dbEntry.wikiaUrl : null,
       partType: (isPrime ? "prime" : "normal") as PartType,
       leveledUp: false,
+      ...(marketSlug ? { marketSlug } : {}),
     };
 
     if (completeSets >= 1) {

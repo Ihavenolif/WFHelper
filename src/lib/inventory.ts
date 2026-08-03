@@ -55,6 +55,7 @@ export function parseInventory(
   itemDb: Record<string, ItemDbEntry>,
 ): ParsedItem[] {
   const itemMap = new Map<string, ParsedItem>();
+  const sellableEquipmentCounts = new Map<string, number>();
   const equippedUpgradeIds = collectEquippedUpgradeIds(data);
 
   const toRankedInstanceKey = (
@@ -133,6 +134,14 @@ export function parseInventory(
       typeof dbEntry.ducats === "number" && Number.isFinite(dbEntry.ducats) ? dbEntry.ducats : null;
 
     const instanceKey = toRankedInstanceKey(internalName, group, rank, maxRank);
+
+    const rawXp = Number(entry.XP || 0);
+    if (group === "equipment" && rank === 0 && (!Number.isFinite(rawXp) || rawXp <= 0)) {
+      sellableEquipmentCounts.set(
+        internalName,
+        (sellableEquipmentCounts.get(internalName) || 0) + amount,
+      );
+    }
 
     const nextItem: ParsedItem = {
       name: displayName,
@@ -228,5 +237,5 @@ export function parseInventory(
     ownedCounts.set(internalName, item.amount || 0);
   }
 
-  return [...itemMap.values(), ...buildFullSetItems(itemDb, ownedCounts)];
+  return [...itemMap.values(), ...buildFullSetItems(itemDb, ownedCounts, sellableEquipmentCounts)];
 }

@@ -4,7 +4,7 @@ import type { WfmItemsLookup } from "../types/ipc.js";
 import type { WfmOrdersResult } from "../types/market.js";
 import type { RelicDatabase } from "../types/relics.js";
 import { getCachedPriceState } from "./wfm/priceCache.js";
-import { getCachedWfmItemMeta } from "./wfm/wfmItemMeta.js";
+import { getCachedWfmItemMeta, resolveSnapshotSetSlug } from "./wfm/wfmItemMeta.js";
 import { getCachedRankOrderSummary } from "../stores/hydration/hydrationCacheHelpers.js";
 import { resolvePriceRank } from "../stores/hydration/hydrationHelpers.js";
 import { normalizeLooseMarketName, normalizeMarketName, toMarketSlug } from "./marketNaming.js";
@@ -165,6 +165,17 @@ function isSetSlug(slug: string | null | undefined): boolean {
   return typeof slug === "string" && slug.endsWith("_set");
 }
 
+function generatedSetSlugCandidates(item: ParsedItem): string[] {
+  const candidates = new Set<string>();
+  const direct = resolveSlug(item, {});
+  if (direct) candidates.add(direct);
+  if (item.name.includes("&")) {
+    const withAnd = toMarketSlug(item.name.replace(/\s*&\s*/g, " and "));
+    if (withAnd) candidates.add(withAnd.endsWith("_set") ? withAnd : `${withAnd}_set`);
+  }
+  return [...candidates];
+}
+
 function itemGroupFallback(item: ParsedItem): InventoryFilterTab {
   const label = item.categoryLabel.toLowerCase();
   if (label.includes("relic")) return "relics";
@@ -296,9 +307,8 @@ export function buildBaseInventoryItems(
   orderedSlugs: Record<string, true>,
   relicDb?: RelicDatabase | null,
 ): InventoryBaseItem[] {
-  // The exports flag every non-prime weapon part untradable whether or not the
-  // set really sells (Shedu and Seer are identical there), so only the market
-  // catalog can tell them apart. Missing catalog keeps every set instead.
+  // DE exports cannot distinguish sellable sets such as Shedu from junk such as
+  // Seer. Prefer the complete snapshot index; legacy snapshots fall back here.
   const catalogLoaded = Object.keys(wfmLookup).length > 0;
 
   return parsedItems
@@ -320,6 +330,15 @@ export function buildBaseInventoryItems(
       const mappedGameRefSlug = lookupByGameRef?.url_name
         ? toMarketSlug(lookupByGameRef.url_name)
         : null;
+      const isSetGroup = group === "full_sets" || group === "incomplete_sets";
+      const snapshotSetSlug = isSetGroup
+        ? resolveSnapshotSetSlug([
+            mappedGameRefSlug,
+            mappedSlug,
+            typeof item.marketSlug === "string" ? item.marketSlug : null,
+            ...generatedSetSlugCandidates(item),
+          ])
+        : undefined;
       const displayName = relicGroupName || item.name;
       const fallbackRelicSlug = group === "relics" ? toMarketSlug(displayName) : null;
       const excludedRankedItem =
@@ -331,8 +350,9 @@ export function buildBaseInventoryItems(
             (typeof item.marketSlug === "string" ? item.marketSlug : null),
         );
 
-      if (group === "full_sets" && catalogLoaded && !isSetSlug(mappedSlug)) {
-        return null;
+      if (isSetGroup) {
+        if (snapshotSetSlug === null) return null;
+        if (snapshotSetSlug === undefined && catalogLoaded && !isSetSlug(mappedSlug)) return null;
       }
 
       if (group === "all_parts" && !mappedSlug && item.tradable !== true) {
@@ -341,6 +361,7 @@ export function buildBaseInventoryItems(
 
       const isRankedListingItem = isRankedGroup(group);
       const slugCandidate =
+        snapshotSetSlug ||
         mappedGameRefSlug ||
         mappedSlug ||
         fallbackRelicSlug ||
