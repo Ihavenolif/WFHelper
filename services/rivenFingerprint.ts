@@ -263,6 +263,9 @@ function decodeSingleRiven(
   const rivenTypeKey = rivenData.resolveRivenType(weaponName);
   if (!rivenTypeKey) return null;
 
+  const category = rivenData.getWeaponCategory(weaponName);
+  const isMelee = category === "Melee" || category === "SpaceMelee";
+
   const lvl = typeof fp.lvl === "number" ? fp.lvl : 8;
   const buffs = Array.isArray(fp.buffs) ? fp.buffs : [];
   const curses = Array.isArray(fp.curses) ? fp.curses : [];
@@ -278,7 +281,7 @@ function decodeSingleRiven(
     const rollFloat = rivenIntToFloat(b.Value);
     const entry2 = rivenData.findUpgradeEntry(rivenTypeKey, b.Tag);
     const baseValue = entry2?.baseValue ?? 0;
-    const displayName = rivenData.getStatDisplayName(b.Tag);
+    const displayName = rivenData.getStatDisplayName(b.Tag, isMelee);
     const isNonPct = NON_PERCENTAGE_TAGS.has(b.Tag);
 
     let displayValue: number;
@@ -313,7 +316,7 @@ function decodeSingleRiven(
     const rollFloat = rivenIntToFloat(c.Value);
     const entry2 = rivenData.findUpgradeEntry(rivenTypeKey, c.Tag);
     const baseValue = entry2?.baseValue ?? 0;
-    const displayName = rivenData.getStatDisplayName(c.Tag);
+    const displayName = rivenData.getStatDisplayName(c.Tag, isMelee);
     const isNonPct = NON_PERCENTAGE_TAGS.has(c.Tag);
     const isMultiplier = isNonPct && (
       c.Tag.includes("FactionDamage") || c.Tag === "WeaponMeleeComboInitialBonusMod"

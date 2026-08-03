@@ -381,9 +381,12 @@ export function statNameToTag(statName: string): string | null {
 
 /**
  * Get the canonical display name for an upgrade tag.
+ * WeaponFireRateMod is shared by Fire Rate and Attack Speed; pass melee=true
+ * to get the melee label, matching what the game shows on the card.
  */
-export function getStatDisplayName(tag: string): string {
+export function getStatDisplayName(tag: string, melee = false): string {
   ensureBuilt();
+  if (melee && tag === "WeaponFireRateMod") return "Attack Speed";
   return _tagToDisplayName.get(tag) || TAG_TO_DISPLAY[tag] || tag;
 }
 
