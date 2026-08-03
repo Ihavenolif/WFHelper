@@ -97,6 +97,47 @@ describe("itemDatabase WFCD alias enrichment", () => {
     expect(doubled).toEqual([]);
   });
 
+  it("keeps @wfcd comp names whose head overlaps the parent name", () => {
+    const bonewidowPod = itemDb.lookupItem(
+      "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/ThanomechPartWeaponPodItem",
+    );
+    const cortegeBarrel = itemDb.lookupItem(
+      "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/ThanotechArchGunBarrelItem",
+    );
+    const mandachordBody = itemDb.lookupItem("/Lotus/Types/Keys/BardQuest/BardQuestSequencerPartA");
+    const warBlade = itemDb.lookupItem("/Lotus/Types/Recipes/Weapons/WeaponParts/WarBlade");
+    const decurionBarrel = itemDb.lookupItem(
+      "/Lotus/Types/Recipes/Weapons/WeaponParts/ArchHeavyPistolsBarrel",
+    );
+
+    expect(bonewidowPod?.name).toBe("Bonewidow Weapon Pod");
+    expect(cortegeBarrel?.name).toBe("Cortege Barrel");
+    expect(mandachordBody?.name).toBe("Mandachord Body");
+    expect(warBlade?.name).toBe("War Blade");
+    expect(decurionBarrel?.name).toBe("Decurion Barrel");
+
+    // standalone tradables that appear as comps of the buildable mech parts -
+    // no word overlap with the parent, guarded by the standalone-item check
+    const damagedPod = itemDb.lookupItem(
+      "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/DamagedMechPartSystemsItem",
+    );
+    const damagedWeaponBarrel = itemDb.lookupItem(
+      "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/DamagedMechWeaponBarrelItem",
+    );
+
+    expect(damagedPod?.name).toBe("Damaged Necramech Pod");
+    expect(damagedWeaponBarrel?.name).toBe("Damaged Necramech Weapon Barrel");
+
+    // scoped to component-derived entries: standalone items may legitimately
+    // repeat words ("On-lyne: Yeah Yeah Baby Poster")
+    const doubled = Object.values(itemDb.getRendererLookup()).filter(
+      (entry) =>
+        (entry.isBuildComponent || entry.componentOf) &&
+        /\b(\w+(?: \w+){0,3}) \1\b/i.test(entry.name || ""),
+    );
+    expect(doubled).toEqual([]);
+  });
+
   it("carries @wfcd vault status onto prime parts and their blueprints", () => {
     const frame = itemDb.lookupItem("/Lotus/Powersuits/Wraith/SevagothPrime");
     const chassisBp = itemDb.lookupItem(

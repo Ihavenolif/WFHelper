@@ -129,7 +129,20 @@ function buildComponentDisplayName(
     finalComponent = `${finalComponent} Blueprint`;
   }
 
-  return parent ? `${parent} ${finalComponent}` : finalComponent;
+  if (!parent) return finalComponent;
+
+  // A comp name whose head overlaps the parent name's tail is already a full
+  // item name ("Bonewidow Weapon Pod", "War Blade" under "Broken War") and must
+  // not be prefixed; verified vs DE dict + WFM, the overlap is never merged.
+  const parentWords = parent.split(/\s+/);
+  const componentWords = finalComponent.split(/\s+/);
+  for (let k = Math.min(parentWords.length, componentWords.length); k > 0; k--) {
+    const parentTail = parentWords.slice(-k).join(" ").toLowerCase();
+    const componentHead = componentWords.slice(0, k).join(" ").toLowerCase();
+    if (parentTail === componentHead) return finalComponent;
+  }
+
+  return `${parent} ${finalComponent}`;
 }
 
 function buildComponentAliasUniqueNames(uniqueName: string = ""): string[] {
@@ -370,6 +383,16 @@ function loadWfcdItems(): number {
     let wfcdComponentNewCount = 0;
     let wfcdComponentSupplementCount = 0;
 
+    // Comps that are themselves top-level @wfcd items already carry their full
+    // display name ("Damaged Necramech Pod" as a comp of "Bonewidow Capsule") -
+    // prefixing the parent onto those corrupts a standalone tradable's name.
+    const wfcdStandaloneNames = new Map<string, string>();
+    for (const item of items) {
+      if (item.uniqueName && item.name) {
+        wfcdStandaloneNames.set(item.uniqueName, sanitizeDisplayName(item.name));
+      }
+    }
+
     for (const item of items) {
       if (!item.uniqueName) continue;
 
@@ -407,8 +430,11 @@ function loadWfcdItems(): number {
             const componentUsesBlueprintAlias = componentAliasUniqueNames.length > 0;
             const forceComponentBlueprintName = /Component$/i.test(comp.uniqueName);
             const compDucats = normalizeDucats(comp.ducats);
+            const compIsStandaloneItem =
+              wfcdStandaloneNames.get(comp.uniqueName)?.toLowerCase() ===
+              sanitizeDisplayName(comp.name || "").toLowerCase();
             const componentName = buildComponentDisplayName(
-              item.name,
+              compIsStandaloneItem ? "" : item.name,
               comp.name,
               forceComponentBlueprintName,
             );
