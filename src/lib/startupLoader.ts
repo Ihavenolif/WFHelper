@@ -11,6 +11,8 @@ import { writable } from "svelte/store";
 
 const STARTUP_RELIC_WARMUP_DELAY_MS = 2500;
 const PRICE_CACHE_FLUSH_INTERVAL_MS = 30_000;
+const WFM_ITEMS_RETRY_BASE_MS = 30_000;
+const WFM_ITEMS_RETRY_MAX_MS = 300_000;
 
 /** Becomes true after startup attempts to restore the persisted price cache. */
 export const startupPriceCacheReady = writable(false);
@@ -25,6 +27,7 @@ export function initStartup(): StartupHandle {
   let disposed = false;
   let warmupTimer: ReturnType<typeof setTimeout> | null = null;
   let flushInterval: ReturnType<typeof setInterval> | null = null;
+  let wfmItemsRetryTimer: ReturnType<typeof setTimeout> | null = null;
   const startupStartedAt = Date.now();
 
   const profileStage = (label: string, startedAt: number): void => {
@@ -69,14 +72,44 @@ export function initStartup(): StartupHandle {
       log.error("[Startup] getItemDatabase failed:", e);
     }
 
+    // A WFM outage at startup must not brick the market for the session:
+    // keep re-asking the main process until the catalog comes back non-empty.
+    const loadWfmItems = async (): Promise<boolean> => {
+      const items = await invoke("getWfmItems");
+      if (disposed) return true;
+      wfmItems.set(items || {});
+      return Object.keys(items || {}).length > 0;
+    };
+
+    const scheduleWfmItemsRetry = (delayMs: number): void => {
+      if (disposed) return;
+      wfmItemsRetryTimer = setTimeout(() => {
+        void (async () => {
+          let ok = false;
+          try {
+            ok = await loadWfmItems();
+          } catch (e) {
+            log.warn("[Startup] getWfmItems retry failed:", e);
+          }
+          if (disposed) return;
+          if (ok) {
+            log.info("[Startup] WFM item catalog recovered on retry");
+          } else {
+            scheduleWfmItemsRetry(Math.min(delayMs * 2, WFM_ITEMS_RETRY_MAX_MS));
+          }
+        })();
+      }, delayMs);
+    };
+
     try {
       const stageStart = Date.now();
-      const items = await invoke("getWfmItems");
+      const ok = await loadWfmItems();
       if (disposed) return;
-      wfmItems.set(items || {});
       profileStage("wfm-items:load", stageStart);
+      if (!ok) scheduleWfmItemsRetry(WFM_ITEMS_RETRY_BASE_MS);
     } catch (e) {
       log.error("[Startup] getWfmItems failed:", e);
+      scheduleWfmItemsRetry(WFM_ITEMS_RETRY_BASE_MS);
     }
 
     try {
@@ -120,6 +153,10 @@ export function initStartup(): StartupHandle {
       if (flushInterval) {
         clearInterval(flushInterval);
         flushInterval = null;
+      }
+      if (wfmItemsRetryTimer) {
+        clearTimeout(wfmItemsRetryTimer);
+        wfmItemsRetryTimer = null;
       }
       if (typeof window !== "undefined") {
         window.removeEventListener("beforeunload", handleBeforeUnload);

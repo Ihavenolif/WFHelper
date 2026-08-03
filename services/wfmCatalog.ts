@@ -14,7 +14,11 @@ const log = withScope("wfmCatalog");
  * Exposes lookups used by order forms and the renderer item-link mapping IPC.
  */
 
-const ITEM_PATH_CANDIDATES: ReadonlyArray<string> = Object.freeze(["/items", "/collections/items"]);
+const ITEMS_PATH = "/items";
+// Second try matters: after a chromium-transport timeout wfmClient latches the
+// node transport, so an immediate retry usually succeeds.
+const ITEMS_LOAD_ATTEMPTS = 2;
+const LOAD_FAILURE_COOLDOWN_MS = 15_000;
 const NAME_SET_SUFFIX = " set";
 const SLUG_SET_SUFFIX_RE = /_set$/;
 const SEARCH_MIN_QUERY_LENGTH = 2;
@@ -37,6 +41,7 @@ let _byNameLc = new Map<string, CatalogItem>();
 let _byGameRefLc = new Map<string, CatalogItem>();
 let _loaded = false;
 let _loading: Promise<void> | null = null;
+let _lastFailureAt = 0;
 
 function _normalise(raw: unknown): CatalogItem {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- deeply nested untyped WFM API response
@@ -74,6 +79,9 @@ function _normalise(raw: unknown): CatalogItem {
 async function _load(): Promise<void> {
   if (_loaded) return;
   if (_loading) return _loading;
+  if (Date.now() - _lastFailureAt < LOAD_FAILURE_COOLDOWN_MS) {
+    throw new Error("WFM catalog fetch failed recently, retry pending");
+  }
 
   _loading = (async () => {
     try {
@@ -81,12 +89,12 @@ async function _load(): Promise<void> {
 
       let rawItems: unknown[] = [];
 
-      for (const path of ITEM_PATH_CANDIDATES) {
+      for (let attempt = 1; attempt <= ITEMS_LOAD_ATTEMPTS; attempt++) {
         if (rawItems.length) break;
         try {
           // Route through the shared wfmClient queue so the catalog load
           // shares the 350 ms rate-limit budget with every other WFM call.
-          const json = await wfmClient.requestV2("GET", path);
+          const json = await wfmClient.requestV2("GET", ITEMS_PATH);
           const data = unwrapWfmResponse(json);
           if (!data) continue;
 
@@ -102,9 +110,20 @@ async function _load(): Promise<void> {
             rawItems = data;
           }
         } catch (e) {
-          log.warn(`[WFMCatalog] fetch ${path} failed:`, normalizeErrorMessage(e));
+          log.warn(
+            `[WFMCatalog] fetch ${ITEMS_PATH} failed (attempt ${attempt}/${ITEMS_LOAD_ATTEMPTS}):`,
+            normalizeErrorMessage(e),
+          );
         }
       }
+
+      // An empty catalog must not latch: leave _loaded false so the next
+      // demand (renderer retry, search, order form) triggers a fresh fetch.
+      if (!rawItems.length) {
+        _lastFailureAt = Date.now();
+        throw new Error("WFM catalog fetch returned no items");
+      }
+      _lastFailureAt = 0;
 
       _items = rawItems.map(_normalise);
 

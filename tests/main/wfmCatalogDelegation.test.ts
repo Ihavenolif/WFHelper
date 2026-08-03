@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
   vi.resetModules();
 });
@@ -46,6 +47,28 @@ describe("wfmCatalog item lookups", () => {
       url_name: "ash_prime_set",
       item_name: "Ash Prime Set",
     });
+  });
+
+  it("does not latch an empty catalog and recovers on a later retry", async () => {
+    vi.useFakeTimers();
+    const wfmClient = await import("../../services/wfmClient");
+    const request = vi.spyOn(wfmClient, "requestV2").mockRejectedValue(new Error("timeout"));
+    const wfmCatalog = await import("../../services/wfmCatalog");
+
+    await expect(wfmCatalog.ensureLoaded()).rejects.toThrow("no items");
+    expect(wfmCatalog.isLoaded()).toBe(false);
+    expect(request).toHaveBeenCalledTimes(2);
+
+    // Within the failure cooldown: rejects fast without another network call.
+    await expect(wfmCatalog.ensureLoaded()).rejects.toThrow();
+    expect(request).toHaveBeenCalledTimes(2);
+
+    vi.advanceTimersByTime(16_000);
+    request.mockResolvedValue({
+      data: { items: [{ id: "wf-item-id", slug: "ash_prime_set" }] },
+    });
+    await expect(wfmCatalog.ensureLoaded()).resolves.toBe(1);
+    expect(wfmCatalog.isLoaded()).toBe(true);
   });
 
   it("caches one valid set response under every member slug", async () => {

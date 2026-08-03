@@ -119,8 +119,12 @@ export async function getMyOrders(): Promise<{ sell: NormalisedOrder[]; buy: Nor
   const enriched = await Promise.all(
     rawOrders.map(async (order) => {
       if (!order.item && order.itemId) {
-        const catalogItem = await wfmCatalog.lookupById(order.itemId);
-        if (catalogItem) return { ...order, _catalogItem: catalogItem } as WfmRawOrder;
+        try {
+          const catalogItem = await wfmCatalog.lookupById(order.itemId);
+          if (catalogItem) return { ...order, _catalogItem: catalogItem } as WfmRawOrder;
+        } catch {
+          // Catalog unavailable: keep the raw order so the list still renders.
+        }
       }
       return order;
     }),
