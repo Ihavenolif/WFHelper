@@ -12,7 +12,13 @@ vi.mock("../../services/logger", () => ({
 
 // Use real warframe-public-export-plus data for realistic tests.
 
-import { floatToGrade, unparseBuff, unparseCurse, gradeRiven } from "../../services/rivenGrading";
+import {
+  correctScannedStats,
+  floatToGrade,
+  gradeRiven,
+  unparseBuff,
+  unparseCurse,
+} from "../../services/rivenGrading";
 import { setRivenGoodRollsForTest } from "../../services/rivenBestAttributes";
 import * as rivenData from "../../services/rivenData";
 
@@ -169,7 +175,7 @@ describe("unparseBuff", () => {
   it("matches RivenParser.js reference (Rubico Prime crit, roll=0.95)", () => {
     // Reference computed from RivenParser.js: displayed=107.3, rollFloat~0.950
     const result = unparseBuff(107.3, 0.016666, 0.7, 3, 1, "WeaponCritChanceMod");
-    expect(result).toBeCloseTo(0.950, 1);
+    expect(result).toBeCloseTo(0.95, 1);
   });
 
   it("handles zero base value with fallback 0.5", () => {
@@ -474,6 +480,61 @@ describe("gradeRiven", () => {
     expect(result!.stats[0].grade).toBeTruthy();
     expect(result!.stats[0].rollFloat).toBeGreaterThanOrEqual(0);
     expect(result!.stats[0].rollFloat).toBeLessThanOrEqual(1);
+  });
+});
+
+describe("correctScannedStats", () => {
+  // Real roll from a 2026-08-03 field report: Nami Solo (melee), 3 buffs.
+  const namiRoll = (middleName: string) => [
+    { name: "Additional Combo Count Chance", positive: true, value: 69.3 },
+    { name: middleName, positive: true, value: 190.2 },
+    { name: "Heat", positive: true, value: 95.8 },
+  ];
+
+  it("renames a garbled damage stat to the sibling whose range fits", () => {
+    const { stats, corrections } = correctScannedStats("Nami Solo", namiRoll("Damage"));
+    expect(corrections).toBe(1);
+    expect(stats[1].name).toBe("Melee Damage");
+    expect(stats[1].value).toBe(190.2);
+  });
+
+  it("renames a misread Critical Damage whose value only fits Melee Damage", () => {
+    const { stats, corrections } = correctScannedStats("Nami Solo", namiRoll("Critical Damage"));
+    expect(corrections).toBe(1);
+    expect(stats[1].name).toBe("Melee Damage");
+  });
+
+  it("leaves a correctly parsed roll untouched", () => {
+    const roll = namiRoll("Melee Damage");
+    const { stats, corrections } = correctScannedStats("Nami Solo", roll);
+    expect(corrections).toBe(0);
+    expect(stats.map((s) => s.name)).toEqual(roll.map((s) => s.name));
+  });
+
+  it("keeps an uncorrectable out-of-range value as scanned", () => {
+    const { stats, corrections } = correctScannedStats("Nami Solo", [
+      { name: "Melee Damage", positive: true, value: 1000 },
+    ]);
+    expect(corrections).toBe(0);
+    expect(stats[0].name).toBe("Melee Damage");
+    expect(stats[0].value).toBe(1000);
+  });
+
+  it("does not rename plausible ranged damage on a rifle", () => {
+    const { corrections } = correctScannedStats("Soma", [
+      { name: "Critical Chance", positive: true, value: 150 },
+      { name: "Damage", positive: true, value: 165 },
+    ]);
+    expect(corrections).toBe(0);
+  });
+
+  it("skips multiplier and valueless stats", () => {
+    const { stats, corrections } = correctScannedStats("Soma", [
+      { name: "Damage to Grineer", positive: true, value: 1.3, multiplier: true },
+      { name: "Damage", positive: true, value: null },
+    ]);
+    expect(corrections).toBe(0);
+    expect(stats.map((s) => s.name)).toEqual(["Damage to Grineer", "Damage"]);
   });
 });
 

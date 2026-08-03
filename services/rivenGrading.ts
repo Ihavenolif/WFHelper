@@ -16,14 +16,10 @@ import {
   BASE_DRAIN,
   NON_PERCENTAGE_TAGS,
 } from "./rivenConstants";
-import {
-  getGoodRolls,
-  type GoodRollData,
-} from "./rivenBestAttributes";
+import { getGoodRolls, type GoodRollData } from "./rivenBestAttributes";
 import { clamp01 } from "./rewardScannerUtils";
 
 const log = withScope("rivenGrading");
-
 
 interface GradedStat {
   name: string;
@@ -41,7 +37,6 @@ export interface RivenGradeResult {
   /** Attribute-based riven quality: "Great" | "Good" | "OK" | "Bad" */
   attributeGrade: string;
 }
-
 
 /** Default riven max rank. Most rivens are rank 8 (lvl 0..8). */
 const DEFAULT_LVL = 8;
@@ -64,7 +59,6 @@ const GRADE_THRESHOLDS: { min: number; grade: string }[] = [
   { min: -9.5, grade: "C-" },
 ];
 
-
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
@@ -73,7 +67,6 @@ function inverseLerp(a: number, b: number, v: number): number {
   if (b === a) return 0;
   return (v - a) / (b - a);
 }
-
 
 /**
  * Convert a 0-1 roll float to a letter grade.
@@ -221,6 +214,147 @@ function unparseCurseRaw(
   return (value - 0.9) / 0.2;
 }
 
+interface ScannedStat {
+  name: string;
+  positive: boolean;
+  displayPositive?: boolean;
+  value: number | null;
+  multiplier?: boolean;
+}
+
+// Sibling tags an OCR-garbled stat name can actually be ("+190.2% Critical
+// Damage" on a melee is really Melee Damage). Checked by value plausibility.
+const STAT_CONFUSION_SIBLINGS: Record<string, string[]> = {
+  WeaponDamageAmountMod: ["WeaponMeleeDamageMod", "WeaponCritDamageMod"],
+  WeaponMeleeDamageMod: ["WeaponDamageAmountMod", "WeaponCritDamageMod"],
+  WeaponCritDamageMod: ["WeaponMeleeDamageMod", "WeaponDamageAmountMod"],
+  WeaponCritChanceMod: ["SlideAttackCritChanceMod", "WeaponStunChanceMod"],
+  SlideAttackCritChanceMod: ["WeaponCritChanceMod"],
+  WeaponStunChanceMod: ["WeaponCritChanceMod"],
+};
+
+// Melee rivens only ever roll Melee Damage, ranged only Damage; the riven
+// type data lists BOTH tags with identical bases, so map to the one the game
+// actually uses for this weapon before any range check.
+function weaponDamageTag(tag: string, isMelee: boolean): string {
+  if (isMelee && tag === "WeaponDamageAmountMod") return "WeaponMeleeDamageMod";
+  if (!isMelee && tag === "WeaponMeleeDamageMod") return "WeaponDamageAmountMod";
+  return tag;
+}
+
+// Same tolerance as the dispo refit: display rounding can nudge a legit
+// min/max roll fractionally out of range.
+const CORRECTION_FIT_TOLERANCE = 0.02;
+// Only rename when the parsed stat is clearly impossible, not merely marginal.
+const CORRECTION_MISFIT_THRESHOLD = 0.1;
+
+// Value-plausibility gate for OCR stats: a value impossible under its parsed
+// name that fits exactly one confusion sibling is renamed to that sibling;
+// uncorrectable misfits are kept but logged.
+export function correctScannedStats(
+  weaponName: string,
+  stats: ScannedStat[],
+): { stats: ScannedStat[]; corrections: number } {
+  const baseDisposition = rivenData.getWeaponDisposition(weaponName);
+  const rivenTypeKey = rivenData.resolveRivenType(weaponName);
+  if (baseDisposition == null || !rivenTypeKey || stats.length === 0) {
+    return { stats, corrections: 0 };
+  }
+
+  const category = rivenData.getWeaponCategory(weaponName);
+  const isMelee = category === "Melee" || category === "SpaceMelee";
+  const numBuffs = stats.filter((s) => s.positive).length;
+  const numCurses = stats.filter((s) => !s.positive).length;
+  const dispositions = [
+    baseDisposition,
+    ...rivenData.getFamilyVariants(weaponName).map((v) => v.disposition),
+  ];
+
+  // Best-case violation across family variants; null when the tag cannot roll
+  // on this weapon at all (absent from the riven type or wrong polarity).
+  const violationFor = (tag: string, stat: ScannedStat, displayedValue: number): number | null => {
+    const entry = rivenData.findUpgradeEntry(rivenTypeKey, tag);
+    if (!entry) return null;
+    if (stat.positive ? !entry.canBeBuff : !entry.canBeCurse) return null;
+    let best = Infinity;
+    for (const disp of dispositions) {
+      const f = stat.positive
+        ? unparseBuffRaw(
+            displayedValue,
+            entry.baseValue,
+            disp,
+            numBuffs,
+            numCurses,
+            tag,
+            DEFAULT_LVL,
+          )
+        : unparseCurseRaw(
+            displayedValue,
+            entry.baseValue,
+            disp,
+            numBuffs,
+            numCurses,
+            tag,
+            DEFAULT_LVL,
+          );
+      best = Math.min(best, Math.max(0, f - 1) + Math.max(0, -f));
+    }
+    return best;
+  };
+
+  let corrections = 0;
+  const corrected = stats.map((original) => {
+    let stat = original;
+    let tag = rivenData.statNameToTag(stat.name);
+    if (!tag) return stat;
+
+    // Categorical rename: melee cards never say "Damage", ranged never
+    // "Melee Damage" - a scanned cross-form is always a misread label.
+    const normalizedTag = weaponDamageTag(tag, isMelee);
+    if (normalizedTag !== tag) {
+      const newName = rivenData.getStatDisplayName(normalizedTag, isMelee);
+      log.info(`[RivenGrade] "${stat.name}" cannot roll on "${weaponName}" - renamed "${newName}"`);
+      corrections++;
+      stat = { ...stat, name: newName };
+      tag = normalizedTag;
+    }
+
+    if (stat.value == null || !Number.isFinite(stat.value) || stat.multiplier) return stat;
+    const value = stat.value;
+
+    const origViolation = violationFor(tag, stat, value);
+    if (origViolation != null && origViolation <= CORRECTION_MISFIT_THRESHOLD) return stat;
+
+    const siblings = STAT_CONFUSION_SIBLINGS[tag] ?? [];
+    const fitTags = [
+      ...new Set(siblings.map((sibling) => weaponDamageTag(sibling, isMelee))),
+    ].filter((sibling) => {
+      if (sibling === tag) return false;
+      const v = violationFor(sibling, stat, value);
+      return v != null && v <= CORRECTION_FIT_TOLERANCE;
+    });
+
+    if (fitTags.length === 1) {
+      const newName = rivenData.getStatDisplayName(fitTags[0], isMelee);
+      log.info(
+        `[RivenGrade] "${stat.name}" ${stat.positive ? "+" : "-"}${stat.value} misfits ` +
+          `"${weaponName}" - corrected to "${newName}"`,
+      );
+      corrections++;
+      return { ...stat, name: newName };
+    }
+
+    if (origViolation != null) {
+      log.warn(
+        `[RivenGrade] "${stat.name}" ${stat.positive ? "+" : "-"}${stat.value} is out of ` +
+          `range for "${weaponName}" (violation ${origViolation.toFixed(3)}) - kept as scanned`,
+      );
+    }
+    return stat;
+  });
+
+  return { stats: corrected, corrections };
+}
 
 /**
  * Per-attribute grade:
@@ -245,9 +379,7 @@ function gradeFromGoodRolls(
     const tag = badTags[i];
     if (data.acceptedBadAttrs.includes(tag)) {
       negative[i] = "Good";
-    } else if (
-      data.goodAttrs.some((g) => g.mandatory.includes(tag) || g.optional.includes(tag))
-    ) {
+    } else if (data.goodAttrs.some((g) => g.mandatory.includes(tag) || g.optional.includes(tag))) {
       negative[i] = "Bad";
     } else {
       negative[i] = "NotHelping";
@@ -385,8 +517,24 @@ export function gradeRiven(
   type Prepared = (typeof prepared)[number];
   const rawFloatAt = (p: Prepared, disp: number): number =>
     p.stat.positive
-      ? unparseBuffRaw(p.displayedValue!, p.entry!.baseValue, disp, numBuffs, numCurses, p.tag!, assumedLevel)
-      : unparseCurseRaw(p.displayedValue!, p.entry!.baseValue, disp, numBuffs, numCurses, p.tag!, assumedLevel);
+      ? unparseBuffRaw(
+          p.displayedValue!,
+          p.entry!.baseValue,
+          disp,
+          numBuffs,
+          numCurses,
+          p.tag!,
+          assumedLevel,
+        )
+      : unparseCurseRaw(
+          p.displayedValue!,
+          p.entry!.baseValue,
+          disp,
+          numBuffs,
+          numCurses,
+          p.tag!,
+          assumedLevel,
+        );
 
   // The roll screen renders values with the dispo of the variant the riven is
   // linked to but only names the family ("Boar" card, Boar Prime values). If
@@ -431,7 +579,8 @@ export function gradeRiven(
     const { stat, tag, entry } = p;
     if (!tag || !entry) {
       if (!tag) log.debug(`[RivenGrade] Unknown stat: "${stat.name}" - assigning B grade`);
-      else log.debug(`[RivenGrade] Tag "${tag}" not in riven type ${rivenTypeKey.split("/").pop()}`);
+      else
+        log.debug(`[RivenGrade] Tag "${tag}" not in riven type ${rivenTypeKey.split("/").pop()}`);
       gradedStats.push({
         ...stat,
         grade: "B",

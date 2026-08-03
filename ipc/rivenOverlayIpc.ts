@@ -232,7 +232,10 @@ function isRivenOverlayEnabled(): boolean {
  */
 function tryGradeStats(stats: rivenScan.RivenStat[]): rivenGrading.RivenGradeResult | null {
   if (!_rivenWeaponName || _rivenWeaponName === "Riven" || stats.length === 0) return null;
-  return rivenGrading.gradeRiven(_rivenWeaponName, stats);
+  // Value-plausibility gate: rename garbled stat names whose value only fits a
+  // sibling stat before grading, so the overlay re-renders the corrected name.
+  const { stats: corrected } = rivenGrading.correctScannedStats(_rivenWeaponName, stats);
+  return rivenGrading.gradeRiven(_rivenWeaponName, corrected);
 }
 
 function scoreRivenStatSimilarity(
@@ -368,8 +371,7 @@ export function onRivenWeaponPath(weaponPath: string): void {
     // the values at the LINKED variant's disposition ("Boar Prime"). The
     // exact diorama path wins within the same family so grading fits.
     if (
-      rivenDataSvc.getRivenFamilySlug(name) ===
-      rivenDataSvc.getRivenFamilySlug(_rivenWeaponName)
+      rivenDataSvc.getRivenFamilySlug(name) === rivenDataSvc.getRivenFamilySlug(_rivenWeaponName)
     ) {
       applyDetectedWeapon(name, "diorama load (refines OCR)");
       return;
