@@ -255,6 +255,33 @@ describe("parseRivenStats", () => {
     expect(result.map((s) => s.value)).toEqual([48.3, 127.2, 27.3, 15.5]);
   });
 
+  it("recovers a wrapped, garbled Additional Combo Count Chance line", () => {
+    // Real PaddleOCR output (2026-08-03 report): the card wraps the stat name
+    // across two lines and garbles "Additional" into "Aal".
+    const text = [
+      "+69.3% Aal Combo",
+      ". Count Chance",
+      "+190.2% Melee Damage",
+      ": +95.8% WHeat 5",
+      "MR1624",
+    ].join("\n");
+    const result = parseRivenStats(text);
+    expect(result.map((s) => s.name)).toEqual([
+      "Additional Combo Count Chance",
+      "Melee Damage",
+      "Heat",
+    ]);
+    expect(result.map((s) => s.value)).toEqual([69.3, 190.2, 95.8]);
+    expect(result.every((s) => s.positive)).toBe(true);
+  });
+
+  it("completes a bare Combo Count Chance tail to the full stat name", () => {
+    const result = parseRivenStats("+61.2% Combo Count Chance");
+    expect(result).toHaveLength(1);
+    expect(result[0].name).toBe("Additional Combo Count Chance");
+    expect(result[0].value).toBe(61.2);
+  });
+
   it("ignores unrecognised lines", () => {
     const text = "SomeGarbage\n+48.3% Critical Chance\nMoreGarbage\nWeirdText";
     const result = parseRivenStats(text);

@@ -36,6 +36,10 @@ const RIVEN_STAT_ALIAS_REPLACEMENTS: ReadonlyArray<[RegExp, string]> = Object.fr
   [/\bl\s*eat\b/gi, "Heat"],
   [/\bQ\s*Toxin\b/gi, "Toxin"],
   [/\bQ\s*Electricity\b/gi, "Electricity"],
+  // Only one stat ends in "Combo Count Chance"; PaddleOCR garbles the leading
+  // "Additional" ("Aal", ...) beyond the fuzzy budget, so rebuild the full
+  // name from the unambiguous tail (also covers the word being lost entirely).
+  [/\b(?:[A-Za-z]{2,12}\s+)?Combo\s+Count\s+Chance\b/gi, "Additional Combo Count Chance"],
 ]);
 
 const KNOWN_RIVEN_STATS: ReadonlyArray<string> = Object.freeze([
@@ -124,7 +128,10 @@ function preprocessOcrText(raw: string): string {
   text = text.replace(/\bFlight\s*\n+\s*(?=Speed\b)/gi, "Flight ");
   text = text.replace(/\bProjectile\s*\n+\s*(?=Speed\b)/gi, "Projectile ");
   text = text.replace(/\bFire\s*\n+\s*(?=Rate\b)/gi, "Fire ");
-  text = text.replace(/\bCombo\s*\n+\s*(?=(?:Duration|Count)\b)/gi, "Combo ");
+  // Allow leading punctuation junk on the wrapped line: PaddleOCR emits the
+  // second line of "Additional Combo / Count Chance" as ". Count Chance".
+  text = text.replace(/\bCombo\s*\n+[^\w\n]*(?=(?:Duration|Count)\b)/gi, "Combo ");
+  text = text.replace(/\bAdditional\s*\n+\s*(?=Combo\b)/gi, "Additional ");
   text = text.replace(/\bAmmo\s*\n+\s*(?=Maximum\b)/gi, "Ammo ");
   text = text.replace(/\bPunch\s*\n+\s*(?=Through\b)/gi, "Punch ");
   text = text.replace(/\bChanneling\s*\n+\s*(?=(?:Damage|Efficiency)\b)/gi, "Channeling ");
@@ -445,7 +452,10 @@ function parseStatsFromLines(text: string): RivenStat[] {
           for (const stat of KNOWN_RIVEN_STATS) {
             const statLower = stat.toLowerCase();
             // Compare the name portion (trimmed to stat length + slack) against the stat
-            const dist = levenshteinDistance(namePartLower.slice(0, statLower.length + 2), statLower);
+            const dist = levenshteinDistance(
+              namePartLower.slice(0, statLower.length + 2),
+              statLower,
+            );
             if (dist < bestDist && dist <= 2) {
               bestDist = dist;
               bestStat = stat;
