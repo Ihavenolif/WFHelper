@@ -6,9 +6,11 @@ import { normalizeErrorMessage } from "../config/shared/errors";
 import type { WfmStatus } from "../config/shared/wfm";
 
 import {
+  WfmApiError,
   requestRaw,
   requestV2,
   setTokenProvider,
+  setTokenRotationHandler,
   updateCsrfFromToken,
   clearCsrfToken,
 } from "./wfmClient";
@@ -16,7 +18,6 @@ import { setStatusViaWebSocket } from "./wfmWebSocket";
 import { app, safeStorage } from "electron";
 
 const log = withScope("wfmSession");
-
 
 interface SessionSummary {
   loggedIn: boolean;
@@ -43,7 +44,6 @@ interface WfmUserProfile {
   [key: string]: unknown;
 }
 
-
 const SESSION_FILE = (): string => path.join(app.getPath("userData"), "wfm.session");
 const DEVICE_ID_FILE = (): string => path.join(app.getPath("userData"), "wfm.device-id");
 
@@ -54,6 +54,15 @@ let _platform = "pc";
 // Register the token provider so wfmClient can inject the JWT into requests
 setTokenProvider(() => _token);
 
+// WFM rotates the session token via response Authorization headers - adopt
+// and persist the rotation so long sessions never expire mid-flight.
+setTokenRotationHandler((token) => {
+  if (!_token || token === _token) return;
+  _token = token;
+  updateCsrfFromToken(token);
+  if (_userName) _saveSession(token, _userName);
+  log.info("[WFMSession] Session token rotated by WFM");
+});
 
 function _getDeviceId(): string {
   try {
@@ -133,9 +142,28 @@ export async function signIn(email: string, password: string): Promise<SignInRes
     throw new Error("Email and password are required.");
   }
 
-  const { res, body } = await requestRaw("POST", "/auth/signin", {
-    json: { email, password, device_id: _getDeviceId() },
-  });
+  // Header-mode sign-in first: no CSRF page fetch, so no Cloudflare challenge.
+  // Credential errors (401, or WFM's 400 app.account.*) must not resubmit the
+  // same credentials down the legacy path - the auth style is not the problem.
+  let raw: Awaited<ReturnType<typeof requestRaw>>;
+  try {
+    raw = await requestRaw("POST", "/auth/signin", {
+      json: { email, password, device_id: _getDeviceId(), auth_type: "header" },
+      headerAuth: true,
+    });
+  } catch (err) {
+    const status = err instanceof WfmApiError ? err.status : undefined;
+    const detail = err instanceof Error ? err.message : "";
+    if (status === 401 || status === 429 || detail.includes("app.account.")) throw err;
+    log.warn(
+      "[WFMSession] header sign-in failed - falling back to csrf sign-in:",
+      normalizeErrorMessage(err),
+    );
+    raw = await requestRaw("POST", "/auth/signin", {
+      json: { email, password, device_id: _getDeviceId() },
+    });
+  }
+  const { res, body } = raw;
 
   let token: string | null = null;
 
@@ -223,9 +251,7 @@ export async function getMe(): Promise<WfmUserProfile | null> {
   }
 }
 
-export async function setStatus(
-  status: WfmStatus,
-): Promise<SetStatusResult> {
+export async function setStatus(status: WfmStatus): Promise<SetStatusResult> {
   if (!_token) throw new Error("Not logged in to Warframe.market.");
   await setStatusViaWebSocket(_token, status);
   return { status };

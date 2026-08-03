@@ -4,24 +4,15 @@ import { normalizeErrorMessage } from "../config/shared/errors";
 
 const log = withScope("wfmClient");
 
-/**
- * Warframe.market HTTP client (main-process only)
- *
- * - Serial request queue with 350 ms minimum spacing (<= 3 req/s)
- * - Standard headers required by WFM API
- * - Auth token injected automatically when a session is active
- * - Centralised error normalisation; 401 throws with err.code = 'WFM_UNAUTHORIZED'
- *
- * WFM CSRF protection uses a double-submit pattern: X-CSRFToken must carry the
- * csrf_token claim of the SAME JWT sent as the Cookie, so the claim is decoded
- * straight from that token. The page <meta name="csrf-token"> is only a
- * fallback - the 2026 site redesign turned it into a "##"-prefixed hydration
- * placeholder that no longer matches the claim.
- */
+// Warframe.market HTTP client (main-process only): serial 350ms queue, 401 ->
+// err.code WFM_UNAUTHORIZED. Header-only auth (Bearer on v2, JWT on v1, plus
+// auth_type: header; verified live 2026-08-03), cookie+csrf kept as fallback.
 
 interface WfmRequestOptions {
   json?: unknown;
   headers?: Record<string, string>;
+  /** requestRaw only: send header-style auth and skip the CSRF machinery. */
+  headerAuth?: boolean;
 }
 
 export class WfmApiError extends Error {
@@ -562,6 +553,24 @@ export function setTokenProvider(fn: () => string | null): void {
   _getToken = fn;
 }
 
+// Latched only when a header-auth 401/403 succeeds via the cookie fallback -
+// proof the rejection was about the auth style, not the token.
+let _headerAuthBroken = false;
+let _tokenRotationHandler: ((token: string) => void) | null = null;
+
+export function setTokenRotationHandler(fn: ((token: string) => void) | null): void {
+  _tokenRotationHandler = fn;
+}
+
+// WFM rotates session tokens via the response Authorization header.
+function _noteRotatedToken(res: WfmResponseLike): void {
+  if (!_tokenRotationHandler) return;
+  const header = res.headers.get("authorization");
+  if (!header) return;
+  const token = header.replace(/^(?:Bearer|JWT)\s+/i, "").trim();
+  if (token && token !== _getToken()) _tokenRotationHandler(token);
+}
+
 interface CoreRequestOptions {
   json?: unknown;
   headers?: Record<string, string>;
@@ -648,9 +657,10 @@ function _coreRequest(
   return enqueue(async () => {
     const url = baseUrl + path;
     const body = json !== undefined ? JSON.stringify(json) : null;
+    const authScheme = baseUrl === BASE_URL_V2 ? "Bearer" : "JWT";
 
     // Rebuild auth headers after clearance recovery.
-    const attempt = async (): Promise<WfmResponseLike> => {
+    const attempt = async (useHeaderAuth: boolean): Promise<WfmResponseLike> => {
       const token = _getToken();
       const headers: Record<string, string> = {
         ...WFM_BASE_HEADERS,
@@ -658,12 +668,15 @@ function _coreRequest(
         ...extraHeaders,
       };
 
-      if (token) {
+      if (token && useHeaderAuth) {
+        headers["Authorization"] = `${authScheme} ${token}`;
+        headers["auth_type"] = "header";
+      } else if (token) {
         headers["Authorization"] = `JWT ${token}`;
         headers["Cookie"] = `JWT=${token}`;
       }
 
-      if (method !== "GET") {
+      if (method !== "GET" && !(token && useHeaderAuth)) {
         await applyMutationHeaders(headers, token || _cookieJwt, null);
       }
 
@@ -677,10 +690,21 @@ function _coreRequest(
       }
     };
 
-    let res = await attempt();
-    if (!res.ok && (await _shouldReSolveClearance(res))) {
-      if (await _reSolveClearance(label)) res = await attempt();
+    const headerAuth = (): boolean => !_headerAuthBroken && !!_getToken();
+
+    let res = await attempt(headerAuth());
+    if (headerAuth() && (res.status === 401 || res.status === 403)) {
+      const fallback = await attempt(false);
+      if (fallback.ok) {
+        _headerAuthBroken = true;
+        log.warn(`[${label}] header auth rejected (${res.status}) but cookie+csrf works - latched`);
+      }
+      res = fallback;
     }
+    if (!res.ok && (await _shouldReSolveClearance(res))) {
+      if (await _reSolveClearance(label)) res = await attempt(headerAuth());
+    }
+    if (res.ok) _noteRotatedToken(res);
 
     if (res.status === 401) {
       throw new WfmApiError("Warframe.market session expired or invalid.", "WFM_UNAUTHORIZED", 401);
@@ -734,7 +758,7 @@ export function requestV2(
 export function requestRaw(
   method: "GET" | "POST" | "PUT" | "DELETE" | "PATCH",
   path: string,
-  { json, headers: extraHeaders }: WfmRequestOptions = {},
+  { json, headers: extraHeaders, headerAuth = false }: WfmRequestOptions = {},
 ): Promise<WfmRawResponse> {
   return enqueue(async () => {
     const url = BASE_URL + path;
@@ -746,7 +770,12 @@ export function requestRaw(
         ...extraHeaders,
       };
 
-      if (method !== "GET") {
+      if (headerAuth) {
+        // Anonymous header-mode call (sign-in): the bare scheme opts out of
+        // the cookie session, so no CSRF page fetch is needed.
+        headers["Authorization"] = "JWT";
+        headers["auth_type"] = "header";
+      } else if (method !== "GET") {
         await applyMutationHeaders(headers, null);
       }
 
@@ -789,6 +818,9 @@ export function requestRaw(
 }
 
 export const __test__ = {
+  resetHeaderAuthForTest(): void {
+    _headerAuthBroken = false;
+  },
   setClearanceForTest(cookie: string | null, ua: string | null): void {
     _clearanceCookie = cookie;
     _clearanceUa = ua;
