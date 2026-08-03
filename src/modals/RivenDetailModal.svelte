@@ -7,7 +7,10 @@
   import { gradeColor, attrGradeColor, dispoStars } from "../lib/rivenGradeColors.js";
   import DetailModalBase from "./DetailModalBase.svelte";
   import type { WfmContract } from "../types/market.js";
-  import { computeRivenStatSimilarity } from "../../renderer/riven-similarity.js";
+  import {
+    canonicalRivenStatName,
+    computeRivenStatSimilarity,
+  } from "../../renderer/riven-similarity.js";
 
   interface Props {
     riven: DecodedRiven;
@@ -151,7 +154,12 @@
     if (e.key === "Escape") onclose();
   }
 
-  const myStatNamesLc = $derived(new Set(riven.stats.map((s) => s.name.toLowerCase())));
+  // Buffs only: a desired-positive chip must not light up when the stat rolled
+  // as a curse (matches the sign-aware negative check below).  Canonical names
+  // so the melee/ranged label split (Attack Speed vs Fire Rate) still matches.
+  const myStatNamesLc = $derived(
+    new Set(riven.stats.filter((s) => s.positive).map((s) => canonicalRivenStatName(s.name))),
+  );
   const weaponDbEntry = $derived($itemDb[riven.weaponUniqueName]);
 </script>
 
@@ -306,7 +314,7 @@
                 >Desired Positives</span
               >
               {#each bestAttrs.positives as attr}
-                {@const matched = myStatNamesLc.has(attr.toLowerCase())}
+                {@const matched = myStatNamesLc.has(canonicalRivenStatName(attr))}
                 <span
                   class="font-display text-xs py-0.5 px-1.5 rounded {matched
                     ? 'text-[#4ade80] bg-success/10 font-semibold'
@@ -321,7 +329,8 @@
               >
               {#each bestAttrs.negatives as attr}
                 {@const matched = riven.stats.some(
-                  (s) => !s.positive && s.name.toLowerCase() === attr.toLowerCase(),
+                  (s) =>
+                    !s.positive && canonicalRivenStatName(s.name) === canonicalRivenStatName(attr),
                 )}
                 <span
                   class="font-display text-xs py-0.5 px-1.5 rounded {matched

@@ -1,4 +1,4 @@
-import { computeRivenStatSimilarity } from "./riven-similarity.js";
+import { canonicalRivenStatName, computeRivenStatSimilarity } from "./riven-similarity.js";
 
 const _side = new URLSearchParams(window.location.search).get("side") || "left";
 const _isLeft = _side === "left";
@@ -156,6 +156,11 @@ function renderStats(stats) {
   }
   container.classList.remove("is-hidden");
 
+  _currentStats = statsToMatchable(stats);
+  _currentStatNamesLc = _currentStats.map(function (s) {
+    return s.name;
+  });
+
   // Flush any buffered enrichment now that we have stats
   if (_pendingBestAttrs) renderBestAttributes(_pendingBestAttrs);
   if (_pendingListings) renderSimilarListings(_pendingListings);
@@ -175,8 +180,16 @@ function showScanError(message) {
   }
 }
 
-/** State: current stat names (lowercase) for best-attribute matching. */
+/** State: current stat names (lowercase) for WFM similarity matching. */
 let _currentStatNamesLc = [];
+/** State: current stats as { name (lowercase), positive } for best-attribute matching. */
+let _currentStats = [];
+
+function statsToMatchable(stats) {
+  return stats.map(function (s) {
+    return { name: (s.name || "").toLowerCase(), positive: s.positive !== false };
+  });
+}
 
 function renderOverallGrade(attributeGrade) {
   const wrapper = el("overall-grade");
@@ -217,9 +230,10 @@ function applyGradingToStats(gradingResult) {
   }
   container.classList.remove("is-hidden");
 
-  // Update tracked stat names for best-attribute matching
-  _currentStatNamesLc = stats.map(function (s) {
-    return (s.name || "").toLowerCase();
+  // Update tracked stats for best-attribute matching
+  _currentStats = statsToMatchable(stats);
+  _currentStatNamesLc = _currentStats.map(function (s) {
+    return s.name;
   });
   refreshBestAttributeHighlights();
 }
@@ -272,6 +286,7 @@ function renderBestAttributes(attrs) {
       var chip = document.createElement("span");
       chip.className = "best-chip";
       chip.setAttribute("data-stat", attrs.positives[i].toLowerCase());
+      chip.setAttribute("data-side", "pos");
       chip.textContent = abbreviateStat(attrs.positives[i]);
       posRow.appendChild(chip);
     }
@@ -288,6 +303,7 @@ function renderBestAttributes(attrs) {
       var negChip = document.createElement("span");
       negChip.className = "best-chip";
       negChip.setAttribute("data-stat", attrs.negatives[j].toLowerCase());
+      negChip.setAttribute("data-side", "neg");
       negChip.textContent = abbreviateStat(attrs.negatives[j]);
       negRow.appendChild(negChip);
     }
@@ -327,13 +343,16 @@ function abbreviateStat(name) {
   return STAT_ABBREVIATIONS[name.toLowerCase()] || name;
 }
 
-/** Highlight best-attribute chips that match currently displayed stats. */
+// Sign-aware chip highlights: BEST chips light only for buffs, NEG only for
+// curses, compared by canonical name (never substring), so a "Damage" roll
+// cannot light "Critical Damage".
 function refreshBestAttributeHighlights() {
   var chips = document.querySelectorAll(".best-chip");
   for (var i = 0; i < chips.length; i++) {
-    var chipStat = (chips[i].getAttribute("data-stat") || "").toLowerCase();
-    var matched = _currentStatNamesLc.some(function (n) {
-      return n === chipStat || n.indexOf(chipStat) !== -1 || chipStat.indexOf(n) !== -1;
+    var chipStat = canonicalRivenStatName(chips[i].getAttribute("data-stat"));
+    var wantPositive = chips[i].getAttribute("data-side") !== "neg";
+    var matched = _currentStats.some(function (s) {
+      return s.positive === wantPositive && canonicalRivenStatName(s.name) === chipStat;
     });
     chips[i].classList.toggle("matched", matched);
   }
@@ -447,6 +466,7 @@ function hideScanning() {
 function onSessionStart(weapon) {
   _rollCount = 0;
   _currentStatNamesLc = [];
+  _currentStats = [];
   _bestAttributesData = null;
   _hasDisplayedStats = false;
   _pendingBestAttrs = null;
@@ -560,6 +580,7 @@ function onChoiceMade(side) {
 function onSessionEnd() {
   hideScanning();
   _currentStatNamesLc = [];
+  _currentStats = [];
   _bestAttributesData = null;
   _hasDisplayedStats = false;
   _pendingBestAttrs = null;

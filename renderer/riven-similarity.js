@@ -1,3 +1,22 @@
+// Riven stats that share one attribute under several display/OCR/locTag
+// names; compare via this canonical form, never by substring.
+/** @type {Record<string, string>} */
+const STAT_NAME_CANON = {
+  "attack speed": "fire rate",
+  "melee damage": "damage",
+  "critical chance for slide attack": "slide attack",
+  slide: "slide attack",
+  recoil: "weapon recoil",
+  magazine: "magazine capacity",
+  "heavy attack": "heavy attack efficiency",
+};
+
+/** @param {string | null | undefined} name */
+export function canonicalRivenStatName(name) {
+  const n = (name || "").toLowerCase().trim();
+  return STAT_NAME_CANON[n] || n;
+}
+
 /**
  * @param {string[]} myStatNames
  * @param {Array<{ name?: string | null }>} listingStats
