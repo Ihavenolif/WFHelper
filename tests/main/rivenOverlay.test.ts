@@ -275,6 +275,16 @@ describe("parseRivenStats", () => {
     expect(result.every((s) => s.positive)).toBe(true);
   });
 
+  it("reports signed lines that parse to nothing via diagnostics", () => {
+    const diagnostics = { droppedLines: [] as string[] };
+    const result = parseRivenStats(
+      "+48.3% Critical Chance\n+12.3% Xyzqgarbleword\nMR1624",
+      diagnostics,
+    );
+    expect(result).toHaveLength(1);
+    expect(diagnostics.droppedLines).toEqual(["+12.3% Xyzqgarbleword"]);
+  });
+
   it("completes a bare Combo Count Chance tail to the full stat name", () => {
     const result = parseRivenStats("+61.2% Combo Count Chance");
     expect(result).toHaveLength(1);

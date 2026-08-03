@@ -292,20 +292,30 @@ function extractSignAndValue(
   return null;
 }
 
-export function parseRivenStats(text: string): RivenStat[] {
+export interface RivenParseDiagnostics {
+  /** Preprocessed lines that carried a signed value but produced no stat. */
+  droppedLines: string[];
+}
+
+export function parseRivenStats(text: string, diagnostics?: RivenParseDiagnostics): RivenStat[] {
   if (!text) return [];
 
   const cleaned = preprocessOcrText(text);
-  const lineResults = parseStatsFromLines(cleaned);
+  const lineDropped: string[] = [];
+  const lineResults = parseStatsFromLines(cleaned, lineDropped);
   if (lineResults.length > 0 && lineResults.some((stat) => stat.value !== null)) {
+    diagnostics?.droppedLines.push(...lineDropped);
     return lineResults;
   }
 
   const blob = cleaned.replace(/\r?\n/g, " ");
-  const blobResults = parseStatsFromLines(blob);
+  const blobDropped: string[] = [];
+  const blobResults = parseStatsFromLines(blob, blobDropped);
   const lineScore = lineResults.reduce((score, stat) => score + (stat.value !== null ? 10 : 3), 0);
   const blobScore = blobResults.reduce((score, stat) => score + (stat.value !== null ? 10 : 3), 0);
-  return blobScore > lineScore ? blobResults : lineResults;
+  const useBlob = blobScore > lineScore;
+  diagnostics?.droppedLines.push(...(useBlob ? blobDropped : lineDropped));
+  return useBlob ? blobResults : lineResults;
 }
 
 function lineContainsKnownStat(line: string): boolean {
@@ -414,7 +424,12 @@ const DAMAGE_TYPE_STAT_NAMES: ReadonlySet<string> = new Set([
   "slash",
 ]);
 
-function parseStatsFromLines(text: string): RivenStat[] {
+// A dropped line is worth reporting when it plainly carried a stat value.
+function looksStatLike(line: string): boolean {
+  return /[+\-–]\s*\d/.test(line) || /\bx\s*\d/i.test(line);
+}
+
+function parseStatsFromLines(text: string, dropped?: string[]): RivenStat[] {
   const lines = collapseOrphanValueLines(text.split(/\r?\n/));
   const results: RivenStat[] = [];
   const seen = new Set<string>();
@@ -467,7 +482,10 @@ function parseStatsFromLines(text: string): RivenStat[] {
           }
         }
       }
-      if (hits.length === 0) continue;
+      if (hits.length === 0) {
+        if (dropped && looksStatLike(line)) dropped.push(line);
+        continue;
+      }
     }
 
     hits.sort((a, b) => a.idx - b.idx || b.stat.length - a.stat.length);

@@ -11,7 +11,7 @@ import {
   type RivenOcrResult,
 } from "../../services/rivenOcrOnnx";
 import { cropRivenStatImage, type RivenScanCropRect } from "./rivenScanImage";
-import { parseRivenStats, type RivenStat } from "./rivenScanText";
+import { parseRivenStats, type RivenParseDiagnostics, type RivenStat } from "./rivenScanText";
 
 const log = withScope("rivenScan");
 export const MIN_ACCEPTABLE_RIVEN_STATS = 2;
@@ -139,8 +139,15 @@ export async function recognizeRivenCardStats(
       ocrCalls += 1;
 
       const parseStart = Date.now();
-      const stats = parseRivenStats(ocrResult.text);
+      const diagnostics: RivenParseDiagnostics = { droppedLines: [] };
+      const stats = parseRivenStats(ocrResult.text, diagnostics);
       parseMs += Date.now() - parseStart;
+
+      // Loud drops: a signed line that parsed to nothing is the signal that
+      // turns a user's "misread" report into an actionable log.
+      for (const line of diagnostics.droppedLines) {
+        log.warn(`[RivenScan] unparsed stat-like line: "${line}"`);
+      }
 
       if (options.label) {
         log.info(
