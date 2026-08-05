@@ -265,7 +265,10 @@ app.whenReady().then(async () => {
   };
 
   // Helper runner IPC
-  handleAuthorized(HELPER_GET_STATUS, assertMainRendererSender, () => apiHelperRunner.getStatus());
+  handleAuthorized(HELPER_GET_STATUS, assertMainRendererSender, () => ({
+    ...apiHelperRunner.getStatus(),
+    inventoryLastModified: inventoryIpc.getLoadedInventoryModifiedAt(),
+  }));
   handleAuthorized(HELPER_RUN_NOW, assertMainRendererSender, async () => {
     const ok = await apiHelperRunner.runOnce();
     attachInventoryAfterHelperRun(ok);

@@ -38,14 +38,13 @@ const DEV_FALLBACK_INVENTORY_DIRECTORIES = [
 const INVENTORY_FILENAME_RE = /^inventory(?:_[^\\/:*?"<>|]+)?\.json$/i;
 
 const INVENTORY_WATCH_STABILITY_MS = 500;
-const MIN_RELOAD_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_INVENTORY_BYTES = 50 * 1024 * 1024;
 const JSON_ENCODING = "utf-8";
 
 let _lastInventoryHash: string | null = null;
-let _lastReloadAt = 0;
 let _lastListenerInventoryHash: string | null = null;
 let _trustedInventoryPath: string | null = null;
+let _loadedInventoryModifiedAt: number | null = null;
 
 interface InventoryReadError {
   kind: "parse" | "read";
@@ -60,9 +59,8 @@ const _inventoryStatePath = path.join(app.getPath("userData"), "inventory-reload
 function _loadPersistedState(): void {
   try {
     const raw = fs.readFileSync(_inventoryStatePath, JSON_ENCODING);
-    const data = JSON.parse(raw) as { hash?: string; reloadAt?: number; inventoryPath?: string };
+    const data = JSON.parse(raw) as { hash?: string; inventoryPath?: string };
     if (typeof data.hash === "string") _lastInventoryHash = data.hash;
-    if (typeof data.reloadAt === "number") _lastReloadAt = data.reloadAt;
     if (typeof data.inventoryPath === "string") _trustedInventoryPath = data.inventoryPath;
   } catch (err) {
     const code = err && typeof err === "object" ? (err as { code?: unknown }).code : null;
@@ -82,7 +80,6 @@ function _persistState(): void {
       _inventoryStatePath,
       JSON.stringify({
         hash: _lastInventoryHash,
-        reloadAt: _lastReloadAt,
         inventoryPath: _trustedInventoryPath,
       }),
     );
@@ -209,7 +206,12 @@ function findInventoryFile(): string | null {
   return devCandidate;
 }
 
-function readInventoryRaw(filePath: string): string | null {
+interface InventoryFileSnapshot {
+  raw: string;
+  modifiedAt: number;
+}
+
+function readInventorySnapshot(filePath: string): InventoryFileSnapshot | null {
   try {
     const stats = fs.statSync(filePath);
     if (!stats.isFile()) {
@@ -227,7 +229,10 @@ function readInventoryRaw(filePath: string): string | null {
       _lastReadError = { kind: "read", message, path: filePath, at: Date.now() };
       return null;
     }
-    return fs.readFileSync(filePath, JSON_ENCODING);
+    return {
+      raw: fs.readFileSync(filePath, JSON_ENCODING),
+      modifiedAt: stats.mtimeMs,
+    };
   } catch (err) {
     const message = normalizeErrorMessage(err);
     log.error(`Failed to read inventory at ${filePath}:`, message);
@@ -248,31 +253,26 @@ function parseInventoryRaw(raw: string): unknown {
 }
 
 function readInventory(filePath: string): unknown {
-  const raw = readInventoryRaw(filePath);
-  if (raw == null) return null;
+  const snapshot = readInventorySnapshot(filePath);
+  if (snapshot == null) return null;
 
   let data: unknown;
   try {
-    const hash = crypto.createHash("sha256").update(raw).digest("hex");
-    const now = Date.now();
-    const withinCooldown = now - _lastReloadAt < MIN_RELOAD_INTERVAL_MS;
+    const hash = crypto.createHash("sha256").update(snapshot.raw).digest("hex");
     const contentUnchanged = hash === _lastInventoryHash;
 
-    // Always parse so ctx.currentInventoryData is populated for the UI
-    data = parseInventoryRaw(raw);
+    // Startup reads must populate the UI even when the persisted hash matches.
+    data = parseInventoryRaw(snapshot.raw);
     ctx.currentInventoryData = data as Record<string, unknown> | null;
+    _loadedInventoryModifiedAt = snapshot.modifiedAt;
     _lastReadError = null;
     rememberInventoryPath(filePath);
 
     _notifyListenersOncePerProcessHash(hash, data);
 
-    if (withinCooldown && contentUnchanged) {
-      log.info("Inventory read skipped broadcast (unchanged within 10 min cooldown).");
-      return data;
-    }
+    if (contentUnchanged) return data;
 
     _lastInventoryHash = hash;
-    _lastReloadAt = now;
     _persistState();
     return data;
   } catch (err) {
@@ -285,13 +285,14 @@ function readInventory(filePath: string): unknown {
 
 function readAlecaFrameInventory(filePath: string): unknown {
   try {
+    const modifiedAt = fs.statSync(filePath).mtimeMs;
     const data = readAlecaFrameInventoryFile(filePath);
     const fileBuffer = fs.readFileSync(filePath);
     const hash = crypto.createHash("sha256").update(fileBuffer).digest("hex");
     ctx.currentInventoryData = data as Record<string, unknown> | null;
+    _loadedInventoryModifiedAt = modifiedAt;
     _lastReadError = null;
     _lastInventoryHash = hash;
-    _lastReloadAt = Date.now();
     _persistState();
     _notifyListenersOncePerProcessHash(hash, data);
     return data;
@@ -314,29 +315,23 @@ function watchInventoryFile(filePath: string): void {
   });
 
   ctx.watcher.on("change", () => {
-    const now = Date.now();
-    if (now - _lastReloadAt < MIN_RELOAD_INTERVAL_MS) {
-      // Intentional 10m cooldown
-      log.info("Inventory file changed, skipping (too soon after last reload).");
-      return;
-    }
+    const snapshot = readInventorySnapshot(filePath);
+    if (snapshot == null) return;
 
-    const raw = readInventoryRaw(filePath);
-    if (raw == null) return;
-
-    const hash = crypto.createHash("sha256").update(raw).digest("hex");
+    const hash = crypto.createHash("sha256").update(snapshot.raw).digest("hex");
     if (hash === _lastInventoryHash) {
+      _loadedInventoryModifiedAt = snapshot.modifiedAt;
       log.info("Inventory file touched but content unchanged, skipping reload.");
       return;
     }
 
     try {
-      const data = parseInventoryRaw(raw);
-      _lastReloadAt = now;
+      const data = parseInventoryRaw(snapshot.raw);
       _lastInventoryHash = hash;
       _persistState();
       log.info("Inventory file changed, reloading...");
       ctx.currentInventoryData = data as Record<string, unknown> | null;
+      _loadedInventoryModifiedAt = snapshot.modifiedAt;
       _lastReadError = null;
       rememberInventoryPath(filePath);
       _notifyListenersOncePerProcessHash(hash, data);
@@ -349,6 +344,10 @@ function watchInventoryFile(filePath: string): void {
       _lastReadError = { kind: "parse", message, path: filePath, at: Date.now() };
     }
   });
+}
+
+function getLoadedInventoryModifiedAt(): number | null {
+  return _loadedInventoryModifiedAt;
 }
 
 function register(): void {
@@ -422,4 +421,10 @@ function register(): void {
   }));
 }
 
-export { register, findInventoryFile, watchInventoryFile, readInventory };
+export {
+  register,
+  findInventoryFile,
+  watchInventoryFile,
+  readInventory,
+  getLoadedInventoryModifiedAt,
+};
