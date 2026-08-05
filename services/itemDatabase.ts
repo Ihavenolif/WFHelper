@@ -13,6 +13,7 @@ import { normalizeErrorMessage } from "../config/shared/errors";
 import { normalizeDucats } from "../config/shared/numeric";
 import { normalizeWfmSlug } from "../config/shared/wfm";
 import * as publicExportSource from "./publicExportSource";
+import { correctedDropRarity } from "./relicRarity";
 import { withScope } from "./logger";
 import type {
   PepExportItem,
@@ -315,7 +316,10 @@ function loadPublicExportPlus(): number {
         }
 
         const resolvedName = sanitizeDisplayName(
-          relicName || recipeName || resolveName(item.name) || fallbackNameFromUniqueName(uniqueName),
+          relicName ||
+            recipeName ||
+            resolveName(item.name) ||
+            fallbackNameFromUniqueName(uniqueName),
         );
 
         const pepDucats =
@@ -395,6 +399,13 @@ function loadWfcdItems(): number {
 
     for (const item of items) {
       if (!item.uniqueName) continue;
+
+      // Fix upstream relic rarity labels before any entry copies these arrays
+      // (item entries, component entries, and the merge path all reuse them).
+      item.drops = correctDropRarities(item.drops);
+      for (const comp of item.components || []) {
+        comp.drops = correctDropRarities(comp.drops);
+      }
 
       const wfcdImageUrl = buildWfcdImageUrl(item.imageName);
 
@@ -819,6 +830,22 @@ export function isReusableBlueprint(uniqueName: string): boolean {
   return reusableBlueprints.has(uniqueName);
 }
 
+function correctDropRarities(drops?: DropEntry[]): DropEntry[] | undefined {
+  return drops?.map((d) => ({
+    ...d,
+    rarity: correctedDropRarity(d.location || "", d.chance || 0, d.rarity || ""),
+  }));
+}
+
+function toRendererDrop(d: DropEntry): DropEntry {
+  return {
+    location: d.location || "",
+    type: d.type || "",
+    chance: d.chance || 0,
+    rarity: d.rarity || "",
+  };
+}
+
 export function getRendererLookup(): Record<string, RendererItemEntry> {
   const lookup: Record<string, RendererItemEntry> = {};
   for (const [key, item] of Object.entries(itemsByUniqueName)) {
@@ -843,19 +870,9 @@ export function getRendererLookup(): Record<string, RendererItemEntry> {
         uniqueName: c.uniqueName || "",
         tradable: typeof c.tradable === "boolean" ? c.tradable : undefined,
         itemCount: c.itemCount || 1,
-        drops: (c.drops || []).map((d: DropEntry) => ({
-          location: d.location || "",
-          type: d.type || "",
-          chance: d.chance || 0,
-          rarity: d.rarity || "",
-        })),
+        drops: (c.drops || []).map(toRendererDrop),
       })),
-      drops: (item.drops || []).slice(0, 20).map((d: DropEntry) => ({
-        location: d.location || "",
-        type: d.type || "",
-        chance: d.chance || 0,
-        rarity: d.rarity || "",
-      })),
+      drops: (item.drops || []).slice(0, 20).map(toRendererDrop),
       wikiaUrl: item.wikiaUrl || null,
       ...(recipesByResultType[key] ? { recipe: recipesByResultType[key] } : {}),
       ...(reusableBlueprints.has(key) ? { reusableBlueprint: true } : {}),

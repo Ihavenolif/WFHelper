@@ -2,6 +2,7 @@ import { withScope } from "./logger";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { normalizeDucats } from "../config/shared/numeric";
 import { normalizeWfmSlug } from "../config/shared/wfm";
+import { relicRewardRarity } from "./relicRarity";
 import { lookupItem, lookupItemByNameOrSlug, toIconMirrorUrl } from "./itemDatabase";
 
 const log = withScope("relicService");
@@ -70,7 +71,8 @@ export function getRelicRewardItems(): RelicRewardItem[] {
       for (const reward of quality.rewards) {
         if (!reward.name || seen.has(reward.name)) continue;
         const resolved = lookupItemByNameOrSlug(reward.name, reward.urlName);
-        const dbEntry = resolved?.item || (reward.uniqueName ? lookupItem(reward.uniqueName) : null);
+        const dbEntry =
+          resolved?.item || (reward.uniqueName ? lookupItem(reward.uniqueName) : null);
         seen.set(reward.name, {
           name: reward.name,
           uniqueName: resolved?.uniqueName || reward.uniqueName || null,
@@ -148,7 +150,7 @@ function buildRelicDatabase(): RelicDatabase {
           name: r.item?.name || "Unknown",
           uniqueName: r.item?.uniqueName || null,
           imageUrl: buildWfcdImageUrl(r.item?.imageName),
-          rarity: r.rarity || "Common",
+          rarity: relicRewardRarity(quality, r.chance || 0, r.rarity || "Common"),
           chance: r.chance || 0,
           urlName: normalizeWfmSlug(rawSlug),
           wfmId: r.item?.warframeMarket?.id || null,

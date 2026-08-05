@@ -9,6 +9,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { withScope } from "./logger";
+import { correctedDropRarity } from "./relicRarity";
 import { writeFileAtomicSync } from "./atomicFile";
 
 const log = withScope("dropData");
@@ -65,12 +66,13 @@ function rewardName(r: Reward): string | null {
 
 function pushRow(out: DropRow[], item: string | null, place: string, r: Reward): void {
   if (!item || !place) return;
-  const chance = typeof r.chance === "number" ? r.chance : Number(r.chance);
+  const raw = typeof r.chance === "number" ? r.chance : Number(r.chance);
+  const chance = Number.isFinite(raw) ? raw : 0;
   out.push({
     item,
     place,
-    rarity: r.rarity || "",
-    chance: Number.isFinite(chance) ? chance : 0,
+    rarity: correctedDropRarity(place, chance, r.rarity || ""),
+    chance,
   });
 }
 
@@ -147,7 +149,8 @@ function flatten(data: AllData): DropRow[] {
   }
   for (const key of BOUNTY_KEYS) {
     const list = data[key] as Array<{ bountyLevel?: string; rewards?: Record<string, Reward[]> }>;
-    for (const b of list || []) pushRewardContainer(out, b.bountyLevel || "Bounty", b.rewards || {});
+    for (const b of list || [])
+      pushRewardContainer(out, b.bountyLevel || "Bounty", b.rewards || {});
   }
 
   // item -> enemies
@@ -264,7 +267,9 @@ export function searchDrops(
   mode: DropSearchMode = "item",
   limit = 300,
 ): DropSearchResult {
-  const q = String(query || "").trim().toLowerCase();
+  const q = String(query || "")
+    .trim()
+    .toLowerCase();
   if (!q) return { rows: [], total: 0 };
 
   const scored: Array<{ row: DropRow; score: number }> = [];
