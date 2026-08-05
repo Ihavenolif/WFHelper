@@ -17,7 +17,6 @@ import * as wfmClient from "./wfmClient";
 
 const log = withScope("wfmRivenSearch");
 
-
 interface WfmRivenListing {
   id: string;
   seller: string;
@@ -29,7 +28,6 @@ interface WfmRivenListing {
   buyoutPrice: number | null;
   isDirectSell: boolean;
 }
-
 
 const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 const MAX_CACHE_ENTRIES = 50;
@@ -50,7 +48,6 @@ function pruneCache(): void {
     _cache.delete(entries[i][0]);
   }
 }
-
 
 let _loggedWfmName = false;
 
@@ -157,9 +154,10 @@ export async function searchSimilarRivens(
     };
 
     // First, try a quick unfiltered price_asc to gauge result count.
-    const quickPath =
-      `/auctions/search?type=riven&weapon_url_name=${encodeURIComponent(weaponSlug)}${statParams}&sort_by=price_asc`;
-    const quickPayload = unwrapWfmResponse<WfmAuctionSearchPayload>(await wfmClient.request("GET", quickPath));
+    const quickPath = `/auctions/search?type=riven&weapon_url_name=${encodeURIComponent(weaponSlug)}${statParams}&sort_by=price_asc`;
+    const quickPayload = unwrapWfmResponse<WfmAuctionSearchPayload>(
+      await wfmClient.request("GET", quickPath),
+    );
     const quickAuctions = quickPayload?.auctions || [];
     addAuctions(quickAuctions);
 
@@ -170,15 +168,18 @@ export async function searchSimilarRivens(
           const path =
             `/auctions/search?type=riven&weapon_url_name=${encodeURIComponent(weaponSlug)}` +
             `&polarity=${pol}${statParams}&sort_by=${sort}`;
-          const payload = unwrapWfmResponse<WfmAuctionSearchPayload>(await wfmClient.request("GET", path));
+          const payload = unwrapWfmResponse<WfmAuctionSearchPayload>(
+            await wfmClient.request("GET", path),
+          );
           addAuctions(payload?.auctions || []);
         }
       }
     } else if (quickAuctions.length > 0) {
       // Small pool - also fetch price_desc just in case (cheap, already under 500).
-      const descPath =
-        `/auctions/search?type=riven&weapon_url_name=${encodeURIComponent(weaponSlug)}${statParams}&sort_by=price_desc`;
-      const descPayload = unwrapWfmResponse<WfmAuctionSearchPayload>(await wfmClient.request("GET", descPath));
+      const descPath = `/auctions/search?type=riven&weapon_url_name=${encodeURIComponent(weaponSlug)}${statParams}&sort_by=price_desc`;
+      const descPayload = unwrapWfmResponse<WfmAuctionSearchPayload>(
+        await wfmClient.request("GET", descPath),
+      );
       addAuctions(descPayload?.auctions || []);
     }
 
@@ -194,7 +195,6 @@ export async function searchSimilarRivens(
     return [];
   }
 }
-
 
 interface CreateAuctionOpts {
   weaponSlug: string;
@@ -241,15 +241,17 @@ export async function createRivenAuction(
     private: opts.isPrivate,
   };
 
-  if (opts.buyoutPrice != null && opts.buyoutPrice > 0) {
-    body.buyout_price = opts.buyoutPrice;
-  }
+  // WFM requires the key to be present; explicit null means "no buyout".
+  // Omitting it entirely fails with buyout_price: app.form.field_required.
+  body.buyout_price = opts.buyoutPrice != null && opts.buyoutPrice > 0 ? opts.buyoutPrice : null;
   if (opts.description.trim()) {
     body.note = opts.description.trim();
   }
 
   try {
-    log.info(`[WfmRivenSearch] Creating auction for "${opts.weaponSlug}" polarity=${opts.polarity} rank=${opts.modRank} attrs=${opts.attributes.length}`);
+    log.info(
+      `[WfmRivenSearch] Creating auction for "${opts.weaponSlug}" polarity=${opts.polarity} rank=${opts.modRank} attrs=${opts.attributes.length}`,
+    );
     const data = await wfmClient.request("POST", "/auctions/create", { json: body });
     const payload = unwrapWfmResponse<WfmAuctionCreatePayload>(data);
     const auctionId = payload?.auction?.id;

@@ -132,11 +132,10 @@ function register(): void {
 
       const attributes = stats.map((s) => {
         const urlName = rivenData.tagToWfmUrlName(String(s.tag));
-        const rawVal = toFiniteNumber(s.value) ?? 0;
-        // WFM expects negative values for non-multiplier curse stats.
-        // Multiplier curses (e.g. damage_vs_faction) use values < 1 (e.g. 0.97) and stay as-is.
-        // displayValue is signed for display (a recoil curse shows +X%), so force the curse sign here.
-        const value = !s.positive && !s.multiplier ? -Math.abs(rawVal) : Math.abs(rawVal);
+        // WFM stores values exactly as the game displays them, signed: recoil
+        // buff -41 positive=true, recoil curse +7 positive=false (live API).
+        // Forcing curse signs flipped recoil-type stats -> too_many_positives.
+        const value = toFiniteNumber(s.value) ?? 0;
         return {
           url_name: urlName || String(s.tag),
           value,
@@ -157,7 +156,6 @@ function register(): void {
         const suffix = rn.startsWith(prefix) ? rn.slice(prefix.length) : rn;
         return suffix.toLowerCase();
       })();
-
 
       return wfmRivenSearch.createRivenAuction({
         weaponSlug: slug,
@@ -195,7 +193,6 @@ function register(): void {
       }
       const descriptionValue = auctionDescription(description);
       if (descriptionValue == null) return { ok: false, error: "Invalid description" };
-
 
       return wfmRivenSearch.updateRivenAuction({
         auctionId: id,
