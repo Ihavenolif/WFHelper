@@ -40,4 +40,15 @@ describe("circuit choice art", () => {
 
     expect(frame.imageUrl).toBe("excalibur.png");
   });
+
+  it("matches warframestat's 'And' spelling against DE's '&' names", () => {
+    const ACK = "/Lotus/Weapons/Tenno/Melee/Sword/AckAndBrunt";
+    const db = { ...DB, [ACK]: { name: "Ack & Brunt", imageUrl: "ack.png", category: "Melee" } };
+
+    const [ack] = resolveCircuitChoices(["Ack And Brunt"], db, null);
+
+    expect(ack.uniqueName).toBe(ACK);
+    expect(ack.name).toBe("Ack & Brunt");
+    expect(ack.imageUrl).toBe("ack.png");
+  });
 });

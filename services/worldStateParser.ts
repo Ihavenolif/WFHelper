@@ -123,7 +123,7 @@ function getItemLookup(): Record<string, { name?: string; era?: string; category
   _itemLookup = {};
   try {
     const pep = require("warframe-public-export-plus");
-    for (const key of ["ExportResources", "ExportRecipes", "ExportUpgrades", "ExportGear", "ExportRelics", "ExportKeys"]) {
+    for (const key of ["ExportResources", "ExportRecipes", "ExportUpgrades", "ExportGear", "ExportRelics", "ExportKeys", "ExportWeapons", "ExportWarframes", "ExportSentinels"]) {
       const data = pep?.[key];
       if (data && typeof data === "object") {
         Object.assign(_itemLookup, data);
@@ -132,7 +132,7 @@ function getItemLookup(): Record<string, { name?: string; era?: string; category
   } catch {
     try {
       const pkgDir = path.dirname(require.resolve("warframe-public-export-plus/package.json"));
-      for (const file of ["ExportResources.json", "ExportRecipes.json", "ExportUpgrades.json", "ExportGear.json", "ExportRelics.json", "ExportKeys.json"]) {
+      for (const file of ["ExportResources.json", "ExportRecipes.json", "ExportUpgrades.json", "ExportGear.json", "ExportRelics.json", "ExportKeys.json", "ExportWeapons.json", "ExportWarframes.json", "ExportSentinels.json"]) {
         try {
           const data = JSON.parse(fs.readFileSync(path.join(pkgDir, file), "utf8"));
           if (data && typeof data === "object") Object.assign(_itemLookup, data);

@@ -6,6 +6,7 @@
     tone?: "default" | "success" | "warning" | "danger";
     icon?: string | null;
     subtext?: string;
+    subtextTone?: "default" | "success" | "warning" | "danger";
   };
 </script>
 
@@ -21,6 +22,10 @@
     if (tone === "danger") return "text-danger";
     return "text-text-primary";
   }
+
+  function subtextToneClass(tone: SummaryStripItem["subtextTone"]): string {
+    return tone && tone !== "default" ? toneClass(tone) : "text-text-secondary";
+  }
 </script>
 
 <ThemedPanel
@@ -34,11 +39,18 @@
     {/if}
 
     {#if variant === "mastery"}
-      <div class="flex items-center gap-4 px-6">
-        <span class="font-display text-5xl font-bold leading-none {toneClass(item.tone)}"
-          >{item.value}</span
-        >
-        <span class="text-2xl font-semibold text-text-secondary">{item.label}</span>
+      <div class="flex flex-col justify-center gap-1 px-6">
+        <div class="flex items-center gap-4">
+          <span class="font-display text-5xl font-bold leading-none {toneClass(item.tone)}"
+            >{item.value}</span
+          >
+          <span class="text-2xl font-semibold text-text-secondary">{item.label}</span>
+        </div>
+        {#if item.subtext}
+          <span class="text-lg font-semibold {subtextToneClass(item.subtextTone)}"
+            >{item.subtext}</span
+          >
+        {/if}
       </div>
     {:else}
       <!-- min-w-fit so nowrap cells never paint into their neighbor -->
@@ -63,7 +75,9 @@
             </span>
           </div>
           {#if item.subtext}
-            <span class="text-xs font-semibold text-text-secondary">{item.subtext}</span>
+            <span class="text-xs font-semibold {subtextToneClass(item.subtextTone)}"
+              >{item.subtext}</span
+            >
           {/if}
         </div>
       </div>

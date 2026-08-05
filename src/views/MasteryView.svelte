@@ -139,8 +139,7 @@
       } else if (profileMastery.percentToNext != null) {
         label = `${profileMastery.percentToNext}% to next`;
       }
-      rows.push({ key: "mr", value: `MR ${profileMastery.rank}`, label });
-
+      const mrRow: SummaryStripItem = { key: "mr", value: `MR ${profileMastery.rank}`, label };
       if (profileMastery.totalXp != null) {
         const readyXp = data.items.reduce((sum, item) => {
           if (item.status === "mastered") return sum;
@@ -148,14 +147,11 @@
           return sum + (item.masteryXpRemaining ?? 0);
         }, 0);
         if (readyXp > 0) {
-          rows.push({
-            key: "mrProjected",
-            value: `MR ${masteryXpToRank(profileMastery.totalXp + readyXp)}`,
-            label: `with Ready to Claim mastered (+${readyXp.toLocaleString()} XP)`,
-            tone: "success",
-          });
+          mrRow.subtext = `MR ${masteryXpToRank(profileMastery.totalXp + readyXp)} with foundry items mastered`;
+          mrRow.subtextTone = "success";
         }
       }
+      rows.push(mrRow);
     }
     return rows;
   }

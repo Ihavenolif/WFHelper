@@ -97,6 +97,22 @@ describe("worldStateParser.parseRaw", () => {
     expect(deals[0].expiry).toBeTruthy();
   });
 
+  it("resolves weapon deals to their in-game name, not the path slug", () => {
+    const now = Date.now();
+    const parsed = parser.parseRaw({
+      DailyDeals: [
+        {
+          StoreItem: "/Lotus/StoreItems/Weapons/Tenno/Melee/Glaives/Boomerang/BoomerangWeapon",
+          Expiry: dateLong(now + 3600_000),
+        },
+      ],
+    }) as Record<string, unknown>;
+
+    const deals = parsed.dailyDeals as Array<Record<string, unknown>>;
+    // Was "Boomerang Weapon" before ExportWeapons joined the lookup.
+    expect(deals[0].item).toBe("Kestrel");
+  });
+
   it("returns null for empty input", () => {
     expect(parser.parseRaw(null)).toBeNull();
   });

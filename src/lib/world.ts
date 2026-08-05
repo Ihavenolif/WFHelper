@@ -250,6 +250,16 @@ export const CIRCUIT_NORMAL_ROTATION: string[][] = [
 
 const INCARNON_SUFFIX = " incarnon genesis";
 
+// warframestat spells some names differently from DE's export ("Ack And
+// Brunt" vs "Ack & Brunt"), so all name matching goes through this key.
+function circuitNameKey(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\s*&\s*/g, " and ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 /** Weekly Incarnon Genesis groups of the Steel Path Circuit, in cycle order. */
 export const CIRCUIT_HARD_ROTATION: string[][] = [
   ["Braton", "Lato", "Skana", "Paris", "Kunai"],
@@ -268,11 +278,11 @@ export const CIRCUIT_HARD_ROTATION: string[][] = [
  * group (DE changed the tables - callers should fall back to current-only).
  */
 export function circuitRotationIndex(rotation: string[][], choices: string[]): number {
-  const set = new Set(choices.map((c) => c.toLowerCase()));
+  const set = new Set(choices.map(circuitNameKey));
   let best = -1;
   let bestHits = 0;
   rotation.forEach((week, i) => {
-    const hits = week.filter((n) => set.has(n.toLowerCase())).length;
+    const hits = week.filter((n) => set.has(circuitNameKey(n))).length;
     if (hits > bestHits) {
       bestHits = hits;
       best = i;
@@ -311,18 +321,22 @@ function circuitResolver(
   inventoryData: RawInventoryData | null,
 ): (names: string[]) => CircuitChoice[] {
   // Build name -> { uniqueName, imageUrl, category } lookup
-  const byName = new Map<string, { uniqueName: string; imageUrl: string; category: string }>();
+  const byName = new Map<
+    string,
+    { uniqueName: string; imageUrl: string; category: string; displayName: string }
+  >();
   // Steel Path rewards the Incarnon Genesis adapter, whose art is the evolved
   // weapon - closer to what the reward actually is than the base weapon icon.
   const incarnonArt = new Map<string, string>();
   for (const [uniqueName, entry] of Object.entries(itemDb)) {
     if (!entry?.name || !entry.imageUrl) continue;
-    const key = entry.name.toLowerCase();
+    const key = circuitNameKey(entry.name);
     if (!byName.has(key)) {
       byName.set(key, {
         uniqueName,
         imageUrl: entry.imageUrl,
         category: (entry.category || entry.productCategory || "").toLowerCase(),
+        displayName: entry.name,
       });
     }
     const base = key.endsWith(INCARNON_SUFFIX) ? key.slice(0, -INCARNON_SUFFIX.length) : null;
@@ -360,14 +374,14 @@ function circuitResolver(
 
   return (names) =>
     names.map((name) => {
-      const match = byName.get(name.toLowerCase());
+      const match = byName.get(circuitNameKey(name));
       if (!match) return { name, imageUrl: "", owned: false, uniqueName: "" };
 
       const isFrame = WARFRAME_CATS.has(match.category);
       const owned = isFrame ? ownedSuits.has(match.uniqueName) : ownedWeapons.has(match.uniqueName);
       // Art only - ownership still tracks the base weapon the adapter fits.
-      const imageUrl = incarnonArt.get(name.toLowerCase()) || match.imageUrl;
+      const imageUrl = incarnonArt.get(circuitNameKey(name)) || match.imageUrl;
 
-      return { name, imageUrl, owned, uniqueName: match.uniqueName };
+      return { name: match.displayName, imageUrl, owned, uniqueName: match.uniqueName };
     });
 }
