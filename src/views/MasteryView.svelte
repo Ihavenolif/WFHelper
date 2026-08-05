@@ -147,7 +147,7 @@
           return sum + (item.masteryXpRemaining ?? 0);
         }, 0);
         if (readyXp > 0) {
-          mrRow.subtext = `MR ${masteryXpToRank(profileMastery.totalXp + readyXp)} with foundry items mastered`;
+          mrRow.subtext = `MR ${masteryXpToRank(profileMastery.totalXp + readyXp)} with foundry items mastered (+${readyXp.toLocaleString()} XP)`;
           mrRow.subtextTone = "success";
         }
       }
