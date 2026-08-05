@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { applySharedFiltersAndSort, matchesSharedFilters } from "../../../src/lib/filters.js";
+import {
+  applySharedFiltersAndSort,
+  defaultSortDirection,
+  matchesSharedFilters,
+} from "../../../src/lib/filters.js";
 import type { SharedFiltersState } from "../../../src/types/filters.js";
 
 function defaultFilters(): SharedFiltersState {
@@ -214,5 +218,17 @@ describe("mastery filters", () => {
     });
 
     expect(filtered.map((row) => row.name)).toEqual(["All Parts Owned"]);
+  });
+});
+
+describe("defaultSortDirection", () => {
+  it("keeps name-like sorts ascending and value sorts descending in every view", () => {
+    expect(defaultSortDirection("name")).toBe("asc");
+    expect(defaultSortDirection("tier")).toBe("asc");
+    expect(defaultSortDirection("time")).toBe("asc");
+    expect(defaultSortDirection("missing_parts")).toBe("asc");
+    for (const key of ["platinum", "ducats", "amount", "count", "mastery_xp", "ev", "ducat"]) {
+      expect(defaultSortDirection(key)).toBe("desc");
+    }
   });
 });

@@ -1,5 +1,27 @@
-import type { SharedFiltersState } from "../types/filters.js";
+import type { SharedFiltersState, SortDirection } from "../types/filters.js";
 import type { MasteryStatus, PartType } from "../types/inventory.js";
+
+// Value-like sorts read best-first; name/tier/time and "parts to complete"
+// read ascending. Every view derives its default direction from this.
+const DESCENDING_DEFAULT_SORT_KEYS = new Set<string>([
+  "platinum",
+  "ducats",
+  "amount",
+  "count",
+  "owned",
+  "disposition",
+  "rerolls",
+  "grade",
+  "ducatonator",
+  "complete_sets",
+  "mastery_xp",
+  "ev",
+  "ducat",
+]);
+
+export function defaultSortDirection(sortBy: string): SortDirection {
+  return DESCENDING_DEFAULT_SORT_KEYS.has(sortBy) ? "desc" : "asc";
+}
 
 interface FilterableItem {
   name: string;

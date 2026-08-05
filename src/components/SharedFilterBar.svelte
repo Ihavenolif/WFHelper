@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resetSharedFilters, sharedFilters, updateSharedFilters } from "../stores/filters.js";
-  import SortArrow from "./SortArrow.svelte";
+  import { defaultSortDirection } from "../lib/filters.js";
+  import SortControl from "./SortControl.svelte";
   import SearchBox from "./SearchBox.svelte";
   import type {
     FilterScope,
@@ -60,7 +61,8 @@
   $: isInventoryScope = scope === "inventory";
   $: activeSortOptions = sortOptions ?? DEFAULT_SORT_OPTIONS;
   $: if (state && !activeSortOptions.some(([value]) => value === state.sortBy)) {
-    updateSharedFilters(scope, { sortBy: activeSortOptions[0]?.[0] ?? "name" });
+    const fallback = activeSortOptions[0]?.[0] ?? "name";
+    updateSharedFilters(scope, { sortBy: fallback, sortDirection: defaultSortDirection(fallback) });
   }
 
   function setSearch(value: string): void {
@@ -75,21 +77,14 @@
     updateSharedFilters(scope, { masteredMode: mode });
   }
 
-  // "Biggest gain first" is the only reading of a mastery sort anyone wants.
-  const DESCENDING_BY_DEFAULT = new Set<SharedSortKey>(["mastery_xp"]);
-
-  function setSortBy(sortBy: SharedSortKey): void {
-    const sortDirection: SortDirection = DESCENDING_BY_DEFAULT.has(sortBy) ? "desc" : "asc";
-    updateSharedFilters(scope, { sortBy, sortDirection });
+  function setSortBy(value: string): void {
+    const sortBy = value as SharedSortKey;
+    updateSharedFilters(scope, { sortBy, sortDirection: defaultSortDirection(sortBy) });
   }
 
   function toggleSortDirection(): void {
     const next: SortDirection = state.sortDirection === "asc" ? "desc" : "asc";
     updateSharedFilters(scope, { sortDirection: next });
-  }
-
-  function onSortByChange(event: Event): void {
-    setSortBy((event.currentTarget as HTMLSelectElement).value as SharedSortKey);
   }
 
   function setYesNoFilter(
@@ -114,7 +109,7 @@
   }
 </script>
 
-<div class="shared-filter-bar" class:shared-filter-bar-inline={singleLine}>
+<div class="shared-filter-bar" class:shared-filter-bar-inline={singleLine} data-tour="filter-bar">
   <div class="view-controls shared-filter-controls">
     {#if showBasic}
       <SearchBox class="shared-filter-search" value={state.search} onValueChange={setSearch} />
@@ -171,27 +166,13 @@
         {/if}
       {/if}
 
-      <div class="shared-sort-controls">
-        <button
-          class="shared-sort-direction"
-          on:click={toggleSortDirection}
-          title="Sort direction"
-          aria-label={state.sortDirection === "asc"
-            ? "Sort direction ascending"
-            : "Sort direction descending"}
-        >
-          <SortArrow asc={state.sortDirection === "asc"} />
-        </button>
-
-        <label class="shared-filter-sort">
-          <span>Sort</span>
-          <select class="shared-filter-select" value={state.sortBy} on:change={onSortByChange}>
-            {#each activeSortOptions as [value, label]}
-              <option {value}>{label}</option>
-            {/each}
-          </select>
-        </label>
-      </div>
+      <SortControl
+        value={state.sortBy}
+        options={activeSortOptions}
+        direction={state.sortDirection}
+        onSelect={setSortBy}
+        onToggleDirection={toggleSortDirection}
+      />
     {/if}
 
     {#if isInventoryScope && showAdvanced}

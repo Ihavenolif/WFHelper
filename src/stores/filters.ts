@@ -57,6 +57,7 @@ export function updateSharedFilters(scope: FilterScope, patch: Partial<SharedFil
 export function resetSharedFilters(scope: FilterScope): void {
   sharedFiltersByScope.update((current) => ({
     ...current,
-    [scope]: createDefaultSharedFiltersState(),
+    // Per-scope defaults: foundry resets to count/desc, not the generic name/asc.
+    [scope]: createDefaultFiltersByScope()[scope],
   }));
 }

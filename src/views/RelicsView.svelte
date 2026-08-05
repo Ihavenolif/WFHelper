@@ -29,7 +29,8 @@
   import HeaderTabs from "../components/HeaderTabs.svelte";
   import RelicCompactCard from "../components/relics/RelicCompactCard.svelte";
   import SearchBox from "../components/SearchBox.svelte";
-  import SortArrow from "../components/SortArrow.svelte";
+  import SortControl from "../components/SortControl.svelte";
+  import { defaultSortDirection } from "../lib/filters.js";
   import type { ParsedItem } from "../types/inventory.js";
   import type { RelicGroup, RelicQuality, RelicReward } from "../types/relics.js";
   import type { RelicQualityMode, RelicSortMode, RelicVaultedMode } from "../stores/relics.js";
@@ -179,8 +180,9 @@
     });
   }
 
-  function setRelicSortMode(event: Event): void {
-    setRelicFilter({ sortMode: (event.currentTarget as HTMLSelectElement).value as RelicSortMode });
+  function setRelicSortMode(value: string): void {
+    const sortMode = value as RelicSortMode;
+    setRelicFilter({ sortMode, sortDirection: defaultSortDirection(sortMode) });
   }
 
   function setRelicQualityMode(event: Event): void {
@@ -554,31 +556,13 @@
           class="min-w-16"
         />
 
-        <div class="shared-sort-controls">
-          <button
-            class="shared-sort-direction"
-            on:click={toggleRelicSortDirection}
-            title="Sort direction"
-            aria-label={$relicViewState.sortDirection === "asc"
-              ? "Sort direction ascending"
-              : "Sort direction descending"}
-          >
-            <SortArrow asc={$relicViewState.sortDirection === "asc"} />
-          </button>
-
-          <label class="shared-filter-sort" title="Sort relics">
-            <span>Sort</span>
-            <select
-              class="shared-filter-select"
-              value={$relicViewState.sortMode}
-              on:change={setRelicSortMode}
-            >
-              {#each SORT_OPTIONS as [key, label]}
-                <option value={key}>{label}</option>
-              {/each}
-            </select>
-          </label>
-        </div>
+        <SortControl
+          value={$relicViewState.sortMode}
+          options={SORT_OPTIONS}
+          direction={$relicViewState.sortDirection}
+          onSelect={setRelicSortMode}
+          onToggleDirection={toggleRelicSortDirection}
+        />
 
         <label class="shared-filter-sort" title="Relic quality for EV">
           <span>Quality</span>

@@ -48,6 +48,12 @@
       text: "Your MR progress and everything you still need to master.",
     },
     {
+      view: "mastery",
+      target: '[data-tour="filter-bar"]',
+      text: "Every list has this bar: search, filter chips, and sorting. The gold button next to the sort picker flips the order - value sorts like Platinum start highest-first.",
+      interactive: true,
+    },
+    {
       view: "stats",
       text: "Daily platinum, credits and endo, plus every trade WFHelper picked up from the game log.",
     },
