@@ -133,7 +133,10 @@ describe("relic selection planner", () => {
     });
     const controller = createRelicSelectionController({
       log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
-      ctx: { overlaySettings: { autoTriggerEnabled: true } as OverlaySettings },
+      ctx: {
+        overlaySettings: { autoTriggerEnabled: true } as OverlaySettings,
+        currentInventoryData: null,
+      },
       windows: {
         createOverlayWindow: vi.fn(),
         clearOverlayAutoHideTimer: vi.fn(),

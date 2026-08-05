@@ -12,6 +12,7 @@ import { MAX_ITEM_RANK } from "../config/game/constants";
 import { aggregateComponentOwnership } from "../config/shared/componentOwnership";
 import { sanitizeDisplayName } from "../config/shared/displayName";
 import { withoutFoundryPending } from "../config/shared/foundryPending";
+import { masteryRankToXp, masteryXpToRank } from "../config/shared/masteryXp";
 import { toFiniteNumber } from "../config/shared/numeric";
 import type { MasteryStatus } from "../config/shared/masteryTypes";
 
@@ -179,11 +180,7 @@ const WEAPON_AFFINITY_PER_RANK_SQUARED = 500;
 const SUIT_AFFINITY_PER_RANK_SQUARED = 1_000;
 
 // Account mastery: each gear rank grants affinityPerRankSquared / 5 mastery
-// (weapons 100, suits 200). MR thresholds are 2500 * rank^2 up to MR 30, then
-// a flat 147,500 per legendary rank.
-const MASTERY_XP_PER_RANK_SQUARED = 2_500;
-const MASTERY_XP_AT_RANK_30 = MASTERY_XP_PER_RANK_SQUARED * 30 * 30;
-const LEGENDARY_RANK_XP = 147_500;
+// (weapons 100, suits 200). Rank thresholds live in config/shared/masteryXp.
 const JUNCTION_MASTERY_XP = 1_000;
 const INTRINSIC_MASTERY_XP = 1_500;
 const MAX_INTRINSIC_RANK = 10;
@@ -374,18 +371,6 @@ interface ProfileMasteryInfo {
   xpIntoRank: number | null;
   xpForNext: number | null;
   testReady: boolean;
-}
-
-function masteryRankToXp(rank: number): number {
-  if (rank <= 30) return MASTERY_XP_PER_RANK_SQUARED * rank * rank;
-  return MASTERY_XP_AT_RANK_30 + (rank - 30) * LEGENDARY_RANK_XP;
-}
-
-function masteryXpToRank(xp: number): number {
-  if (xp >= MASTERY_XP_AT_RANK_30) {
-    return 30 + Math.floor((xp - MASTERY_XP_AT_RANK_30) / LEGENDARY_RANK_XP);
-  }
-  return Math.floor(Math.sqrt(xp / MASTERY_XP_PER_RANK_SQUARED));
 }
 
 // Node tag -> mastery grant. ExportRegions carries masteryExp per node; junctions
@@ -828,8 +813,7 @@ const SUIT_MASTERY_PATH_RE = /\/(?:SpaceSuits?|Powersuits\/Archwing|Hoverboard)\
 
 /** Owned items carry their own rate; missing ones fall back to their type. */
 function itemMasteryPerRank(category: string, uniqueName: string): number {
-  const isSuit =
-    SUIT_MASTERY_CATEGORIES.has(category) || SUIT_MASTERY_PATH_RE.test(uniqueName);
+  const isSuit = SUIT_MASTERY_CATEGORIES.has(category) || SUIT_MASTERY_PATH_RE.test(uniqueName);
   const perRankSquared = isSuit ? SUIT_AFFINITY_PER_RANK_SQUARED : WEAPON_AFFINITY_PER_RANK_SQUARED;
   return perRankSquared / 5;
 }

@@ -1,0 +1,19 @@
+/** Account mastery-rank XP thresholds: 2500 * rank^2 up to MR 30, then a flat
+ * 147,500 per legendary rank. Shared by the main-process mastery helper and
+ * the renderer's projected-MR display. */
+
+export const MASTERY_XP_PER_RANK_SQUARED = 2_500;
+export const MASTERY_XP_AT_RANK_30 = MASTERY_XP_PER_RANK_SQUARED * 30 * 30;
+export const LEGENDARY_RANK_XP = 147_500;
+
+export function masteryRankToXp(rank: number): number {
+  if (rank <= 30) return MASTERY_XP_PER_RANK_SQUARED * rank * rank;
+  return MASTERY_XP_AT_RANK_30 + (rank - 30) * LEGENDARY_RANK_XP;
+}
+
+export function masteryXpToRank(xp: number): number {
+  if (xp >= MASTERY_XP_AT_RANK_30) {
+    return 30 + Math.floor((xp - MASTERY_XP_AT_RANK_30) / LEGENDARY_RANK_XP);
+  }
+  return Math.floor(Math.sqrt(xp / MASTERY_XP_PER_RANK_SQUARED));
+}

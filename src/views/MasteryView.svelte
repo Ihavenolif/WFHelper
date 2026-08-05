@@ -5,6 +5,7 @@
   import { wfmItems, foundryData, inventoryData, itemDb, parsedItems } from "../stores/data.js";
   import { buildSubsumedFamilySet, isFrameSubsumed, isSubsumableFrame } from "../lib/helminth.js";
   import { componentUniqueNameAliases } from "../../config/shared/componentNames.js";
+  import { masteryXpToRank } from "../../config/shared/masteryXp.js";
   import { activeItem, activeComponent } from "../stores/modals.js";
   import { hideFounderMasteryItems } from "../stores/preferences.js";
   import SharedFilterBar from "../components/SharedFilterBar.svelte";
@@ -110,7 +111,10 @@
   $: displayMasteryData = masteryViewData($masteryData, $hideFounderMasteryItems);
   $: categories = displayMasteryData ? orderedCategories(displayMasteryData.stats.byCategory) : [];
 
-  function buildMasterySummary(data: typeof $masteryData): SummaryStripItem[] {
+  function buildMasterySummary(
+    data: typeof $masteryData,
+    foundry: ReturnType<typeof buildFoundryIndex>,
+  ): SummaryStripItem[] {
     if (!data) return [];
     const stats = data.stats;
     const profileMastery = stats.profileMastery || null;
@@ -136,11 +140,27 @@
         label = `${profileMastery.percentToNext}% to next`;
       }
       rows.push({ key: "mr", value: `MR ${profileMastery.rank}`, label });
+
+      if (profileMastery.totalXp != null) {
+        const readyXp = data.items.reduce((sum, item) => {
+          if (item.status === "mastered") return sum;
+          if (foundryStatusFor(item, foundry) !== "claimable") return sum;
+          return sum + (item.masteryXpRemaining ?? 0);
+        }, 0);
+        if (readyXp > 0) {
+          rows.push({
+            key: "mrProjected",
+            value: `MR ${masteryXpToRank(profileMastery.totalXp + readyXp)}`,
+            label: `with Ready to Claim mastered (+${readyXp.toLocaleString()} XP)`,
+            tone: "success",
+          });
+        }
+      }
     }
     return rows;
   }
 
-  $: masterySummaryItems = buildMasterySummary(displayMasteryData);
+  $: masterySummaryItems = buildMasterySummary(displayMasteryData, foundryIndex);
   // Straight from the account, so unaffected by the founder-item filter.
   $: completion = $masteryData?.stats?.completion ?? null;
   $: starChartRows = (
@@ -184,6 +204,16 @@
     return { byUnique, byName };
   }
 
+  function foundryStatusFor(
+    item: { uniqueName?: string | null; name: string },
+    foundry: ReturnType<typeof buildFoundryIndex>,
+  ): FoundryStatus | undefined {
+    return (
+      (item.uniqueName ? foundry.byUnique.get(item.uniqueName) : undefined) ??
+      foundry.byName.get(item.name.trim().toLowerCase())
+    );
+  }
+
   $: foundryIndex = buildFoundryIndex($foundryData);
   $: subsumedFamilies = buildSubsumedFamilySet($inventoryData, $itemDb);
 
@@ -210,9 +240,7 @@
         ? 0
         : Math.max(0, Math.min(100, Math.floor((item.rank / Math.max(item.maxRank, 1)) * 100)));
       const wfm = wfmLookup[item.name.toLowerCase()] || null;
-      const foundryStatus =
-        (item.uniqueName ? foundry.byUnique.get(item.uniqueName) : undefined) ??
-        foundry.byName.get(item.name.trim().toLowerCase());
+      const foundryStatus = foundryStatusFor(item, foundry);
       const isSubsumed =
         item.category === "Warframes" &&
         isSubsumableFrame(item.name) &&
