@@ -823,7 +823,9 @@
                   >
                   <td class="text-right">
                     <button
-                      class="{copiedKey === rowKey ? 'btn-success' : 'btn-secondary'} btn-sm min-w-[104px]"
+                      class="{copiedKey === rowKey
+                        ? 'btn-success'
+                        : 'btn-secondary'} btn-sm min-w-[104px]"
                       title={buildWhisper(entry)}
                       on:click={() => void copyWhisper(entry, rowKey)}
                       >{copiedKey === rowKey ? "Copied!" : "Copy whisper"}</button

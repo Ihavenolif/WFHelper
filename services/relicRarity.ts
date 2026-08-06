@@ -2,7 +2,7 @@
  * (25.33/23.33/20/16.67%) in the "Uncommon" band; upstream datasets inherit
  * that, so derive relic reward rarity from refinement + chance instead. */
 
-export type RelicRefinement = "intact" | "exceptional" | "flawless" | "radiant";
+type RelicRefinement = "intact" | "exceptional" | "flawless" | "radiant";
 
 const CHANCE_RARITY: Record<RelicRefinement, [number, string][]> = {
   intact: [
@@ -43,7 +43,7 @@ export function relicRefinementFromLocation(location: string): RelicRefinement {
   return (match ? match[1].toLowerCase() : "intact") as RelicRefinement;
 }
 
-export function isRelicDropLocation(location: string): boolean {
+function isRelicDropLocation(location: string): boolean {
   return /\bRelic\b/i.test(location);
 }
 
