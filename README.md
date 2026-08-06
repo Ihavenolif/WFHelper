@@ -128,6 +128,13 @@ pnpm run dist:win   # build the NSIS installer
   inventory snapshot tool
 - AlecaFrame - `lastData.dat` import compatibility
 
+## Support
+
+WFHelper is free and open source, with no ads or accounts. If it saves you
+plat, [GitHub Sponsors](https://github.com/sponsors/WFHelper) or
+[Ko-fi](https://ko-fi.com/WFHelper) helps cover the Cloudflare infrastructure
+it runs on. Supporters get a Discord role.
+
 ## Disclaimer
 
 Unofficial fan project, not affiliated with or endorsed by Digital

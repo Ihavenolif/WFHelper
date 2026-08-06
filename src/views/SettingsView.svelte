@@ -550,6 +550,19 @@
               >Discord</button
             >
           </div>
+          <div class="settings-credit-row">
+            <span>Support development</span>
+            <span class="flex items-center gap-2.5">
+              <button
+                class="settings-link"
+                on:click={() => openLink("https://github.com/sponsors/WFHelper")}
+                >&hearts; GitHub Sponsors</button
+              >
+              <button class="settings-link" on:click={() => openLink("https://ko-fi.com/WFHelper")}
+                >Ko-fi</button
+              >
+            </span>
+          </div>
         </div>
 
         <p class="m-0 mt-2.5 text-xs leading-snug text-text-muted">
