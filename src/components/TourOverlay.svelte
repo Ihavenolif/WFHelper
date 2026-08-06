@@ -2,6 +2,7 @@
   import { onDestroy, onMount, tick } from "svelte";
 
   import { currentView } from "../stores/app.js";
+  import { setMarketViewState } from "../stores/market.js";
   import { endTour } from "../stores/tour.js";
 
   interface TourStep {
@@ -98,6 +99,14 @@
     {
       view: "market",
       text: "Your warframe.market orders. Detected trades can unlist sold items for you.",
+      prepare: () => setMarketViewState({ typeTab: "sell" }),
+    },
+    {
+      view: "market",
+      target: '[data-tour="market-browse"]',
+      text: "Browse searches all of warframe.market: live sell and buy orders for any item, no sign-in needed. Copy a whisper to contact a player in-game, or post your own order.",
+      interactive: true,
+      prepare: () => setMarketViewState({ typeTab: "browse" }),
     },
     {
       view: "rivens",

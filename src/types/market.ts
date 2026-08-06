@@ -1,7 +1,7 @@
 import type { WfmStatus } from "../../config/shared/wfm.js";
 export type { WfmStatus };
 export type OrderType = "sell" | "buy";
-export type MarketTab = "sell" | "buy" | "rivens";
+export type MarketTab = "sell" | "buy" | "rivens" | "browse";
 
 export interface WfmSession {
   loggedIn: boolean;

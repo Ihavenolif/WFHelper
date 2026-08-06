@@ -4,6 +4,7 @@ export interface WfmOrderBookEntry {
   platinum: number;
   quantity: number;
   rank: number | null;
+  avatar: string | null;
 }
 
 type WfmOrderType = "sell" | "buy";
@@ -35,6 +36,11 @@ function parseOrderUserName(order: Record<string, unknown>): string {
 function parseOrderStatus(order: Record<string, unknown>): string | null {
   const user = order.user as Record<string, unknown> | undefined;
   return typeof user?.status === "string" ? user.status.toLowerCase() : null;
+}
+
+function parseOrderAvatar(order: Record<string, unknown>): string | null {
+  const user = order.user as Record<string, unknown> | undefined;
+  return typeof user?.avatar === "string" && user.avatar.trim() ? user.avatar.trim() : null;
 }
 
 export function isActiveOrderStatus(status: string | null): boolean {
@@ -116,6 +122,7 @@ export function normalizeWfmOrderBookSide(
         platinum: Math.round(platinumRaw),
         quantity,
         rank,
+        avatar: parseOrderAvatar(order),
       } satisfies WfmOrderBookEntry;
     })
     .filter((entry): entry is WfmOrderBookEntry => entry != null);

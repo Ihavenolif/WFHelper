@@ -15,6 +15,7 @@
   } from "../stores/market.js";
   import HeaderTabs from "../components/HeaderTabs.svelte";
   import SharedFilterBar from "../components/SharedFilterBar.svelte";
+  import MarketBrowseView from "../components/market/MarketBrowseView.svelte";
   import MarketContractRow from "../components/market/MarketContractRow.svelte";
   import MarketOrderRow from "../components/market/MarketOrderRow.svelte";
   import { attributeKeyword } from "../lib/marketContract.js";
@@ -56,6 +57,7 @@
     ["sell", "Sell Orders"],
     ["buy", "Buy Orders"],
     ["rivens", "Rivens"],
+    ["browse", "Browse"],
   ];
   const ORDER_TYPE_TABS = ORDER_TYPE_OPTIONS.map(([key, label]) => ({ key, label }));
 
@@ -468,7 +470,35 @@
 </script>
 
 <section class="view active">
-  {#if !$marketSession.loggedIn}
+  {#if $marketViewState.typeTab === "browse"}
+    <!-- Browse works logged out - the order book is public, only posting needs auth. -->
+    <div class="view-header">
+      <h2>Browse warframe.market</h2>
+      {#if $marketSession.loggedIn && $marketSession.userName}
+        <div class="view-controls gap-2">
+          <span
+            class="rounded-full border border-border bg-white/5 px-2 py-1 font-display text-xs font-bold text-text-primary"
+            >@{$marketSession.userName}</span
+          >
+        </div>
+      {/if}
+    </div>
+    <div class="mb-2.5 flex items-end border-b border-white/10">
+      <HeaderTabs
+        options={ORDER_TYPE_TABS}
+        activeKey={$marketViewState.typeTab}
+        onSelect={handleTypeTabSelect}
+      />
+    </div>
+    <MarketBrowseView />
+  {:else if !$marketSession.loggedIn}
+    <div class="mb-2.5 flex items-end border-b border-white/10">
+      <HeaderTabs
+        options={ORDER_TYPE_TABS}
+        activeKey={$marketViewState.typeTab}
+        onSelect={handleTypeTabSelect}
+      />
+    </div>
     <div class="flex flex-col items-center gap-3 py-3">
       <div class="w-[min(560px,100%)] rounded-xl border border-border bg-bg-surface p-4">
         <div class="mb-2.5 text-accent">
