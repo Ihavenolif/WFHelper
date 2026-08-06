@@ -243,6 +243,19 @@
   }
 
   function onKeyDown(e: KeyboardEvent): void {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === "f") {
+      // With a modal open, only its own search may take focus.
+      const scope = document.querySelector('[role="dialog"]') ?? document;
+      const target = [...scope.querySelectorAll<HTMLInputElement>("[data-search-focus]")].find(
+        (el) => el.offsetParent !== null && !el.disabled,
+      );
+      if (target) {
+        e.preventDefault();
+        target.focus();
+        target.select();
+      }
+      return;
+    }
     if (e.key !== "Escape") return;
     if ($activeItem) {
       activeItem.set(null);

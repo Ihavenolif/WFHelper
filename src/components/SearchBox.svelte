@@ -13,8 +13,16 @@
     onValueChange,
   }: Props = $props();
 
+  let inputEl: HTMLInputElement | undefined = $state();
+
   function handleInput(): void {
     onValueChange?.(value);
+  }
+
+  function clear(): void {
+    value = "";
+    onValueChange?.("");
+    inputEl?.focus();
   }
 </script>
 
@@ -23,5 +31,17 @@
     <circle cx="11" cy="11" r="7" />
     <line x1="21" y1="21" x2="16.65" y2="16.65" />
   </svg>
-  <input type="text" bind:value {placeholder} oninput={handleInput} />
+  <input
+    type="text"
+    bind:this={inputEl}
+    bind:value
+    {placeholder}
+    oninput={handleInput}
+    data-search-focus
+  />
+  {#if value}
+    <button type="button" class="search-box-clear" aria-label="Clear search" onclick={clear}
+      >&times;</button
+    >
+  {/if}
 </div>

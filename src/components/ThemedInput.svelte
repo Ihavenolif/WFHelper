@@ -13,6 +13,8 @@
   export let onFocus: (() => void) | null = null;
   /** Underlying input element, for focus control. */
   export let el: HTMLInputElement | null = null;
+  /** Marks this input as the view's Ctrl+F search target. */
+  export let searchFocusTarget = false;
 </script>
 
 <input
@@ -26,6 +28,7 @@
   autocomplete={autocomplete || undefined}
   min={min ?? undefined}
   max={max ?? undefined}
+  data-search-focus={searchFocusTarget ? "" : undefined}
   class="rounded-[var(--radius-md)] border border-[color:var(--ui-control-border)]
          bg-[var(--ui-control-bg)] px-2.5 py-2 text-sm text-text-primary outline-none
          transition-[border-color,box-shadow,background] duration-150

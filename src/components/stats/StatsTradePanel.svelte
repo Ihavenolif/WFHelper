@@ -70,6 +70,7 @@
         placeholder="Search items..."
         bind:value={tradeSearch}
         className="w-full py-1 px-2.5 text-xs"
+        searchFocusTarget
       />
     </div>
   </div>

@@ -267,6 +267,7 @@
                     placeholder="Search items..."
                     autocomplete="off"
                     className="w-full"
+                    searchFocusTarget
                   />
                   {#if itemDropdown.length > 0}
                     <div

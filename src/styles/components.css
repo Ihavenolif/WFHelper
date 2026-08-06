@@ -262,6 +262,26 @@
     background: var(--bg-raised);
     box-shadow: 0 0 0 3px rgba(212, 168, 67, 0.12);
   }
+  .search-box input:not(:placeholder-shown) {
+    padding-right: 1.9rem;
+  }
+  .search-box-clear {
+    position: absolute;
+    right: 0.3rem;
+    top: 50%;
+    transform: translateY(-50%);
+    border: 0;
+    background: transparent;
+    color: var(--text-muted);
+    font-size: 1rem;
+    line-height: 1;
+    padding: 0.25rem 0.45rem;
+    border-radius: var(--radius-md);
+    cursor: pointer;
+  }
+  .search-box-clear:hover {
+    color: var(--text-primary);
+  }
 
   /* filter tabs (pill style, used by shared filter bars) */
   .filter-tabs {

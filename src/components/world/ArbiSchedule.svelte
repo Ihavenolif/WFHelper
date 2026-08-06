@@ -220,6 +220,7 @@
       class="w-full rounded-[var(--radius-md)] border border-border bg-black/25 px-2 py-1.5 text-sm text-text-primary outline-none placeholder:text-text-muted focus:border-accent/60"
       placeholder={$tr("arbisched.searchPlaceholder")}
       bind:value={searchRaw}
+      data-search-focus
     />
     {#if unmatchedTokens}
       <span class="text-xs text-warning"

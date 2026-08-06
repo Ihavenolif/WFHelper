@@ -224,6 +224,7 @@
           onFocus={handleWeaponFocus}
           onInput={handleWeaponInput}
           className="w-full"
+          searchFocusTarget
         />
         {#if showWeaponDropdown && weaponSearch !== selectedWeapon && filteredWeapons.length > 0}
           <div

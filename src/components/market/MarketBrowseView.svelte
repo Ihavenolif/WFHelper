@@ -45,7 +45,9 @@
 
   let query = "";
   let showSuggestions = false;
+  let searchEl: HTMLInputElement | null = null;
   let selected: BrowseItem | null = null;
+  let rowLimit = MAX_ROWS;
   let orderBook: ItemOrderBook | null = null;
   let loading = false;
   let errorMessage = "";
@@ -135,11 +137,23 @@
     setTimeout(() => (showSuggestions = false), 120);
   }
 
+  function clearSearch(): void {
+    query = "";
+    showSuggestions = false;
+    searchEl?.focus();
+  }
+
+  function setSide(next: BrowseSide): void {
+    side = next;
+    rowLimit = MAX_ROWS;
+  }
+
   function pick(item: BrowseItem): void {
     selected = item;
     query = item.name;
     showSuggestions = false;
     rankFilter = "all";
+    rowLimit = MAX_ROWS;
     contentView = "orders";
     void load(item.slug);
     void loadTradingTax(item.slug);
@@ -306,7 +320,7 @@
 
   $: sideEntries = side === "sell" ? (orderBook?.sell ?? []) : (orderBook?.buy ?? []);
   $: filteredRows = filterRows(sideEntries, statusFilter, rankFilter, minPrice, maxPrice);
-  $: rows = filteredRows.slice(0, MAX_ROWS);
+  $: rows = filteredRows.slice(0, rowLimit);
 
   function filterRows(
     entries: OrderBookEntry[],
@@ -456,11 +470,21 @@
           type="text"
           placeholder="Search any tradable item..."
           bind:value={query}
+          bind:this={searchEl}
           on:input={() => (showSuggestions = true)}
           on:focus={() => (showSuggestions = true)}
           on:keydown={onSearchKeydown}
           on:blur={onSearchBlur}
+          data-search-focus
         />
+        {#if query}
+          <button
+            type="button"
+            class="flex cursor-pointer items-center border-0 bg-transparent px-2 text-base leading-none text-text-muted hover:text-text-primary"
+            aria-label="Clear search"
+            on:mousedown|preventDefault={clearSearch}>&times;</button
+          >
+        {/if}
         <div class="flex items-center border-l border-border bg-accent-glow px-3 text-accent">
           <svg
             viewBox="0 0 24 24"
@@ -640,12 +664,12 @@
             <button
               class="filter-tab browse-side-sell"
               class:active={side === "sell"}
-              on:click={() => (side = "sell")}>Sellers</button
+              on:click={() => setSide("sell")}>Sellers</button
             >
             <button
               class="filter-tab browse-side-buy"
               class:active={side === "buy"}
-              on:click={() => (side = "buy")}>Buyers</button
+              on:click={() => setSide("buy")}>Buyers</button
             >
           </div>
         </div>
@@ -812,6 +836,11 @@
         <div class="text-center text-xs text-text-muted">
           Showing {rows.length} of {filteredRows.length}
           {side === "sell" ? "sell" : "buy"} orders - refreshes automatically.
+          {#if filteredRows.length > rows.length}
+            <button class="link-btn" on:click={() => (rowLimit += MAX_ROWS)}
+              >Show {Math.min(MAX_ROWS, filteredRows.length - rows.length)} more</button
+            >
+          {/if}
         </div>
       {/if}
     {/if}

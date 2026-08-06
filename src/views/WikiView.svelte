@@ -18,6 +18,13 @@
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let requestToken = 0;
+  let searchEl: HTMLInputElement | null = null;
+
+  function clearSearch(): void {
+    query = "";
+    onInput();
+    searchEl?.focus();
+  }
 
   // Per-mode lists: an item search saved under "By item" reruns as an item search.
   $: savedStore = savedSearches(`wiki:${mode}`);
@@ -114,17 +121,29 @@
     </header>
 
     <div class="flex flex-wrap items-center gap-2">
-      <input
-        type="search"
-        class="min-w-[240px] flex-1 rounded-lg border border-border bg-bg-soft px-3 py-2 text-sm text-text-primary outline-none placeholder:text-text-muted focus:border-accent"
-        placeholder={mode === "item"
-          ? "Search an item (e.g. Vitus Essence)"
-          : "Search a location (e.g. Arbitrations)"}
-        bind:value={query}
-        on:input={onInput}
-        autocomplete="off"
-        spellcheck="false"
-      />
+      <div class="relative min-w-[240px] flex-1">
+        <input
+          type="search"
+          class="w-full rounded-lg border border-border bg-bg-soft px-3 py-2 pr-8 text-sm text-text-primary outline-none placeholder:text-text-muted focus:border-accent [&::-webkit-search-cancel-button]:hidden"
+          placeholder={mode === "item"
+            ? "Search an item (e.g. Vitus Essence)"
+            : "Search a location (e.g. Arbitrations)"}
+          bind:value={query}
+          bind:this={searchEl}
+          on:input={onInput}
+          autocomplete="off"
+          spellcheck="false"
+          data-search-focus
+        />
+        {#if query}
+          <button
+            type="button"
+            class="absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-base leading-none text-text-muted hover:text-text-primary"
+            aria-label="Clear search"
+            on:click={clearSearch}>&times;</button
+          >
+        {/if}
+      </div>
       <button
         type="button"
         class="shrink-0 rounded-lg border border-border px-3 py-2 text-sm disabled:cursor-default disabled:opacity-40 {currentSearchSaved
