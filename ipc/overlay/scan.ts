@@ -35,6 +35,11 @@ const REWARD_VOTE_WINDOW_MS = 14_500;
 // Omnia missions crack relics back-to-back mid-gameplay; a 14.5s card sits in
 // the way. Hide sooner - the next crack redraws it anyway.
 const OMNIA_REWARD_VOTE_WINDOW_MS = 10_000;
+// Solo cracks have no squad vote - "Relic reward screen shut down" marks the
+// real close, often 5-8s in. Grace keeps the card readable a beat longer.
+const REWARD_CLOSE_GRACE_MS = 1_500;
+// A close line arriving via lazy file flush describes a screen long gone.
+const REWARD_CLOSE_STALE_MAX_MS = 5_000;
 const OVERLAY_AUTO_HIDE_SUCCESS_MS = 8_500;
 // The vote window is anchored to the trigger, so a slow scan would otherwise
 // eat the reading time - never show the card for less than this.
@@ -275,6 +280,7 @@ export function createOverlayScanController(options: OverlayScanControllerOption
 
   let rewardScanInFlight = false;
   let eelogTriggerAt = 0;
+  let rewardScreenClosedAt = 0;
   let rewardUiReadyAt = 0;
   let uiReadyWaiter: (() => void) | null = null;
   let autoHideFocusTimer: ReturnType<typeof setTimeout> | null = null;
@@ -352,9 +358,27 @@ export function createOverlayScanController(options: OverlayScanControllerOption
 
   function rewardSuccessAutoHideDelay(source: string): number {
     if (source !== "eelog" || !eelogTriggerAt) return OVERLAY_AUTO_HIDE_SUCCESS_MS;
+    // Screen already closed while the scan ran - show the minimum and go.
+    if (rewardScreenClosedAt) return REWARD_MIN_VISIBLE_MS;
     const voteWindowMs =
       ctx.activeFissureTier === "omnia" ? OMNIA_REWARD_VOTE_WINDOW_MS : REWARD_VOTE_WINDOW_MS;
     return Math.max(REWARD_MIN_VISIBLE_MS, eelogTriggerAt + voteWindowMs - Date.now());
+  }
+
+  // Reward screen closed (solo confirm, force close, or vote end): stop waiting
+  // out the vote window, hide once the reading floor is met. First close per
+  // crack only - the mid-mission relic picker reuses ProjectionRewardChoice.lua.
+  function notifyRewardScreenClosed(stalenessMs = 0): void {
+    if (!eelogTriggerAt || stalenessMs > REWARD_CLOSE_STALE_MAX_MS) return;
+    if (rewardScreenClosedAt) return;
+    rewardScreenClosedAt = Date.now();
+    if (rewardScanInFlight) return; // success path shortens its own delay
+    const delay = Math.max(
+      REWARD_CLOSE_GRACE_MS,
+      eelogTriggerAt + REWARD_MIN_VISIBLE_MS - Date.now(),
+    );
+    log.info(`[Trigger] reward screen closed -> overlay hides in ${delay}ms`);
+    scheduleRewardAutoHide(delay);
   }
 
   async function runRewardScanWithRetries(triggerSource: string): Promise<RewardScanResult> {
@@ -389,9 +413,7 @@ export function createOverlayScanController(options: OverlayScanControllerOption
           };
         }
         partialAttempts += 1;
-        log.info(
-          `[Trigger] partial layout (${itemCount}/${layoutCount} slots) - one more attempt`,
-        );
+        log.info(`[Trigger] partial layout (${itemCount}/${layoutCount} slots) - one more attempt`);
       }
 
       // The trigger lines also fire on plain pauses; no card layout = not the reward screen.
@@ -430,7 +452,10 @@ export function createOverlayScanController(options: OverlayScanControllerOption
     clearAutoHideFocusHold();
     // Backdate by the log flush lag so the auto-hide tracks when the reward
     // screen actually appeared, not when the line finally reached us.
-    if (source === "eelog") eelogTriggerAt = Date.now() - stalenessMs;
+    if (source === "eelog") {
+      eelogTriggerAt = Date.now() - stalenessMs;
+      rewardScreenClosedAt = 0;
+    }
 
     try {
       if (source === "eelog" && warframeStatus?.getStatus) {
@@ -466,7 +491,9 @@ export function createOverlayScanController(options: OverlayScanControllerOption
           log.info("[Trigger] reward UI render signal seen - scanning early");
           await sleep(EELOG_UI_READY_SETTLE_MS);
         } else {
-          log.info(`[Trigger] no render signal within ${EELOG_REWARD_SCAN_DELAY_MS}ms - scanning now`);
+          log.info(
+            `[Trigger] no render signal within ${EELOG_REWARD_SCAN_DELAY_MS}ms - scanning now`,
+          );
         }
       }
 
@@ -551,5 +578,6 @@ export function createOverlayScanController(options: OverlayScanControllerOption
     dispatchRewardScan,
     onRelicRewardTrigger,
     notifyRewardUiReady,
+    notifyRewardScreenClosed,
   };
 }

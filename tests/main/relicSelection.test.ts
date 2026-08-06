@@ -121,6 +121,43 @@ describe("relic selection planner", () => {
     expect(recommendation.rows?.[0]?.ducatEv).toBe(100);
   });
 
+  it("serves reward prices from the snapshot, refusing a too-old file", () => {
+    const cacheFilePath = makeTempSnapshot({
+      version: 1,
+      generatedAt: Date.now(),
+      prices: {
+        akarius_prime_blueprint: { status: "ok", median: 15, timestamp: Date.now() },
+      },
+      meta: {},
+      orderSummaries: {},
+    });
+    const controller = createRelicSelectionController({
+      log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+      ctx: { overlaySettings: { autoTriggerEnabled: true } as OverlaySettings },
+      windows: {
+        createOverlayWindow: vi.fn(),
+        clearOverlayAutoHideTimer: vi.fn(),
+        scheduleOverlayAutoHide: vi.fn(),
+        sendOverlayEvent: vi.fn(),
+        positionOverlayWindow: vi.fn(),
+        getAnchorMeta: () => null,
+        setAnchorMeta: vi.fn(),
+      },
+      relicService: { getRelicDatabase: () => ({ groups: {}, byUniqueName: {} }) },
+      rewardScanner: { detectRelicSelectionEra: async () => ({ era: null, confidence: 0 }) },
+      wfmStatsPrice: { getCachedPriceBySlug: vi.fn() },
+      fs,
+      cacheFilePath,
+    });
+
+    expect(controller.getSnapshotPrice("akarius_prime_blueprint")).toBe(15);
+    expect(controller.getSnapshotPrice("unknown_slug")).toBeNull();
+
+    const old = new Date(Date.now() - 49 * 60 * 60 * 1000);
+    fs.utimesSync(cacheFilePath, old, old);
+    expect(controller.getSnapshotPrice("akarius_prime_blueprint")).toBeNull();
+  });
+
   function makeTwoEraController() {
     const cacheFilePath = makeTempSnapshot({
       version: 1,

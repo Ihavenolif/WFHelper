@@ -10,6 +10,8 @@ const slotState = Array.from({ length: SLOTS }, () => ({
 }));
 let overlayInteractiveMode = false;
 let rewardGeneration = 0;
+// Max wait for slow price lookups before crowning the best-so-far reward.
+const BEST_PICK_SETTLE_CAP_MS = 4_000;
 const PLATINUM_ICON = "../assets/Platinum.png";
 const DUCAT_ICON = "../assets/OrokinDucats.png";
 
@@ -511,6 +513,13 @@ async function applyRewardItems(payload) {
 
   updateBestPick();
 
+  // Crown once after every slot's price settled - per-arrival updates made
+  // the gold highlight hop between cards while prices streamed in. The cap
+  // crowns the best-so-far if one lookup drags.
+  const crownCap = setTimeout(() => {
+    if (generation === rewardGeneration) updateBestPick();
+  }, BEST_PICK_SETTLE_CAP_MS);
+
   await Promise.all(
     placements.map(async ({ item, slot }) => {
       if (!item?.urlName) {
@@ -519,7 +528,6 @@ async function applyRewardItems(payload) {
         if (generation !== rewardGeneration) return;
         slotState[slot].setPrice = setPrice;
         renderSlot(slot);
-        updateBestPick();
         return;
       }
 
@@ -531,9 +539,12 @@ async function applyRewardItems(payload) {
       slotState[slot].price = price ?? 0;
       slotState[slot].setPrice = setPrice ?? 0;
       renderSlot(slot);
-      updateBestPick();
     }),
   );
+
+  clearTimeout(crownCap);
+  if (generation !== rewardGeneration) return;
+  updateBestPick();
 }
 
 document.addEventListener("DOMContentLoaded", () => {

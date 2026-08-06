@@ -186,6 +186,10 @@ export function notifyRewardUiReady(): void {
   scanController.notifyRewardUiReady();
 }
 
+export function notifyRewardScreenClosed(stalenessMs: number): void {
+  scanController.notifyRewardScreenClosed(stalenessMs);
+}
+
 export function onRelicSelectionTrigger(
   source: string,
   pushOverlayInteractionMode: () => void,
@@ -264,6 +268,14 @@ export function register(
     OVERLAY_GET_PRICE,
     assertOverlayRendererSender,
     async (_event, slug: unknown) => {
+      // Session-fresh live price first, then the on-disk snapshot (instant,
+      // near-complete coverage), live WFM only for slugs both of them miss.
+      if (typeof slug === "string") {
+        const cached = wfmStatsPrice.getCachedPriceBySlug(slug);
+        if (cached != null) return cached;
+        const snapshot = relicSelectionController.getSnapshotPrice(slug);
+        if (snapshot != null) return snapshot;
+      }
       return wfmStatsPrice.fetchPriceBySlug(slug);
     },
   );

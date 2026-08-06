@@ -46,6 +46,9 @@ const REWARD_TRIGGER_PATTERNS: ReadonlyArray<RegExp> = Object.freeze([
 // Fires while the reward choice cards render (one line per un-cached icon).
 // Lets the scan start early instead of waiting the full fixed delay.
 const REWARD_UI_READY_PATTERN = /ProjectionRewardChoice\.lua:\s*Missing icon data!/i;
+// Fires the moment the in-game reward screen closes - after "Selection
+// countdown done" (vote ended) or "Reward choice force closed" (solo confirm).
+const REWARD_SCREEN_CLOSE_PATTERN = /ProjectionRewardChoice\.lua:\s*Relic reward screen shut down/i;
 // Primary: LoadingCompleteEnd fires when the relic-selection screen is fully rendered
 // and interactive.
 // Fallback: PopulateInventoryGrid fires earlier in the load sequence; kept so that
@@ -68,7 +71,8 @@ const RELIC_PICKER_CLOSE_PATTERNS: ReadonlyArray<RegExp> = Object.freeze([
 // TradingPost.lua emits a line like:
 //   Script [Info]: TradingPost.lua: Initiating Trade With: <username>.
 // We capture the username at the end, stripping a trailing period if present.
-const TRADE_PARTNER_PATTERN = /TradingPost\.lua.*?[Tt]rade.*?[Ww]ith[: ]+([A-Za-z0-9_\-.]+)\.?\s*$/i;
+const TRADE_PARTNER_PATTERN =
+  /TradingPost\.lua.*?[Tt]rade.*?[Ww]ith[: ]+([A-Za-z0-9_\-.]+)\.?\s*$/i;
 
 // An incoming whisper opens a private chat tab, logged as:
 //   ChatRedux::AddTab: Adding tab with channel name: F<User> to index <N>
@@ -152,6 +156,7 @@ const uptimeTracker = new EeUptimeTracker();
 
 let rewardCallback: ((stalenessMs: number) => void) | null = null;
 let rewardUiReadyCallback: (() => void) | null = null;
+let rewardScreenCloseCallback: ((stalenessMs: number) => void) | null = null;
 let relicPickerCallback: (() => void) | null = null;
 let relicPickerCloseCallback: (() => void) | null = null;
 let tradePartnerCallback: ((username: string) => void) | null = null;
@@ -180,7 +185,6 @@ const MISSION_END_PATTERN = /Sys \[Info\]: EOM missionLocationUnlocked=|TopMenu\
 export function isMissionEndLine(line: string): boolean {
   return MISSION_END_PATTERN.test(line);
 }
-
 
 interface ParsedLogTradeItem {
   displayName: string;
@@ -376,6 +380,10 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
     rewardUiReadyCallback();
   }
 
+  if (rewardScreenCloseCallback && REWARD_SCREEN_CLOSE_PATTERN.test(line)) {
+    rewardScreenCloseCallback(stalenessMs);
+  }
+
   // When DBWIN is active, skip relic picker pattern processing from file-poll lines.
   // DBWIN delivers lines instantly; the file poll re-delivers the same lines later,
   // causing phantom re-opens after cooldown expiry.
@@ -438,7 +446,9 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
     _tradeDialogBuffer = null;
     _tradeDialogSealed = false;
     if (parsed && tradeConfirmedCallback) {
-      log.info(`[EELog] Trade confirmed: ${parsed.type} ${parsed.platChange}p with ${parsed.partner}, ${parsed.items.length} item(s)`);
+      log.info(
+        `[EELog] Trade confirmed: ${parsed.type} ${parsed.platChange}p with ${parsed.partner}, ${parsed.items.length} item(s)`,
+      );
       tradeConfirmedCallback(parsed);
     }
   }
@@ -452,11 +462,18 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
   // InitMapping fires when the game returns to gameplay from any full-screen UI.
   // Guard against riven session (SendResult during riven belongs to the riven flow)
   // and against file-poll duplicates when DBWIN is active.
-  if (!isRivenSessionActive() && !skipRelicFromFilePoll && RELIC_PICKER_CLOSE_PATTERNS.some((pattern) => pattern.test(line))) {
+  if (
+    !isRivenSessionActive() &&
+    !skipRelicFromFilePoll &&
+    RELIC_PICKER_CLOSE_PATTERNS.some((pattern) => pattern.test(line))
+  ) {
     const now = Date.now();
     if (relicPickerSessionOpen && now - lastRelicPickerCloseAt >= RELIC_PICKER_CLOSE_COOLDOWN_MS) {
       lastRelicPickerCloseAt = now;
-      if (now - Math.max(lastRelicPickerAt, lastRelicPickerPatternAt) < RELIC_PICKER_CLOSE_MIN_GAP_MS) {
+      if (
+        now - Math.max(lastRelicPickerAt, lastRelicPickerPatternAt) <
+        RELIC_PICKER_CLOSE_MIN_GAP_MS
+      ) {
         // Too close to the last picker activity - this InitMapping is from
         // navigating TO the relic screen, not FROM it. Skip to avoid closing
         // the overlay immediately after it opens.
@@ -567,6 +584,7 @@ function consumeChunk(chunk: string): void {
 interface EeLogHandlers {
   onRewardTrigger?: ((stalenessMs: number) => void) | null;
   onRewardUiReady?: (() => void) | null;
+  onRewardScreenClose?: ((stalenessMs: number) => void) | null;
   onRelicSelectionOpen?: (() => void) | null;
   onRelicSelectionClose?: (() => void) | null;
   onTradingPartner?: ((username: string) => void) | null;
@@ -591,6 +609,7 @@ type NormalizedEeLogHandlers = {
 const NULL_EE_LOG_HANDLERS: NormalizedEeLogHandlers = {
   onRewardTrigger: null,
   onRewardUiReady: null,
+  onRewardScreenClose: null,
   onRelicSelectionOpen: null,
   onRelicSelectionClose: null,
   onTradingPartner: null,
@@ -627,6 +646,7 @@ function normalizeHandlers(
   return {
     onRewardTrigger: asFunction(handlers.onRewardTrigger),
     onRewardUiReady: asFunction(handlers.onRewardUiReady),
+    onRewardScreenClose: asFunction(handlers.onRewardScreenClose),
     onRelicSelectionOpen: asFunction(handlers.onRelicSelectionOpen),
     onRelicSelectionClose: asFunction(handlers.onRelicSelectionClose),
     onTradingPartner: asFunction(handlers.onTradingPartner),
@@ -661,6 +681,7 @@ export function startWatching(
   const normalized = normalizeHandlers(handlers);
   rewardCallback = normalized.onRewardTrigger;
   rewardUiReadyCallback = normalized.onRewardUiReady;
+  rewardScreenCloseCallback = normalized.onRewardScreenClose;
   relicPickerCallback = normalized.onRelicSelectionOpen;
   relicPickerCloseCallback = normalized.onRelicSelectionClose;
   relicPickerSessionOpen = false;
@@ -743,6 +764,7 @@ export function stopWatching(): void {
 
   rewardCallback = null;
   rewardUiReadyCallback = null;
+  rewardScreenCloseCallback = null;
   relicPickerCallback = null;
   relicPickerCloseCallback = null;
   resetRivenState();

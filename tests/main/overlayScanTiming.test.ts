@@ -263,6 +263,84 @@ describe("overlay scan timing (eelog trigger)", () => {
     expect(autoHideDelays).toEqual([2_500]);
   });
 
+  it("hides shortly after the reward screen shuts down (solo close)", async () => {
+    const { controller, autoHideDelays } = createHarness();
+    controller.notifyRewardUiReady();
+
+    const done = controller.dispatchRewardScan("eelog");
+    await vi.advanceTimersByTimeAsync(500);
+    await done;
+    expect(autoHideDelays).toEqual([14_000]);
+
+    // Solo: the in-game screen closes ~5.5s after the trigger.
+    await vi.advanceTimersByTimeAsync(5_000);
+    controller.notifyRewardScreenClosed(0);
+    expect(autoHideDelays.at(-1)).toBe(1_500);
+  });
+
+  it("keeps the reading floor when the screen closes right away", async () => {
+    const { controller, autoHideDelays } = createHarness();
+    controller.notifyRewardUiReady();
+
+    const done = controller.dispatchRewardScan("eelog");
+    await vi.advanceTimersByTimeAsync(500);
+    await done;
+
+    await vi.advanceTimersByTimeAsync(1_000);
+    controller.notifyRewardScreenClosed(0);
+    // 5s reading floor from the trigger, 1.5s of it already elapsed.
+    expect(autoHideDelays.at(-1)).toBe(3_500);
+  });
+
+  it("uses the minimum visible time when the screen closed mid-scan", async () => {
+    const { controller, autoHideDelays } = createHarness();
+
+    const done = controller.dispatchRewardScan("eelog");
+    await vi.advanceTimersByTimeAsync(300);
+    controller.notifyRewardScreenClosed(0);
+    await vi.advanceTimersByTimeAsync(500);
+    await done;
+
+    expect(autoHideDelays).toEqual([5_000]);
+  });
+
+  it("acts on the first close only - picker shutdowns and echoes refire it", async () => {
+    const { controller, autoHideDelays } = createHarness();
+    controller.notifyRewardUiReady();
+
+    const done = controller.dispatchRewardScan("eelog");
+    await vi.advanceTimersByTimeAsync(500);
+    await done;
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    controller.notifyRewardScreenClosed(0);
+    expect(autoHideDelays).toEqual([14_000, 1_500]);
+
+    await vi.advanceTimersByTimeAsync(4_500);
+    controller.notifyRewardScreenClosed(0);
+    controller.notifyRewardScreenClosed(2_000);
+    expect(autoHideDelays).toEqual([14_000, 1_500]);
+  });
+
+  it("ignores stale close lines from the lazy file flush", async () => {
+    const { controller, autoHideDelays } = createHarness();
+    controller.notifyRewardUiReady();
+
+    const done = controller.dispatchRewardScan("eelog");
+    await vi.advanceTimersByTimeAsync(500);
+    await done;
+
+    controller.notifyRewardScreenClosed(12_000);
+    expect(autoHideDelays).toEqual([14_000]);
+  });
+
+  it("ignores close lines with no eelog trigger active", async () => {
+    const { controller, autoHideDelays } = createHarness();
+
+    controller.notifyRewardScreenClosed(0);
+    expect(autoHideDelays).toEqual([]);
+  });
+
   it("hides at the vote-window expiry when Warframe is focused", async () => {
     const { controller, autoHideDelays } = createHarness(foundReward, {
       status: () => ({

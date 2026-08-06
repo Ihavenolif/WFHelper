@@ -248,6 +248,10 @@ function notifyRewardUiReady(): void {
   rewardOverlayIpc.notifyRewardUiReady();
 }
 
+function notifyRewardScreenClosed(stalenessMs: number): void {
+  rewardOverlayIpc.notifyRewardScreenClosed(stalenessMs);
+}
+
 const OVERLAY_SETTINGS_FILE = path.join(app.getPath("userData"), "overlay-settings.json");
 
 // win32: low-level keyboard hook, swallowing only while Warframe is focused.
@@ -549,7 +553,15 @@ export function disposeOverlayHotkeys(): void {
   if ("dispose" in hotkeyBackend) hotkeyBackend.dispose();
 }
 
-export { register, onRelicRewardTrigger, notifyRewardUiReady, onRelicSelectionTrigger, onRelicSelectionClose, setActiveMissionTag };
+export {
+  register,
+  onRelicRewardTrigger,
+  notifyRewardUiReady,
+  notifyRewardScreenClosed,
+  onRelicSelectionTrigger,
+  onRelicSelectionClose,
+  setActiveMissionTag,
+};
 export { warmPlannerOverlayWindow } from "./rewardOverlayIpc";
 
 // Re-export riven callbacks for main.ts wiring

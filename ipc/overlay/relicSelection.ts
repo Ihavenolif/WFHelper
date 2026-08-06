@@ -265,6 +265,10 @@ function computeSquadExpected(
   return ev;
 }
 
+// Reward-card pricing accepts snapshot medians up to this old; the planner's
+// EV ranking deliberately uses any age.
+const SNAPSHOT_PRICE_MAX_AGE_MS = 48 * 60 * 60 * 1000;
+
 function loadPersistedCacheMaps(
   fs: typeof import("node:fs"),
   cacheFilePath: string,
@@ -485,6 +489,17 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
     const { prices, ducats } = loadPersistedCacheMaps(fs, cacheFilePath);
     persistedPriceMedianCache = { mtimeMs, prices, ducats };
     return { prices, ducats };
+  }
+
+  // Instant reward-card pricing from the same on-disk snapshot the planner
+  // reads; null (missing slug or file too old) sends the caller to live WFM.
+  function getSnapshotPrice(slugInput: string): number | null {
+    const normalized = normalizeWfmSlugKey(slugInput);
+    if (!normalized) return null;
+    const mtimeMs = getCacheFileMtimeMs(fs, cacheFilePath);
+    if (!mtimeMs || Date.now() - mtimeMs > SNAPSHOT_PRICE_MAX_AGE_MS) return null;
+    const { prices } = getPersistedCacheMaps();
+    return prices.get(normalized) ?? null;
   }
 
   function buildRecommendations(era: string | null): {
@@ -915,5 +930,6 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
     setDesktopFilters,
     resetMissionTier,
     setActiveMissionTag,
+    getSnapshotPrice,
   };
 }

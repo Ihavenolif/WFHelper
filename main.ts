@@ -408,6 +408,7 @@ app.whenReady().then(async () => {
   const eeLogPath = eeLogMonitor.startWatching({
     onRewardTrigger: (stalenessMs) => overlayIpc.onRelicRewardTrigger("eelog", stalenessMs),
     onRewardUiReady: () => overlayIpc.notifyRewardUiReady(),
+    onRewardScreenClose: (stalenessMs) => overlayIpc.notifyRewardScreenClosed(stalenessMs),
     onRelicSelectionOpen: () => overlayIpc.onRelicSelectionTrigger("eelog"),
     onRelicSelectionClose: () => overlayIpc.onRelicSelectionClose(),
     onActiveMissionTag: (tag) => overlayIpc.setActiveMissionTag(tag),
