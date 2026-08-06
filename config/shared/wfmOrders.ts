@@ -91,6 +91,7 @@ export function normalizeWfmOrderBookSide(
   rawOrders: unknown,
   orderType: WfmOrderType,
   rankFilter: number | null,
+  limit: number = MAX_ORDER_BOOK_ENTRIES_PER_SIDE,
 ): WfmOrderBookEntry[] {
   if (!Array.isArray(rawOrders)) return [];
 
@@ -135,5 +136,5 @@ export function normalizeWfmOrderBookSide(
     return a.userName.localeCompare(b.userName);
   });
 
-  return entries.slice(0, MAX_ORDER_BOOK_ENTRIES_PER_SIDE);
+  return entries.slice(0, limit);
 }

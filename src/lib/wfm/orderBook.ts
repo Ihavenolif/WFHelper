@@ -103,8 +103,10 @@ async function fetchDirectOrderBook(
       status: "ok",
       data: {
         slug,
-        sell: normalizeWfmOrderBookSide(v2Attempt.data, "sell", rank),
-        buy: normalizeWfmOrderBookSide(v2Attempt.data, "buy", rank),
+        // Renderer keeps the FULL book - the browse tab pages through it; the
+        // default 500 cap is for the worker's KV-bound prewarm path only.
+        sell: normalizeWfmOrderBookSide(v2Attempt.data, "sell", rank, Number.MAX_SAFE_INTEGER),
+        buy: normalizeWfmOrderBookSide(v2Attempt.data, "buy", rank, Number.MAX_SAFE_INTEGER),
         timestamp: Date.now(),
       },
     };
@@ -124,8 +126,8 @@ async function fetchDirectOrderBook(
       status: "ok",
       data: {
         slug,
-        sell: normalizeWfmOrderBookSide(v1Attempt.data, "sell", rank),
-        buy: normalizeWfmOrderBookSide(v1Attempt.data, "buy", rank),
+        sell: normalizeWfmOrderBookSide(v1Attempt.data, "sell", rank, Number.MAX_SAFE_INTEGER),
+        buy: normalizeWfmOrderBookSide(v1Attempt.data, "buy", rank, Number.MAX_SAFE_INTEGER),
         timestamp: Date.now(),
       },
     };

@@ -61,7 +61,8 @@
 
   let contentView: ContentView = "orders";
   let side: BrowseSide = "sell";
-  let statusFilter: StatusFilter = "ingame";
+  // "all" mirrors warframe.market's default listing view.
+  let statusFilter: StatusFilter = "all";
   let rankFilter: RankFilter = "all";
   let minPrice: number | null = null;
   let maxPrice: number | null = null;
