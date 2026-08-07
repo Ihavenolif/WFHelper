@@ -541,7 +541,8 @@ type WfmTradeMatchEvent = TradeMatchPayload;
 
 interface TradeRecordedEvent {
   trade: TradeEvent;
-  wfmMatch: WfmTradeMatchEvent | null;
+  /** Every listing the trade auto-closed - one trade can settle several. */
+  wfmMatches: WfmTradeMatchEvent[];
 }
 
 export interface IpcEventMap {

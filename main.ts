@@ -423,7 +423,7 @@ app.whenReady().then(async () => {
       // Push trade to renderer in real-time
       const win = ctx.mainWindow;
       if (win && !win.isDestroyed()) {
-        win.webContents.send(TRADE_RECORDED, { trade: event, wfmMatch: null });
+        win.webContents.send(TRADE_RECORDED, { trade: event, wfmMatches: [] });
       }
 
       // Always report the auto-close outcome.
@@ -459,7 +459,7 @@ app.whenReady().then(async () => {
           if (win && !win.isDestroyed()) {
             win.webContents.send(TRADE_RECORDED, {
               trade: { ...event, wfmClosed: true },
-              wfmMatch: closed[0],
+              wfmMatches: closed,
             });
           }
 

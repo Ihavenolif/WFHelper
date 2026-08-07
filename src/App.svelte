@@ -29,7 +29,7 @@
   import { itemDb, parsedItems } from "./stores/data.js";
   import { tourActive } from "./stores/tour.js";
   import { masteryData } from "./stores/mastery.js";
-  import { marketSession } from "./stores/market.js";
+  import { applyClosedWfmListing, marketSession } from "./stores/market.js";
   import { activeItem, activeComponent, activeRelic } from "./stores/modals.js";
   import { applyUpdateState } from "./stores/updates.js";
   import { addToast } from "./stores/toasts.js";
@@ -115,6 +115,12 @@
       });
     });
 
+    // Lives here, not in MarketView: the trade lands while the user is in-game,
+    // long before the (lazy) Market tab is mounted.
+    const unsubscribeTradeRecorded = on("trade-recorded", (data) => {
+      for (const match of data?.wfmMatches ?? []) applyClosedWfmListing(match);
+    });
+
     // Post-run overlay "Detailed Stats" button: open the arbi tab on that run.
     const unsubscribeArbiOpenRun = on("arbi-open-run", (runId) => {
       pendingArbiRunId.set(runId);
@@ -148,6 +154,7 @@
       unsubscribeInventoryUpdated();
       unsubscribeUpdateStatus();
       unsubscribeWfmNotification();
+      unsubscribeTradeRecorded();
       unsubscribeArbiOpenRun();
       unsubscribeItemDbUpdated();
 
