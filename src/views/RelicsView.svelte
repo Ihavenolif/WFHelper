@@ -454,16 +454,18 @@
         : "";
 
     if (slug) {
+      // WFM's square thumb first: the catalog now resolves gameRef for most
+      // rewards, and the db's DE renders come in wild native sizes.
+      if (rewardIconBySlug[slug]) {
+        return rewardIconBySlug[slug];
+      }
+
       const gameRef = rewardGameRefBySlug[slug];
       const dbImage = gameRef
         ? (($itemDb?.[gameRef] as { imageUrl?: unknown } | undefined)?.imageUrl ?? null)
         : null;
       if (typeof dbImage === "string" && dbImage.trim().length > 0) {
         return dbImage;
-      }
-
-      if (rewardIconBySlug[slug]) {
-        return rewardIconBySlug[slug];
       }
     }
 
@@ -519,7 +521,9 @@
         typeof entry.icon === "string" && entry.icon.trim().length > 0 ? entry.icon : null;
       const thumb =
         typeof entry.thumb === "string" && entry.thumb.trim().length > 0 ? entry.thumb : null;
-      const src = icon || thumb;
+      // Square framed thumbs, not the full-size transparent renders - the
+      // preview tiles are sized for them.
+      const src = thumb || icon;
 
       if (slug && gameRef && !nextGameRefBySlug[slug]) {
         nextGameRefBySlug[slug] = gameRef;

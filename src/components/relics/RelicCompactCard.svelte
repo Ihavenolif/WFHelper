@@ -119,7 +119,7 @@
   <span class="relic-reward-preview-row grid grid-cols-6 gap-1">
     {#each rewardIcons as reward}
       <span
-        class="relic-reward-preview-icon inline-flex min-h-8 items-center justify-center rounded-[var(--radius-md)] border border-[var(--ui-control-border)] bg-[color-mix(in_oklab,var(--bg-raised)_86%,var(--bg-base))] p-1"
+        class="relic-reward-preview-icon inline-flex h-9 items-center justify-center overflow-hidden rounded-[var(--radius-md)] border border-[var(--ui-control-border)] bg-[color-mix(in_oklab,var(--bg-raised)_86%,var(--bg-base))] p-1"
         class:owned={isOwnedReward(reward)}
         title={rewardTooltip(reward)}
       >
@@ -234,6 +234,12 @@
     border-color: color-mix(in oklab, var(--danger) 38%, transparent);
     background: color-mix(in oklab, var(--danger) 13%, transparent);
     color: color-mix(in oklab, var(--danger) 82%, white);
+  }
+
+  /* Thumbs fill the fixed tile; oversized fallback renders stay contained. */
+  .relic-compact-card :global(.relic-reward-preview-img) {
+    max-height: 100%;
+    max-width: 100%;
   }
 
   .relic-reward-preview-icon.owned {
