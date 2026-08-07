@@ -1,16 +1,18 @@
-@media (max-width: 1600px) {
+/* Steps keep cards >=~290px wide - below that the compact-card header
+   ("Selected EV" block) wraps under the title and every card grows tall. */
+@media (max-width: 1800px) {
   :root {
     --relic-grid-columns: 4;
   }
 }
 
-@media (max-width: 1400px) {
+@media (max-width: 1500px) {
   :root {
     --relic-grid-columns: 3;
   }
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1150px) {
   :root {
     --relic-grid-columns: 2;
   }
