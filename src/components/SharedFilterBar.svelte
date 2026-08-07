@@ -20,7 +20,9 @@
   export let basicVariant: "full" | "quick" = "full";
   export let sortOptions: Array<[SharedSortKey, string]> | null = null;
   export let showSubsumed = false;
-  export let showFoundry = false;
+  export let showVaulted = false;
+  export let showClaimable = false;
+  export let showBuildable = false;
 
   const PRIME_OPTIONS: Array<[PrimeFilterMode, string]> = [
     ["all", "All"],
@@ -32,6 +34,12 @@
     ["all", "All"],
     ["mastered", "Mastered"],
     ["not_mastered", "Not Mastered"],
+  ];
+
+  const CLAIMABLE_OPTIONS: Array<[YesNoFilterMode, string]> = [
+    ["all", "All"],
+    ["yes", "Ready"],
+    ["no", "Not Ready"],
   ];
 
   const DEFAULT_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
@@ -77,6 +85,10 @@
     updateSharedFilters(scope, { masteredMode: mode });
   }
 
+  function selectedValue(event: Event): string {
+    return (event.currentTarget as HTMLSelectElement).value;
+  }
+
   function setSortBy(value: string): void {
     const sortBy = value as SharedSortKey;
     updateSharedFilters(scope, { sortBy, sortDirection: defaultSortDirection(sortBy) });
@@ -115,25 +127,49 @@
       <SearchBox class="shared-filter-search" value={state.search} onValueChange={setSearch} />
 
       {#if basicVariant === "full"}
-        <div class="filter-tabs" title="Prime filter">
-          {#each PRIME_OPTIONS as [mode, label]}
-            <button
-              class="filter-tab"
-              class:active={state.primeMode === mode}
-              on:click={() => setPrimeMode(mode)}>{label}</button
-            >
-          {/each}
+        <!-- More than two choices, so a select instead of a row of chips. -->
+        <div class="shared-select-group">
+          <span class="shared-chip-label">Prime</span>
+          <select
+            class="shared-filter-select"
+            title="Prime filter"
+            value={state.primeMode}
+            on:change={(event) => setPrimeMode(selectedValue(event) as PrimeFilterMode)}
+          >
+            {#each PRIME_OPTIONS as [mode, label] (mode)}
+              <option value={mode}>{label}</option>
+            {/each}
+          </select>
         </div>
 
-        <div class="filter-tabs" title="Mastered filter">
-          {#each MASTERED_OPTIONS as [mode, label]}
+        <div class="shared-select-group">
+          <span class="shared-chip-label">Mastery</span>
+          <select
+            class="shared-filter-select"
+            title="Mastered filter"
+            value={state.masteredMode}
+            on:change={(event) => setMasteredMode(selectedValue(event) as MasteredFilterMode)}
+          >
+            {#each MASTERED_OPTIONS as [mode, label] (mode)}
+              <option value={mode}>{label}</option>
+            {/each}
+          </select>
+        </div>
+
+        {#if showVaulted}
+          <div class="filter-tabs" title="Vaulted or currently farmable">
             <button
               class="filter-tab"
-              class:active={state.masteredMode === mode}
-              on:click={() => setMasteredMode(mode)}>{label}</button
+              class:active={state.vaulted === "yes"}
+              on:click={() => setYesNoFilter("vaulted", "yes")}>Vaulted</button
             >
-          {/each}
-        </div>
+            <button
+              class="filter-tab"
+              class:active={state.vaulted === "no"}
+              on:click={() => setYesNoFilter("vaulted", "no")}>Unvaulted</button
+            >
+          </div>
+        {/if}
 
         {#if showSubsumed}
           <div class="filter-tabs" title="Helminth ability subsumed">
@@ -150,13 +186,27 @@
           </div>
         {/if}
 
-        {#if showFoundry}
-          <div class="filter-tabs" title="Waiting in the foundry or ready to build">
-            <button
-              class="filter-tab"
-              class:active={state.foundryReady === "yes"}
-              on:click={() => setYesNoFilter("foundryReady", "yes")}>Ready to Claim</button
+        {#if showClaimable}
+          <div class="shared-select-group">
+            <span class="shared-chip-label">Claim</span>
+            <select
+              class="shared-filter-select"
+              title="Foundry build finished and waiting to be claimed"
+              value={state.foundryReady}
+              on:change={(event) =>
+                updateSharedFilters(scope, {
+                  foundryReady: selectedValue(event) as YesNoFilterMode,
+                })}
             >
+              {#each CLAIMABLE_OPTIONS as [mode, label] (mode)}
+                <option value={mode}>{label}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
+
+        {#if showBuildable}
+          <div class="filter-tabs" title="Every part owned, item not built yet">
             <button
               class="filter-tab"
               class:active={state.buildable === "yes"}

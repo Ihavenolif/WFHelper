@@ -251,6 +251,7 @@
     isPrime: boolean;
     status: MasteryStatus | "unknown";
     vaulted: boolean;
+    foundryReady: boolean;
     subsumed: boolean | undefined;
   } {
     const db = row.e.productUniqueName ? $itemDb[row.e.productUniqueName] : null;
@@ -266,6 +267,7 @@
       isPrime: db?.isPrime === true || /\bprime\b/i.test(row.e.name),
       status: masteryStateFor(row.e),
       vaulted: db?.vaulted === true,
+      foundryReady: row.status === "claimable",
       subsumed:
         row.e.category === "Warframe" && isSubsumableFrame(row.e.name)
           ? isFrameSubsumed(row.e.name, subsumedFamilies)
@@ -361,16 +363,15 @@
   </div>
 
   <div class="view-sticky-filters mb-3">
-    <div class="mb-3">
-      <SharedFilterBar
-        scope="foundry"
-        singleLine
-        showAdvanced={false}
-        basicVariant="full"
-        sortOptions={foundrySortOptions}
-        showSubsumed
-      />
-    </div>
+    <SharedFilterBar
+      scope="foundry"
+      showAdvanced={false}
+      basicVariant="full"
+      sortOptions={foundrySortOptions}
+      showSubsumed
+      showVaulted
+      showClaimable
+    />
 
     <div class="flex items-end border-b border-white/[0.09]">
       <HeaderTabs

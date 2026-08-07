@@ -197,6 +197,15 @@
     font-family: var(--font-display);
     letter-spacing: 0.02em;
   }
+  .shared-select-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-shrink: 0;
+  }
+  .shared-select-group .shared-filter-select {
+    min-width: 7rem;
+  }
   .shared-chip-group .filter-tabs {
     flex-wrap: nowrap;
   }
@@ -221,6 +230,10 @@
   }
   .shared-filter-bar-inline .shared-filter-select {
     min-width: 8rem;
+  }
+  /* The inline bar never wraps, so its filter selects stay tighter than sort. */
+  .shared-filter-bar-inline .shared-select-group .shared-filter-select {
+    min-width: 6.5rem;
   }
 
   /* search box */

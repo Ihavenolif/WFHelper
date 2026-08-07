@@ -460,7 +460,13 @@
     </div>
 
     <div class="view-sticky-filters grid gap-2 mb-3">
-      <SharedFilterBar scope="mastery" sortOptions={MASTERY_SORT_OPTIONS} showFoundry />
+      <SharedFilterBar
+        scope="mastery"
+        sortOptions={MASTERY_SORT_OPTIONS}
+        showVaulted
+        showClaimable
+        showBuildable
+      />
       <div class="flex items-end border-b border-white/[0.09]">
         <HeaderTabs
           options={categoryTabs}
