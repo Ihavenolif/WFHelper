@@ -39,7 +39,7 @@
   const FOUNDRY_STATE_OPTIONS: Array<[FoundryStateFilterMode, string]> = [
     ["all", "All"],
     ["claimable", "Ready"],
-    ["not_claimable", "Not Ready"],
+    ["not_ready", "Not Ready"],
     ["buildable", "Can Build"],
   ];
 
@@ -190,7 +190,7 @@
             <span class="shared-chip-label">Claim</span>
             <select
               class="shared-filter-select"
-              title="Ready = finished build waiting to be claimed; Not Ready hides those"
+              title="Not Ready hides everything you could claim or build right now"
               value={state.foundryState}
               on:change={(event) =>
                 updateSharedFilters(scope, {

@@ -15,6 +15,7 @@ const DESCENDING_DEFAULT_SORT_KEYS = new Set<string>([
   "ducatonator",
   "complete_sets",
   "mastery_xp",
+  "parts_owned",
   "ev",
   "ducat",
 ]);
@@ -39,6 +40,8 @@ interface FilterableItem {
   ducatonator?: number | null;
   completeSets?: number | boolean | null;
   missingParts?: number | null;
+  /** Distinct component types owned; null when the item has no parts to track. */
+  partsOwned?: number | null;
   orderPlaced?: boolean;
   vaulted?: boolean;
   owned?: boolean;
@@ -152,6 +155,9 @@ function toMetric(item: FilterableItem, sortBy: SharedFiltersState["sortBy"]): n
   if (sortBy === "missing_parts") {
     return typeof item.missingParts === "number" ? item.missingParts : null;
   }
+  if (sortBy === "parts_owned") {
+    return typeof item.partsOwned === "number" ? item.partsOwned : null;
+  }
   if (sortBy === "mastery_xp") {
     return typeof item.masteryXpRemaining === "number" ? item.masteryXpRemaining : null;
   }
@@ -181,11 +187,16 @@ export function matchesSharedFilters(item: FilterableItem, filters: SharedFilter
   if (!matchesYesNo(filters.favorite, item.favorite)) return false;
   if (!matchesYesNo(filters.equipped, item.equipped)) return false;
   if (!matchesYesNo(filters.leveledUp, item.leveledUp)) return false;
-  // Each view resolves its rows to one state; "not claimable" is the union of
-  // everything you can still craft, so it is a negation rather than a match.
+  // "Not ready" removes exactly the rows you could act on - a finished build to
+  // claim and a blueprint whose parts are all owned - and leaves the rest.
   if (filters.foundryState === "claimable" && item.foundryState !== "claimable") return false;
-  if (filters.foundryState === "not_claimable" && item.foundryState === "claimable") return false;
   if (filters.foundryState === "buildable" && item.foundryState !== "buildable") return false;
+  if (
+    filters.foundryState === "not_ready" &&
+    (item.foundryState === "claimable" || item.foundryState === "buildable")
+  ) {
+    return false;
+  }
   // Strict tri-state: items without a subsumed flag (primes, non-frames) drop
   // out whenever the filter is active - they can never be subsumed.
   if (filters.subsumed !== "all" && item.subsumed !== (filters.subsumed === "yes")) return false;

@@ -19,7 +19,12 @@
   import { sharedFilters } from "../stores/filters.js";
   import ItemImage from "../components/ItemImage.svelte";
   import { send } from "../lib/ipc.js";
-  import type { MasteryCategoryStats, ProgressPair } from "../types/inventory.js";
+  import type {
+    ComponentInfo,
+    MasteryCategoryStats,
+    MasteryStatus,
+    ProgressPair,
+  } from "../types/inventory.js";
   import type { FoundryState } from "../types/filters.js";
 
   const CAT_ORDER = [
@@ -36,9 +41,10 @@
   const MASTERY_SORT_OPTIONS = [
     ["name", "Name"],
     ["owned", "Owned"],
+    ["parts_owned", "Parts Owned"],
     ["mastery_xp", "Mastery XP"],
     ["platinum", "Platinum"],
-  ] satisfies Array<["name" | "owned" | "mastery_xp" | "platinum", string]>;
+  ] satisfies Array<["name" | "owned" | "parts_owned" | "mastery_xp" | "platinum", string]>;
   const FOUNDER_ITEM_NAMES = new Set(["Excalibur Prime", "Lato Prime", "Skana Prime"]);
 
   const INCOMPLETE_SETS_TAB = "__incomplete_sets";
@@ -211,6 +217,10 @@
     );
   }
 
+  function isComponentOwned(comp: ComponentInfo): boolean {
+    return comp.owned === true || (comp.ownedCount ?? 0) >= (comp.itemCount || 1);
+  }
+
   /** The card badges are the source of truth here: "Ready" is a finished build. */
   function foundryStateOf(
     status: FoundryStatus | undefined,
@@ -259,6 +269,7 @@
           ? componentUniqueNameAliases(comp.uniqueName).some((un) => foundry.byUnique.has(un))
           : false,
       }));
+      const partsOwned = components.length > 0 ? components.filter(isComponentOwned).length : null;
       const owned = item.status !== "missing" || item.currentlyOwned === true;
       const buildable =
         !owned && components.length > 0 && components.every((comp) => comp.owned === true);
@@ -279,6 +290,7 @@
         // Snapshot-only lookup: no per-card hydration for 800+ mastery rows.
         platinum: wfm?.url_name ? (getCachedPriceState(wfm.url_name)?.median ?? null) : null,
         buildable,
+        partsOwned,
         foundryState: foundryStateOf(foundryStatus, buildable),
       };
     });
@@ -315,16 +327,47 @@
     return [{ key: "all", label: "All" }, ...tabs];
   })();
 
-  // Started but unfinished, fewest parts first, so it reads as a farm order.
-  $: incompleteSets = (() => {
-    const search = $masteryFilters.search.trim().toLowerCase();
-    return $parsedItems
+  /** A set row has no mastery status of its own (rank 0 of 1), so every set read
+   *  as "not mastered". Resolve it from the set root instead. */
+  function buildSetStatusLookup(data: typeof $masteryData): {
+    byUniqueName: SvelteMap<string, MasteryStatus>;
+    byName: SvelteMap<string, MasteryStatus>;
+  } {
+    const byUniqueName = new SvelteMap<string, MasteryStatus>();
+    const byName = new SvelteMap<string, MasteryStatus>();
+    for (const item of data?.items ?? []) {
+      if (!item.status) continue;
+      const uniqueName = item.uniqueName || item.internalName;
+      if (uniqueName && !byUniqueName.has(uniqueName)) byUniqueName.set(uniqueName, item.status);
+      const nameKey = normalizeLookupKey(item.name);
+      if (nameKey && !byName.has(nameKey)) byName.set(nameKey, item.status);
+    }
+    return { byUniqueName, byName };
+  }
+
+  function normalizeLookupKey(value: string | null | undefined): string {
+    return (value || "").trim().toLowerCase();
+  }
+
+  $: setStatusLookup = buildSetStatusLookup(displayMasteryData);
+
+  // Started but unfinished. Shares the filter bar with the category tabs, so
+  // mastered/prime/vaulted and the sort dropdown all apply here too.
+  $: incompleteSets = applySharedFiltersAndSort(
+    $parsedItems
       .filter((entry) => entry.inventoryGroup === "incomplete_sets")
-      .filter((entry) => !search || entry.name.toLowerCase().includes(search))
-      .sort(
-        (a, b) => (a.missingParts ?? 0) - (b.missingParts ?? 0) || a.name.localeCompare(b.name),
-      );
-  })();
+      .map((entry) => {
+        const status =
+          setStatusLookup.byUniqueName.get(entry.internalName.replace(/#set$/, "")) ??
+          setStatusLookup.byName.get(normalizeLookupKey(entry.name.replace(/\s+Set$/i, "")));
+        return {
+          ...entry,
+          ...(status ? { status } : {}),
+          partsOwned: entry.ownedPartTypes ?? null,
+        };
+      }),
+    $masteryFilters,
+  );
 </script>
 
 <section class="view active">

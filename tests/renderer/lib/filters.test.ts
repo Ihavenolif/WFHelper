@@ -192,18 +192,33 @@ describe("mastery filters", () => {
     expect(filtered.map((row) => row.name)).toEqual(["Claimable Build"]);
   });
 
-  it("not-ready hides finished builds and keeps everything still craftable", () => {
+  it("not-ready drops claimable and ready-to-build rows and nothing else", () => {
     const filtered = applySharedFiltersAndSort(foundryItems, {
       ...defaultFilters(),
-      foundryState: "not_claimable",
+      foundryState: "not_ready",
     });
 
     expect(filtered.map((row) => row.name)).toEqual([
-      "All Parts Owned",
       "Missing A Part",
       "Owned And Mastered",
       "Still Cooking",
     ]);
+  });
+
+  it("sorts by owned part count, most complete first", () => {
+    const items = [
+      { name: "One Part", partsOwned: 1 },
+      { name: "Three Parts", partsOwned: 3 },
+      { name: "No Parts Tracked" },
+    ];
+
+    const filtered = applySharedFiltersAndSort(items, {
+      ...defaultFilters(),
+      sortBy: "parts_owned",
+      sortDirection: "desc",
+    });
+
+    expect(filtered.map((row) => row.name)).toEqual(["Three Parts", "One Part", "No Parts Tracked"]);
   });
 
   it("keeps only items whose parts are all sitting in the inventory", () => {

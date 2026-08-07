@@ -6,8 +6,8 @@ export type YesNoFilterMode = "all" | "yes" | "no";
 type PartTypeFilterMode = "all" | "normal" | "prime";
 /** The foundry state a single row sits in. */
 export type FoundryState = "claimable" | "building" | "buildable" | "missing";
-/** `not_claimable` is everything except a finished build, i.e. still craftable. */
-export type FoundryStateFilterMode = "all" | "claimable" | "not_claimable" | "buildable";
+/** `not_ready` drops what you could act on now (claim or build) and nothing else. */
+export type FoundryStateFilterMode = "all" | "claimable" | "not_ready" | "buildable";
 
 export type SharedSortKey =
   | "name"
@@ -23,6 +23,7 @@ export type SharedSortKey =
   | "ducatonator"
   | "complete_sets"
   | "missing_parts"
+  | "parts_owned"
   | "mastery_xp";
 
 export type SortDirection = "asc" | "desc";
