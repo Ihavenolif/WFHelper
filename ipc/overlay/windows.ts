@@ -440,7 +440,9 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       alwaysOnTop: true,
       skipTaskbar: true,
       resizable: false,
-      focusable: true,
+      // Non-focusable so showing can never activate the overlay and unfocus
+      // the game; interactive mode (F7) flips focusability on temporarily.
+      focusable: false,
       hasShadow,
       webPreferences: {
         preload: getElectronBuildFile(preloadFileName),
@@ -567,8 +569,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       } else {
         overlayWindow.setIgnoreMouseEvents(true);
       }
-      overlayWindow.setFocusable(true);
       overlayWindow.blur();
+      overlayWindow.setFocusable(false);
       keepOverlayAboveGame(overlayWindow);
       overlayWindow.moveTop();
       overlayWindow.showInactive();
