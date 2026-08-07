@@ -176,10 +176,11 @@ describe("mastery filters", () => {
   });
 
   const foundryItems = [
-    { name: "Ready Frame", foundryStatus: "claimable" as const, buildable: false },
-    { name: "Still Cooking", foundryStatus: "in-progress" as const, buildable: false },
-    { name: "All Parts Owned", buildable: true },
-    { name: "Ready To Build Shelf", buildable: false },
+    { name: "Claimable Build", foundryState: "claimable" as const },
+    { name: "Still Cooking", foundryState: "building" as const },
+    { name: "All Parts Owned", foundryState: "buildable" as const },
+    { name: "Missing A Part", foundryState: "missing" as const },
+    { name: "Owned And Mastered" },
   ];
 
   it("keeps only builds waiting to be claimed", () => {
@@ -188,16 +189,21 @@ describe("mastery filters", () => {
       foundryState: "claimable",
     });
 
-    expect(filtered.map((row) => row.name)).toEqual(["Ready Frame"]);
+    expect(filtered.map((row) => row.name)).toEqual(["Claimable Build"]);
   });
 
-  it("reads not-ready as still building, not as everything unclaimable", () => {
+  it("not-ready hides finished builds and keeps everything still craftable", () => {
     const filtered = applySharedFiltersAndSort(foundryItems, {
       ...defaultFilters(),
-      foundryState: "building",
+      foundryState: "not_claimable",
     });
 
-    expect(filtered.map((row) => row.name)).toEqual(["Still Cooking"]);
+    expect(filtered.map((row) => row.name)).toEqual([
+      "All Parts Owned",
+      "Missing A Part",
+      "Owned And Mastered",
+      "Still Cooking",
+    ]);
   });
 
   it("keeps only items whose parts are all sitting in the inventory", () => {

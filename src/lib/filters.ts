@@ -1,4 +1,4 @@
-import type { SharedFiltersState, SortDirection } from "../types/filters.js";
+import type { FoundryState, SharedFiltersState, SortDirection } from "../types/filters.js";
 import type { MasteryStatus, PartType } from "../types/inventory.js";
 
 // Value-like sorts read best-first; name/tier/time and "parts to complete"
@@ -55,9 +55,8 @@ interface FilterableItem {
   grade?: string | number | null;
   gradeRank?: number | null;
   masteryXpRemaining?: number | null;
-  /** Undefined when the item is not in the foundry at all. */
-  foundryStatus?: "claimable" | "in-progress" | undefined;
-  buildable?: boolean;
+  /** Undefined when no foundry state applies (already owned and mastered). */
+  foundryState?: FoundryState | undefined;
 }
 
 const GRADE_ORDER: Record<string, number> = {
@@ -182,11 +181,11 @@ export function matchesSharedFilters(item: FilterableItem, filters: SharedFilter
   if (!matchesYesNo(filters.favorite, item.favorite)) return false;
   if (!matchesYesNo(filters.equipped, item.equipped)) return false;
   if (!matchesYesNo(filters.leveledUp, item.leveledUp)) return false;
-  // "building" means it sits in the foundry unfinished - an unstarted blueprint
-  // is neither claimable nor building, so it drops out of both.
-  if (filters.foundryState === "claimable" && item.foundryStatus !== "claimable") return false;
-  if (filters.foundryState === "building" && item.foundryStatus !== "in-progress") return false;
-  if (filters.foundryState === "buildable" && item.buildable !== true) return false;
+  // Each view resolves its rows to one state; "not claimable" is the union of
+  // everything you can still craft, so it is a negation rather than a match.
+  if (filters.foundryState === "claimable" && item.foundryState !== "claimable") return false;
+  if (filters.foundryState === "not_claimable" && item.foundryState === "claimable") return false;
+  if (filters.foundryState === "buildable" && item.foundryState !== "buildable") return false;
   // Strict tri-state: items without a subsumed flag (primes, non-frames) drop
   // out whenever the filter is active - they can never be subsumed.
   if (filters.subsumed !== "all" && item.subsumed !== (filters.subsumed === "yes")) return false;

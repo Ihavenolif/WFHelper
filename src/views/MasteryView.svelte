@@ -20,6 +20,7 @@
   import ItemImage from "../components/ItemImage.svelte";
   import { send } from "../lib/ipc.js";
   import type { MasteryCategoryStats, ProgressPair } from "../types/inventory.js";
+  import type { FoundryState } from "../types/filters.js";
 
   const CAT_ORDER = [
     "Warframes",
@@ -210,6 +211,16 @@
     );
   }
 
+  /** The card badges are the source of truth here: "Ready" is a finished build. */
+  function foundryStateOf(
+    status: FoundryStatus | undefined,
+    buildable: boolean,
+  ): FoundryState | undefined {
+    if (status === "claimable") return "claimable";
+    if (status === "in-progress") return "building";
+    return buildable ? "buildable" : undefined;
+  }
+
   $: foundryIndex = buildFoundryIndex($foundryData);
   $: subsumedFamilies = buildSubsumedFamilySet($inventoryData, $itemDb);
 
@@ -249,6 +260,8 @@
           : false,
       }));
       const owned = item.status !== "missing" || item.currentlyOwned === true;
+      const buildable =
+        !owned && components.length > 0 && components.every((comp) => comp.owned === true);
       return {
         ...item,
         masteryXpRemaining: item.masteryXpRemaining ?? 0,
@@ -265,8 +278,8 @@
         owned,
         // Snapshot-only lookup: no per-card hydration for 800+ mastery rows.
         platinum: wfm?.url_name ? (getCachedPriceState(wfm.url_name)?.median ?? null) : null,
-        buildable:
-          !owned && components.length > 0 && components.every((comp) => comp.owned === true),
+        buildable,
+        foundryState: foundryStateOf(foundryStatus, buildable),
       };
     });
 
@@ -464,7 +477,6 @@
         sortOptions={MASTERY_SORT_OPTIONS}
         showVaulted
         showFoundryState
-        includeBuildable
       />
       <div class="flex items-end border-b border-white/[0.09]">
         <HeaderTabs

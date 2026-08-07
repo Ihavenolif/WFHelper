@@ -23,8 +23,6 @@
   export let showSubsumed = false;
   export let showVaulted = false;
   export let showFoundryState = false;
-  /** Adds "Can Build" to the foundry-state dropdown. */
-  export let includeBuildable = false;
 
   const PRIME_OPTIONS: Array<[PrimeFilterMode, string]> = [
     ["all", "All"],
@@ -41,9 +39,9 @@
   const FOUNDRY_STATE_OPTIONS: Array<[FoundryStateFilterMode, string]> = [
     ["all", "All"],
     ["claimable", "Ready"],
-    ["building", "Not Ready"],
+    ["not_claimable", "Not Ready"],
+    ["buildable", "Can Build"],
   ];
-  const BUILDABLE_OPTION: [FoundryStateFilterMode, string] = ["buildable", "Can Build"];
 
   const DEFAULT_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
     ["name", "Name"],
@@ -67,9 +65,6 @@
     [15, "15"],
   ];
 
-  $: foundryStateOptions = includeBuildable
-    ? [...FOUNDRY_STATE_OPTIONS, BUILDABLE_OPTION]
-    : FOUNDRY_STATE_OPTIONS;
   $: scopeStore = sharedFilters(scope);
   $: state = $scopeStore;
   $: isInventoryScope = scope === "inventory";
@@ -195,14 +190,14 @@
             <span class="shared-chip-label">Claim</span>
             <select
               class="shared-filter-select"
-              title="Ready = waiting to be claimed, Not Ready = still building"
+              title="Ready = finished build waiting to be claimed; Not Ready hides those"
               value={state.foundryState}
               on:change={(event) =>
                 updateSharedFilters(scope, {
                   foundryState: selectedValue(event) as FoundryStateFilterMode,
                 })}
             >
-              {#each foundryStateOptions as [mode, label] (mode)}
+              {#each FOUNDRY_STATE_OPTIONS as [mode, label] (mode)}
                 <option value={mode}>{label}</option>
               {/each}
             </select>

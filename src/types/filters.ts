@@ -4,9 +4,10 @@ export type PrimeFilterMode = "all" | "prime" | "non_prime";
 export type MasteredFilterMode = "all" | "mastered" | "not_mastered";
 export type YesNoFilterMode = "all" | "yes" | "no";
 type PartTypeFilterMode = "all" | "normal" | "prime";
-/** Mutually exclusive foundry states: waiting to be claimed, still building,
- *  or every part owned but nothing started. */
-export type FoundryStateFilterMode = "all" | "claimable" | "building" | "buildable";
+/** The foundry state a single row sits in. */
+export type FoundryState = "claimable" | "building" | "buildable" | "missing";
+/** `not_claimable` is everything except a finished build, i.e. still craftable. */
+export type FoundryStateFilterMode = "all" | "claimable" | "not_claimable" | "buildable";
 
 export type SharedSortKey =
   | "name"

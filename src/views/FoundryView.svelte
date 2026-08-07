@@ -33,6 +33,7 @@
     MasteryStatus,
     RecipeIngredient,
   } from "../types/inventory.js";
+  import type { FoundryState } from "../types/filters.js";
 
   type SortMode = "name" | "time" | "count";
   /** Unified status for sorting + badges. Order here defines default sort. */
@@ -61,6 +62,14 @@
   }
 
   const FILTER_KEY = "foundryView.filter";
+
+  /** Card status to shared-filter state; only "claimable" reads as Ready. */
+  const FOUNDRY_STATE_BY_STATUS: Record<ItemStatus, FoundryState> = {
+    claimable: "claimable",
+    "in-progress": "building",
+    "ready-to-build": "buildable",
+    "not-ready": "missing",
+  };
 
   $: foundry = $foundryData;
 
@@ -251,7 +260,7 @@
     isPrime: boolean;
     status: MasteryStatus | "unknown";
     vaulted: boolean;
-    foundryStatus: "claimable" | "in-progress" | undefined;
+    foundryState: FoundryState;
     subsumed: boolean | undefined;
   } {
     const db = row.e.productUniqueName ? $itemDb[row.e.productUniqueName] : null;
@@ -267,9 +276,7 @@
       isPrime: db?.isPrime === true || /\bprime\b/i.test(row.e.name),
       status: masteryStateFor(row.e),
       vaulted: db?.vaulted === true,
-      // Only in-foundry states map across; a blueprint on the shelf has neither.
-      foundryStatus:
-        row.status === "claimable" || row.status === "in-progress" ? row.status : undefined,
+      foundryState: FOUNDRY_STATE_BY_STATUS[row.status],
       subsumed:
         row.e.category === "Warframe" && isSubsumableFrame(row.e.name)
           ? isFrameSubsumed(row.e.name, subsumedFamilies)
