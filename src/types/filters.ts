@@ -4,6 +4,9 @@ export type PrimeFilterMode = "all" | "prime" | "non_prime";
 export type MasteredFilterMode = "all" | "mastered" | "not_mastered";
 export type YesNoFilterMode = "all" | "yes" | "no";
 type PartTypeFilterMode = "all" | "normal" | "prime";
+/** Mutually exclusive foundry states: waiting to be claimed, still building,
+ *  or every part owned but nothing started. */
+export type FoundryStateFilterMode = "all" | "claimable" | "building" | "buildable";
 
 export type SharedSortKey =
   | "name"
@@ -39,8 +42,5 @@ export interface SharedFiltersState {
   equipped: YesNoFilterMode;
   leveledUp: YesNoFilterMode;
   subsumed: YesNoFilterMode;
-  /** Its foundry build has finished and is waiting to be claimed. */
-  foundryReady: YesNoFilterMode;
-  /** Every part sits in the inventory but the item itself is not built. */
-  buildable: YesNoFilterMode;
+  foundryState: FoundryStateFilterMode;
 }

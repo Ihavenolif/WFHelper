@@ -56,9 +56,19 @@ async function withWfmError<T>(
 }
 
 function _handleWfmEvent(route: string, payload: unknown): void {
-  if (!ctx.overlaySettings?.wfmNotificationsEnabled) return;
   const win = ctx.mainWindow;
   if (!win || win.isDestroyed()) return;
+
+  // Orders touched from the website or another client. The v2 route names are
+  // undocumented, so match the family instead of a fixed list.
+  if (/order|auction/i.test(route)) {
+    log.info("[WFMListener] Order change pushed:", route);
+    win.webContents.send(WFM_NOTIFICATION, { type: "orders-changed" });
+    return;
+  }
+
+  // Whisper toasts are opt-in; the order sync above is not.
+  if (!ctx.overlaySettings?.wfmNotificationsEnabled) return;
 
   // Whisper / direct message
   if (route.includes("message/new") || route.includes("message/create")) {

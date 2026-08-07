@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
 
   import { parsedItems, wfmItems } from "../stores/data.js";
   import {
@@ -27,7 +27,7 @@
   import { applySharedFiltersAndSort } from "../lib/filters.js";
   import { buildInventoryViewItems } from "../lib/inventoryMarket.js";
   import { buildMarketOrderInventoryItem } from "../lib/marketOrderInventory.js";
-  import { invoke, send, tradeInvoke } from "../lib/ipc.js";
+  import { invoke, on, send, tradeInvoke } from "../lib/ipc.js";
   import { startupPriceCacheReady } from "../lib/startupLoader.js";
   import { marketDensity } from "../stores/uiDensity.js";
   import { getInventoryHydrationController } from "../stores/inventoryHydration.js";
@@ -38,11 +38,13 @@
     WfmContract,
     WfmContractAttribute,
     WfmOrder,
+    WfmOrdersResult,
     WfmStatus,
   } from "../types/market.js";
   import type { DecodedRiven } from "../types/ipc.js";
 
   const ORDERS_STALE_MS = 30_000;
+  const ORDERS_POLL_MS = 30_000;
   const CONTRACTS_STALE_MS = 60_000;
   const CONTRACTS_PAGE_SIZE = 40;
   const MARKET_METRIC_PREFETCH_LIMIT = 64;
@@ -163,10 +165,53 @@
   let orderBookPanelOpen = true;
   let selectedContract: { contract: WfmContract; riven: DecodedRiven } | null = null;
 
+  let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let unsubscribeWfmNotification: (() => void) | null = null;
+
   onMount(async () => {
     hydration.resume();
+    unsubscribeWfmNotification = on("wfm:notification", (notification) => {
+      if (notification.type === "orders-changed") void backgroundRefresh();
+    });
+    window.addEventListener("focus", backgroundRefresh);
+    pollTimer = setInterval(backgroundRefresh, ORDERS_POLL_MS);
     await loadView();
   });
+
+  onDestroy(() => {
+    unsubscribeWfmNotification?.();
+    window.removeEventListener("focus", backgroundRefresh);
+    if (pollTimer) clearInterval(pollTimer);
+  });
+
+  /** Listing ids plus quantities - what a website unlisting or a new post changes. */
+  function listingSignature(state: WfmOrdersResult): string {
+    return [...state.sell, ...state.buy]
+      .map((entry) => `${entry.id}:${entry.quantity}`)
+      .sort()
+      .join("|");
+  }
+
+  /** Picks up changes made outside the app. Only writes the store when the
+   *  listing set really moved, so a half-typed inline price survives a poll. */
+  function backgroundRefresh(): void {
+    if (!$marketSession.loggedIn || document.hidden || $orderModalState) return;
+
+    if (isRivensTab) {
+      if (!contractsLoading) void fetchContracts();
+      return;
+    }
+    if (ordersLoading) return;
+
+    void (async () => {
+      const result = await invoke("wfmGetOrders");
+      if (hasError(result)) return;
+      setMarketViewState({ ordersLastFetch: Date.now() });
+      if (listingSignature(result) === listingSignature($marketOrders)) return;
+      marketOrders.set(result);
+      marketSelected.set(new Set());
+    })();
+  }
 
   async function loadView(): Promise<void> {
     try {

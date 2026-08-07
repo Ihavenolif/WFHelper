@@ -55,7 +55,8 @@ interface FilterableItem {
   grade?: string | number | null;
   gradeRank?: number | null;
   masteryXpRemaining?: number | null;
-  foundryReady?: boolean;
+  /** Undefined when the item is not in the foundry at all. */
+  foundryStatus?: "claimable" | "in-progress" | undefined;
   buildable?: boolean;
 }
 
@@ -181,15 +182,11 @@ export function matchesSharedFilters(item: FilterableItem, filters: SharedFilter
   if (!matchesYesNo(filters.favorite, item.favorite)) return false;
   if (!matchesYesNo(filters.equipped, item.equipped)) return false;
   if (!matchesYesNo(filters.leveledUp, item.leveledUp)) return false;
-  // Ready-to-claim and buildable are mutually exclusive per item, so ANDing them
-  // would always be empty; picking both means "either".
-  if (filters.foundryReady !== "all" || filters.buildable !== "all") {
-    const wanted = [
-      filters.foundryReady !== "all" && matchesYesNo(filters.foundryReady, item.foundryReady),
-      filters.buildable !== "all" && matchesYesNo(filters.buildable, item.buildable),
-    ];
-    if (!wanted.some(Boolean)) return false;
-  }
+  // "building" means it sits in the foundry unfinished - an unstarted blueprint
+  // is neither claimable nor building, so it drops out of both.
+  if (filters.foundryState === "claimable" && item.foundryStatus !== "claimable") return false;
+  if (filters.foundryState === "building" && item.foundryStatus !== "in-progress") return false;
+  if (filters.foundryState === "buildable" && item.buildable !== true) return false;
   // Strict tri-state: items without a subsumed flag (primes, non-frames) drop
   // out whenever the filter is active - they can never be subsumed.
   if (filters.subsumed !== "all" && item.subsumed !== (filters.subsumed === "yes")) return false;

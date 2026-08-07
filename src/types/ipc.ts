@@ -507,7 +507,9 @@ type WfmNotification =
   | { type: "whisper" | "trade"; from: string; content: string }
   // The persistent WS listener gave up after repeated sign-in rejections;
   // the session token is dead and the user must log in again.
-  | { type: "listener-auth-failed" };
+  | { type: "listener-auth-failed" }
+  // WFM pushed an order/auction change made elsewhere (website, another client).
+  | { type: "orders-changed" };
 
 // Single source of truth for trade/stat types lives in config/shared/statsTypes.ts.
 import type {

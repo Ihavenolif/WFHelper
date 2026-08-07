@@ -70,6 +70,25 @@ export function registerWfmFixtures(): boolean {
 
   const allOrders = () => [...orders.sell, ...orders.buy];
 
+  // Rewriting the fixture mid-run stands in for a change made outside the app
+  // (unlisted on the website). Unchanged file keeps in-app edits in memory.
+  let fixtureMtimeMs = 0;
+  const syncFixtureFromDisk = (): void => {
+    try {
+      const mtimeMs = fs.statSync(file).mtimeMs;
+      if (mtimeMs === fixtureMtimeMs) return;
+      const reloaded = loadFixtureOrders(file);
+      if (fixtureMtimeMs !== 0) {
+        orders.sell = reloaded.sell;
+        orders.buy = reloaded.buy;
+      }
+      fixtureMtimeMs = mtimeMs;
+    } catch (err) {
+      log.warn("[WFMFixtures] fixture reload failed:", String(err));
+    }
+  };
+  syncFixtureFromDisk();
+
   handleAuthorized(WFM_SIGNIN, assertMainRendererSender, async () => FIXTURE_SESSION);
   handleAuthorized(WFM_SIGNOUT, assertMainRendererSender, async () => ({
     loggedIn: false,
@@ -77,10 +96,13 @@ export function registerWfmFixtures(): boolean {
     platform: "pc",
   }));
   handleAuthorized(WFM_SESSION, assertMainRendererSender, async () => FIXTURE_SESSION);
-  handleAuthorized(WFM_GET_ORDERS, assertMainRendererSender, async () => ({
-    sell: orders.sell.map((entry) => ({ ...entry })),
-    buy: orders.buy.map((entry) => ({ ...entry })),
-  }));
+  handleAuthorized(WFM_GET_ORDERS, assertMainRendererSender, async () => {
+    syncFixtureFromDisk();
+    return {
+      sell: orders.sell.map((entry) => ({ ...entry })),
+      buy: orders.buy.map((entry) => ({ ...entry })),
+    };
+  });
   handleAuthorized(WFM_GET_CONTRACTS, assertMainRendererSender, async () => ({
     contracts: [],
     page: 1,

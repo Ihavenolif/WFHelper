@@ -265,7 +265,6 @@
         owned,
         // Snapshot-only lookup: no per-card hydration for 800+ mastery rows.
         platinum: wfm?.url_name ? (getCachedPriceState(wfm.url_name)?.median ?? null) : null,
-        foundryReady: foundryStatus === "claimable",
         buildable:
           !owned && components.length > 0 && components.every((comp) => comp.owned === true),
       };
@@ -464,8 +463,8 @@
         scope="mastery"
         sortOptions={MASTERY_SORT_OPTIONS}
         showVaulted
-        showClaimable
-        showBuildable
+        showFoundryState
+        includeBuildable
       />
       <div class="flex items-end border-b border-white/[0.09]">
         <HeaderTabs

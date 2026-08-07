@@ -5,6 +5,7 @@
   import SearchBox from "./SearchBox.svelte";
   import type {
     FilterScope,
+    FoundryStateFilterMode,
     MasteredFilterMode,
     PrimeFilterMode,
     SharedSortKey,
@@ -21,8 +22,9 @@
   export let sortOptions: Array<[SharedSortKey, string]> | null = null;
   export let showSubsumed = false;
   export let showVaulted = false;
-  export let showClaimable = false;
-  export let showBuildable = false;
+  export let showFoundryState = false;
+  /** Adds "Can Build" to the foundry-state dropdown. */
+  export let includeBuildable = false;
 
   const PRIME_OPTIONS: Array<[PrimeFilterMode, string]> = [
     ["all", "All"],
@@ -36,11 +38,12 @@
     ["not_mastered", "Not Mastered"],
   ];
 
-  const CLAIMABLE_OPTIONS: Array<[YesNoFilterMode, string]> = [
+  const FOUNDRY_STATE_OPTIONS: Array<[FoundryStateFilterMode, string]> = [
     ["all", "All"],
-    ["yes", "Ready"],
-    ["no", "Not Ready"],
+    ["claimable", "Ready"],
+    ["building", "Not Ready"],
   ];
+  const BUILDABLE_OPTION: [FoundryStateFilterMode, string] = ["buildable", "Can Build"];
 
   const DEFAULT_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
     ["name", "Name"],
@@ -64,6 +67,9 @@
     [15, "15"],
   ];
 
+  $: foundryStateOptions = includeBuildable
+    ? [...FOUNDRY_STATE_OPTIONS, BUILDABLE_OPTION]
+    : FOUNDRY_STATE_OPTIONS;
   $: scopeStore = sharedFilters(scope);
   $: state = $scopeStore;
   $: isInventoryScope = scope === "inventory";
@@ -106,9 +112,7 @@
       | "favorite"
       | "equipped"
       | "leveledUp"
-      | "subsumed"
-      | "foundryReady"
-      | "buildable",
+      | "subsumed",
     value: Exclude<YesNoFilterMode, "all">,
   ): void {
     const next = state[key] === value ? "all" : value;
@@ -186,32 +190,22 @@
           </div>
         {/if}
 
-        {#if showClaimable}
+        {#if showFoundryState}
           <div class="shared-select-group">
             <span class="shared-chip-label">Claim</span>
             <select
               class="shared-filter-select"
-              title="Foundry build finished and waiting to be claimed"
-              value={state.foundryReady}
+              title="Ready = waiting to be claimed, Not Ready = still building"
+              value={state.foundryState}
               on:change={(event) =>
                 updateSharedFilters(scope, {
-                  foundryReady: selectedValue(event) as YesNoFilterMode,
+                  foundryState: selectedValue(event) as FoundryStateFilterMode,
                 })}
             >
-              {#each CLAIMABLE_OPTIONS as [mode, label] (mode)}
+              {#each foundryStateOptions as [mode, label] (mode)}
                 <option value={mode}>{label}</option>
               {/each}
             </select>
-          </div>
-        {/if}
-
-        {#if showBuildable}
-          <div class="filter-tabs" title="Every part owned, item not built yet">
-            <button
-              class="filter-tab"
-              class:active={state.buildable === "yes"}
-              on:click={() => setYesNoFilter("buildable", "yes")}>Can Build</button
-            >
           </div>
         {/if}
       {/if}

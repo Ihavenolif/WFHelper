@@ -167,8 +167,7 @@ describe("inventoryMarket view mapping", () => {
         equipped: "all",
         leveledUp: "all",
         subsumed: "all",
-        foundryReady: "all",
-        buildable: "all",
+        foundryState: "all",
       },
       "all_parts",
     );

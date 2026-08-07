@@ -29,7 +29,7 @@
   import { itemDb, parsedItems } from "./stores/data.js";
   import { tourActive } from "./stores/tour.js";
   import { masteryData } from "./stores/mastery.js";
-  import { applyClosedWfmListing, marketSession } from "./stores/market.js";
+  import { applyClosedWfmListing, marketSession, resetMarketFetchTimes } from "./stores/market.js";
   import { activeItem, activeComponent, activeRelic } from "./stores/modals.js";
   import { applyUpdateState } from "./stores/updates.js";
   import { addToast } from "./stores/toasts.js";
@@ -97,6 +97,11 @@
     });
 
     const unsubscribeWfmNotification = on("wfm:notification", (notification) => {
+      if (notification.type === "orders-changed") {
+        // MarketView refetches when it is mounted; this covers when it is not.
+        resetMarketFetchTimes();
+        return;
+      }
       if (notification.type === "listener-auth-failed") {
         marketSession.update((s) => ({ ...s, loggedIn: false }));
         addToast({

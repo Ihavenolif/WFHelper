@@ -251,7 +251,7 @@
     isPrime: boolean;
     status: MasteryStatus | "unknown";
     vaulted: boolean;
-    foundryReady: boolean;
+    foundryStatus: "claimable" | "in-progress" | undefined;
     subsumed: boolean | undefined;
   } {
     const db = row.e.productUniqueName ? $itemDb[row.e.productUniqueName] : null;
@@ -267,7 +267,9 @@
       isPrime: db?.isPrime === true || /\bprime\b/i.test(row.e.name),
       status: masteryStateFor(row.e),
       vaulted: db?.vaulted === true,
-      foundryReady: row.status === "claimable",
+      // Only in-foundry states map across; a blueprint on the shelf has neither.
+      foundryStatus:
+        row.status === "claimable" || row.status === "in-progress" ? row.status : undefined,
       subsumed:
         row.e.category === "Warframe" && isSubsumableFrame(row.e.name)
           ? isFrameSubsumed(row.e.name, subsumedFamilies)
@@ -370,7 +372,7 @@
       sortOptions={foundrySortOptions}
       showSubsumed
       showVaulted
-      showClaimable
+      showFoundryState
     />
 
     <div class="flex items-end border-b border-white/[0.09]">

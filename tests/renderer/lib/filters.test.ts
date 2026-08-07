@@ -23,8 +23,7 @@ function defaultFilters(): SharedFiltersState {
     equipped: "all",
     leveledUp: "all",
     subsumed: "all",
-    foundryReady: "all",
-    buildable: "all",
+    foundryState: "all",
   };
 }
 
@@ -176,45 +175,35 @@ describe("mastery filters", () => {
     }
   });
 
-  it("keeps only builds waiting to be claimed", () => {
-    const items = [
-      { name: "Ready Frame", foundryReady: true },
-      { name: "Still Cooking", foundryReady: false },
-    ];
+  const foundryItems = [
+    { name: "Ready Frame", foundryStatus: "claimable" as const, buildable: false },
+    { name: "Still Cooking", foundryStatus: "in-progress" as const, buildable: false },
+    { name: "All Parts Owned", buildable: true },
+    { name: "Ready To Build Shelf", buildable: false },
+  ];
 
-    const filtered = applySharedFiltersAndSort(items, {
+  it("keeps only builds waiting to be claimed", () => {
+    const filtered = applySharedFiltersAndSort(foundryItems, {
       ...defaultFilters(),
-      foundryReady: "yes",
+      foundryState: "claimable",
     });
 
     expect(filtered.map((row) => row.name)).toEqual(["Ready Frame"]);
   });
 
-  it("shows either group when both foundry filters are on", () => {
-    const items = [
-      { name: "Ready Frame", foundryReady: true, buildable: false },
-      { name: "All Parts Owned", foundryReady: false, buildable: true },
-      { name: "Neither", foundryReady: false, buildable: false },
-    ];
-
-    const filtered = applySharedFiltersAndSort(items, {
+  it("reads not-ready as still building, not as everything unclaimable", () => {
+    const filtered = applySharedFiltersAndSort(foundryItems, {
       ...defaultFilters(),
-      foundryReady: "yes",
-      buildable: "yes",
+      foundryState: "building",
     });
 
-    expect(filtered.map((row) => row.name)).toEqual(["All Parts Owned", "Ready Frame"]);
+    expect(filtered.map((row) => row.name)).toEqual(["Still Cooking"]);
   });
 
   it("keeps only items whose parts are all sitting in the inventory", () => {
-    const items = [
-      { name: "All Parts Owned", buildable: true },
-      { name: "Missing A Part", buildable: false },
-    ];
-
-    const filtered = applySharedFiltersAndSort(items, {
+    const filtered = applySharedFiltersAndSort(foundryItems, {
       ...defaultFilters(),
-      buildable: "yes",
+      foundryState: "buildable",
     });
 
     expect(filtered.map((row) => row.name)).toEqual(["All Parts Owned"]);
