@@ -179,6 +179,180 @@ describe("RIVEN_PATTERNS", () => {
   });
 });
 
+describe("chat riven HudVis lifecycle", () => {
+  afterEach(() => {
+    resetRivenState();
+    vi.useRealTimers();
+  });
+
+  it("stays open through nested HudVis changes and closes below its opening level", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-08T12:00:00Z"));
+    resetRivenState();
+
+    const onRivenChatView = vi.fn();
+    const onRivenSessionClose = vi.fn();
+    setRivenCallbacks({ onRivenChatView, onRivenSessionClose });
+
+    const process = (line: string) => processRivenPatterns(line, "dbwin", true);
+    const hudVis = (level: number) => `ThemedDetailedPurchaseDialog.lua: DBG: HudVis ${level}`;
+    const populate =
+      "ThemedDetailedPurchaseDialog.lua: PopulateInfo->/Lotus/StoreItems/Upgrades/Mods/Randomized/LotusRifleRandomMod";
+
+    process(hudVis(1));
+    process(populate);
+    expect(onRivenChatView).toHaveBeenCalledTimes(1);
+
+    process(hudVis(2));
+    process(hudVis(1));
+    expect(onRivenSessionClose).not.toHaveBeenCalled();
+
+    process(hudVis(0));
+    expect(onRivenSessionClose).toHaveBeenCalledTimes(1);
+
+    process(populate);
+    expect(onRivenChatView).toHaveBeenCalledTimes(1);
+
+    process(hudVis(1));
+    process(populate);
+    expect(onRivenChatView).toHaveBeenCalledTimes(2);
+  });
+
+  it("ignores delayed file echoes while DBWIN owns the chat lifecycle", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-08T12:00:00Z"));
+    resetRivenState();
+
+    const onRivenChatView = vi.fn();
+    const onRivenSessionClose = vi.fn();
+    setRivenCallbacks({ onRivenChatView, onRivenSessionClose });
+
+    const hudVis = (level: number) => `ThemedDetailedPurchaseDialog.lua: DBG: HudVis ${level}`;
+    const populate =
+      "ThemedDetailedPurchaseDialog.lua: PopulateInfo->/Lotus/StoreItems/Upgrades/Mods/Randomized/LotusRifleRandomMod";
+    const dbwin = (line: string) => processRivenPatterns(line, "dbwin", true);
+    const file = (line: string) => processRivenPatterns(line, "file", true);
+
+    dbwin(hudVis(1));
+    dbwin(populate);
+    dbwin(hudVis(0));
+    expect(onRivenSessionClose).toHaveBeenCalledTimes(1);
+
+    dbwin(hudVis(1));
+    dbwin(populate);
+    expect(onRivenChatView).toHaveBeenCalledTimes(2);
+
+    file(hudVis(0));
+    expect(onRivenSessionClose).toHaveBeenCalledTimes(1);
+
+    dbwin(hudVis(0));
+    expect(onRivenSessionClose).toHaveBeenCalledTimes(2);
+
+    file(hudVis(1));
+    file(populate);
+    expect(onRivenChatView).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses file chat events when no real-time source is active", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-08T12:00:00Z"));
+    resetRivenState();
+
+    const onRivenChatView = vi.fn();
+    const onRivenSessionClose = vi.fn();
+    const onRivenWeaponPath = vi.fn();
+    setRivenCallbacks({ onRivenChatView, onRivenSessionClose, onRivenWeaponPath });
+
+    const process = (line: string) => processRivenPatterns(line, "file", false);
+    process("ThemedDetailedPurchaseDialog.lua: DBG: HudVis 1");
+    process(
+      "Sys [Info]: ResourceLoader 0x1234 (/Lotus/Weapons/Tenno/Shotgun/PrimeBoar) Found 1,081 items to load",
+    );
+    process(
+      "ThemedDetailedPurchaseDialog.lua: PopulateInfo->/Lotus/StoreItems/Upgrades/Mods/Randomized/LotusRifleRandomMod",
+    );
+    process("ThemedDetailedPurchaseDialog.lua: DBG: HudVis 0");
+
+    expect(onRivenChatView).toHaveBeenCalledTimes(1);
+    expect(onRivenWeaponPath).toHaveBeenCalledWith("/Lotus/Weapons/Tenno/Shotgun/PrimeBoar");
+    expect(onRivenSessionClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("delivers the exact linked weapon path after opening the chat view", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-08T12:00:00Z"));
+    resetRivenState();
+
+    const events: string[] = [];
+    setRivenCallbacks({
+      onRivenChatView: () => events.push("chat"),
+      onRivenWeaponPath: (weaponPath) => events.push(weaponPath),
+    });
+
+    const process = (line: string) => processRivenPatterns(line, "dbwin", true);
+    process("530.304 Script [Info]: ThemedDetailedPurchaseDialog.lua: DBG: HudVis 1");
+    process(
+      "530.357 Sys [Info]: ResourceLoader 0x000001ABBE845340 (/Lotus/Weapons/Tenno/Shotgun/PrimeBoar) Found 1,081 items to load",
+    );
+    expect(events).toEqual([]);
+
+    process(
+      "530.415 Script [Info]: ThemedDetailedPurchaseDialog.lua: PopulateInfo->/Lotus/StoreItems/Upgrades/Mods/Randomized/LotusShotgunRandomModRare",
+    );
+    expect(events).toEqual(["chat", "/Lotus/Weapons/Tenno/Shotgun/PrimeBoar"]);
+  });
+
+  it("discards a linked weapon path when the view closes before confirmation", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-08T12:00:00Z"));
+    resetRivenState();
+
+    const events: string[] = [];
+    setRivenCallbacks({
+      onRivenChatView: () => events.push("chat"),
+      onRivenWeaponPath: (weaponPath) => events.push(weaponPath),
+    });
+
+    const process = (line: string) => processRivenPatterns(line, "dbwin", true);
+    process("ThemedDetailedPurchaseDialog.lua: DBG: HudVis 1");
+    process(
+      "Sys [Info]: ResourceLoader 0x1234 (/Lotus/Weapons/Tenno/Shotgun/PrimeBoar) Found 1,081 items to load",
+    );
+    process("ThemedDetailedPurchaseDialog.lua: DBG: HudVis 0");
+    process("ThemedDetailedPurchaseDialog.lua: DBG: HudVis 1");
+    process(
+      "ThemedDetailedPurchaseDialog.lua: PopulateInfo->/Lotus/StoreItems/Upgrades/Mods/Randomized/LotusShotgunRandomModRare",
+    );
+
+    expect(events).toEqual(["chat"]);
+  });
+
+  it("discards a linked weapon path when its HudVis window expires", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-08T12:00:00Z"));
+    resetRivenState();
+
+    const events: string[] = [];
+    setRivenCallbacks({
+      onRivenChatView: () => events.push("chat"),
+      onRivenWeaponPath: (weaponPath) => events.push(weaponPath),
+    });
+
+    const process = (line: string) => processRivenPatterns(line, "dbwin", true);
+    process("ThemedDetailedPurchaseDialog.lua: DBG: HudVis 1");
+    process(
+      "Sys [Info]: ResourceLoader 0x1234 (/Lotus/Weapons/Tenno/Shotgun/PrimeBoar) Found 1,081 items to load",
+    );
+    vi.advanceTimersByTime(2100);
+    process("ThemedDetailedPurchaseDialog.lua: DBG: HudVis 2");
+    process(
+      "ThemedDetailedPurchaseDialog.lua: PopulateInfo->/Lotus/StoreItems/Upgrades/Mods/Randomized/LotusShotgunRandomModRare",
+    );
+
+    expect(events).toEqual(["chat"]);
+  });
+});
+
 describe("parseRivenStats", () => {
   it("returns empty array for empty input", () => {
     expect(parseRivenStats("")).toEqual([]);
@@ -1025,6 +1199,7 @@ describe("getWeaponNameByUniqueName", () => {
     expect(
       getWeaponNameByUniqueName("/Lotus/Weapons/Grineer/KuvaLich/LongGuns/Sobek/KuvaSobek"),
     ).toBe("Kuva Sobek");
+    expect(getWeaponNameByUniqueName("/Lotus/Weapons/Tenno/Shotgun/PrimeBoar")).toBe("Boar Prime");
   });
 
   it("returns null for unknown paths", () => {

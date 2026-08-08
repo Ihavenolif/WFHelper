@@ -29,15 +29,31 @@ const FILTER_SUBSTRINGS_LOWER = [
 const RELIC_PICKER_SUPPRESS_MS = 7500;
 // One AddTab forward per window is enough; also guards re-delivery regressions.
 const CHAT_TAB_SUPPRESS_MS = 2000;
+const CHAT_RIVEN_WEAPON_WINDOW_MS = 2000;
+const REROLL_WEAPON_WINDOW_MS = 15_000;
 
 export class DebugLineGate {
   private relicSuppressUntil = 0;
   private chatTabSuppressUntil = 0;
+  private rivenWeaponLoadUntil = 0;
 
   /** True when the line should be forwarded to eeLogMonitor's handleLine. */
   wants(msg: string, now: number): boolean {
     const msgLower = msg.toLowerCase();
-    if (!FILTER_SUBSTRINGS_LOWER.some((s) => msgLower.includes(s))) return false;
+    const isWeaponResourceLoad =
+      msgLower.includes("/lotus/weapons/") &&
+      (msgLower.includes("resourceloader") ||
+        msgLower.includes("resloader") ||
+        msgLower.includes("resource load completed"));
+    if (msgLower.includes("omegarerollselection.swf")) {
+      this.rivenWeaponLoadUntil = now + REROLL_WEAPON_WINDOW_MS;
+    } else if (msgLower.includes("themeddetailedpurchasedialog") && msgLower.includes("hudvis")) {
+      this.rivenWeaponLoadUntil = now + CHAT_RIVEN_WEAPON_WINDOW_MS;
+    }
+    if (isWeaponResourceLoad && now >= this.rivenWeaponLoadUntil) return false;
+    if (!isWeaponResourceLoad && !FILTER_SUBSTRINGS_LOWER.some((s) => msgLower.includes(s))) {
+      return false;
+    }
 
     const isRelicLine =
       msgLower.includes("loadingcompleteend") ||

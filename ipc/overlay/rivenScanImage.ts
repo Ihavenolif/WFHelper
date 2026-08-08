@@ -13,6 +13,7 @@ export interface RivenScanCropRect {
 export const RIVEN_SCAN_CROPS = Object.freeze({
   // Initial and choice scans use the centered single-card view.
   singleCard: { x: 0.22, y: 0.43, width: 0.56, height: 0.45 },
+  chatCard: { x: 0.22, y: 0.3, width: 0.56, height: 0.45 },
   // Roll scans target the card during the post-roll transition. Wide on purpose:
   // the aspect trim below narrows it back down around the detected text column.
   rollCard: { x: 0.36, y: 0.416, width: 0.28, height: 0.434 },

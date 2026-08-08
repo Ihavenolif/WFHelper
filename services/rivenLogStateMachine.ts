@@ -69,6 +69,8 @@ const RIVEN_SESSION_MAX_MS = 30 * 60_000;
 
 let _rivenNextDialog: "cycle" | "choice" = "cycle";
 let _rivenChatViewActive = false;
+let _rivenChatHudVisLevel = 0;
+let _rivenChatWeaponPath: string | null = null;
 
 let _lastRivenSendResultAt = 0;
 const RIVEN_SEND_RESULT_COOLDOWN_MS = 400;
@@ -175,6 +177,8 @@ export function processRivenPatterns(
       _rivenSessionActive = true;
       _rivenSessionStartedAt = now;
       _rivenChatViewActive = false;
+      _rivenChatHudVisLevel = 0;
+      _rivenChatWeaponPath = null;
       _rivenNextDialog = "cycle";
       _rivenPendingDialog = null;
       _rivenWeaponPathSent = false;
@@ -193,18 +197,17 @@ export function processRivenPatterns(
   // diorama-ready in real time while the Resloader line only arrives via the
   // lagging file poll, which closed that gate every single session. A short
   // wall-clock window keeps relay bystander weapon loads out instead.
+  const weaponMatch = line.match(RIVEN_PATTERNS.dioramaWeaponLoad);
   if (
     _rivenSessionActive &&
     !_rivenWeaponPathSent &&
     _rivenSessionStartedAt > 0 &&
-    Date.now() - _rivenSessionStartedAt < RIVEN_WEAPON_PATH_WINDOW_MS
+    Date.now() - _rivenSessionStartedAt < RIVEN_WEAPON_PATH_WINDOW_MS &&
+    weaponMatch
   ) {
-    const weaponMatch = line.match(RIVEN_PATTERNS.dioramaWeaponLoad);
-    if (weaponMatch) {
-      _rivenWeaponPathSent = true;
-      log.info(`[EELog] Riven diorama weapon load: ${weaponMatch[1]}`);
-      _callbacks.onRivenWeaponPath?.(weaponMatch[1]);
-    }
+    _rivenWeaponPathSent = true;
+    log.info(`[EELog] Riven diorama weapon load: ${weaponMatch[1]}`);
+    _callbacks.onRivenWeaponPath?.(weaponMatch[1]);
   }
 
   // Diorama ready: both cards are now displayed - trigger roll OCR immediately.
@@ -242,36 +245,56 @@ export function processRivenPatterns(
     _callbacks.onRivenSessionClose?.();
   }
 
-  // Chat riven detection: a HudVis increment records a timestamp, and if a
-  // PopulateInfo with a Randomized mod path shows up within 2s it's a riven.
-  // A HudVis decrement means the chat item view closed.
   const hudVisMatch = line.match(RIVEN_PATTERNS.hudVis);
-  if (hudVisMatch && !_rivenSessionActive) {
+  if (!skipRivenFromFilePoll && hudVisMatch && !_rivenSessionActive) {
     const newVis = parseInt(hudVisMatch[1], 10);
-    if (newVis < _lastHudVis) {
-      // HudVis decreased -> chat item view closed
-      if (_rivenChatViewActive) {
-        _rivenChatViewActive = false;
-        log.info("[EELog] Riven chat-link view closed (HudVis decreased) -> dispatching session close");
-        _callbacks.onRivenSessionClose?.();
-      }
+    if (_rivenChatViewActive && newVis < _rivenChatHudVisLevel) {
+      _rivenChatViewActive = false;
+      _rivenChatHudVisLevel = 0;
+      _rivenChatWeaponPath = null;
+      _lastHudVisIncreaseAt = 0;
+      log.info("[EELog] Riven chat-link view closed below its HudVis level");
+      _callbacks.onRivenSessionClose?.();
     } else if (newVis > _lastHudVis) {
-      // HudVis increased -> record timestamp, wait for PopulateInfo confirmation
+      if (!_rivenChatViewActive) _rivenChatWeaponPath = null;
       _lastHudVisIncreaseAt = Date.now();
+    } else if (!_rivenChatViewActive && newVis < _lastHudVis) {
+      _rivenChatWeaponPath = null;
+      _lastHudVisIncreaseAt = 0;
     }
     _lastHudVis = newVis;
   }
 
-  // PopulateInfo with Randomized mod path within 2s of HudVis increase = riven
   if (
+    !skipRivenFromFilePoll &&
     !_rivenSessionActive &&
     !_rivenChatViewActive &&
+    _lastHudVisIncreaseAt > 0 &&
+    Date.now() - _lastHudVisIncreaseAt < CHAT_RIVEN_POPULATE_WINDOW_MS &&
+    weaponMatch
+  ) {
+    _rivenChatWeaponPath = weaponMatch[1];
+  }
+
+  // PopulateInfo with Randomized mod path within 2s of HudVis increase = riven
+  if (
+    !skipRivenFromFilePoll &&
+    !_rivenSessionActive &&
+    !_rivenChatViewActive &&
+    _lastHudVisIncreaseAt > 0 &&
     RIVEN_PATTERNS.populateRiven.test(line) &&
     Date.now() - _lastHudVisIncreaseAt < CHAT_RIVEN_POPULATE_WINDOW_MS
   ) {
+    const weaponPath = _rivenChatWeaponPath;
+    _rivenChatWeaponPath = null;
     _rivenChatViewActive = true;
+    _rivenChatHudVisLevel = _lastHudVis;
     log.info("[EELog] Riven chat-link view confirmed (PopulateInfo within HudVis window) -> dispatching chat view");
     _callbacks.onRivenChatView?.();
+    if (weaponPath) {
+      log.info(`[EELog] Riven chat-link weapon load: ${weaponPath}`);
+      _callbacks.onRivenWeaponPath?.(weaponPath);
+    }
   }
 
   let rivenDialogHandled = skipRivenFromFilePoll;
@@ -371,6 +394,8 @@ export function forceEndRivenSession(): void {
   _rivenSessionStartedAt = 0;
   _rivenDioramaReady = false;
   _rivenChatViewActive = false;
+  _rivenChatHudVisLevel = 0;
+  _rivenChatWeaponPath = null;
   _rivenPendingDialog = null;
   _rivenNextDialog = "cycle";
   _rivenForceEndedAt = Date.now();
@@ -391,6 +416,8 @@ export function resetRivenState(): void {
   _rivenDioramaReady = false;
   _rivenWeaponPathSent = false;
   _rivenChatViewActive = false;
+  _rivenChatHudVisLevel = 0;
+  _rivenChatWeaponPath = null;
   _lastRivenSendResultAt = 0;
   _lastRivenGenericDialogAt = 0;
   _lastRivenChoiceDialogAt = 0;

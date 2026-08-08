@@ -30,7 +30,11 @@ const TEXT_TOP = 880;
 const TEXT_BOTTOM = 1160;
 
 /** Dark screen with white "stat line" stripes starting at textLeft. */
-function makeRivenScreen(textLeft: number): NativeImage {
+function makeRivenScreen(
+  textLeft: number,
+  textTop = TEXT_TOP,
+  textBottom = TEXT_BOTTOM,
+): NativeImage {
   const bitmap = Buffer.alloc(SCREEN_W * SCREEN_H * 4);
   for (let i = 0; i < bitmap.length; i += 4) {
     bitmap[i] = 30;
@@ -38,8 +42,8 @@ function makeRivenScreen(textLeft: number): NativeImage {
     bitmap[i + 2] = 30;
     bitmap[i + 3] = 255;
   }
-  for (let y = TEXT_TOP; y < TEXT_BOTTOM; y++) {
-    if ((y - TEXT_TOP) % 28 >= 16) continue; // 16px text line, 12px gap
+  for (let y = textTop; y < textBottom; y++) {
+    if ((y - textTop) % 28 >= 16) continue; // 16px text line, 12px gap
     for (let x = textLeft; x < textLeft + TEXT_W; x++) {
       const idx = (y * SCREEN_W + x) * 4;
       bitmap[idx] = 255;
@@ -66,6 +70,28 @@ function whiteSpan(image: NativeImage): number {
     }
   }
   return minX < 0 ? 0 : maxX - minX + 1;
+}
+
+function whiteRowGroups(image: NativeImage): number {
+  const { width, height } = image.getSize();
+  const bitmap = image.toBitmap();
+  let groups = 0;
+  let previousRowWasWhite = false;
+
+  for (let y = 0; y < height; y++) {
+    let rowIsWhite = false;
+    for (let x = 0; x < width; x++) {
+      const idx = (y * width + x) * 4;
+      if (bitmap[idx] > 200 && bitmap[idx + 1] > 200 && bitmap[idx + 2] > 200) {
+        rowIsWhite = true;
+        break;
+      }
+    }
+    if (rowIsWhite && !previousRowWasWhite) groups++;
+    previousRowWasWhite = rowIsWhite;
+  }
+
+  return groups;
 }
 
 describe("cropRivenStatImage", () => {
@@ -95,5 +121,18 @@ describe("cropRivenStatImage", () => {
     const screen = makeRivenScreen(SCREEN_W / 2 - TEXT_W / 2 - 120);
     const { statCrop } = cropRivenStatImage(screen, RIVEN_SCAN_CROPS.rollCard);
     expect(whiteSpan(statCrop)).toBeGreaterThanOrEqual(TEXT_W - 4);
+  });
+
+  it("keeps every stat row in the higher chat-link card layout", () => {
+    const screen = makeRivenScreen(
+      SCREEN_W / 2 - TEXT_W / 2,
+      Math.round(SCREEN_H * 0.53),
+      Math.round(SCREEN_H * 0.62),
+    );
+    const chat = cropRivenStatImage(screen, RIVEN_SCAN_CROPS.chatCard);
+    const reroll = cropRivenStatImage(screen, RIVEN_SCAN_CROPS.singleCard);
+
+    expect(whiteRowGroups(chat.statCrop)).toBe(5);
+    expect(whiteRowGroups(reroll.statCrop)).toBeLessThan(5);
   });
 });

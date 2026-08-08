@@ -45,4 +45,21 @@ describe("DebugLineGate", () => {
       gate.wants("Script [Info]: ProjectionRewardChoice.lua: Missing icon data!", 0),
     ).toBe(true);
   });
+
+  it("forwards only weapon resource loads inside a riven view window", () => {
+    const gate = new DebugLineGate();
+    const weaponLoad =
+      "Sys [Info]: ResourceLoader 0x1234 (/Lotus/Weapons/Tenno/Shotgun/PrimeBoar) Found 1,081 items to load";
+
+    expect(gate.wants(weaponLoad, 900)).toBe(false);
+    expect(gate.wants("ThemedDetailedPurchaseDialog.lua: DBG: HudVis 1", 1000)).toBe(true);
+    expect(gate.wants(weaponLoad, 1100)).toBe(true);
+    expect(
+      gate.wants(
+        "Sys [Info]: ResourceLoader 0x1234 (/Lotus/Levels/Episodes/SmallBlackRoom.level) Found 22 items to load",
+        1200,
+      ),
+    ).toBe(false);
+    expect(gate.wants(weaponLoad, 3000)).toBe(false);
+  });
 });

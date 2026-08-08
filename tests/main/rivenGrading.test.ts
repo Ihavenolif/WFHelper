@@ -471,6 +471,17 @@ describe("gradeRiven", () => {
     expect(slash.grade).toBe("A-");
   });
 
+  it("grades the linked Boar Prime card against its exact disposition", () => {
+    const result = gradeRiven("Boar Prime", [
+      { name: "Critical Damage", positive: true, value: 109.9 },
+      { name: "Damage", positive: true, value: 202.5 },
+      { name: "Critical Chance", positive: true, value: 124 },
+      { name: "Impact", positive: false, value: 121 },
+    ]);
+
+    expect(result?.stats.map((stat) => stat.grade)).toEqual(["B-", "B-", "S", "B"]);
+  });
+
   it("handles x-multiplier format", () => {
     const result = gradeRiven("Rubico Prime", [
       { name: "Critical Damage", positive: true, value: 1.59, multiplier: true },

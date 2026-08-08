@@ -25,6 +25,7 @@ import {
 import type { RivenStat } from "./rivenScanText";
 
 export type { RivenStat } from "./rivenScanText";
+export type InitialCardLayout = "reroll" | "chat";
 
 const log = withScope("rivenScan");
 const DXGI_FRESH_TIMEOUT_MS = 100;
@@ -62,6 +63,12 @@ const RIVEN_SCAN_PROFILES = Object.freeze({
   initial: {
     label: "initial-card",
     crop: RIVEN_SCAN_CROPS.singleCard,
+    readyMode: "initial",
+    retryDelayMs: 650,
+  },
+  chat: {
+    label: "chat-card",
+    crop: RIVEN_SCAN_CROPS.chatCard,
     readyMode: "initial",
     retryDelayMs: 650,
   },
@@ -262,12 +269,15 @@ export function resetRivenScanAbort(): void {
   resetRivenScanWaits();
 }
 
-export async function scanInitialCard(): Promise<InitialScanResult> {
+export async function scanInitialCard(
+  layout: InitialCardLayout = "reroll",
+): Promise<InitialScanResult> {
   const generation = ++_scanGeneration;
+  const profile = layout === "chat" ? RIVEN_SCAN_PROFILES.chat : RIVEN_SCAN_PROFILES.initial;
   try {
-    const result = await runRivenScanAttempt(RIVEN_SCAN_PROFILES.initial, generation);
+    const result = await runRivenScanAttempt(profile, generation);
     log.info(
-      `[RivenScan] initial card scan: ${result.stats.length} stats found`,
+      `[RivenScan] ${profile.label} scan: ${result.stats.length} stats found`,
       formatStatsForLog(result.stats),
     );
     return {
@@ -277,7 +287,7 @@ export async function scanInitialCard(): Promise<InitialScanResult> {
       footerText: result.footerText,
     };
   } catch (err) {
-    log.warn("[RivenScan] initial card OCR failed:", String(err));
+    log.warn(`[RivenScan] ${profile.label} OCR failed:`, String(err));
     return { stats: [], rawText: "", titleText: "", footerText: "" };
   }
 }

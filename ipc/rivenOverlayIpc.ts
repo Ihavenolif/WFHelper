@@ -384,12 +384,12 @@ export function onRivenWeaponPath(weaponPath: string): void {
   applyDetectedWeapon(name, "diorama load");
 }
 
-function triggerInitialScan(): void {
+function triggerInitialScan(layout: rivenScan.InitialCardLayout = "reroll"): void {
   if (_rivenInitialScanTimer) clearTimeout(_rivenInitialScanTimer);
   _rivenInitialScanTimer = setTimeout(async () => {
     _rivenInitialScanTimer = null;
     try {
-      const { stats, rawText, titleText } = await rivenScan.scanInitialCard();
+      const { stats, rawText, titleText } = await rivenScan.scanInitialCard(layout);
       _rivenInitialStats = stats;
 
       // Try to extract weapon name from OCR text if not already known
@@ -517,7 +517,7 @@ export function onRivenChatView(): void {
     const lw = ctx.rivenOverlayLeftWindow;
     if (lw && !lw.isDestroyed()) lw.webContents.send(OVERLAY_THEME_VARS, vars);
   }
-  triggerInitialScan();
+  triggerInitialScan("chat");
 }
 
 export function onRivenSessionOpen(): void {
