@@ -18,5 +18,11 @@
 		"typescript": "^5.5.2",
 		"vitest": "~3.2.0",
 		"wrangler": "^4.70.0"
+	},
+	"overrides": {
+		"esbuild": "^0.28.1",
+		"sharp": "^0.35.2",
+		"undici": "^7.29.0",
+		"ws": "^8.21.0"
 	}
 }
