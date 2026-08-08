@@ -22,15 +22,22 @@
 
   let draftPlatinum = 0;
   let draftQuantity = 0;
+  let syncedPlatinum: number | undefined;
+  let syncedQuantity: number | undefined;
   let savingInline = false;
 
-  // Args make the reactive re-run when the order values change.
   $: syncDrafts(order.platinum, order.quantity);
   $: dirty = draftPlatinum !== order.platinum || draftQuantity !== order.quantity;
 
   function syncDrafts(platinum: number, quantity: number): void {
-    draftPlatinum = platinum;
-    draftQuantity = quantity;
+    if (platinum !== syncedPlatinum) {
+      syncedPlatinum = platinum;
+      draftPlatinum = platinum;
+    }
+    if (quantity !== syncedQuantity) {
+      syncedQuantity = quantity;
+      draftQuantity = quantity;
+    }
   }
 
   async function applyInline(): Promise<void> {

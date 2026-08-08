@@ -4,7 +4,6 @@ export type PrimeFilterMode = "all" | "prime" | "non_prime";
 export type MasteredFilterMode = "all" | "mastered" | "not_mastered";
 export type YesNoFilterMode = "all" | "yes" | "no";
 type PartTypeFilterMode = "all" | "normal" | "prime";
-/** The foundry state a single row sits in. */
 export type FoundryState = "claimable" | "building" | "buildable" | "missing";
 /** `not_ready` drops what you could act on now (claim or build) and nothing else. */
 export type FoundryStateFilterMode = "all" | "claimable" | "not_ready" | "buildable";

@@ -40,11 +40,7 @@ const DEFAULT_MARKET_VIEW_STATE: MarketViewState = {
 export const marketViewState = writable<MarketViewState>({ ...DEFAULT_MARKET_VIEW_STATE });
 export const marketSelected = writable<Set<string>>(new Set());
 
-/**
- * Mutate `marketSelected` via callback with the `new Set(...)` replacement
- * handled here - in-place Set mutation keeps the reference, so subscribers
- * never fire.
- */
+/** Replace the Set after mutation so Svelte notifies subscribers. */
 export function mutateMarketSelected(mutator: (s: Set<string>) => void): void {
   marketSelected.update((s) => {
     mutator(s);
@@ -60,6 +56,14 @@ export function resetMarketFetchTimes(): void {
   setMarketViewState({ ordersLastFetch: 0, contractsLastFetch: 0 });
 }
 
+export function clearMarketAccountState(): void {
+  marketSession.set({ loggedIn: false, userName: null, platform: "pc" });
+  marketOrders.set({ sell: [], buy: [] });
+  marketContracts.set({ contracts: [], page: 1, totalPages: null, hasMore: false });
+  marketSelected.set(new Set());
+  resetMarketFetchTimes();
+}
+
 function dropClosedQuantity(entries: WfmOrder[], orderId: string, quantity: number): WfmOrder[] {
   return entries.flatMap((entry) => {
     if (entry.id !== orderId) return [entry];
@@ -68,8 +72,7 @@ function dropClosedQuantity(entries: WfmOrder[], orderId: string, quantity: numb
   });
 }
 
-/** A trade already closed this listing on WFM; mirror it so an open My Orders
- *  list drops the row now. Local math is a guess, so refetch on the next visit. */
+/** Reflect WFM closures now; the next fetch corrects local quantity guesses. */
 export function applyClosedWfmListing(match: {
   kind: "order" | "contract";
   orderId: string;

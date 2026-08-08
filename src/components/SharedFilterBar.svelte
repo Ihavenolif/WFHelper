@@ -120,7 +120,6 @@
       <SearchBox class="shared-filter-search" value={state.search} onValueChange={setSearch} />
 
       {#if basicVariant === "full"}
-        <!-- More than two choices, so a select instead of a row of chips. -->
         <div class="shared-select-group">
           <span class="shared-chip-label">Prime</span>
           <select
@@ -149,7 +148,6 @@
           </select>
         </div>
 
-        <!-- Kept beside Mastery: all three selects read as one group. -->
         {#if showFoundryState}
           <div class="shared-select-group">
             <span class="shared-chip-label">Claim</span>

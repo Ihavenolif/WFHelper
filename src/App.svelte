@@ -29,13 +29,18 @@
   import { itemDb, parsedItems } from "./stores/data.js";
   import { tourActive } from "./stores/tour.js";
   import { masteryData } from "./stores/mastery.js";
-  import { applyClosedWfmListing, marketSession, resetMarketFetchTimes } from "./stores/market.js";
+  import {
+    applyClosedWfmListing,
+    clearMarketAccountState,
+    resetMarketFetchTimes,
+  } from "./stores/market.js";
   import { activeItem, activeComponent, activeRelic } from "./stores/modals.js";
   import { applyUpdateState } from "./stores/updates.js";
   import { addToast } from "./stores/toasts.js";
   import { onInventoryLoaded, setInventoryStatus } from "./lib/actions.js";
   import { initStartup } from "./lib/startupLoader.js";
   import { invoke, on } from "./lib/ipc.js";
+  import { invalidateMarketOrdersRefresh } from "./lib/marketOrdersSync.js";
   import { tr } from "./lib/i18n.js";
   import type { MessageKey } from "./lib/i18n.js";
 
@@ -103,7 +108,8 @@
         return;
       }
       if (notification.type === "listener-auth-failed") {
-        marketSession.update((s) => ({ ...s, loggedIn: false }));
+        invalidateMarketOrdersRefresh();
+        clearMarketAccountState();
         addToast({
           level: "warning",
           title: "Warframe Market session expired",

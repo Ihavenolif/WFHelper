@@ -3,6 +3,7 @@
 
   import { parsedItems, wfmItems } from "../stores/data.js";
   import {
+    clearMarketAccountState,
     marketContracts,
     marketOrders,
     marketSelected,
@@ -10,7 +11,6 @@
     marketSession,
     marketViewState,
     orderModalState,
-    resetMarketFetchTimes,
     setMarketViewState,
   } from "../stores/market.js";
   import HeaderTabs from "../components/HeaderTabs.svelte";
@@ -27,6 +27,7 @@
   import { applySharedFiltersAndSort } from "../lib/filters.js";
   import { buildInventoryViewItems } from "../lib/inventoryMarket.js";
   import { buildMarketOrderInventoryItem } from "../lib/marketOrderInventory.js";
+  import { invalidateMarketOrdersRefresh, refreshMarketOrders } from "../lib/marketOrdersSync.js";
   import { invoke, on, send, tradeInvoke } from "../lib/ipc.js";
   import { startupPriceCacheReady } from "../lib/startupLoader.js";
   import { marketDensity } from "../stores/uiDensity.js";
@@ -38,7 +39,6 @@
     WfmContract,
     WfmContractAttribute,
     WfmOrder,
-    WfmOrdersResult,
     WfmStatus,
   } from "../types/market.js";
   import type { DecodedRiven } from "../types/ipc.js";
@@ -164,6 +164,7 @@
   let selectedOrderItemKey: string | null = null;
   let orderBookPanelOpen = true;
   let selectedContract: { contract: WfmContract; riven: DecodedRiven } | null = null;
+  let ordersUiGeneration = 0;
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let unsubscribeWfmNotification: (() => void) | null = null;
@@ -179,21 +180,12 @@
   });
 
   onDestroy(() => {
+    ordersUiGeneration += 1;
     unsubscribeWfmNotification?.();
     window.removeEventListener("focus", backgroundRefresh);
     if (pollTimer) clearInterval(pollTimer);
   });
 
-  /** Listing ids plus quantities - what a website unlisting or a new post changes. */
-  function listingSignature(state: WfmOrdersResult): string {
-    return [...state.sell, ...state.buy]
-      .map((entry) => `${entry.id}:${entry.quantity}`)
-      .sort()
-      .join("|");
-  }
-
-  /** Picks up changes made outside the app. Only writes the store when the
-   *  listing set really moved, so a half-typed inline price survives a poll. */
   function backgroundRefresh(): void {
     if (!$marketSession.loggedIn || document.hidden || $orderModalState) return;
 
@@ -201,16 +193,7 @@
       if (!contractsLoading) void fetchContracts();
       return;
     }
-    if (ordersLoading) return;
-
-    void (async () => {
-      const result = await invoke("wfmGetOrders");
-      if (hasError(result)) return;
-      setMarketViewState({ ordersLastFetch: Date.now() });
-      if (listingSignature(result) === listingSignature($marketOrders)) return;
-      marketOrders.set(result);
-      marketSelected.set(new Set());
-    })();
+    void fetchOrders({ background: true });
   }
 
   async function loadView(): Promise<void> {
@@ -265,7 +248,7 @@
       } else {
         marketSession.set(result);
         password = "";
-        await fetchOrders();
+        await fetchOrders({ clearSelection: true });
         if ($marketViewState.typeTab === "rivens") {
           await fetchContracts();
         }
@@ -278,37 +261,44 @@
   }
 
   async function logout(): Promise<void> {
-    await invoke("wfmSignOut");
-    marketSession.set({ loggedIn: false, userName: null, platform: "pc" });
-    marketOrders.set({ sell: [], buy: [] });
-    marketContracts.set({ contracts: [], page: 1, totalPages: null, hasMore: false });
-    marketSelected.set(new Set());
-    resetMarketFetchTimes();
+    invalidateMarketOrdersRefresh();
+    clearMarketAccountState();
+    ordersUiGeneration += 1;
+    ordersLoading = false;
     ordersError = "";
     contractsError = "";
+    try {
+      await invoke("wfmSignOut");
+    } catch (error) {
+      console.warn("[Market] signOut failed:", error);
+    }
   }
 
-  async function fetchOrders(): Promise<void> {
-    ordersLoading = true;
-    ordersError = "";
-    try {
-      const result = await invoke("wfmGetOrders");
-      if (hasError(result)) {
-        if (result.error.includes("Not logged") || result.error.includes("expired")) {
-          marketSession.set({ loggedIn: false, userName: null, platform: "pc" });
-          return;
-        }
-        ordersError = result.error;
-        return;
-      }
+  async function fetchOrders(
+    options: { background?: boolean; clearSelection?: boolean } = {},
+  ): Promise<void> {
+    const background = options.background === true;
+    const uiGeneration = background ? 0 : ++ordersUiGeneration;
+    if (!background) {
+      ordersLoading = true;
+      ordersError = "";
+    }
 
-      marketOrders.set(result);
-      marketSelected.set(new Set());
-      setMarketViewState({ ordersLastFetch: Date.now() });
-    } catch (error) {
-      ordersError = (error as Error).message;
+    try {
+      const outcome = await refreshMarketOrders({
+        background,
+        clearSelection: options.clearSelection === true,
+      });
+      if (
+        !background &&
+        uiGeneration === ordersUiGeneration &&
+        outcome.status === "error" &&
+        !outcome.authExpired
+      ) {
+        ordersError = outcome.error;
+      }
     } finally {
-      ordersLoading = false;
+      if (!background && uiGeneration === ordersUiGeneration) ordersLoading = false;
     }
   }
 
@@ -320,7 +310,8 @@
       const result = await invoke("wfmGetContracts", { page, limit: CONTRACTS_PAGE_SIZE });
       if (hasError(result)) {
         if (result.error.includes("Not logged") || result.error.includes("expired")) {
-          marketSession.set({ loggedIn: false, userName: null, platform: "pc" });
+          invalidateMarketOrdersRefresh();
+          clearMarketAccountState();
           return;
         }
         contractsError = result.error;
@@ -358,7 +349,7 @@
       await fetchContracts();
       return;
     }
-    await fetchOrders();
+    await fetchOrders({ clearSelection: true });
   }
 
   function switchTypeTab(type: MarketTab): void {
@@ -405,7 +396,7 @@
     const ids = [...$marketSelected];
     if (!ids.length) return;
     await tradeInvoke("wfmSetVisible", ids, visible);
-    await fetchOrders();
+    await fetchOrders({ clearSelection: true });
   }
 
   async function bulkDelete(): Promise<void> {
@@ -416,7 +407,7 @@
     for (const id of ids) {
       await tradeInvoke("wfmDeleteOrder", id);
     }
-    await fetchOrders();
+    await fetchOrders({ clearSelection: true });
   }
 
   function toggleSelect(id: string, checked: boolean): void {

@@ -15,6 +15,7 @@ export interface WfmOrder {
   orderType: OrderType | string;
   platinum: number;
   quantity: number;
+  perTrade?: number;
   visible: boolean;
   modRank: number | null;
   itemId: string | null;

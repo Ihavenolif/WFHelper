@@ -1,8 +1,9 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
-  import { orderModalState, marketOrders } from "../stores/market.js";
+  import { orderModalState } from "../stores/market.js";
   import { invoke, tradeInvoke } from "../lib/ipc.js";
   import { isIpcError } from "../lib/ipcGuards.js";
+  import { refreshMarketOrders } from "../lib/marketOrdersSync.js";
   import ModalShell from "../components/ModalShell.svelte";
   import ThemedButton from "../components/ThemedButton.svelte";
   import ThemedInput from "../components/ThemedInput.svelte";
@@ -193,8 +194,7 @@
         return;
       }
 
-      const refreshed = await invoke("wfmGetOrders");
-      if (refreshed && !("error" in refreshed)) marketOrders.set(refreshed);
+      await refreshMarketOrders();
 
       orderModalState.set(null);
     } catch (err) {

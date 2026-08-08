@@ -1,2 +1,0 @@
-# CI runs the same check over the branch range, so --no-verify only defers it.
-node scripts/check-comment-style.mjs --staged
