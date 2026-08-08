@@ -44,6 +44,7 @@ interface NormalisedContract {
   rerolls: number | null;
   masteryLevel: number | null;
   polarity: string | null;
+  minimalReputation: number | null;
   isDirectSell: boolean;
   listedAt: string | null;
   updatedAt: string | null;
@@ -191,6 +192,7 @@ function normalizeContract(raw: unknown): NormalisedContract | null {
       item.mastery_level ?? item.masteryLevel ?? r.mastery_level ?? r.masteryLevel,
     ),
     polarity: firstNonEmpty(item.polarity, r.polarity, item.mod_polarity),
+    minimalReputation: toFiniteNumber(r.minimal_reputation ?? r.minimalReputation),
     isDirectSell: directSell,
     listedAt: toIsoTimestamp(r.created_at ?? r.createdAt),
     updatedAt: toIsoTimestamp(r.updated_at ?? r.updatedAt),

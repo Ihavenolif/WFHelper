@@ -32,6 +32,9 @@
   let listingPrice = $state(0);
   /** Auctions only; 0 means "no buyout", which WFM accepts. */
   let listingBuyout = $state(0);
+  let listingMinReputation = $state(0);
+  /** List an unranked riven at its rank-8 numbers, the way buyers compare them. */
+  let listAtMaxRank = $state(false);
   let listingBusy = $state(false);
   let listingError = $state("");
   let listingSuccess = $state("");
@@ -59,7 +62,10 @@
     // An auction's own field is the starting bid; `platinum` can be the buyout.
     listingPrice = (isAuction ? contract.startingPlatinum : null) ?? contract.platinum;
     listingBuyout = isAuction ? (contract.buyoutPlatinum ?? 0) : 0;
+    listingMinReputation = isAuction ? (contract.minimalReputation ?? 0) : 0;
   });
+
+  const canListAtMaxRank = $derived(!isContractListing && riven.currentRank < riven.maxRank);
 
   onMount(() => {
     invoke("searchRivenAuctions", riven.weaponName, [], [])
@@ -116,13 +122,18 @@
       listingError = "Buyout cannot be below the starting bid";
       return;
     }
+    if (listingType === "auction" && listingMinReputation < 0) {
+      listingError = "Minimum reputation cannot be negative";
+      return;
+    }
     listingBusy = true;
     listingError = "";
     listingSuccess = "";
 
+    const asMaxRank = canListAtMaxRank && listAtMaxRank;
     const stats = riven.stats.map((s) => ({
       tag: s.tag,
-      value: s.displayValue,
+      value: asMaxRank ? s.maxRankValue : s.displayValue,
       positive: s.positive,
       multiplier: s.multiplier,
     }));
@@ -137,6 +148,7 @@
           auctionId: contract.id,
           buyoutPrice,
           startingPrice,
+          minReputation: listingType === "auction" ? listingMinReputation : 0,
           isPrivate: listingVisibility === "private",
           description: listingDescription,
         })
@@ -147,9 +159,10 @@
           rerolls: riven.rerolls,
           masteryReq: riven.masteryReq,
           polarity: riven.polarity,
-          modRank: riven.currentRank,
+          modRank: asMaxRank ? riven.maxRank : riven.currentRank,
           buyoutPrice,
           startingPrice,
+          minReputation: listingType === "auction" ? listingMinReputation : 0,
           isPrivate: listingVisibility === "private",
           description: listingDescription,
         });
@@ -493,6 +506,15 @@
                 />
               </div>
             </div>
+            {#if canListAtMaxRank}
+              <label
+                class="flex w-fit cursor-pointer items-center gap-2 text-xs text-text-secondary"
+                title="Buyers compare rivens at max rank; this lists the rank-8 numbers instead of the current rank {riven.currentRank} ones."
+              >
+                <input type="checkbox" bind:checked={listAtMaxRank} />
+                List with rank {riven.maxRank} stats
+              </label>
+            {/if}
             <div class="flex items-end gap-5 flex-wrap justify-between">
               <div class="flex items-end gap-4">
                 <div class="flex flex-col gap-1">
@@ -538,6 +560,18 @@
                         aria-label="Buyout price"
                       />
                     </div>
+                  </div>
+                  <div class="flex flex-col gap-1">
+                    <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
+                      >Min. reputation:</span
+                    >
+                    <input
+                      type="number"
+                      class="w-20 text-sm py-1 px-2 rounded-md border border-border bg-bg-raised text-text-primary outline-none transition-[border-color] duration-150 focus:border-accent-bright"
+                      bind:value={listingMinReputation}
+                      min="0"
+                      aria-label="Minimum reputation"
+                    />
                   </div>
                 {/if}
               </div>

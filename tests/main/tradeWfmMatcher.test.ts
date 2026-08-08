@@ -61,6 +61,7 @@ function contract(overrides: Partial<Contract> & { id: string }): Contract {
     rerolls: 0,
     masteryLevel: null,
     polarity: null,
+    minimalReputation: null,
     isDirectSell: true,
     listedAt: null,
     updatedAt: null,

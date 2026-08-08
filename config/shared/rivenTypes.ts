@@ -9,6 +9,8 @@ export interface DecodedRivenStat {
   tag: string;
   name: string;
   displayValue: number;
+  /** Same roll recomputed at rank 8, for listing an unranked riven as maxed. */
+  maxRankValue: number;
   rollFloat: number;
   grade: string;
   positive: boolean;
@@ -61,6 +63,8 @@ export interface CreateRivenAuctionPayload {
   modRank: number;
   buyoutPrice: number | null;
   startingPrice: number;
+  /** Auctions only; WFM hides the listing from users below this reputation. */
+  minReputation: number;
   isPrivate: boolean;
   description: string;
 }
@@ -69,6 +73,7 @@ export interface UpdateRivenAuctionPayload {
   auctionId: string;
   buyoutPrice: number | null;
   startingPrice: number;
+  minReputation: number;
   isPrivate: boolean;
   description: string;
 }

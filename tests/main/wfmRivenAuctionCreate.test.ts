@@ -25,6 +25,7 @@ function baseOpts(): Parameters<typeof wfmRivenSearch.createRivenAuction>[0] {
     modRank: 0,
     buyoutPrice: null,
     startingPrice: 100,
+    minReputation: 0,
     isPrivate: false,
     description: "",
   };
@@ -52,5 +53,12 @@ describe("createRivenAuction request body", () => {
     expect(body.buyout_price).toBe(150);
     const item = body.item as { attributes: { value: number; positive: boolean }[] };
     expect(item.attributes.map((a) => a.value)).toEqual([16, -9.9, 7.2]);
+  });
+
+  it("sends the caller's minimum reputation instead of a hardcoded zero", async () => {
+    await wfmRivenSearch.createRivenAuction({ ...baseOpts(), minReputation: 25 });
+
+    const body = requestMock.mock.calls[0][2]?.json as Record<string, unknown>;
+    expect(body.minimal_reputation).toBe(25);
   });
 });

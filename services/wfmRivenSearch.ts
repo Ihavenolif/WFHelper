@@ -206,6 +206,7 @@ interface CreateAuctionOpts {
   modRank: number;
   buyoutPrice: number | null;
   startingPrice: number;
+  minReputation: number;
   isPrivate: boolean;
   description: string;
 }
@@ -214,6 +215,7 @@ interface UpdateAuctionOpts {
   auctionId: string;
   buyoutPrice: number | null;
   startingPrice: number;
+  minReputation: number;
   isPrivate: boolean;
   description: string;
 }
@@ -237,7 +239,7 @@ export async function createRivenAuction(
       mod_rank: opts.modRank,
     },
     starting_price: opts.startingPrice,
-    minimal_reputation: 0,
+    minimal_reputation: opts.minReputation,
     private: opts.isPrivate,
   };
 
@@ -270,7 +272,7 @@ export async function updateRivenAuction(
 ): Promise<{ ok: boolean; auctionId?: string; error?: string }> {
   const body: Record<string, unknown> = {
     starting_price: opts.startingPrice,
-    minimal_reputation: 0,
+    minimal_reputation: opts.minReputation,
     visible: !opts.isPrivate,
     note: opts.description.trim(),
   };

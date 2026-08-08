@@ -24,11 +24,18 @@ const POLARITY_TO_WFM: Record<string, string> = {
 };
 const MAX_AUCTION_STATS = 8;
 const MAX_DESCRIPTION_LENGTH = 1000;
+const MAX_MIN_REPUTATION = 1_000_000;
 
 function auctionDescription(value: unknown): string | null {
   if (value == null) return "";
   if (typeof value !== "string" || value.length > MAX_DESCRIPTION_LENGTH) return null;
   return value.trim();
+}
+
+/** Absent means "no minimum", which WFM spells as 0. */
+function auctionReputation(value: unknown): number | null {
+  if (value == null) return 0;
+  return boundedInt(value, 0, MAX_MIN_REPUTATION);
 }
 
 interface CreateAuctionStat {
@@ -114,6 +121,7 @@ function register(): void {
         modRank,
         buyoutPrice,
         startingPrice,
+        minReputation,
         isPrivate,
         description,
       } = payload;
@@ -124,6 +132,8 @@ function register(): void {
       if (!stats.every(isCreateAuctionStat)) return { ok: false, error: "Invalid stats payload" };
       const price = boundedInt(startingPrice, 1, 10_000_000);
       if (price == null) return { ok: false, error: "Invalid price" };
+      const reputation = auctionReputation(minReputation);
+      if (reputation == null) return { ok: false, error: "Invalid minimum reputation" };
       const descriptionValue = auctionDescription(description);
       if (descriptionValue == null) return { ok: false, error: "Invalid description" };
 
@@ -167,6 +177,7 @@ function register(): void {
         modRank: boundedInt(modRank, 0, 20) ?? 0,
         buyoutPrice: boundedInt(buyoutPrice, 1, 10_000_000),
         startingPrice: price,
+        minReputation: reputation,
         isPrivate: isPrivate === true,
         description: descriptionValue,
       });
@@ -178,7 +189,8 @@ function register(): void {
     assertMainRendererSender,
     async (_event, payload: unknown) => {
       if (!isObject(payload)) return { ok: false, error: "Invalid payload" };
-      const { auctionId, buyoutPrice, startingPrice, isPrivate, description } = payload;
+      const { auctionId, buyoutPrice, startingPrice, minReputation, isPrivate, description } =
+        payload;
       const id = trimmedString(auctionId, 64);
       if (!id || !/^[a-zA-Z0-9]+$/.test(id)) {
         return { ok: false, error: "Invalid auction id" };
@@ -191,6 +203,8 @@ function register(): void {
       if (buyoutPrice != null && buyout == null) {
         return { ok: false, error: "Invalid buyout price" };
       }
+      const reputation = auctionReputation(minReputation);
+      if (reputation == null) return { ok: false, error: "Invalid minimum reputation" };
       const descriptionValue = auctionDescription(description);
       if (descriptionValue == null) return { ok: false, error: "Invalid description" };
 
@@ -198,6 +212,7 @@ function register(): void {
         auctionId: id,
         buyoutPrice: buyout,
         startingPrice: price,
+        minReputation: reputation,
         isPrivate: isPrivate === true,
         description: descriptionValue,
       });

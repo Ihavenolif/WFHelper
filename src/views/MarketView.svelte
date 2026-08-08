@@ -102,6 +102,8 @@
       tag: attribute.urlName || attribute.label,
       name: attributeKeyword(attribute) || "Unknown",
       displayValue: Math.abs(safeValue),
+      // A listed contract is already at its final rank, so there is nothing to scale.
+      maxRankValue: Math.abs(safeValue),
       rollFloat: 0.5,
       grade: "",
       positive: attribute.positive ?? safeValue >= 0,

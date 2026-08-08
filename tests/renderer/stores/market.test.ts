@@ -44,6 +44,7 @@ function contract(id: string): WfmContract {
     rerolls: null,
     masteryLevel: null,
     polarity: null,
+    minimalReputation: null,
     isDirectSell: false,
     listedAt: null,
     updatedAt: null,

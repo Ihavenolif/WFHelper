@@ -23,7 +23,6 @@ import type {
   VeiledRivenGroup,
 } from "../config/shared/rivenTypes";
 
-
 const log = withScope("rivenFingerprint");
 
 interface RawFingerprint {
@@ -37,7 +36,6 @@ interface RawFingerprint {
   curses?: { Tag: string; Value: number }[];
   challenge?: unknown;
 }
-
 
 const RIVEN_TYPE_LABELS: Record<string, string> = {
   // Lotus (unveiled / individual-veiled in Upgrades)
@@ -180,10 +178,9 @@ function getRivenTypeLabel(itemType: string): string {
 // Source: browse.wf/rivencalc -> RivenParser.js `rivenIntToFloat`.
 
 function rivenIntToFloat(i: number): number {
-  const f = i / 0x3FFFFFFF; // 1073741823
-  return (f >= 0.0 && f <= 1.0) ? f : 0.0;
+  const f = i / 0x3fffffff; // 1073741823
+  return f >= 0.0 && f <= 1.0 ? f : 0.0;
 }
-
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
@@ -214,11 +211,60 @@ function computeCurseValue(
 ): number {
   const attenuation = SPECIFIC_FIT_ATTEN * disposition * BASE_DRAIN;
   const cursesInBuffTable = NUM_BUFFS_ATTEN[Math.min(numCurses, NUM_BUFFS_ATTEN.length - 1)];
-  const buffsInCurseTable = NUM_BUFFS_CURSE_ATTEN[Math.min(numBuffs, NUM_BUFFS_CURSE_ATTEN.length - 1)];
+  const buffsInCurseTable =
+    NUM_BUFFS_CURSE_ATTEN[Math.min(numBuffs, NUM_BUFFS_CURSE_ATTEN.length - 1)];
   const rollMul = lerp(0.9, 1.1, rollFloat);
-  return Math.abs(baseValue) * attenuation * rollMul * buffsInCurseTable * cursesInBuffTable * (lvl + 1);
+  return (
+    Math.abs(baseValue) * attenuation * rollMul * buffsInCurseTable * cursesInBuffTable * (lvl + 1)
+  );
 }
 
+const MAX_RIVEN_RANK = 8;
+
+interface StatValueContext {
+  baseValue: number;
+  disposition: number;
+  rollFloat: number;
+  numBuffs: number;
+  numCurses: number;
+  isNonPct: boolean;
+  isMultiplier: boolean;
+}
+
+function roundStatValue(raw: number, isNonPct: boolean): number {
+  return isNonPct ? Math.round(raw * 100) / 100 : Math.round(raw * 1000) / 10;
+}
+
+function buffValueAt(ctx: StatValueContext, lvl: number): number {
+  if (ctx.baseValue === 0) return ctx.isMultiplier ? 1 : 0;
+  const raw = computeBuffValue(
+    ctx.baseValue,
+    ctx.disposition,
+    ctx.rollFloat,
+    ctx.numBuffs,
+    ctx.numCurses,
+    lvl,
+  );
+  const value = roundStatValue(raw, ctx.isNonPct);
+  return ctx.isMultiplier ? Math.round((1 + value) * 100) / 100 : value;
+}
+
+/** Curse direction is the opposite of the stat's buff direction: a damage curse
+ *  shows -X%, a recoil curse (negative baseValue) shows +X%. */
+function curseValueAt(ctx: StatValueContext, lvl: number): number {
+  if (ctx.baseValue === 0) return 0;
+  const raw = computeCurseValue(
+    Math.abs(ctx.baseValue),
+    ctx.disposition,
+    ctx.rollFloat,
+    ctx.numBuffs,
+    ctx.numCurses,
+    lvl,
+  );
+  const magnitude = roundStatValue(raw, ctx.isNonPct);
+  if (ctx.isMultiplier) return Math.round((1 - magnitude) * 100) / 100;
+  return ctx.baseValue > 0 ? -magnitude : magnitude;
+}
 
 function parseFingerprint(raw: string): RawFingerprint | null {
   try {
@@ -240,10 +286,11 @@ function isVeiledFingerprint(fp: RawFingerprint): boolean {
   return !!fp.challenge || !fp.compat;
 }
 
-
-function decodeSingleRiven(
-  entry: { UpgradeFingerprint?: string; ItemType: string; ItemId?: { $oid: string } },
-): DecodedRiven | null {
+function decodeSingleRiven(entry: {
+  UpgradeFingerprint?: string;
+  ItemType: string;
+  ItemId?: { $oid: string };
+}): DecodedRiven | null {
   if (!entry.UpgradeFingerprint) return null;
 
   const fp = parseFingerprint(entry.UpgradeFingerprint);
@@ -283,24 +330,25 @@ function decodeSingleRiven(
     const baseValue = entry2?.baseValue ?? 0;
     const displayName = rivenData.getStatDisplayName(b.Tag, isMelee);
     const isNonPct = NON_PERCENTAGE_TAGS.has(b.Tag);
-
-    let displayValue: number;
-    if (baseValue !== 0) {
-      const raw = computeBuffValue(baseValue, disposition, rollFloat, numBuffs, numCurses, lvl);
-      displayValue = isNonPct ? Math.round(raw * 100) / 100 : Math.round(raw * 1000) / 10;
-    } else {
-      displayValue = 0;
-    }
+    const isMultiplier =
+      isNonPct && (b.Tag.includes("FactionDamage") || b.Tag === "WeaponMeleeComboInitialBonusMod");
+    const ctx: StatValueContext = {
+      baseValue,
+      disposition,
+      rollFloat,
+      numBuffs,
+      numCurses,
+      isNonPct,
+      isMultiplier,
+    };
 
     const grade = rivenGrading.floatToGrade(rollFloat, false);
-    const isMultiplier = isNonPct && (
-      b.Tag.includes("FactionDamage") || b.Tag === "WeaponMeleeComboInitialBonusMod"
-    );
 
     decodedStats.push({
       tag: b.Tag,
       name: displayName,
-      displayValue: isMultiplier ? Math.round((1 + displayValue) * 100) / 100 : displayValue,
+      displayValue: buffValueAt(ctx, lvl),
+      maxRankValue: buffValueAt(ctx, MAX_RIVEN_RANK),
       rollFloat,
       grade,
       positive: true,
@@ -318,37 +366,34 @@ function decodeSingleRiven(
     const baseValue = entry2?.baseValue ?? 0;
     const displayName = rivenData.getStatDisplayName(c.Tag, isMelee);
     const isNonPct = NON_PERCENTAGE_TAGS.has(c.Tag);
-    const isMultiplier = isNonPct && (
-      c.Tag.includes("FactionDamage") || c.Tag === "WeaponMeleeComboInitialBonusMod"
-    );
+    const isMultiplier =
+      isNonPct && (c.Tag.includes("FactionDamage") || c.Tag === "WeaponMeleeComboInitialBonusMod");
 
-    // Curse direction is the opposite of the stat's buff direction: a damage
-    // curse shows -X%, but a recoil curse (negative baseValue) shows +X%.
     // Multipliers stay unsigned - they render as the final factor (x0.55).
-    let displayValue = 0;
-    if (baseValue !== 0) {
-      const raw = computeCurseValue(Math.abs(baseValue), disposition, rollFloat, numBuffs, numCurses, lvl);
-      const magnitude = isNonPct ? Math.round(raw * 100) / 100 : Math.round(raw * 1000) / 10;
-      displayValue = isMultiplier
-        ? Math.round((1 - magnitude) * 100) / 100
-        : baseValue > 0
-          ? -magnitude
-          : magnitude;
-    }
+    const ctx: StatValueContext = {
+      baseValue,
+      disposition,
+      rollFloat,
+      numBuffs,
+      numCurses,
+      isNonPct,
+      isMultiplier,
+    };
 
     const grade = rivenGrading.floatToGrade(rollFloat, true);
 
     decodedStats.push({
       tag: c.Tag,
       name: displayName,
-      displayValue,
+      displayValue: curseValueAt(ctx, lvl),
+      maxRankValue: curseValueAt(ctx, MAX_RIVEN_RANK),
       rollFloat,
       grade,
       positive: false,
       multiplier: isMultiplier,
     });
 
-    rollFloatSum += (1 - rollFloat); // For curses, lower = better
+    rollFloatSum += 1 - rollFloat; // For curses, lower = better
     scoredCount++;
   }
 
@@ -392,10 +437,11 @@ function decodeSingleRiven(
   };
 }
 
-
-export function decodeAllRivens(
-  inventory: Record<string, unknown>,
-): { unveiled: DecodedRiven[]; veiled: VeiledRivenEntry[]; veiledUnseen: VeiledRivenGroup[] } {
+export function decodeAllRivens(inventory: Record<string, unknown>): {
+  unveiled: DecodedRiven[];
+  veiled: VeiledRivenEntry[];
+  veiledUnseen: VeiledRivenGroup[];
+} {
   const unveiled: DecodedRiven[] = [];
   const veiled: VeiledRivenEntry[] = [];
   const unseenCounts = new Map<string, number>();
@@ -405,7 +451,11 @@ export function decodeAllRivens(
   if (Array.isArray(upgrades)) {
     for (const raw of upgrades) {
       if (!raw || typeof raw !== "object") continue;
-      const u = raw as { ItemType?: string; UpgradeFingerprint?: string; ItemId?: { $oid: string } };
+      const u = raw as {
+        ItemType?: string;
+        UpgradeFingerprint?: string;
+        ItemId?: { $oid: string };
+      };
       if (!u.ItemType || !isRivenItemType(u.ItemType)) continue;
 
       // Check if veiled (has challenge fingerprint or no compat)
@@ -469,6 +519,8 @@ export function decodeAllRivens(
     });
   }
 
-  log.info(`[Fingerprint] Decoded ${unveiled.length} unveiled, ${veiled.length} veiled with challenge, ${veiledUnseen.length} unseen groups`);
+  log.info(
+    `[Fingerprint] Decoded ${unveiled.length} unveiled, ${veiled.length} veiled with challenge, ${veiledUnseen.length} unseen groups`,
+  );
   return { unveiled, veiled, veiledUnseen };
 }

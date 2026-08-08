@@ -53,6 +53,7 @@ export interface WfmContract {
   rerolls: number | null;
   masteryLevel: number | null;
   polarity: string | null;
+  minimalReputation: number | null;
   isDirectSell: boolean;
   listedAt: string | null;
   updatedAt: string | null;
