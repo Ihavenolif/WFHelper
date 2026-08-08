@@ -101,13 +101,7 @@
   }
 
   function setYesNoFilter(
-    key:
-      | "orderPlaced"
-      | "vaulted"
-      | "favorite"
-      | "equipped"
-      | "leveledUp"
-      | "subsumed",
+    key: "orderPlaced" | "vaulted" | "favorite" | "equipped" | "leveledUp" | "subsumed",
     value: Exclude<YesNoFilterMode, "all">,
   ): void {
     const next = state[key] === value ? "all" : value;
@@ -155,6 +149,26 @@
           </select>
         </div>
 
+        <!-- Kept beside Mastery: all three selects read as one group. -->
+        {#if showFoundryState}
+          <div class="shared-select-group">
+            <span class="shared-chip-label">Claim</span>
+            <select
+              class="shared-filter-select"
+              title="Not Ready hides everything you could claim or build right now"
+              value={state.foundryState}
+              on:change={(event) =>
+                updateSharedFilters(scope, {
+                  foundryState: selectedValue(event) as FoundryStateFilterMode,
+                })}
+            >
+              {#each FOUNDRY_STATE_OPTIONS as [mode, label] (mode)}
+                <option value={mode}>{label}</option>
+              {/each}
+            </select>
+          </div>
+        {/if}
+
         {#if showVaulted}
           <div class="filter-tabs" title="Vaulted or currently farmable">
             <button
@@ -182,25 +196,6 @@
               class:active={state.subsumed === "no"}
               on:click={() => setYesNoFilter("subsumed", "no")}>Not Subsumed</button
             >
-          </div>
-        {/if}
-
-        {#if showFoundryState}
-          <div class="shared-select-group">
-            <span class="shared-chip-label">Claim</span>
-            <select
-              class="shared-filter-select"
-              title="Not Ready hides everything you could claim or build right now"
-              value={state.foundryState}
-              on:change={(event) =>
-                updateSharedFilters(scope, {
-                  foundryState: selectedValue(event) as FoundryStateFilterMode,
-                })}
-            >
-              {#each FOUNDRY_STATE_OPTIONS as [mode, label] (mode)}
-                <option value={mode}>{label}</option>
-              {/each}
-            </select>
           </div>
         {/if}
       {/if}

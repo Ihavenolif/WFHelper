@@ -30,6 +30,8 @@
   let listingVisibility = $state<"public" | "private">("public");
   let listingDescription = $state("");
   let listingPrice = $state(0);
+  /** Auctions only; 0 means "no buyout", which WFM accepts. */
+  let listingBuyout = $state(0);
   let listingBusy = $state(false);
   let listingError = $state("");
   let listingSuccess = $state("");
@@ -50,10 +52,13 @@
 
   $effect(() => {
     if (!contract) return;
-    listingType = contract.isDirectSell === false ? "auction" : "direct";
+    const isAuction = contract.isDirectSell === false;
+    listingType = isAuction ? "auction" : "direct";
     listingVisibility = contract.visible === false ? "private" : "public";
     listingDescription = plainNote(contract.note);
-    listingPrice = contract.platinum;
+    // An auction's own field is the starting bid; `platinum` can be the buyout.
+    listingPrice = (isAuction ? contract.startingPlatinum : null) ?? contract.platinum;
+    listingBuyout = isAuction ? (contract.buyoutPlatinum ?? 0) : 0;
   });
 
   onMount(() => {
@@ -101,7 +106,14 @@
 
   async function handleListOnWfm() {
     if (listingPrice < 1) {
-      listingError = "Price must be at least 1p";
+      listingError =
+        listingType === "auction"
+          ? "Starting bid must be at least 1p"
+          : "Price must be at least 1p";
+      return;
+    }
+    if (listingType === "auction" && listingBuyout > 0 && listingBuyout < listingPrice) {
+      listingError = "Buyout cannot be below the starting bid";
       return;
     }
     listingBusy = true;
@@ -115,7 +127,9 @@
       multiplier: s.multiplier,
     }));
 
-    const buyoutPrice = listingType === "direct" ? listingPrice : null;
+    // Direct sale is a buyout-only listing; an auction's buyout is optional.
+    const buyoutPrice =
+      listingType === "direct" ? listingPrice : listingBuyout > 0 ? listingBuyout : null;
     const startingPrice = listingPrice;
 
     const result = contract
@@ -480,25 +494,52 @@
               </div>
             </div>
             <div class="flex items-end gap-5 flex-wrap justify-between">
-              <div class="flex flex-col gap-1">
-                <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
-                  >Selling price:</span
-                >
-                <div class="flex items-center gap-1">
-                  <img
-                    class="align-middle shrink-0"
-                    src={PLATINUM_ICON_URL}
-                    alt="Platinum"
-                    width="16"
-                    height="16"
-                  />
-                  <input
-                    type="number"
-                    class="w-20 text-sm py-1 px-2 rounded-md border border-border bg-bg-raised text-text-primary outline-none transition-[border-color] duration-150 focus:border-accent-bright"
-                    bind:value={listingPrice}
-                    min="1"
-                  />
+              <div class="flex items-end gap-4">
+                <div class="flex flex-col gap-1">
+                  <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
+                    >{listingType === "auction" ? "Starting bid:" : "Selling price:"}</span
+                  >
+                  <div class="flex items-center gap-1">
+                    <img
+                      class="align-middle shrink-0"
+                      src={PLATINUM_ICON_URL}
+                      alt="Platinum"
+                      width="16"
+                      height="16"
+                    />
+                    <input
+                      type="number"
+                      class="w-20 text-sm py-1 px-2 rounded-md border border-border bg-bg-raised text-text-primary outline-none transition-[border-color] duration-150 focus:border-accent-bright"
+                      bind:value={listingPrice}
+                      min="1"
+                      aria-label={listingType === "auction" ? "Starting bid" : "Selling price"}
+                    />
+                  </div>
                 </div>
+                {#if listingType === "auction"}
+                  <div class="flex flex-col gap-1">
+                    <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
+                      >Buyout (Optional):</span
+                    >
+                    <div class="flex items-center gap-1">
+                      <img
+                        class="align-middle shrink-0"
+                        src={PLATINUM_ICON_URL}
+                        alt="Platinum"
+                        width="16"
+                        height="16"
+                      />
+                      <input
+                        type="number"
+                        class="w-20 text-sm py-1 px-2 rounded-md border border-border bg-bg-raised text-text-primary outline-none transition-[border-color] duration-150 focus:border-accent-bright"
+                        bind:value={listingBuyout}
+                        min="0"
+                        placeholder="None"
+                        aria-label="Buyout price"
+                      />
+                    </div>
+                  </div>
+                {/if}
               </div>
               <button
                 class="font-display text-xs font-bold py-2 px-5 rounded-md border-0 bg-accent-bright text-bg-base cursor-pointer transition-all duration-150 whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed hover:enabled:brightness-[1.15]"
