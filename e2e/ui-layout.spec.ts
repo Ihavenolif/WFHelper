@@ -12,6 +12,8 @@ import {
 
 import { mainWindow } from "./mainWindow";
 
+const ACCELTRA = "/Lotus/Weapons/Tenno/LongGuns/PrimeAcceltra/PrimeAcceltraWeapon";
+
 test.describe("Shared view layout", () => {
   test.setTimeout(180_000);
 
@@ -48,6 +50,14 @@ test.describe("Shared view layout", () => {
     });
     await page.reload();
     await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
+    fs.writeFileSync(
+      path.join(helperDir, "inventory.json"),
+      JSON.stringify({
+        Suits: [],
+        LongGuns: [{ ItemType: ACCELTRA, XP: 450_000 }],
+        XPInfo: [{ ItemType: ACCELTRA, XP: 450_000 }],
+      }),
+    );
   });
 
   test.afterAll(async () => {
@@ -115,5 +125,26 @@ test.describe("Shared view layout", () => {
     expect(
       await page.locator("#content").evaluate((node) => node.scrollWidth <= node.clientWidth),
     ).toBe(true);
+  });
+
+  test("new planning and inventory filters are reachable", async () => {
+    await page.setViewportSize({ width: 1280, height: 820 });
+
+    await openView("Inventory");
+    await page.getByRole("button", { name: "Filters" }).click();
+    const customMinimum = page.getByRole("spinbutton", { name: "Custom minimum platinum" });
+    await expect(customMinimum).toBeVisible();
+    await customMinimum.fill("7");
+    await expect(customMinimum).toHaveValue("7");
+
+    await openView("Mastery");
+    await page.getByRole("button", { name: "MR Roadmap" }).click();
+    await expect(page.getByRole("button", { name: "Easy" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "From Relics" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "With Platinum" })).toBeVisible();
+
+    await openView("Relics");
+    await expect(page.getByRole("combobox", { name: "Relics" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Unowned reward" })).toBeVisible();
   });
 });

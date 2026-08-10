@@ -98,6 +98,16 @@ test.describe("Horizontal tab persistence", () => {
     await expect(tab("Mastered")).toHaveAttribute("data-active", "true");
   });
 
+  test("Mastery keeps its Roadmap sub-tab across view switches", async () => {
+    await openView("Mastery");
+    await tab("MR Roadmap").click();
+    await expect(tab("MR Roadmap")).toHaveAttribute("data-active", "true");
+
+    await openView("Settings");
+    await openView("Mastery");
+    await expect(tab("MR Roadmap")).toHaveAttribute("data-active", "true");
+  });
+
   test("Rivens keeps its view tab across view switches", async () => {
     await openView("Rivens");
     await tab(/^Veiled \(\d+\)$/).click();

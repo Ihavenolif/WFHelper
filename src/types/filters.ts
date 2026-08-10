@@ -37,7 +37,7 @@ export interface SharedFiltersState {
   vaulted: YesNoFilterMode;
   partType: PartTypeFilterMode;
   favorite: YesNoFilterMode;
-  minimumPlatinum: 0 | 5 | 10 | 15;
+  minimumPlatinum: number;
   /** 0 = any, 2 = only items owned more than once (">1"). */
   minimumAmount: 0 | 2;
   equipped: YesNoFilterMode;

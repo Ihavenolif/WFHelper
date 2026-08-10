@@ -8,7 +8,11 @@ export {
   highestOwnedQuality,
 } from "./relic/relicConstants.js";
 
-export { relicGroupMatchesSearch, buildRelicSearchKeywordIndex } from "./relic/relicSearch.js";
+export {
+  relicGroupMatchesSearch,
+  relicGroupHasMatchingReward,
+  buildRelicSearchKeywordIndex,
+} from "./relic/relicSearch.js";
 
 export { parseOwnedRelics } from "./relic/relicInventory.js";
 

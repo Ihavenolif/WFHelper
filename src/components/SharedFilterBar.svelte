@@ -58,13 +58,6 @@
     ["no", "No"],
   ];
 
-  const MIN_PLAT_OPTIONS: Array<[0 | 5 | 10 | 15, string]> = [
-    [0, "Any"],
-    [5, "5"],
-    [10, "10"],
-    [15, "15"],
-  ];
-
   $: scopeStore = sharedFilters(scope);
   $: state = $scopeStore;
   $: isInventoryScope = scope === "inventory";
@@ -111,6 +104,15 @@
   function setPartTypeFilter(value: PartType): void {
     const next = state.partType === value ? "all" : value;
     updateSharedFilters(scope, { partType: next });
+  }
+
+  function setMinimumPlatinum(event: Event): void {
+    const input = event.currentTarget as HTMLInputElement;
+    const value = input.valueAsNumber;
+    const minimumPlatinum = Number.isFinite(value)
+      ? Math.max(0, Math.min(1_000_000, Math.floor(value)))
+      : 0;
+    updateSharedFilters(scope, { minimumPlatinum });
   }
 </script>
 
@@ -266,14 +268,19 @@
       <div class="shared-chip-group" title="Minimum platinum">
         <span class="shared-chip-label">Minimum platinum</span>
         <div class="filter-tabs">
-          {#each MIN_PLAT_OPTIONS as [value, label]}
-            <button
-              class="filter-tab"
-              class:active={state.minimumPlatinum === value}
-              on:click={() => updateSharedFilters(scope, { minimumPlatinum: value })}
-              >{label}</button
-            >
-          {/each}
+          <label class="shared-number-filter">
+            <input
+              type="number"
+              min="0"
+              max="1000000"
+              step="1"
+              value={state.minimumPlatinum || ""}
+              placeholder="Any"
+              aria-label="Custom minimum platinum"
+              on:input={setMinimumPlatinum}
+            />
+            <span>p</span>
+          </label>
         </div>
       </div>
 

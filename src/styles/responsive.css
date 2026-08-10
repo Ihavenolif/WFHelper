@@ -1,27 +1,8 @@
-/* Steps keep cards >=~290px wide - below that the compact-card header
-   ("Selected EV" block) wraps under the title and every card grows tall. */
-@media (max-width: 1800px) {
-  :root {
-    --relic-grid-columns: 4;
-  }
-}
-
-@media (max-width: 1500px) {
-  :root {
-    --relic-grid-columns: 3;
-  }
-}
-
-@media (max-width: 1150px) {
-  :root {
-    --relic-grid-columns: 2;
-  }
-}
-
+/* The relic grid sizes itself: rem-based auto-fill columns track the root
+   font scale, so px-blind viewport steps here would fight larger fonts. */
 @media (max-width: 800px) {
   :root {
     --sidebar-width: 3.75rem;
-    --relic-grid-columns: 1;
     --relic-grid-gap: 0.52rem;
     --relic-card-icon-size: 2.35rem;
     --relic-card-min-height: 4.35rem;

@@ -212,6 +212,26 @@
   .shared-chip-group .filter-tab {
     padding: 0.34rem 0.62rem;
   }
+  .shared-number-filter {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    color: var(--text-secondary);
+    font-size: 0.74rem;
+  }
+  .shared-number-filter input {
+    width: 4.8rem;
+    height: 1.85rem;
+    border: 1px solid var(--ui-control-border);
+    border-radius: var(--radius-sm);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+    padding: 0 0.45rem;
+    outline: none;
+  }
+  .shared-number-filter input:focus {
+    border-color: var(--accent-dim);
+  }
   .shared-filter-bar-inline {
     margin-bottom: 0;
     flex: 1;

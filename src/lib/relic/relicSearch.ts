@@ -1,4 +1,4 @@
-import type { RelicDatabase, RelicGroup } from "../../types/relics.js";
+import type { RelicDatabase, RelicGroup, RelicReward } from "../../types/relics.js";
 
 function normalizeRelicSearchText(value: string): string {
   return value
@@ -77,6 +77,22 @@ export function relicGroupMatchesSearch(group: RelicGroup, query: string): boole
     }
   }
 
+  return false;
+}
+
+export function relicGroupHasMatchingReward(
+  group: RelicGroup,
+  predicate: (reward: RelicReward) => boolean,
+): boolean {
+  const seen = new Set<string>();
+  for (const qualityData of Object.values(group.qualities || {})) {
+    for (const reward of qualityData?.rewards || []) {
+      const key = reward.uniqueName || reward.urlName || reward.name;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      if (predicate(reward)) return true;
+    }
+  }
   return false;
 }
 

@@ -68,7 +68,7 @@
 <div class="relic-compact-card" class:plain>
   <button
     type="button"
-    class="relic-compact-head flex min-w-0 flex-nowrap items-center gap-1.5 w-full border-0 p-0 m-0 bg-transparent text-inherit text-left cursor-pointer"
+    class="relic-compact-head flex min-w-0 flex-wrap items-center gap-1.5 w-full border-0 p-0 m-0 bg-transparent text-inherit text-left cursor-pointer"
     on:click={() => openRelic(group)}
   >
     <span class="inline-flex items-center justify-center w-10 shrink-0">

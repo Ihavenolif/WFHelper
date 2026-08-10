@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { relicGroupMatchesSearch, buildRelicSearchKeywordIndex } from "../../../../src/lib/relic/relicSearch.js";
+import {
+  buildRelicSearchKeywordIndex,
+  relicGroupHasMatchingReward,
+  relicGroupMatchesSearch,
+} from "../../../../src/lib/relic/relicSearch.js";
 import type { RelicDatabase, RelicGroup } from "../../../../src/types/relics.js";
 
 function makeGroup(overrides: Partial<RelicGroup> = {}): RelicGroup {
@@ -111,5 +115,16 @@ describe("buildRelicSearchKeywordIndex", () => {
     expect(terms.some((t) => t.includes("neo z9"))).toBe(true);
     expect(terms.some((t) => t.includes("braton"))).toBe(true);
     expect(terms.some((t) => t.includes("saryn"))).toBe(true);
+  });
+});
+
+describe("relicGroupHasMatchingReward", () => {
+  it("matches rewards across a relic's qualities", () => {
+    expect(
+      relicGroupHasMatchingReward(makeGroup(), (reward) => reward.name.includes("Saryn")),
+    ).toBe(true);
+    expect(
+      relicGroupHasMatchingReward(makeGroup(), (reward) => reward.name.includes("Forma")),
+    ).toBe(false);
   });
 });

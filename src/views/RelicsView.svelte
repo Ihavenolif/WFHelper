@@ -23,6 +23,7 @@
     getCachedEv,
     highestOwnedQuality,
     parseOwnedRelics,
+    relicGroupHasMatchingReward,
     relicGroupMatchesSearch,
   } from "../lib/relic.js";
   import { invoke, send } from "../lib/ipc.js";
@@ -33,7 +34,12 @@
   import { defaultSortDirection } from "../lib/filters.js";
   import type { ParsedItem } from "../types/inventory.js";
   import type { RelicGroup, RelicQuality, RelicReward } from "../types/relics.js";
-  import type { RelicQualityMode, RelicSortMode, RelicVaultedMode } from "../stores/relics.js";
+  import type {
+    RelicOwnershipMode,
+    RelicQualityMode,
+    RelicSortMode,
+    RelicVaultedMode,
+  } from "../stores/relics.js";
 
   type RelicQualityModeView = RelicQualityMode;
 
@@ -73,6 +79,10 @@
     ["all", "All"],
     ["vaulted", "Vaulted"],
     ["unvaulted", "Unvaulted"],
+  ];
+  const OWNERSHIP_OPTIONS: Array<[RelicOwnershipMode, string]> = [
+    ["owned", "Owned only"],
+    ["all", "All relics"],
   ];
 
   const RELIC_QUALITY_COLUMNS = QUALITY_MODES;
@@ -204,6 +214,14 @@
     });
   }
 
+  function setRelicOwnershipMode(event: Event): void {
+    const ownershipMode = (event.currentTarget as HTMLSelectElement).value as RelicOwnershipMode;
+    setRelicFilter({
+      ownershipMode,
+      qualityMode: ownershipMode === "owned" ? "owned" : "intact",
+    });
+  }
+
   function openRelic(group: RelicGroup): void {
     activeRelic.set(group);
   }
@@ -269,22 +287,19 @@
     viewState: typeof $relicViewState,
     _evRevision: number,
     _priceRevision: number,
+    _ownedInternalNames: typeof ownedRewardInternalNames,
+    _ownedNames: typeof ownedRewardNames,
+    _rewardRefs: typeof rewardGameRefBySlug,
   ): RelicGroup[] {
     if (!db) return [];
 
     let relicGroups = Object.values(db.groups);
 
-    if (hasInventory) {
-      const hasOwnedRelics = Object.values(ownedCounts).some((counts) =>
-        Object.values(counts || {}).some((count) => count > 0),
-      );
-
-      if (hasOwnedRelics) {
-        relicGroups = relicGroups.filter((group) => {
-          const owned = ownedCounts[group.key];
-          return owned && Object.values(owned).some((count) => count > 0);
-        });
-      }
+    if (hasInventory && viewState.ownershipMode === "owned") {
+      relicGroups = relicGroups.filter((group) => {
+        const owned = ownedCounts[group.key];
+        return owned && Object.values(owned).some((count) => count > 0);
+      });
     }
 
     if (viewState.tierFilter !== "all") {
@@ -298,6 +313,12 @@
 
     if (viewState.search) {
       relicGroups = relicGroups.filter((group) => relicGroupMatchesSearch(group, viewState.search));
+    }
+
+    if (viewState.containsUnownedReward) {
+      relicGroups = relicGroups.filter((group) =>
+        relicGroupHasMatchingReward(group, (reward) => !isOwnedReward(reward)),
+      );
     }
 
     return [...relicGroups].sort((a, b) =>
@@ -320,6 +341,9 @@
     $relicViewState,
     $relicEvRevision,
     $priceCacheRevision,
+    ownedRewardInternalNames,
+    ownedRewardNames,
+    rewardGameRefBySlug,
   );
 
   $: warmupController.updateContext({
@@ -339,16 +363,6 @@
   $: if ($priceCacheRevision && $relicDb) {
     warmupController.scheduleEvRefreshFromPriceUpdate();
   }
-
-  $: visibleRelicEntryCount = groups.reduce(
-    (sum, group) =>
-      sum +
-      RELIC_QUALITY_COLUMNS.reduce(
-        (inner, quality) => inner + (ownedCount(group, quality) > 0 ? 1 : 0),
-        0,
-      ),
-    0,
-  );
 
   interface RowEvData {
     plat: number | null;
@@ -539,7 +553,7 @@
 
 <section class="view active">
   <h2 class="m-0 mb-2 font-display text-3xl font-semibold tracking-[0.03em] text-text-primary">
-    Relic Planner ({groups.length} groups / {visibleRelicEntryCount} entries)
+    Relic Planner ({groups.length} relics)
   </h2>
   <div class="view-sticky-filters mb-4">
     <div class="flex flex-wrap items-end border-b border-white/[0.09]">
@@ -563,6 +577,30 @@
           onSelect={setRelicSortMode}
           onToggleDirection={toggleRelicSortDirection}
         />
+
+        <label class="shared-filter-sort" title="Show owned relics or the full relic catalog">
+          <span>Relics</span>
+          <select
+            class="shared-filter-select"
+            value={$relicViewState.ownershipMode}
+            on:change={setRelicOwnershipMode}
+          >
+            {#each OWNERSHIP_OPTIONS as [key, label]}
+              <option value={key}>{label}</option>
+            {/each}
+          </select>
+        </label>
+
+        <button
+          type="button"
+          class="filter-tab min-h-8"
+          class:active={$relicViewState.containsUnownedReward}
+          title="Only show relics containing at least one reward you do not currently own"
+          on:click={() =>
+            setRelicFilter({ containsUnownedReward: !$relicViewState.containsUnownedReward })}
+        >
+          Unowned reward
+        </button>
 
         <label class="shared-filter-sort" title="Relic quality for EV">
           <span>Quality</span>
@@ -633,7 +671,7 @@
     <div class="empty-state"><p>No relics found</p></div>
   {:else}
     <div
-      class="grid gap-[var(--relic-grid-gap)] grid-cols-[repeat(var(--relic-grid-columns),minmax(0,1fr))]"
+      class="grid gap-[var(--relic-grid-gap)] grid-cols-[repeat(auto-fill,minmax(min(100%,18.5rem),1fr))]"
     >
       {#each groups as group (group.key)}
         {@const selectedOwned = selectedOwnedQuality(

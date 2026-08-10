@@ -98,6 +98,19 @@ describe("shared filters", () => {
     expect(sorted.map((row) => row.name)).toEqual(["Item A", "Item C"]);
   });
 
+  it("accepts custom minimum platinum values", () => {
+    const filters: SharedFiltersState = {
+      ...defaultFilters(),
+      minimumPlatinum: 7,
+    };
+    const items = [
+      { name: "Six", platinum: 6 },
+      { name: "Seven", platinum: 7 },
+    ];
+
+    expect(applySharedFiltersAndSort(items, filters).map((item) => item.name)).toEqual(["Seven"]);
+  });
+
   it("derives ducatonator from ducats/platinum", () => {
     const items = [
       { name: "High Ratio", ducats: 100, platinum: 10 },

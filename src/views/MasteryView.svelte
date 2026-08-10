@@ -6,6 +6,9 @@
   import { buildSubsumedFamilySet, isFrameSubsumed, isSubsumableFrame } from "../lib/helminth.js";
   import { componentUniqueNameAliases } from "../../config/shared/componentNames.js";
   import { masteryProjectionSubtext } from "../lib/masteryProjection.js";
+  import { buildMasteryRoadmap, estimateMasteryPurchaseCost } from "../lib/masteryRoadmap.js";
+  import { getLookupByName } from "../lib/inventoryMarket.js";
+  import { parseOwnedRelics } from "../lib/relic.js";
   import { activeItem, activeComponent } from "../stores/modals.js";
   import { hideFounderMasteryItems } from "../stores/preferences.js";
   import SharedFilterBar from "../components/SharedFilterBar.svelte";
@@ -17,7 +20,9 @@
   import { applySharedFiltersAndSort } from "../lib/filters.js";
   import { getCachedPriceState } from "../lib/wfm/priceCache.js";
   import { sharedFilters } from "../stores/filters.js";
+  import { relicDb } from "../stores/relics.js";
   import ItemImage from "../components/ItemImage.svelte";
+  import MasteryRoadmap from "../components/mastery/MasteryRoadmap.svelte";
   import { send } from "../lib/ipc.js";
   import type {
     ComponentInfo,
@@ -48,6 +53,7 @@
   const FOUNDER_ITEM_NAMES = new Set(["Excalibur Prime", "Lato Prime", "Skana Prime"]);
 
   const INCOMPLETE_SETS_TAB = "__incomplete_sets";
+  const VIEW_TAB_KEY = "wf_mastery_view_tab";
   const CAT_TAB_KEY = "wf_mastery_cat_tab";
   const STATUS_TAB_KEY = "wf_mastery_status_tab";
   const STATUS_TABS = [
@@ -56,10 +62,15 @@
     { key: "progress", label: "In Progress" },
     { key: "mastered", label: "Mastered" },
   ];
+  const VIEW_TABS = [
+    { key: "collection", label: "Collection" },
+    { key: "roadmap", label: "MR Roadmap" },
+  ];
 
   // Category keys are data-driven; a stale restore falls back once categories load.
   let catFilter = readStorage(CAT_TAB_KEY) || "all";
   let statusFilter = restoreStatusTab();
+  let viewTab = readStorage(VIEW_TAB_KEY) === "roadmap" ? "roadmap" : "collection";
   const breakdownExpanded = persistedBoolean("mastery-breakdown-expanded", false);
   const masteryFilters = sharedFilters("mastery");
 
@@ -76,6 +87,11 @@
   function selectStatusTab(key: string): void {
     statusFilter = key;
     writeStorage(STATUS_TAB_KEY, key);
+  }
+
+  function selectViewTab(key: string): void {
+    viewTab = key === "roadmap" ? "roadmap" : "collection";
+    writeStorage(VIEW_TAB_KEY, viewTab);
   }
 
   function orderedCategories(byCategory: Record<string, MasteryCategoryStats>): string[] {
@@ -259,20 +275,14 @@
   // Pre-compute per-item derived values here so {#each} never reads
   // $wfmItems directly - a wfmItems store update won't trigger a full
   // template re-render; Svelte will patch only changed items via the key.
-  function hydrateAndFilterMastery(
+  function hydrateMasteryItems(
     data: typeof $masteryData,
     wfmLookup: typeof $wfmItems,
-    sharedFilters: typeof $masteryFilters,
-    cat: string,
-    status: string,
     foundry: ReturnType<typeof buildFoundryIndex>,
     subsumed: Set<string>,
   ) {
     if (!data) return [];
-    let items = data.items;
-    if (cat !== "all") items = items.filter((i) => i.category === cat);
-    if (status !== "all") items = items.filter((i) => i.status === status);
-    const hydrated = items.map((item) => {
+    return data.items.map((item) => {
       const mastered = item.status === "mastered";
       const missing = item.status === "missing";
       const nextPct = missing
@@ -292,9 +302,19 @@
           : false,
       }));
       const partsOwned = components.length > 0 ? components.filter(isComponentOwned).length : null;
-      const owned = item.status !== "missing" || item.currentlyOwned === true;
+      const owned = item.currentlyOwned === true;
       const buildable =
         !owned && components.length > 0 && components.every((comp) => comp.owned === true);
+      const rootPrice = wfm?.url_name ? (getCachedPriceState(wfm.url_name)?.median ?? null) : null;
+      const estimatedCost = estimateMasteryPurchaseCost(rootPrice, components, (component) => {
+        const byUnique = component.uniqueName
+          ? wfmLookup[component.uniqueName.toLowerCase()] || null
+          : null;
+        const marketItem = byUnique || getLookupByName(component.name, wfmLookup);
+        return marketItem?.url_name
+          ? (getCachedPriceState(marketItem.url_name)?.median ?? null)
+          : null;
+      });
       return {
         ...item,
         masteryXpRemaining: item.masteryXpRemaining ?? 0,
@@ -307,27 +327,35 @@
         subsumed: isSubsumed,
         partType: item.isPrime ? ("prime" as const) : ("normal" as const),
         leveledUp: item.rank > 0,
-        amount: item.status !== "missing" || item.currentlyOwned ? 1 : 0,
+        amount: owned ? 1 : 0,
         owned,
         // Snapshot-only lookup: no per-card hydration for 800+ mastery rows.
-        platinum: wfm?.url_name ? (getCachedPriceState(wfm.url_name)?.median ?? null) : null,
+        platinum: rootPrice,
+        estimatedCost,
         buildable,
         partsOwned,
         foundryState: foundryStateOf(foundryStatus, buildable),
       };
     });
-
-    return applySharedFiltersAndSort(hydrated, sharedFilters);
   }
 
-  $: filtered = hydrateAndFilterMastery(
+  $: hydratedMasteryItems = hydrateMasteryItems(
     displayMasteryData,
     $wfmItems,
-    $masteryFilters,
-    catFilter,
-    statusFilter,
     foundryIndex,
     subsumedFamilies,
+  );
+  $: filtered = applySharedFiltersAndSort(
+    hydratedMasteryItems
+      .filter((item) => catFilter === "all" || item.category === catFilter)
+      .filter((item) => statusFilter === "all" || item.status === statusFilter),
+    $masteryFilters,
+  );
+  $: masteryOwnedRelics = parseOwnedRelics($inventoryData, $relicDb);
+  $: masteryRoadmap = buildMasteryRoadmap(
+    hydratedMasteryItems,
+    $relicDb,
+    masteryOwnedRelics,
   );
 
   function formatPercent(n: number, total: number): string {
@@ -402,6 +430,10 @@
     <h2>Mastery Helper</h2>
   </div>
 
+  <div class="mb-3 flex items-end border-b border-white/[0.09]">
+    <HeaderTabs options={VIEW_TABS} activeKey={viewTab} onSelect={selectViewTab} />
+  </div>
+
   {#if displayMasteryData}
     {@const stats = displayMasteryData.stats}
     {@const masteredPct = formatPercent(stats.mastered, stats.total)}
@@ -453,11 +485,12 @@
         <SummaryStrip items={masterySummaryItems} variant="mastery" />
       </div>
 
-      <CollapsibleSection
-        title="Detailed breakdown"
-        collapsed={!$breakdownExpanded}
-        onToggle={() => breakdownExpanded.update((value) => !value)}
-      >
+      {#if viewTab === "collection"}
+        <CollapsibleSection
+          title="Detailed breakdown"
+          collapsed={!$breakdownExpanded}
+          onToggle={() => breakdownExpanded.update((value) => !value)}
+        >
         <ThemedPanel className="grid gap-2 p-2.5">
           {#each categories as cat}
             {@const cs = stats.byCategory[cat]}
@@ -538,10 +571,18 @@
             </ThemedPanel>
           </div>
         {/if}
-      </CollapsibleSection>
+        </CollapsibleSection>
+      {/if}
     </div>
 
-    <div class="view-sticky-filters grid gap-2 mb-3">
+    {#if viewTab === "roadmap"}
+      <MasteryRoadmap
+        roadmap={masteryRoadmap}
+        totalXp={stats.profileMastery?.totalXp ?? null}
+        onOpen={(item) => activeItem.set(item)}
+      />
+    {:else}
+      <div class="view-sticky-filters grid gap-2 mb-3">
       <SharedFilterBar
         scope="mastery"
         sortOptions={MASTERY_SORT_OPTIONS}
@@ -556,7 +597,7 @@
           <HeaderTabs options={STATUS_TABS} activeKey={statusFilter} onSelect={selectStatusTab} />
         </div>
       {/if}
-    </div>
+      </div>
 
     <!-- Item grid -->
     {#if catFilter === INCOMPLETE_SETS_TAB}
@@ -733,6 +774,7 @@
           {/each}
         {/if}
       </div>
+      {/if}
     {/if}
   {:else}
     <div class="empty-state">
