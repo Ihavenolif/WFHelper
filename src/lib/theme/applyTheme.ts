@@ -26,7 +26,7 @@ export function applyTheme(settings: ThemeSettings): void {
 
   // Font scale
   const scale = settings.fontSizes.globalScale;
-  root.style.setProperty("font-size", `${BASE_FONT_SIZE_PX * scale}px`);
+  root.style.setProperty("--font-global-size", `${BASE_FONT_SIZE_PX * scale}px`);
 
   // Per-category font size overrides
   if (settings.fontSizes.headingSize != null) {

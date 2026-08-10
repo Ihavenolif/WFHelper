@@ -38,6 +38,7 @@
 </script>
 
 <div
+  data-stats-trade-panel
   class="w-[300px] max-[1100px]:w-[240px] shrink-0 border-l border-[color:var(--ui-panel-border)] flex flex-col min-h-0 overflow-hidden"
 >
   <div class="px-3 pt-2 shrink-0">
@@ -45,7 +46,7 @@
       >{$tr("stats.trades")}</span
     >
     <div class="flex flex-col gap-2">
-      <div class="flex gap-1">
+      <div class="grid grid-cols-2 gap-1" data-trade-filters>
         {#each ["all", "sale", "purchase", "trade"] as const as f}
           <button
             class="flex-1 flex items-center justify-center gap-1 py-1 px-[6px] text-xs border rounded cursor-pointer transition-[background,color,border-color] duration-150 whitespace-nowrap {tradeFilter ===

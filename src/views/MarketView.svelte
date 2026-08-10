@@ -164,7 +164,7 @@
   let contractsLoading = false;
   let contractsError = "";
   let selectedOrderItemKey: string | null = null;
-  let orderBookPanelOpen = true;
+  let orderBookPanelOpen = false;
   let selectedContract: { contract: WfmContract; riven: DecodedRiven } | null = null;
   let ordersUiGeneration = 0;
 

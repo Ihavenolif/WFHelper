@@ -5,7 +5,7 @@
   import { wfmItems, foundryData, inventoryData, itemDb, parsedItems } from "../stores/data.js";
   import { buildSubsumedFamilySet, isFrameSubsumed, isSubsumableFrame } from "../lib/helminth.js";
   import { componentUniqueNameAliases } from "../../config/shared/componentNames.js";
-  import { masteryXpToRank } from "../../config/shared/masteryXp.js";
+  import { masteryProjectionSubtext } from "../lib/masteryProjection.js";
   import { activeItem, activeComponent } from "../stores/modals.js";
   import { hideFounderMasteryItems } from "../stores/preferences.js";
   import SharedFilterBar from "../components/SharedFilterBar.svelte";
@@ -153,8 +153,13 @@
           if (foundryStatusFor(item, foundry) !== "claimable") return sum;
           return sum + (item.masteryXpRemaining ?? 0);
         }, 0);
-        if (readyXp > 0) {
-          mrRow.subtext = `MR ${masteryXpToRank(profileMastery.totalXp + readyXp)} with foundry items mastered (+${readyXp.toLocaleString()} XP)`;
+        const projection = masteryProjectionSubtext(
+          profileMastery.rank,
+          profileMastery.totalXp,
+          readyXp,
+        );
+        if (projection) {
+          mrRow.subtext = projection;
           mrRow.subtextTone = "success";
         }
       }

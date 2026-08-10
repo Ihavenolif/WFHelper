@@ -260,7 +260,7 @@
   }
 </script>
 
-<section class="view active">
+<section class="view active mx-auto w-full max-w-[1120px]">
   <div class="view-header">
     <h2>{$tr("settings.title")}</h2>
   </div>
@@ -814,7 +814,6 @@
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
     gap: 0.85rem;
-    max-width: 1040px;
     align-items: start;
   }
 

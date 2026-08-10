@@ -46,7 +46,7 @@
   // Full Sets lists sellable spares; this folds in the sets still missing parts.
   let showIncompleteSets = false;
   let selectedInternalName: string | null = null;
-  let orderBookPanelOpen = true;
+  let orderBookPanelOpen = false;
   const FILTERS = INVENTORY_FILTERS;
   const inventoryFilters = sharedFilters("inventory");
 

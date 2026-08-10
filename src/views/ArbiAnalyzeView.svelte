@@ -166,13 +166,13 @@
 </script>
 
 <section class="view active">
-  <div class="flex w-full max-w-[1200px] flex-col gap-4 py-4">
+  <div class="mx-auto flex w-full max-w-[1280px] flex-col gap-4 py-4">
     {#if selectedRun}
       <ArbiRunDetail run={selectedRun} onBack={() => (selectedRunId = null)} />
     {:else}
-      <header class="flex flex-wrap items-end justify-between gap-2">
+      <header class="view-header mb-0 items-end">
         <div class="flex flex-col gap-1">
-          <h2 class="m-0 font-display text-2xl font-bold text-text-primary">{$tr("arbi.title")}</h2>
+          <h2>{$tr("arbi.title")}</h2>
           <p class="m-0 text-sm text-text-secondary">
             {$tr("arbi.runCount", { count: String($arbiRuns.length) })} ·
             {$tr("arbi.diskUsage", { size: formatBytes($arbiDiskUsageBytes) })}

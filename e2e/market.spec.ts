@@ -141,12 +141,10 @@ test.describe("Market tab (fixture mode)", () => {
     await row.getByRole("button", { name: "Increase quantity" }).click();
     await expect(qtyValue).toHaveValue("4");
 
-    // Stepper edits must not select the item.
-    await expect(page.getByText("Select an item to view WTS/WTB listings.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Market Listings" })).toHaveCount(0);
 
     const apply = row.getByRole("button", { name: "Apply changes" });
     await apply.click();
-    // Once the fixture persists the update the drafts are clean again.
     await expect(apply).not.toBeVisible({ timeout: 15_000 });
     await expect(priceValue).toHaveValue("14");
     await expect(qtyValue).toHaveValue("4");

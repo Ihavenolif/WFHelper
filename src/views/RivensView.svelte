@@ -128,8 +128,8 @@
 {/snippet}
 
 <section class="view active">
-  <div class="flex items-center gap-4 mb-2">
-    <h2 class="font-display text-2xl text-text-primary m-0">{$tr("rivens.title")}</h2>
+  <div class="view-header mb-2">
+    <h2>{$tr("rivens.title")}</h2>
   </div>
 
   <div class="mb-4 flex items-end border-b border-white/[0.09]">

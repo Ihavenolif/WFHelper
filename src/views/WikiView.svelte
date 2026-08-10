@@ -112,12 +112,14 @@
 </script>
 
 <section class="view active">
-  <div class="flex w-full max-w-[920px] flex-col gap-4 py-4">
-    <header class="flex flex-col gap-1">
-      <h2 class="m-0 font-display text-2xl font-bold text-text-primary">Drop Data</h2>
-      <p class="m-0 text-sm text-text-secondary">
-        Search the full Warframe drop tables for any item's drop locations and rates.
-      </p>
+  <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-4 py-4">
+    <header class="view-header mb-0">
+      <div class="flex flex-col gap-1">
+        <h2>Drop Data</h2>
+        <p class="m-0 text-sm text-text-secondary">
+          Search the full Warframe drop tables for any item's drop locations and rates.
+        </p>
+      </div>
     </header>
 
     <div class="flex flex-wrap items-center gap-2">

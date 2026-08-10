@@ -113,9 +113,10 @@
 
 <nav
   id="sidebar"
-  class="sidebar-shell flex min-h-0 shrink-0 flex-col justify-between gap-2 overflow-y-auto overflow-x-hidden border-r border-border bg-bg-base px-2.5 py-3.5"
+  class="sidebar-shell flex min-h-0 shrink-0 flex-col justify-between gap-2 overflow-y-auto overflow-x-hidden border-r border-border bg-bg-base px-2.5 py-3.5 {$collapsed
+    ? 'w-[3.75rem]'
+    : 'w-[var(--sidebar-width)]'}"
   class:sidebar-collapsed={$collapsed}
-  style:width={$collapsed ? "3.75rem" : "var(--sidebar-width)"}
 >
   <div class="flex flex-col gap-0.5">
     <button
@@ -131,8 +132,7 @@
         stroke-width="1.75"
         stroke-linecap="round"
         stroke-linejoin="round"
-        class="h-5 w-5 shrink-0 transition-transform duration-150"
-        style:transform={$collapsed ? "rotate(180deg)" : "none"}
+        class="h-5 w-5 shrink-0 transition-transform duration-150 {$collapsed ? 'rotate-180' : ''}"
       >
         <polyline points="15 18 9 12 15 6" />
       </svg>

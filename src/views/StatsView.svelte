@@ -531,7 +531,7 @@
       </ThemedButton>
       <ThemedButton as="label" title="Import AlecaFrame stats JSON export">
         Import AlecaFrame JSON
-        <input type="file" accept=".json" style="display:none" on:change={handleImportFile} />
+        <input type="file" accept=".json" class="hidden" on:change={handleImportFile} />
       </ThemedButton>
     </div>
   </div>
