@@ -66,10 +66,12 @@ afterEach(() => {
 describe("commit subject policy", () => {
   it("accepts a documented tag and fully lowercase phrase", () => {
     expect(checkMessage("[fix] - itemdb: name and icon blueprints\n").status).toBe(0);
+    expect(checkMessage("[ui] - remember last sub-tab\n").status).toBe(0);
+    expect(checkMessage("[release] - publish build\n").status).toBe(0);
   });
 
   it("rejects undocumented tags", () => {
-    const result = checkMessage("[release] - publish build\n");
+    const result = checkMessage("[bogus] - publish build\n");
     expect(result.status).toBe(1);
     expect(result.output).toContain("commit message rejected");
   });

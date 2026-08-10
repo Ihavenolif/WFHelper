@@ -19,8 +19,14 @@ const TAGS = [
   "lint",
   "perf",
   "refactor",
+  "release",
   "security",
+  "style",
   "test",
+  "tooling",
+  "types",
+  "ui",
+  "worker",
 ];
 
 const SUBJECT_RE = new RegExp(`^\\[(?:${TAGS.join("|")})\\] - ([a-z0-9].*)$`);
