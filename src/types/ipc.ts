@@ -18,7 +18,10 @@ import type {
 import type { DropSearchMode, DropSearchResult } from "./drops.js";
 import type { RelicDatabase } from "./relics.js";
 import type { WorldState } from "./world.js";
+import type { HelperStatus } from "../../config/shared/apiHelperTypes.js";
 import type { DisplayPreference, LinuxDisplayInfo } from "../../config/shared/linuxDisplay.js";
+
+export type { HelperStatus } from "../../config/shared/apiHelperTypes.js";
 
 interface CycleAlerts {
   earth: boolean;
@@ -130,15 +133,6 @@ interface InventoryStatus {
    * "no file discovered" (null) from "file unreadable/corrupt".
    */
   lastError?: InventoryReadError | null;
-}
-
-export interface HelperStatus {
-  exeFound: boolean;
-  running: boolean;
-  lastRunAt: number | null;
-  lastRunOk: boolean | null;
-  inventoryLastModified: number | null;
-  installerAutoInstallHelper: boolean | null;
 }
 
 export interface HelperDownloadProgress {

@@ -39,18 +39,39 @@
       return `WF data ${isOld ? "old" : "OK"} - ${formatHelperTime(status.inventoryLastModified)}`;
     }
     if (!status.exeFound) return "WF helper not found";
+    if (status.lastRunReason === "access-denied") return "WF running as admin - unreadable";
+    if (status.lastRunReason === "not-logged-in") return "Waiting for WF login...";
+    if (status.lastRunReason === "token-not-found") return "WF login token not found";
+    if (status.lastRunReason === "game-not-running") return "Start Warframe to load data";
     return "WF data missing";
   }
 
-  function computeHelperDotColor(status: HelperStatus | null, isOld: boolean): string {
-    if (!status) return "#6b7280";
-    if (status.running) return "#facc15";
-    if (status.inventoryLastModified) return isOld ? "#f59e0b" : "#34d399";
-    return "#f87171";
+  function helperTooltip(status: HelperStatus | null): string {
+    if (!status?.exeFound) return "warframe-api-helper not found";
+    if (status.lastRunReason === "access-denied") {
+      return "Warframe appears to run as administrator - WFHelper cannot read it. Restart the game without admin rights.";
+    }
+    if (status.lastRunReason === "not-logged-in") {
+      return "Warframe is running but not logged in. Data loads automatically about a minute after login.";
+    }
+    if (status.lastRunReason === "token-not-found") {
+      return "Warframe is logged in but the login token was not found in game memory. Restart the game; if this keeps happening, report it on Discord.";
+    }
+    if (status.lastRunReason === "game-not-running") {
+      return "Start Warframe and log in - data is fetched automatically.";
+    }
+    return "warframe-api-helper active";
+  }
+
+  function computeHelperDotClass(status: HelperStatus | null, isOld: boolean): string {
+    if (!status) return "bg-[#6b7280]";
+    if (status.running) return "bg-[#facc15]";
+    if (status.inventoryLastModified) return isOld ? "bg-[#f59e0b]" : "bg-[#34d399]";
+    return "bg-[#f87171]";
   }
 
   $: helperStatusText = computeHelperStatusText(helperStatus, helperInventoryIsOld);
-  $: helperDotColor = computeHelperDotColor(helperStatus, helperInventoryIsOld);
+  $: helperDotClass = computeHelperDotClass(helperStatus, helperInventoryIsOld);
   $: helperDotPulse = helperStatus?.running ?? false;
 
   onMount(() => {
@@ -76,13 +97,12 @@
     </span>
     <span
       class="inline-flex min-w-0 items-center gap-1 rounded border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-text-muted"
-      title={helperStatus?.exeFound
-        ? "warframe-api-helper active"
-        : "warframe-api-helper not found"}
+      title={helperTooltip(helperStatus)}
     >
       <span
-        class="inline-block h-1.5 w-1.5 rounded-full {helperDotPulse ? 'animate-pulse' : ''}"
-        style="background:{helperDotColor}"
+        class="inline-block h-1.5 w-1.5 rounded-full {helperDotClass} {helperDotPulse
+          ? 'animate-pulse'
+          : ''}"
       ></span>
       <span class="overflow-hidden text-ellipsis whitespace-nowrap max-w-48"
         >{helperStatusText}</span

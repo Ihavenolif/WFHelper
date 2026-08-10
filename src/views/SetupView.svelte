@@ -37,6 +37,8 @@
   let loadingApi = false;
   let runnerStatus: HelperStatus | null = null;
   let destroyed = false;
+  let statusPollTimer: ReturnType<typeof setInterval> | null = null;
+  const STATUS_POLL_MS = 5_000;
   let removeProgressListener: (() => void) | null = null;
   let removeInventoryListener: (() => void) | null = null;
   let pendingInventoryData: unknown = null;
@@ -101,10 +103,17 @@
 
     await refreshHelperStatus();
     if (destroyed) return;
+
+    // Keep the waiting-for-data banner's failure reason live: the helper now
+    // retries about every 90s on its own, so the hint changes without clicks.
+    statusPollTimer = setInterval(() => {
+      void refreshRunnerStatus();
+    }, STATUS_POLL_MS);
   });
 
   onDestroy(() => {
     destroyed = true;
+    if (statusPollTimer) clearInterval(statusPollTimer);
     removeInventoryListener?.();
     removeProgressListener?.();
   });
@@ -922,9 +931,29 @@
                   Go in-game to generate inventory data
                 </h3>
                 <p class="mt-0.5 text-xs leading-snug text-text-secondary">
-                  The helper is installed. Log into Warframe, then run the helper to create
-                  inventory.json.
+                  The helper is installed. Log into Warframe and your data loads automatically
+                  within a couple of minutes.
                 </p>
+                {#if runnerStatus?.lastRunReason === "access-denied"}
+                  <p class="mt-1 text-xs font-semibold leading-snug text-warning">
+                    Warframe appears to run as administrator - WFHelper cannot read it. Restart the
+                    game (and Steam/launcher) without "Run as administrator".
+                  </p>
+                {:else if runnerStatus?.lastRunReason === "not-logged-in"}
+                  <p class="mt-1 text-xs leading-snug text-text-secondary">
+                    Warframe is running but not logged in yet - finish logging in and this picks it
+                    up on its own.
+                  </p>
+                {:else if runnerStatus?.lastRunReason === "token-not-found"}
+                  <p class="mt-1 text-xs font-semibold leading-snug text-warning">
+                    Warframe is logged in, but the login token was not found in game memory. Restart
+                    the game; if this keeps happening, report it on Discord.
+                  </p>
+                {:else if runnerStatus?.lastRunReason === "game-not-running"}
+                  <p class="mt-1 text-xs leading-snug text-text-secondary">
+                    Warframe is not running - start the game and log in.
+                  </p>
+                {/if}
                 <div class="mt-2 flex gap-2">
                   <button
                     class="btn-primary btn-sm"

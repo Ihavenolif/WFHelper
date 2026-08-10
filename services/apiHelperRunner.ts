@@ -3,16 +3,20 @@
  * After each run, the existing chokidar file-watcher on inventory.json picks up changes.
  */
 
-import { withScope } from "./logger";
-import path from "node:path";
+import crypto from "node:crypto";
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import https from "node:https";
-import crypto from "node:crypto";
+import path from "node:path";
 import zlib from "node:zlib";
-import { spawn } from "node:child_process";
 import { app } from "electron";
+
+import type { HelperRunReason, HelperStatus } from "../config/shared/apiHelperTypes";
 import type { DownloadStage } from "../config/shared/statsTypes";
 import { readGameAuthz } from "./gameMemoryAuthz";
+import { readGameAuthzWin } from "./gameMemoryWin";
+import { resolveEeLogPath } from "./eeLogPath";
+import { withScope } from "./logger";
 
 const log = withScope("apiHelperRunner");
 
@@ -21,6 +25,9 @@ const IS_WINDOWS = process.platform === "win32";
 // single `warframe-api-helper` ELF binary (works against the Proton game).
 const EXE_NAME = IS_WINDOWS ? "warframe-api-helper.exe" : "warframe-api-helper";
 const DEFAULT_POLL_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
+// Runs that failed before reaching DE's API (game closed, elevated, or not
+// logged in) never consumed the cooldown, so they may retry much sooner.
+const LOCAL_FAILURE_RETRY_MS = 90 * 1000;
 // Hard kill the helper if it hasn't exited after this long. Normal runs are <5s.
 const HELPER_SPAWN_TIMEOUT_MS = 60 * 1000;
 const NETWORK_TIMEOUT_MS = 30_000;
@@ -80,20 +87,81 @@ function isPinnedHash(hash: string): boolean {
   return PINNED_HELPER_SHA256.has(hash.toLowerCase());
 }
 
-let _pollTimer: ReturnType<typeof setInterval> | null = null;
+let _pollTimer: ReturnType<typeof setTimeout> | null = null;
 let _startupTimer: ReturnType<typeof setTimeout> | null = null;
+let _pollingActive = false;
 let _running = false;
 let _lastRunAt: number | null = null;
 let _lastRunOk: boolean | null = null;
+let _lastRunReason: HelperRunReason | null = null;
 let _exePath: string | null = null;
 
-interface HelperStatus {
-  exeFound: boolean;
-  running: boolean;
-  lastRunAt: number | null; // unix ms
-  lastRunOk: boolean | null;
-  inventoryLastModified: number | null; // unix ms
-  installerAutoInstallHelper: boolean | null;
+function settleRun(ok: boolean, reason: HelperRunReason | null = null): boolean {
+  _running = false;
+  _lastRunOk = ok;
+  _lastRunReason = ok ? null : (reason ?? "error");
+  _lastRunAt = Date.now();
+  return ok;
+}
+
+/** Sainan's helper: 1 = game not found, 2 = OpenProcess denied (game runs as
+ *  admin), 3 = auth string not in memory (login screen). */
+export function helperFailureReason(exitCode: number | null): HelperRunReason {
+  if (exitCode === 1) return "game-not-running";
+  if (exitCode === 2) return "access-denied";
+  if (exitCode === 3) return "not-logged-in";
+  return "error";
+}
+
+/** Fast retry only for failures that resolve on their own within minutes;
+ *  token-not-found is persistent and a rescan hits gigabytes of game memory. */
+export function nextHelperPollDelayMs(
+  ok: boolean,
+  reason: HelperRunReason | null,
+  intervalMs: number,
+): number {
+  if (reason === "game-not-running" || reason === "access-denied" || reason === "not-logged-in") {
+    return Math.min(LOCAL_FAILURE_RETRY_MS, intervalMs);
+  }
+  return intervalMs;
+}
+
+/** EE.log logs "Logging in as <name>" once the session is authenticated
+ *  (AlecaFrame uses the same marker), and is recreated on game start. */
+const EE_LOG_LOGIN_MARKER = "Logging in as ";
+
+/** Chunked substring scan so a large EE.log never sits in memory at once. */
+export async function fileContainsMarker(
+  filePath: string,
+  marker: string,
+  chunkSize = 4 * 1024 * 1024,
+): Promise<boolean> {
+  let fh: fs.promises.FileHandle | null = null;
+  try {
+    fh = await fs.promises.open(filePath, "r");
+    const buf = Buffer.alloc(chunkSize);
+    let carry = "";
+    for (;;) {
+      const { bytesRead } = await fh.read(buf, 0, chunkSize, null);
+      if (bytesRead <= 0) return false;
+      const text = carry + buf.toString("utf8", 0, bytesRead);
+      if (text.includes(marker)) return true;
+      carry = text.slice(-marker.length);
+    }
+  } catch {
+    return false;
+  } finally {
+    await fh?.close().catch(() => {});
+  }
+}
+
+/** Exit 3 conflates "at the login screen" with "logged in but the token scan
+ *  failed"; EE.log tells the two apart. */
+async function classifyNotLoggedIn(): Promise<HelperRunReason> {
+  const eeLogPath = resolveEeLogPath();
+  if (!eeLogPath) return "not-logged-in";
+  const loggedIn = await fileContainsMarker(eeLogPath, EE_LOG_LOGIN_MARKER);
+  return loggedIn ? "token-not-found" : "not-logged-in";
 }
 
 interface DownloadProgress {
@@ -157,11 +225,13 @@ function findExePath(): string | null {
   return null;
 }
 
-// Where inventory.json lives: next to the exe on Windows, in the helper dir on
-// Linux (native reader, no exe).
-function getInventoryDir(): string | null {
-  if (_exePath) return path.dirname(_exePath);
-  return IS_WINDOWS ? null : getHelperDir();
+// Keep helper-produced and compatibility JSON at the same watched path.
+function getInventoryDir(): string {
+  return _exePath ? path.dirname(_exePath) : getHelperDir();
+}
+
+function getInventoryTargetPath(): string {
+  return path.join(getInventoryDir(), "inventory.json");
 }
 
 function getInventoryMtime(): number | null {
@@ -183,6 +253,7 @@ export function getStatus(): HelperStatus {
     running: _running,
     lastRunAt: _lastRunAt,
     lastRunOk: _lastRunOk,
+    lastRunReason: _lastRunReason,
     inventoryLastModified: getInventoryMtime(),
     installerAutoInstallHelper: getInstallerAutoInstallHelperPreference(),
   };
@@ -197,12 +268,6 @@ export function getStatus(): HelperStatus {
 async function runOnceLinux(): Promise<boolean> {
   _running = true;
   log.info("Reading inventory auth from game memory...");
-  const settle = (ok: boolean): boolean => {
-    _running = false;
-    _lastRunOk = ok;
-    _lastRunAt = Date.now();
-    return ok;
-  };
 
   const result = await readGameAuthz().catch((err) => {
     log.error("Game memory read failed:", err instanceof Error ? err.message : String(err));
@@ -212,15 +277,17 @@ async function runOnceLinux(): Promise<boolean> {
   if (!result?.authz) {
     if (result?.reason === "process-not-found") {
       log.warn("Warframe is not running - start the game and log in first.");
-    } else if (result?.reason.startsWith("mem-open-")) {
+      return settleRun(false, "game-not-running");
+    }
+    if (result?.reason.startsWith("mem-open-")) {
       log.error(
         `Cannot read game memory (${result.reason}). Set kernel.yama.ptrace_scope=0, ` +
           "or grant cap_sys_ptrace (see the Linux notes in the release).",
       );
-    } else {
-      log.warn("Auth params not in game memory - are you logged in and in your Orbiter?");
+      return settleRun(false, "access-denied");
     }
-    return settle(false);
+    log.warn("Auth params not in game memory - are you logged in and in your Orbiter?");
+    return settleRun(false, await classifyNotLoggedIn());
   }
 
   log.info(`Auth acquired from game memory (${result.reason})`);
@@ -232,24 +299,94 @@ async function runOnceLinux(): Promise<boolean> {
   }
   try {
     await fetchInventoryWithAuthz(result.authz, path.join(dir, "inventory.json"));
-    return settle(true);
+    return settleRun(true);
   } catch (err) {
     log.error("Inventory fetch failed:", err instanceof Error ? err.message : String(err));
-    return settle(false);
+    return settleRun(false);
   }
 }
 
 export function runOnce(): Promise<boolean> {
   if (_running) return Promise.resolve(false);
   if (!IS_WINDOWS) return runOnceLinux();
+  return runOnceWindows();
+}
+
+export function shouldUseWindowsNativeFallback(
+  helperFound: boolean,
+  reason: HelperRunReason | null,
+): boolean {
+  return !helperFound || reason === "token-not-found" || reason === "error";
+}
+
+async function runOnceWindows(): Promise<boolean> {
+  _running = true;
+
+  if (!_exePath) _exePath = findExePath();
+  const helperFound = _exePath !== null;
+  if (helperFound) {
+    const helper = await runHelperExe();
+    if (helper.ok || !shouldUseWindowsNativeFallback(true, helper.reason)) {
+      return settleRun(helper.ok, helper.reason);
+    }
+    log.warn("Helper did not find the login token - trying the one-match compatibility scan");
+  }
+
+  const native = await readGameAuthzWin().catch((err) => {
+    log.warn("Native game-memory scan failed:", err instanceof Error ? err.message : String(err));
+    return null;
+  });
+
+  if (native?.authz) {
+    log.info(`Auth acquired from game memory (${native.reason})`);
+    try {
+      const dest = getInventoryTargetPath();
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      await fetchInventoryWithAuthz(native.authz, dest);
+      return settleRun(true);
+    } catch (err) {
+      log.error("Inventory fetch failed:", err instanceof Error ? err.message : String(err));
+      return settleRun(false, "api-failed");
+    }
+  }
+
+  const reason = native ? await nativeAuthzReason(native.reason) : "error";
+  if (reason === "access-denied") {
+    log.error(
+      "Warframe is likely running as administrator - WFHelper cannot read an " +
+        "elevated game. Restart Warframe without admin rights.",
+    );
+  }
+  if (reason === "token-not-found") {
+    log.error(
+      "EE.log shows a login, so the game is running and logged in - the auth " +
+        "token just was not found in game memory.",
+    );
+  }
+  return settleRun(false, reason);
+}
+
+async function nativeAuthzReason(reason: string): Promise<HelperRunReason> {
+  if (reason === "process-not-found") return "game-not-running";
+  if (reason.startsWith("mem-open-")) {
+    // GetLastError 5 = ERROR_ACCESS_DENIED (game elevated); else unexpected.
+    return reason === "mem-open-5" ? "access-denied" : "error";
+  }
+  // crumbs-not-found: memory was readable but held no token - tell "at the
+  // login screen" apart from "logged in but the scan missed it" via EE.log.
+  return classifyNotLoggedIn();
+}
+
+// Spawn the bundled helper exe once and resolve its outcome. The caller owns
+// _running and the last-run state; this only reports {ok, reason}.
+function runHelperExe(): Promise<{ ok: boolean; reason: HelperRunReason | null }> {
   return new Promise((resolve) => {
     if (!_exePath) {
       _exePath = findExePath();
     }
     if (!_exePath) {
-      log.warn(`${EXE_NAME} not found - skipping run`);
-      _lastRunOk = false;
-      resolve(false);
+      log.warn(`${EXE_NAME} not found - no exe fallback available`);
+      resolve({ ok: false, reason: "error" });
       return;
     }
 
@@ -261,9 +398,7 @@ export function runOnce(): Promise<boolean> {
       if (!isPinnedHash(hashNow)) {
         log.error(`Helper hash changed since discovery (${hashNow}) - refusing to spawn`);
         _exePath = null;
-        _lastRunOk = false;
-        _lastRunAt = Date.now();
-        resolve(false);
+        resolve({ ok: false, reason: "error" });
         return;
       }
     } catch (err) {
@@ -271,21 +406,11 @@ export function runOnce(): Promise<boolean> {
         "Helper pre-spawn hash check failed:",
         err instanceof Error ? err.message : String(err),
       );
-      _lastRunOk = false;
-      _lastRunAt = Date.now();
-      resolve(false);
+      resolve({ ok: false, reason: "error" });
       return;
     }
 
-    if (_running) {
-      log.info("Helper already running - skipping");
-      resolve(false);
-      return;
-    }
-
-    _running = true;
     log.info("Running warframe-api-helper...");
-
     const child = spawn(_exePath, [], {
       cwd: path.dirname(_exePath),
       stdio: ["ignore", "pipe", "pipe"],
@@ -305,14 +430,11 @@ export function runOnce(): Promise<boolean> {
     });
 
     let settled = false;
-    const finish = (ok: boolean) => {
+    const finish = (ok: boolean, reason: HelperRunReason | null = null) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutHandle);
-      _running = false;
-      _lastRunOk = ok;
-      _lastRunAt = Date.now();
-      resolve(ok);
+      resolve({ ok, reason: ok ? null : (reason ?? "error") });
     };
 
     const timeoutHandle = setTimeout(() => {
@@ -337,25 +459,33 @@ export function runOnce(): Promise<boolean> {
       if (code !== 0) log.warn(`Helper exited with code ${code}`);
       const m = outputBuf.match(/\?accountId=[a-f0-9]+&nonce=\d+/i);
       if (!m) {
-        log.error("Helper output did not contain auth params");
-        if (!IS_WINDOWS) {
-          // The helper reads the game's memory; on a non-child process that
-          // needs ptrace, which most distros restrict via yama ptrace_scope.
-          log.error(
-            "Linux: ensure Warframe is running and logged in, and that the helper " +
-              "can read game memory - either set kernel.yama.ptrace_scope=0 or grant " +
-              "the helper cap_sys_ptrace (see the Linux notes in the release).",
-          );
-        }
-        finish(false);
+        const mapped = helperFailureReason(code);
+        const reasonPromise =
+          mapped === "not-logged-in" ? classifyNotLoggedIn() : Promise.resolve(mapped);
+        void reasonPromise.then((reason) => {
+          log.error(`Helper output did not contain auth params (${reason})`);
+          if (reason === "access-denied") {
+            log.error(
+              "Warframe is likely running as administrator - WFHelper cannot read " +
+                "an elevated game. Restart Warframe without admin rights.",
+            );
+          }
+          if (reason === "token-not-found") {
+            log.error(
+              "EE.log shows a login, so the game is running and logged in - the " +
+                "auth token just was not found in game memory.",
+            );
+          }
+          finish(false, reason);
+        });
         return;
       }
-      const destPath = path.join(path.dirname(_exePath!), "inventory.json");
-      void fetchInventoryWithAuthz(m[0], destPath).then(
+      const dest = getInventoryTargetPath();
+      void fetchInventoryWithAuthz(m[0], dest).then(
         () => finish(true),
         (err) => {
           log.error("Inventory fetch failed:", err instanceof Error ? err.message : String(err));
-          finish(false);
+          finish(false, "api-failed");
         },
       );
     });
@@ -408,17 +538,19 @@ export function startPolling(
   intervalMs = DEFAULT_POLL_INTERVAL_MS,
   onRunComplete?: (ok: boolean) => void,
 ): void {
-  if (_pollTimer || _startupTimer) return; // already started
+  // The chained timeouts leave both timer handles null while a run is in
+  // flight, so the timers alone cannot guard against a second chain.
+  if (_pollingActive) return;
 
   if (IS_WINDOWS) {
     _exePath = findExePath();
     if (!_exePath) {
-      log.warn(`${EXE_NAME} not found - polling disabled`);
-      return;
+      log.warn(`${EXE_NAME} not found - using the one-match compatibility scan`);
     }
   } else {
     log.info("Linux: inventory read directly from game memory (no external helper).");
   }
+  _pollingActive = true;
 
   log.info(`Starting helper polling every ${(intervalMs / 60_000).toFixed(0)} min`);
 
@@ -426,25 +558,34 @@ export function startPolling(
   const ageMs = mtime !== null ? Date.now() - mtime : Infinity;
   const initialDelay = ageMs >= intervalMs ? 0 : intervalMs - ageMs;
 
+  const scheduleNext = () => {
+    if (!_pollingActive || _pollTimer) return;
+    const delay = nextHelperPollDelayMs(_lastRunOk === true, _lastRunReason, intervalMs);
+    if (delay < intervalMs) {
+      log.info(
+        `Last run failed before reaching the API (${_lastRunReason}) - ` +
+          `retrying in ${Math.round(delay / 1000)}s`,
+      );
+    }
+    _pollTimer = setTimeout(() => {
+      _pollTimer = null;
+      runAndNotify();
+    }, delay);
+  };
+
   const runAndNotify = () => {
     void runOnce().then((ok) => {
-      if (!onRunComplete) return;
       try {
-        onRunComplete(ok);
+        onRunComplete?.(ok);
       } catch (err) {
         log.warn("onRunComplete handler threw:", err instanceof Error ? err.message : String(err));
       }
+      scheduleNext();
     });
-  };
-
-  const scheduleInterval = () => {
-    if (_pollTimer) return;
-    _pollTimer = setInterval(runAndNotify, intervalMs);
   };
 
   if (initialDelay === 0) {
     runAndNotify();
-    scheduleInterval();
   } else {
     log.info(
       `inventory.json was refreshed ${(ageMs / 60_000).toFixed(1)} min ago - ` +
@@ -457,18 +598,18 @@ export function startPolling(
     _startupTimer = setTimeout(() => {
       _startupTimer = null;
       runAndNotify();
-      scheduleInterval();
     }, initialDelay);
   }
 }
 
 export function stopPolling(): void {
+  _pollingActive = false;
   if (_startupTimer) {
     clearTimeout(_startupTimer);
     _startupTimer = null;
   }
   if (_pollTimer) {
-    clearInterval(_pollTimer);
+    clearTimeout(_pollTimer);
     _pollTimer = null;
   }
 }
