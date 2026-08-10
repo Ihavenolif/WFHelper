@@ -9,6 +9,8 @@ import {
 import { registerZOrderSubscriber } from "./overlay/zOrder";
 import * as rivenSession from "./overlay/rivenSession";
 import * as rivenScan from "./overlay/rivenScan";
+import { looksLikeStaleCardRead } from "./overlay/rivenScanText";
+import { sleep } from "../services/rewardScannerUtils";
 import * as rivenGrading from "../services/rivenGrading";
 import * as rivenDataSvc from "../services/rivenData";
 import * as rivenBestAttributes from "../services/rivenBestAttributes";
@@ -201,10 +203,7 @@ registerZOrderSubscriber({
 // Tracks whether the current session has produced at least one roll result.
 let _rivenHasRollResult = false;
 
-// Serial counter incremented on every new triggerRollScan call.  The async
-// scan closure captures it; if a newer scan starts before the old one sends
-// results, the old one discards its output rather than overwriting.
-let _rollScanSerial = 0;
+const rollScanGeneration = rivenSession.createScanGeneration();
 
 // OCR scan timers - scans run after a short delay to let the UI animate.
 let _rivenInitialScanTimer: ReturnType<typeof setTimeout> | null = null;
@@ -214,6 +213,11 @@ let _rivenRollScanTimer: ReturnType<typeof setTimeout> | null = null;
 const INITIAL_SCAN_DELAY_MS = 200;
 const ROLL_SCAN_DELAY_MS = 2850;
 const CHOICE_RESCAN_DELAY_MS = 1200;
+
+// The reveal animation scrambles the CURRENT card's text into the new stats and
+// can outlast ROLL_SCAN_DELAY_MS on slow machines; rescan while it matches.
+const ROLL_STALE_RESCAN_DELAY_MS = 1100;
+const MAX_ROLL_STALE_RESCANS = 2;
 
 // Last known stats for choice detection (old vs new)
 let _rivenInitialStats: rivenScan.RivenStat[] = [];
@@ -413,20 +417,40 @@ function triggerInitialScan(layout: rivenScan.InitialCardLayout = "reroll"): voi
 
 function triggerRollScan(delayMs = ROLL_SCAN_DELAY_MS): void {
   if (_rivenRollScanTimer) clearTimeout(_rivenRollScanTimer);
-  // Increment serial so any already-running scan knows it has been superseded.
-  const mySerial = ++_rollScanSerial;
+  const mySerial = rollScanGeneration.begin();
   log.info(`[RivenScan] triggerRollScan: serial=${mySerial}, delay=${delayMs}ms`);
   _rivenRollScanTimer = setTimeout(async () => {
     _rivenRollScanTimer = null;
     log.info(
-      `[RivenScan] roll timer fired: serial=${mySerial}, current=${_rollScanSerial}, weapon="${_rivenWeaponName}"`,
+      `[RivenScan] roll timer fired: serial=${mySerial}, current=${rollScanGeneration.current()}, weapon="${_rivenWeaponName}"`,
     );
-    if (mySerial !== _rollScanSerial) return; // superseded by a later scan
+    if (!rollScanGeneration.isCurrent(mySerial)) return;
     // Clear any abort flag left by the previous scan before starting fresh.
     rivenScan.resetRivenScanAbort();
+    // Snapshot at fire time: cards the reveal animation could still be showing.
+    const knownCards = [_rivenInitialStats.slice(), _rivenNewRollStats.slice()];
     try {
-      const panels = await rivenScan.scanNewRoll();
-      if (mySerial !== _rollScanSerial) return; // superseded while awaiting OCR
+      let panels = await rivenScan.scanNewRoll();
+      if (!rollScanGeneration.isCurrent(mySerial)) return;
+      for (
+        let rescan = 0;
+        rescan < MAX_ROLL_STALE_RESCANS && looksLikeStaleCardRead(panels.right, knownCards);
+        rescan++
+      ) {
+        log.warn(
+          `[RivenScan] roll result matches a pre-roll card (rescan ${rescan + 1}/${MAX_ROLL_STALE_RESCANS}) - waiting ${ROLL_STALE_RESCAN_DELAY_MS}ms`,
+        );
+        await sleep(ROLL_STALE_RESCAN_DELAY_MS);
+        if (!rollScanGeneration.isCurrent(mySerial)) return;
+        panels = await rivenScan.scanNewRoll();
+        if (!rollScanGeneration.isCurrent(mySerial)) return;
+      }
+      if (looksLikeStaleCardRead(panels.right, knownCards)) {
+        log.warn("[RivenScan] roll result still matches a pre-roll card");
+        _rivenNewRollStats = [];
+        rivenSession.onRollFailed(getRivenWindows(), _rivenInitialStats);
+        return;
+      }
       // The roll card's title line carries the weapon name - use it when the
       // cycle dialog gave us none (it logs a language key these days).
       maybeDetectWeaponFromText(panels.rawText ?? "");
@@ -435,42 +459,46 @@ function triggerRollScan(delayMs = ROLL_SCAN_DELAY_MS): void {
       const leftStats = panels.left.length > 0 ? panels.left : _rivenInitialStats;
       const rightStats = panels.right;
       _rivenNewRollStats = rightStats;
-      if (rightStats.length > 0) {
-        _rivenHasRollResult = true;
-        rivenSession.onRollResult(getRivenWindows(), {
-          left: leftStats,
-          right: rightStats,
+      if (rightStats.length === 0) {
+        rivenSession.onRollFailed(getRivenWindows(), leftStats);
+        return;
+      }
+
+      _rivenHasRollResult = true;
+      rivenSession.onRollResult(getRivenWindows(), {
+        left: leftStats,
+        right: rightStats,
+      });
+      const leftGraded = tryGradeStats(leftStats);
+      const rightGraded = tryGradeStats(rightStats);
+      if (leftGraded || rightGraded) {
+        forEachRivenWindow((win) => {
+          if (!win.isDestroyed()) {
+            win.webContents.send(RIVEN_GRADING_ROLL, {
+              left: leftGraded,
+              right: rightGraded,
+            });
+          }
         });
-        // Send grading for both panels
-        const leftGraded = tryGradeStats(leftStats);
-        const rightGraded = tryGradeStats(rightStats);
-        if (leftGraded || rightGraded) {
-          forEachRivenWindow((win) => {
-            if (!win.isDestroyed()) {
-              win.webContents.send(RIVEN_GRADING_ROLL, {
-                left: leftGraded,
-                right: rightGraded,
-              });
-            }
-          });
-        }
       }
     } catch (err) {
       log.warn("[RivenScan] roll scan failed:", String(err));
+      if (rollScanGeneration.isCurrent(mySerial)) {
+        _rivenNewRollStats = [];
+        rivenSession.onRollFailed(getRivenWindows(), _rivenInitialStats);
+      }
     }
   }, delayMs);
 }
 
 export function onRivenSessionClose(): void {
   log.info("[OverlayRoute] trigger=riven-session-close");
+  rollScanGeneration.invalidate();
   rivenScan.abortRivenScans();
-  // Reset the eeLogMonitor session state so subsequent EE.log events (e.g. a
-  // "Cycle Riven into current selection?" dialog arriving after the user pressed
-  // ESC) don't re-trigger choice scans against the now-closed overlay windows.
+  // Prevent delayed EE.log choice events from reopening a closed overlay.
   forceEndRivenSession();
   clearRivenScanTimers();
   _rivenHasRollResult = false;
-  _rollScanSerial++;
   _rivenInitialStats = [];
   _rivenNewRollStats = [];
   _rivenWeaponName = "";
@@ -524,7 +552,7 @@ export function onRivenSessionOpen(): void {
   if (!isRivenOverlayEnabled()) return;
   log.info("[OverlayRoute] trigger=riven-session");
   _rivenHasRollResult = false;
-  _rollScanSerial++;
+  rollScanGeneration.invalidate();
   _rivenInitialStats = [];
   _rivenNewRollStats = [];
   _rivenWeaponName = "";
@@ -580,16 +608,15 @@ export function onRivenDioramaSetup(): void {
 
 export function onRivenChoiceConfirmed(): void {
   if (!isRivenOverlayEnabled()) return;
-  // If the overlay was already closed (e.g. user pressed ESC before the EE.log
-  // file poll delivered the choice-confirm line), bail out immediately.  Scanning
-  // against a hidden/non-existent window captures the desktop and can crash the
-  // native OCR binding with FATAL ERROR: ThrowAsJavaScriptException.
+  // A delayed file echo may arrive after ESC; never scan a hidden desktop.
   const anyVisible = getRivenWindows().some((w) => w && !w.isDestroyed() && w.isVisible());
   if (!anyVisible) {
     log.info("[RivenScan] choice confirmed but overlay is not visible - skipping");
     return;
   }
 
+  rollScanGeneration.invalidate();
+  rivenScan.abortRivenScans();
   clearRivenScanTimers();
   _rivenHasRollResult = false;
 
@@ -609,6 +636,7 @@ export function onRivenChoiceConfirmed(): void {
   if (_rivenInitialScanTimer) clearTimeout(_rivenInitialScanTimer);
   _rivenInitialScanTimer = setTimeout(async () => {
     _rivenInitialScanTimer = null;
+    rivenScan.resetRivenScanAbort();
     try {
       const stats = await rivenScan.scanChoiceRescan();
 
@@ -655,6 +683,8 @@ export function configureOverlaySettingsPersistence(persist: () => void): void {
 
 export function register(): void {
   onAuthorized(RIVEN_OVERLAY_CLOSE, assertRivenOverlayRendererSender, () => {
+    rollScanGeneration.invalidate();
+    rivenScan.abortRivenScans();
     clearRivenScanTimers();
     _rivenInteractive = false;
     _rivenHasRollResult = false;

@@ -1,10 +1,3 @@
-/**
- * Riven rolling session state and overlay IPC helper.
- *
- * Tracks the active roll session (weapon, kuva cost, roll count) and sends
- * structured IPC events to the riven overlay windows (left + right panels).
- */
-
 import type { BrowserWindow } from "electron";
 import type { RivenStat, RollPanelResult } from "./rivenScan";
 import {
@@ -31,6 +24,25 @@ function createRivenSessionState(kuvaPerRoll = 0): RivenSessionState {
     kuvaPerRoll,
     rollCount: 0,
     totalKuvaSpent: 0,
+  };
+}
+
+export function createScanGeneration() {
+  let current = 0;
+  return {
+    begin(): number {
+      current += 1;
+      return current;
+    },
+    invalidate(): void {
+      current += 1;
+    },
+    isCurrent(generation: number): boolean {
+      return generation === current;
+    },
+    current(): number {
+      return current;
+    },
   };
 }
 
@@ -67,6 +79,10 @@ export function onRollResult(wins: WindowRef[], panels: RollPanelResult): void {
     left: panels.left,
     right: panels.right,
   });
+}
+
+export function onRollFailed(wins: WindowRef[], left: RivenStat[]): void {
+  onRollResult(wins, { left, right: [] });
 }
 
 export function onChoiceMade(wins: WindowRef[], side: "left" | "right" | "unknown"): void {

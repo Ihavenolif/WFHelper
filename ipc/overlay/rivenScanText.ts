@@ -624,3 +624,22 @@ function parseStatsFromLines(text: string, dropped?: string[]): RivenStat[] {
 
   return results;
 }
+
+function countExactValueMatches(scanned: RivenStat[], known: RivenStat[]): number {
+  const knownByName = new Map(known.map((stat) => [stat.name.toLowerCase(), stat] as const));
+  let count = 0;
+  for (const stat of scanned) {
+    const match = knownByName.get(stat.name.toLowerCase());
+    if (!match || stat.positive !== match.positive) continue;
+    if (stat.value == null || match.value == null) continue;
+    if (Math.abs(stat.value - match.value) <= 0.05) count += 1;
+  }
+  return count;
+}
+
+/** A reroll never repeats exact stat values; two value-exact matches against a
+ *  known card mean the scan caught that card (mid-animation), not the new roll. */
+export function looksLikeStaleCardRead(scanned: RivenStat[], knownCards: RivenStat[][]): boolean {
+  if (scanned.length < 2) return false;
+  return knownCards.some((card) => card.length > 0 && countExactValueMatches(scanned, card) >= 2);
+}

@@ -5,7 +5,11 @@ import {
   resetRivenState,
   setRivenCallbacks,
 } from "../../services/rivenLogStateMachine";
-import { parseRivenStats } from "../../ipc/overlay/rivenScanText";
+import {
+  looksLikeStaleCardRead,
+  parseRivenStats,
+  type RivenStat,
+} from "../../ipc/overlay/rivenScanText";
 import { findWeaponInText, getWeaponNameByUniqueName } from "../../services/rivenData";
 
 describe("RIVEN_PATTERNS", () => {
@@ -1227,5 +1231,73 @@ describe("riven session idle timeout", () => {
     // No close marker ever arrives - the 120s idle backstop must close the overlay.
     vi.advanceTimersByTime(120_000);
     expect(closes).toBe(1);
+  });
+});
+
+describe("looksLikeStaleCardRead", () => {
+  // Current card from a real field log: the roll-reveal animation scrambles this
+  // text, so a too-early scan reads it back with 2+ values intact.
+  const currentCard: RivenStat[] = [
+    { name: "Damage to Infested", positive: true, value: 1.57, multiplier: true },
+    { name: "Multishot", positive: true, value: 155.2 },
+    { name: "Critical Chance", positive: true, value: 121.8 },
+    { name: "Impact", positive: false, value: 116.5 },
+  ];
+
+  it("flags a mid-animation read of the current card (field log repro)", () => {
+    // Scan caught the scramble: two stats still exact, Impact garbled to 12116.5.
+    const scanned: RivenStat[] = [
+      { name: "Damage to Infested", positive: true, value: 1.57, multiplier: true },
+      { name: "Critical Chance", positive: true, value: 121.8 },
+      { name: "Impact", positive: true, value: 12116.5 },
+    ];
+    expect(looksLikeStaleCardRead(scanned, [currentCard])).toBe(true);
+  });
+
+  it("accepts a genuine reroll even when stat names repeat", () => {
+    const scanned: RivenStat[] = [
+      { name: "Multishot", positive: true, value: 108.3 },
+      { name: "Status Chance", positive: true, value: 97.9 },
+      { name: "Fire Rate", positive: true, value: 88.1 },
+    ];
+    expect(looksLikeStaleCardRead(scanned, [currentCard])).toBe(false);
+  });
+
+  it("accepts a reroll sharing one exact stat value by chance", () => {
+    const scanned: RivenStat[] = [
+      { name: "Critical Chance", positive: true, value: 121.8 },
+      { name: "Heat", positive: true, value: 143.5 },
+      { name: "Toxin", positive: true, value: 151.5 },
+    ];
+    expect(looksLikeStaleCardRead(scanned, [currentCard])).toBe(false);
+  });
+
+  it("checks every known card, not just the first", () => {
+    const previousRoll: RivenStat[] = [
+      { name: "Heat", positive: true, value: 138 },
+      { name: "Toxin", positive: true, value: 151.5 },
+      { name: "Status Duration", positive: false, value: 65.3 },
+    ];
+    const rereadOfPreviousRoll: RivenStat[] = [
+      { name: "Heat", positive: true, value: 138 },
+      { name: "Toxin", positive: true, value: 151.5 },
+    ];
+    expect(looksLikeStaleCardRead(rereadOfPreviousRoll, [currentCard, previousRoll])).toBe(true);
+  });
+
+  it("never flags sparse or unknown-card scans", () => {
+    const single: RivenStat[] = [{ name: "Multishot", positive: true, value: 155.2 }];
+    expect(looksLikeStaleCardRead(single, [currentCard])).toBe(false);
+    expect(looksLikeStaleCardRead(currentCard, [[]])).toBe(false);
+    expect(looksLikeStaleCardRead([], [currentCard])).toBe(false);
+  });
+
+  it("requires matching sign, so a flipped curse does not count", () => {
+    // Only one true exact match (Multishot); Impact differs in sign.
+    const scanned: RivenStat[] = [
+      { name: "Multishot", positive: true, value: 155.2 },
+      { name: "Impact", positive: true, value: 116.5 },
+    ];
+    expect(looksLikeStaleCardRead(scanned, [currentCard])).toBe(false);
   });
 });
