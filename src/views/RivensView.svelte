@@ -12,9 +12,18 @@
   import SharedFilterBar from "../components/SharedFilterBar.svelte";
   import RivenPolarityIcon from "../components/RivenPolarityIcon.svelte";
   import { sharedFilters } from "../stores/filters.js";
+  import { readStorage, writeStorage } from "../lib/persistence.js";
   import { tr } from "../lib/i18n.js";
 
   type RivenSortKey = "name" | "disposition" | "rerolls" | "grade";
+  type RivenViewTab = "unveiled" | "veiled" | "finder";
+
+  const VIEW_TAB_KEY = "wf_rivens_tab";
+
+  function restoreViewTab(): RivenViewTab {
+    const raw = readStorage(VIEW_TAB_KEY);
+    return raw === "veiled" || raw === "finder" ? raw : "unveiled";
+  }
 
   let rivens: DecodedRiven[] = $state([]);
   let veiledRivens: VeiledRivenEntry[] = $state([]);
@@ -23,7 +32,7 @@
   let typeFilter = $state("all");
   let gradeFilter = $state("all");
   let selectedRiven = $state<DecodedRiven | null>(null);
-  let viewTab = $state<"unveiled" | "veiled" | "finder">("unveiled");
+  let viewTab = $state<RivenViewTab>(restoreViewTab());
 
   const TYPES = ["all", "Rifle", "Shotgun", "Pistol", "Melee", "Archgun", "Kitgun", "Zaw"];
   const TYPE_OPTIONS = TYPES.map((value) => ({ value, label: value === "all" ? "All" : value }));
@@ -92,7 +101,8 @@
   }
 
   function setViewTab(key: string): void {
-    viewTab = key as typeof viewTab;
+    viewTab = key as RivenViewTab;
+    writeStorage(VIEW_TAB_KEY, key);
   }
 
   const ELEMENT_ICONS: Record<string, string> = ELEMENT_ICON_URLS;

@@ -13,7 +13,7 @@
   import SummaryStrip, { type SummaryStripItem } from "../components/SummaryStrip.svelte";
   import ThemedPanel from "../components/ThemedPanel.svelte";
   import CollapsibleSection from "../components/CollapsibleSection.svelte";
-  import { persistedBoolean } from "../lib/persistence.js";
+  import { persistedBoolean, readStorage, writeStorage } from "../lib/persistence.js";
   import { applySharedFiltersAndSort } from "../lib/filters.js";
   import { getCachedPriceState } from "../lib/wfm/priceCache.js";
   import { sharedFilters } from "../stores/filters.js";
@@ -48,18 +48,35 @@
   const FOUNDER_ITEM_NAMES = new Set(["Excalibur Prime", "Lato Prime", "Skana Prime"]);
 
   const INCOMPLETE_SETS_TAB = "__incomplete_sets";
-
-  let catFilter = "all";
-  let statusFilter = "all";
-  // Keep filters visible on entry.
-  const breakdownExpanded = persistedBoolean("mastery-breakdown-expanded", false);
-  const masteryFilters = sharedFilters("mastery");
+  const CAT_TAB_KEY = "wf_mastery_cat_tab";
+  const STATUS_TAB_KEY = "wf_mastery_status_tab";
   const STATUS_TABS = [
     { key: "all", label: "All" },
     { key: "missing", label: "Missing" },
     { key: "progress", label: "In Progress" },
     { key: "mastered", label: "Mastered" },
   ];
+
+  // Category keys are data-driven; a stale restore falls back once categories load.
+  let catFilter = readStorage(CAT_TAB_KEY) || "all";
+  let statusFilter = restoreStatusTab();
+  const breakdownExpanded = persistedBoolean("mastery-breakdown-expanded", false);
+  const masteryFilters = sharedFilters("mastery");
+
+  function restoreStatusTab(): string {
+    const raw = readStorage(STATUS_TAB_KEY);
+    return raw && STATUS_TABS.some((tab) => tab.key === raw) ? raw : "all";
+  }
+
+  function selectCategoryTab(key: string): void {
+    catFilter = key;
+    writeStorage(CAT_TAB_KEY, key);
+  }
+
+  function selectStatusTab(key: string): void {
+    statusFilter = key;
+    writeStorage(STATUS_TAB_KEY, key);
+  }
 
   function orderedCategories(byCategory: Record<string, MasteryCategoryStats>): string[] {
     const keys = Object.keys(byCategory);
@@ -332,6 +349,11 @@
     return [{ key: "all", label: "All" }, ...tabs];
   })();
 
+  // Drop a restored category that no longer exists in the loaded data.
+  $: if (categories.length > 0 && !categoryTabs.some((tab) => tab.key === catFilter)) {
+    catFilter = "all";
+  }
+
   /** A set row has no mastery status of its own (rank 0 of 1), so every set read
    *  as "not mastered". Resolve it from the set root instead. */
   function buildSetStatusLookup(data: typeof $masteryData): {
@@ -527,19 +549,11 @@
         showFoundryState
       />
       <div class="flex items-end border-b border-white/[0.09]">
-        <HeaderTabs
-          options={categoryTabs}
-          activeKey={catFilter}
-          onSelect={(key) => (catFilter = key)}
-        />
+        <HeaderTabs options={categoryTabs} activeKey={catFilter} onSelect={selectCategoryTab} />
       </div>
       {#if catFilter !== INCOMPLETE_SETS_TAB}
         <div class="flex items-end border-b border-white/[0.09]">
-          <HeaderTabs
-            options={STATUS_TABS}
-            activeKey={statusFilter}
-            onSelect={(key) => (statusFilter = key)}
-          />
+          <HeaderTabs options={STATUS_TABS} activeKey={statusFilter} onSelect={selectStatusTab} />
         </div>
       {/if}
     </div>

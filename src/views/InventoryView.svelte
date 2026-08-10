@@ -24,6 +24,7 @@
     type MetricNeeds,
   } from "../lib/inventoryMarket.js";
   import { buildRelicSearchKeywordIndex } from "../lib/relic.js";
+  import { readStorage, writeStorage } from "../lib/persistence.js";
   import { startupPriceCacheReady } from "../lib/startupLoader.js";
   import { log } from "../lib/log.js";
   import {
@@ -41,7 +42,15 @@
   const HOTSET_REFRESH_DELAY_MS = 4_000;
   const HOTSET_REFRESH_LIMIT = 12;
 
-  let filter: InventoryFilterTab = "all_parts";
+  const FILTER_TAB_KEY = "wf_inventory_tab";
+
+  function restoreFilterTab(): InventoryFilterTab {
+    const raw = readStorage(FILTER_TAB_KEY);
+    const known = INVENTORY_FILTERS.some((entry) => entry.key === raw);
+    return known ? (raw as InventoryFilterTab) : "all_parts";
+  }
+
+  let filter: InventoryFilterTab = restoreFilterTab();
   let showFilterPanel = false;
   // Full Sets lists sellable spares; this folds in the sets still missing parts.
   let showIncompleteSets = false;
@@ -76,6 +85,7 @@
 
   function handleFilterSelect(event: CustomEvent<InventoryFilterTab>): void {
     filter = event.detail;
+    writeStorage(FILTER_TAB_KEY, filter);
   }
 
   function toggleIncompleteSets(): void {
