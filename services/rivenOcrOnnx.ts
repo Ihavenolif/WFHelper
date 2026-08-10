@@ -8,10 +8,24 @@
  */
 
 import { existsSync, readFileSync } from "node:fs";
+import os from "node:os";
 import { withScope } from "./logger";
 import { resolveRuntimeResourcePath } from "./runtimeResources";
 
 const log = withScope("rivenOcrOnnx");
+
+/** Inference bursts run while Warframe renders; on low-core machines the old
+ *  fixed 4-thread pool starved the game (reported roll-screen stutter). */
+function ortCpuSessionOptions() {
+  const cores =
+    typeof os.availableParallelism === "function" ? os.availableParallelism() : os.cpus().length;
+  return {
+    executionProviders: ["cpu"],
+    graphOptimizationLevel: "all" as const,
+    interOpNumThreads: 1,
+    intraOpNumThreads: Math.min(4, Math.max(2, cores - 4)),
+  };
+}
 
 const RIVEN_OCR_ASSET_DIR = "riven-ocr";
 const YOLO_MODEL_PARTS = [RIVEN_OCR_ASSET_DIR, "yolo", "stat_line_detector.onnx"] as const;
@@ -58,16 +72,13 @@ async function getYoloSession(): Promise<OrtInferenceSession> {
 
     const ort: typeof import("onnxruntime-node") = require("onnxruntime-node");
 
-    const session = await ort.InferenceSession.create(modelPath, {
-      executionProviders: ["cpu"],
-      graphOptimizationLevel: "all",
-      interOpNumThreads: 2,
-      intraOpNumThreads: 4,
-    });
+    const session = await ort.InferenceSession.create(modelPath, ortCpuSessionOptions());
 
     _yoloInputName = session.inputNames[0];
 
-    log.info(`[RivenOcrOnnx] YOLO detector loaded - input=${_yoloInputName} size=${_yoloInputSize}`);
+    log.info(
+      `[RivenOcrOnnx] YOLO detector loaded - input=${_yoloInputName} size=${_yoloInputSize}`,
+    );
     return session;
   })().catch((err) => {
     _yoloSessionPromise = null;
@@ -102,12 +113,7 @@ async function getChRecSession(): Promise<OrtInferenceSession> {
       _chDict = ["blank", ...lines];
     }
 
-    const session = await ort.InferenceSession.create(modelPath, {
-      executionProviders: ["cpu"],
-      graphOptimizationLevel: "all",
-      interOpNumThreads: 2,
-      intraOpNumThreads: 4,
-    });
+    const session = await ort.InferenceSession.create(modelPath, ortCpuSessionOptions());
 
     log.info(`[RivenOcrOnnx] PaddleOCR CH v3 loaded - ${_chDict.length} chars (incl. blank)`);
     return session;
