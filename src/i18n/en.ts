@@ -28,7 +28,7 @@ export const en = {
     "No arbitration runs recorded yet. Finish an arbitration with the app running, or import an EE.log.",
   "arbi.import": "Import EE.log…",
   "arbi.trackingDisabled":
-    "Run tracking is turned off in Settings - new arbitrations are not being recorded.",
+    "Run tracking is turned off in Settings. New arbitrations are not being recorded.",
   "arbi.importResult":
     "Imported {imported}, skipped {skipped} (already known, client-side, or under 2 rotations)",
   "arbi.diskUsage": "Raw logs on disk: {size}",
@@ -159,8 +159,8 @@ export const en = {
   "arbisched.col.faction": "Faction",
   "arbisched.col.startsIn": "Starts In",
   "arbisched.loading": "Loading arbitration schedule…",
-  "arbisched.unavailable": "Schedule unavailable - check your connection. Retries automatically.",
-  "arbisched.empty": "No results - adjust node selection or search.",
+  "arbisched.unavailable": "Schedule unavailable. Check your connection. Retries automatically.",
+  "arbisched.empty": "No results. Adjust node selection or search.",
   "arbisched.bellTitle": "Windows notification for this arbitration",
   "arbisched.starTitle": "Notify on every occurrence of this node",
 
@@ -192,7 +192,7 @@ export const en = {
   "settings.title": "Settings",
   "settings.overlayTitle": "Relic Overlay",
   "settings.overlayRequirements":
-    "For best OCR reliability, use Warframe Borderless Windowed mode and set in-game UI scale to 99%.",
+    "For reliable OCR, use Borderless Windowed mode with the Warframe UI scale set to 99%.",
   "settings.autoTrigger": "Auto trigger from EE.log",
   "settings.worldNotifications": "World notifications",
   "settings.hotkeyFallback": "Enable relic trigger hotkey",
@@ -245,8 +245,7 @@ export const en = {
   "appearance.colorsBorders": "Borders",
   "appearance.appScale": "App Size",
   "appearance.appScaleRow": "Interface scale",
-  "appearance.appScaleHint":
-    "Zooms the whole app. Already fitted to your display - nudge to taste.",
+  "appearance.appScaleHint": "Zooms the whole app. The default is fitted to your display.",
   "appearance.fontSizes": "Font Sizes",
   "appearance.globalScale": "Global Scale",
   "appearance.headingSize": "Heading Size",

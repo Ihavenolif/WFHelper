@@ -555,7 +555,7 @@
   <h2 class="m-0 mb-2 font-display text-3xl font-semibold tracking-[0.03em] text-text-primary">
     Relic Planner ({groups.length} relics)
   </h2>
-  <div class="view-sticky-filters mb-4">
+  <div class="view-sticky-filters mb-4" data-tour="relic-filters">
     <div class="flex flex-wrap items-end border-b border-white/[0.09]">
       <HeaderTabs
         options={TIER_TABS}

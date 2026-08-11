@@ -142,7 +142,7 @@
     <h2>{$tr("rivens.title")}</h2>
   </div>
 
-  <div class="mb-4 flex items-end border-b border-white/[0.09]">
+  <div class="mb-4 flex items-end border-b border-white/[0.09]" data-tour="riven-view-tabs">
     <HeaderTabs
       options={VIEW_TABS.map((tab) => ({
         ...tab,

@@ -194,7 +194,10 @@
   }
 </script>
 
-<div class="grid grid-cols-[270px_minmax(0,1fr)] gap-5 max-[1000px]:grid-cols-1">
+<div
+  class="grid grid-cols-[270px_minmax(0,1fr)] gap-5 max-[1000px]:grid-cols-1"
+  data-tour="arbi-schedule"
+>
   <!-- NODE SIDEBAR -->
   <aside
     data-tour="arbi-filters"

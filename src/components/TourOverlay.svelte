@@ -3,15 +3,21 @@
 
   import { currentView } from "../stores/app.js";
   import { setMarketViewState } from "../stores/market.js";
+  import { hiddenTabs } from "../stores/sidebarTabs.js";
   import { endTour } from "../stores/tour.js";
+
+  const TOUR_TAB_STORAGE_KEYS = [
+    "wf_inventory_tab",
+    "wf_mastery_view_tab",
+    "wf_rivens_tab",
+    "world-tab",
+  ] as const;
 
   interface TourStep {
     view: string;
     text: string;
     /** CSS selector to spotlight; defaults to the content area. */
     target?: string;
-    /** Round cutout for small square targets like icon buttons. */
-    circle?: boolean;
     /** Clicks and typing pass through the spotlight so the feature can be tried live. */
     interactive?: boolean;
     /** Runs after navigation, e.g. to switch a sub-tab. */
@@ -23,44 +29,84 @@
     buttons.find((b) => b.textContent?.trim() === label)?.click();
   }
 
+  function selectTourTab(selector: string, label: string, startsWith = false): void {
+    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>(`${selector} button`));
+    buttons
+      .find((button) => {
+        const text = button.textContent?.trim() ?? "";
+        return startsWith ? text.startsWith(label) : text === label;
+      })
+      ?.click();
+  }
+
+  function prepareTab(storageKey: string, value: string, selector: string, label: string): void {
+    localStorage.setItem(storageKey, value);
+    selectTourTab(selector, label);
+  }
+
   const steps: TourStep[] = [
     {
       view: "inventory",
-      text: "Your whole account inventory, priced live from warframe.market.",
-    },
-    {
-      view: "inventory",
       target: '[data-tour="inventory-grid"]',
-      text: "Click any item to open its order book on the right: who is buying, who is selling, and a button to list yours for sale. Hover a card for Details.",
+      text: "Inventory shows your tradable items and current warframe.market prices. Click a card to view orders or list the item.",
       interactive: true,
+      prepare: () =>
+        prepareTab("wf_inventory_tab", "all_parts", '[data-tour="inventory-tabs"]', "All Parts"),
     },
     {
       view: "inventory",
       target: '[data-tour="inventory-tabs"]',
-      text: "These tabs split the inventory up. Full Sets lists sets you own every part of - they usually sell for more together than apart.",
+      text: "Use these tabs to switch item types. Full Sets shows every set you can sell as a complete set.",
       interactive: true,
     },
     {
       view: "foundry",
-      text: "The foundry shows what you can build right now, what's in progress and what's ready to claim. Pin anything you're farming for to keep it on top.",
+      text: "Foundry shows builds you can start, builds in progress, and items ready to claim. Pinned recipes stay at the top.",
     },
     {
       view: "mastery",
-      text: "Your MR progress and everything you still need to master.",
+      text: "Mastery tracks your rank progress and the items you have not mastered.",
+      prepare: () =>
+        prepareTab(
+          "wf_mastery_view_tab",
+          "collection",
+          '[data-tour="mastery-view-tabs"]',
+          "Collection",
+        ),
     },
     {
       view: "mastery",
       target: '[data-tour="filter-bar"]',
-      text: "Every list has this bar: search, filter chips, and sorting. The gold button next to the sort picker flips the order - value sorts like Platinum start highest-first.",
+      text: "Press Ctrl+F to search. Filters can be combined. Use the arrow next to Sort to change direction.",
       interactive: true,
+      prepare: () =>
+        prepareTab(
+          "wf_mastery_view_tab",
+          "collection",
+          '[data-tour="mastery-view-tabs"]',
+          "Collection",
+        ),
+    },
+    {
+      view: "mastery",
+      target: '[data-tour="mastery-roadmap"]',
+      text: "MR Roadmap suggests what to master next. Easy uses owned and Foundry items. From Relics uses your relics. With Platinum compares XP per platinum.",
+      interactive: true,
+      prepare: () =>
+        prepareTab(
+          "wf_mastery_view_tab",
+          "roadmap",
+          '[data-tour="mastery-view-tabs"]',
+          "MR Roadmap",
+        ),
     },
     {
       view: "stats",
-      text: "Daily platinum, credits and endo, plus every trade WFHelper picked up from the game log.",
+      text: "Stats tracks resources and trades detected in EE.log. You can also import AlecaFrame history.",
     },
     {
       view: "world",
-      text: "Cycles, fissures and bounties, updated live.",
+      text: "World shows cycles, fissures, invasions, bounties, and Circuit rotations. Cycle alerts are optional.",
       prepare: () => {
         localStorage.setItem("world-tab", "world");
         clickContentButton("World");
@@ -68,8 +114,8 @@
     },
     {
       view: "world",
-      target: '[data-tour="arbi-filters"]',
-      text: "The upcoming arbitration schedule. Pick nodes on the left to narrow it down.",
+      target: '[data-tour="arbi-schedule"]',
+      text: "Filter the arbitration schedule by node or save a preset. Click a bell to get a notification before that arbitration starts.",
       interactive: true,
       prepare: () => {
         localStorage.setItem("world-tab", "arbis");
@@ -77,76 +123,75 @@
       },
     },
     {
-      view: "world",
-      target: '[data-tour="arbi-bell"]',
-      circle: true,
-      text: "Bell an arbitration and Windows notifies you shortly before it starts.",
-      prepare: () => {
-        localStorage.setItem("world-tab", "arbis");
-        clickContentButton("Arbitrations");
-      },
-    },
-    {
       view: "relics",
-      text: "Every relic you own, what's inside and what it's worth.",
-    },
-    {
-      view: "relics",
-      target: '[data-tour="relic-tiers"]',
-      text: "How many of each tier you own. In the Owned quality mode, click Int/Ex/Fl/Rad to pick which tier the value above prices.",
+      target: '[data-tour="relic-filters"]',
+      text: "Relics can show your collection or the full catalog. Search by reward, find relics with unowned items, and compare expected value.",
       interactive: true,
     },
     {
       view: "market",
-      text: "Your warframe.market orders. Detected trades can unlist sold items for you.",
+      text: "View and manage your warframe.market orders here. Completed trades can close matching orders automatically.",
       prepare: () => setMarketViewState({ typeTab: "sell" }),
     },
     {
       view: "market",
       target: '[data-tour="market-browse"]',
-      text: "Browse searches all of warframe.market: live sell and buy orders for any item, no sign-in needed. Copy a whisper to contact a player in-game, or post your own order.",
+      text: "Browse shows public buy and sell orders without signing in. You can copy a whisper or create your own order.",
       interactive: true,
       prepare: () => setMarketViewState({ typeTab: "browse" }),
     },
     {
       view: "rivens",
-      text: "All your owned Rivens. Click one for a detailed stat view.",
+      target: '[data-tour="riven-view-tabs"]',
+      text: "Use these tabs for unveiled Rivens, veiled Rivens, and Riven Finder. Click an owned Riven to see its grades. Riven Finder searches market listings by weapon and stats.",
+      interactive: true,
+      prepare: () => {
+        localStorage.setItem("wf_rivens_tab", "unveiled");
+        selectTourTab('[data-tour="riven-view-tabs"]', "Unveiled", true);
+      },
     },
     {
       view: "arbi",
-      text: "Arbitration runs are recorded automatically. Open one for the full breakdown, or import an EE.log.",
+      text: "Arbitration runs are recorded automatically. Open a run for details or import an EE.log file.",
     },
     {
       view: "wiki",
-      text: "Search the drop tables. Type an item to see where it drops.",
+      text: "Search for an item to see where it drops.",
       interactive: true,
     },
     {
       view: "settings",
-      text: "In-game overlays live here. Relic rewards get priced the moment your squad cracks, the planner ranks your relics on the selection screen, and rivens are read while you reroll.",
+      text: "Configure the relic, Riven, trade, and arbitration overlays here.",
       prepare: () => clickContentButton("Overlays"),
     },
     {
       view: "settings",
-      text: "Hide tabs you don't use, tune notifications. You can rerun this tour from here.",
+      text: "Choose which tabs and notifications you want. You can restart this tour here.",
       prepare: () => clickContentButton("General"),
     },
   ];
 
   let index = 0;
   let rect: { x: number; y: number; w: number; h: number } | null = null;
+  let targetMatched = false;
   let winW = 0;
   let winH = 0;
   let missingSince = 0;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
+  let savedTabPreferences: Array<readonly [string, string | null]> = [];
+  let preferencesRestored = false;
 
-  $: step = steps[index];
-  $: cutoutRadius = step?.circle && rect ? Math.max(rect.w, rect.h) / 2 : 10;
+  $: tourSteps = steps.filter((candidate) => !$hiddenTabs.has(candidate.view));
+  $: if (index >= tourSteps.length) index = Math.max(0, tourSteps.length - 1);
+  $: step = tourSteps[index];
+  const cutoutRadius = 10;
 
   function measure(): void {
     winW = window.innerWidth;
     winH = window.innerHeight;
-    let el = step.target ? document.querySelector(step.target) : null;
+    const requestedTarget = step.target ? document.querySelector(step.target) : null;
+    let el = requestedTarget;
+    targetMatched = !step.target;
     if (!el && step.target) {
       // lazy views need a moment; after 3s give up and frame the whole view
       if (!missingSince) missingSince = Date.now();
@@ -165,23 +210,74 @@
       rect = null;
       return;
     }
-    const pad = step.circle ? 8 : 6;
+    targetMatched = !step.target || Boolean(requestedTarget);
+    const pad = 6;
     rect = { x: r.left - pad, y: r.top - pad, w: r.width + pad * 2, h: r.height + pad * 2 };
   }
 
   async function activate(next: number): Promise<void> {
+    const entry = tourSteps[next];
+    if (!entry) return;
     index = next;
     rect = null;
+    targetMatched = false;
     missingSince = 0;
-    currentView.set(steps[index].view as never);
+    currentView.set(entry.view as never);
     await tick();
-    steps[index].prepare?.();
+    entry.prepare?.();
     measure();
   }
 
+  function restoreTabPreferences(): void {
+    if (preferencesRestored) return;
+    preferencesRestored = true;
+    const saved = Object.fromEntries(savedTabPreferences);
+    if ($currentView === "inventory") {
+      const labels: Record<string, string> = {
+        all_parts: "All Parts",
+        relics: "Relics",
+        mods: "Mods",
+        arcanes: "Arcanes",
+        full_sets: "Full Sets",
+        equipment: "Equipment",
+        resources: "Resources",
+        misc: "Misc",
+      };
+      selectTourTab(
+        '[data-tour="inventory-tabs"]',
+        labels[saved.wf_inventory_tab ?? "all_parts"] ?? "All Parts",
+      );
+    } else if ($currentView === "mastery") {
+      selectTourTab(
+        '[data-tour="mastery-view-tabs"]',
+        saved.wf_mastery_view_tab === "roadmap" ? "MR Roadmap" : "Collection",
+      );
+    } else if ($currentView === "rivens") {
+      const label =
+        saved.wf_rivens_tab === "finder"
+          ? "Riven Finder"
+          : saved.wf_rivens_tab === "veiled"
+            ? "Veiled"
+            : "Unveiled";
+      selectTourTab('[data-tour="riven-view-tabs"]', label, true);
+    } else if ($currentView === "world") {
+      clickContentButton(saved["world-tab"] === "arbis" ? "Arbitrations" : "World");
+    }
+
+    for (const [key, value] of savedTabPreferences) {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    }
+  }
+
+  function finishTour(): void {
+    restoreTabPreferences();
+    endTour();
+  }
+
   function nextStep(): void {
-    if (index >= steps.length - 1) {
-      endTour();
+    if (index >= tourSteps.length - 1) {
+      finishTour();
       return;
     }
     void activate(index + 1);
@@ -193,7 +289,7 @@
 
   function onKeydown(event: KeyboardEvent): void {
     if (event.key === "Escape") {
-      endTour();
+      finishTour();
       return;
     }
     // typing into a spotlighted input must not advance the tour
@@ -228,6 +324,9 @@
   $: ({ x: cardX, y: cardY } = placeCard(rect, winW, winH, cardH));
 
   onMount(() => {
+    savedTabPreferences = TOUR_TAB_STORAGE_KEYS.map(
+      (key) => [key, localStorage.getItem(key)] as const,
+    );
     void activate(0);
     pollTimer = setInterval(measure, 300);
     window.addEventListener("resize", measure);
@@ -235,6 +334,7 @@
   });
 
   onDestroy(() => {
+    restoreTabPreferences();
     if (pollTimer) clearInterval(pollTimer);
     window.removeEventListener("resize", measure);
     window.removeEventListener("keydown", onKeydown, true);
@@ -307,25 +407,27 @@
 
   <div
     bind:clientHeight={cardH}
+    data-tour-card
+    data-tour-target-matched={!step.target || targetMatched ? "true" : "false"}
     class="pointer-events-auto absolute flex flex-col gap-2 rounded-xl border border-border bg-bg-surface p-4"
     style="left: {cardX}px; top: {cardY}px; width: {CARD_W}px;"
   >
     <div class="flex items-center justify-between gap-3">
       <span class="font-display text-xs font-bold tracking-widest text-accent">FEATURE TOUR</span>
-      <span class="text-xs text-text-muted">{index + 1} / {steps.length}</span>
+      <span class="text-xs text-text-muted">{index + 1} / {tourSteps.length}</span>
     </div>
     <p class="m-0 text-sm leading-snug text-text-primary">{step.text}</p>
     {#if step.interactive}
-      <p class="m-0 text-xs font-semibold text-accent">The highlighted area is live - try it.</p>
+      <p class="m-0 text-xs font-semibold text-accent">You can use the highlighted area now.</p>
     {/if}
     <div class="mt-1 flex items-center justify-between">
-      <button class="btn-secondary btn-sm" on:click={endTour}>Skip tour</button>
+      <button class="btn-secondary btn-sm" on:click={finishTour}>Skip tour</button>
       <div class="flex gap-2">
         {#if index > 0}
           <button class="btn-secondary btn-sm" on:click={backStep}>Back</button>
         {/if}
         <button class="btn-primary btn-sm" on:click={nextStep}>
-          {index >= steps.length - 1 ? "Done" : "Next"}
+          {index >= tourSteps.length - 1 ? "Done" : "Next"}
         </button>
       </div>
     </div>

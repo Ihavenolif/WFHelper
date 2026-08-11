@@ -301,7 +301,7 @@
             Notifications
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Desktop and market notification behavior.
+            Choose which desktop and market notifications appear.
           </p>
         </div>
 
@@ -369,7 +369,7 @@
             Arbitrations
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Automatic run analysis. Captured logs and stats never leave this PC.
+            Analyze arbitration runs automatically. Logs stay on this PC.
           </p>
         </div>
 
@@ -396,8 +396,7 @@
             Inventory
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            The game keeps a blueprint listed until you claim its build, so copies sitting in the
-            foundry can look like stock you could sell.
+            Blueprints remain in inventory data until their Foundry build is claimed.
           </p>
         </div>
 
@@ -419,7 +418,7 @@
             Mastery
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Control which items appear in the mastery helper.
+            Choose which items appear in Mastery.
           </p>
         </div>
 
@@ -677,8 +676,7 @@
             Scan diagnostics
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Failed scans can save their crops to the scan-debug folder for bug reports. Images never
-            leave this PC.
+            Save failed scan crops for bug reports. Images stay on this PC.
           </p>
         </div>
 
@@ -817,7 +815,6 @@
     align-items: start;
   }
 
-  /* Flat rows - the card is the only box, rows just get a hover tint. */
   .settings-control-row {
     display: flex;
     align-items: center;

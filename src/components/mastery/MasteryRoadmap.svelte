@@ -4,10 +4,7 @@
   import SearchBox from "../SearchBox.svelte";
   import ThemedPanel from "../ThemedPanel.svelte";
   import { masteryXpToRank } from "../../../config/shared/masteryXp.js";
-  import type {
-    MasteryRoadmap,
-    MasteryRoadmapRecommendation,
-  } from "../../lib/masteryRoadmap.js";
+  import type { MasteryRoadmap, MasteryRoadmapRecommendation } from "../../lib/masteryRoadmap.js";
 
   type RoadmapMode = "easy" | "relics" | "platinum";
   type RoadmapSort = "recommended" | "xp" | "price";
@@ -76,13 +73,12 @@
   function ownedPartTypes(item: MasteryRoadmapRecommendation): number {
     return item.components.filter(
       (component) =>
-        component.owned ||
-        (component.ownedCount ?? 0) >= Math.max(1, component.itemCount ?? 1),
+        component.owned || (component.ownedCount ?? 0) >= Math.max(1, component.itemCount ?? 1),
     ).length;
   }
 </script>
 
-<div class="grid gap-3">
+<div class="grid gap-3" data-tour="mastery-roadmap">
   <div class="grid gap-2 min-[900px]:grid-cols-2 min-[1400px]:grid-cols-4">
     <ThemedPanel className="p-3">
       <span class="block text-xs uppercase tracking-[0.08em] text-text-muted">Easy mastery</span>
@@ -157,11 +153,15 @@
           class="grid min-w-0 grid-cols-[64px_minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-2.5 text-left text-inherit transition-[border-color,background-color] hover:border-accent-dim hover:bg-bg-hover"
           on:click={() => onOpen(item)}
         >
-          <span class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-md)] bg-black/20">
+          <span
+            class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-md)] bg-black/20"
+          >
             <ItemImage src={item.imageUrl} alt={item.name} />
           </span>
           <span class="min-w-0">
-            <strong class="block truncate font-display text-base text-text-primary">{item.name}</strong>
+            <strong class="block truncate font-display text-base text-text-primary"
+              >{item.name}</strong
+            >
             {#if item.access === "relics"}
               <span
                 class="block text-xs font-semibold text-success"
@@ -178,7 +178,9 @@
                 {item.category} - {ACCESS_LABELS[item.access]}
               </span>
               <span class="mt-1 block text-xs text-text-muted">
-                {#if item.access === "owned"}Level {item.rank}/{item.maxRank}{:else if item.components.length > 0}{ownedPartTypes(item)}/{item.components.length} parts owned{:else}Not owned{/if}
+                {#if item.access === "owned"}Level {item.rank}/{item.maxRank}{:else if item.components.length > 0}{ownedPartTypes(
+                    item,
+                  )}/{item.components.length} parts owned{:else}Not owned{/if}
               </span>
             {/if}
           </span>

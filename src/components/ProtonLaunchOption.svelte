@@ -2,8 +2,7 @@
   import { onDestroy } from "svelte";
 
   // Proton real-time overlay triggers: feeds game log lines live vs EE.log poll.
-  // No WINEDEBUG override - it replaces Proton's channels, and modern wine
-  // logs OutputDebugString on +seh, not +debugstr.
+  // Keep Proton's channels because modern Wine logs OutputDebugString on +seh.
   const PROTON_LAUNCH_OPTION = "PROTON_LOG=1 %command%";
 
   /** Tighter type sizes for the setup wizard, which has less room than Settings. */
@@ -19,7 +18,7 @@
       if (copyTimer) clearTimeout(copyTimer);
       copyTimer = setTimeout(() => (copied = false), 2000);
     } catch {
-      // clipboard blocked - the text is selectable in the field as a fallback
+      // The field stays selectable when clipboard permission is denied.
     }
   }
 
@@ -41,9 +40,7 @@
       ? "mt-0.5 text-xs leading-snug text-text-muted"
       : "text-[var(--font-small-size,0.82rem)] text-text-secondary"}
   >
-    Under Proton the overlay trigger relies on a delayed log. For instant triggers, add this to
-    Warframe's Steam launch options (Steam &gt; right-click Warframe &gt; Properties &gt; Launch
-    Options), then restart the game.
+    Add this to Warframe's Steam launch options for instant overlay triggers, then restart the game.
   </p>
 </div>
 

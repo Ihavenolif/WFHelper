@@ -31,8 +31,8 @@
     Linux: display backend
   </h3>
   <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-    Warframe runs through XWayland, so WFHelper joins it to place overlays above the game. A few
-    compositors (niri) have no real XWayland and show no window at all.
+    WFHelper normally uses XWayland so overlays can appear above Warframe. Try Native Wayland if the
+    app window is invisible.
   </p>
 </div>
 
