@@ -26,7 +26,10 @@
   import { sharedFilters } from "../stores/filters.js";
   import { applySharedFiltersAndSort } from "../lib/filters.js";
   import { buildInventoryViewItems } from "../lib/inventoryMarket.js";
-  import { buildMarketOrderInventoryItem } from "../lib/marketOrderInventory.js";
+  import {
+    buildMarketOrderInventoryItem,
+    ownedCountForMarketOrder,
+  } from "../lib/marketOrderInventory.js";
   import { invalidateMarketOrdersRefresh, refreshMarketOrders } from "../lib/marketOrdersSync.js";
   import { invoke, on, send, tradeInvoke } from "../lib/ipc.js";
   import { startupPriceCacheReady } from "../lib/startupLoader.js";
@@ -42,6 +45,8 @@
     WfmStatus,
   } from "../types/market.js";
   import type { DecodedRiven } from "../types/ipc.js";
+  import type { SharedSortKey } from "../types/filters.js";
+  import type { ParsedItem } from "../types/inventory.js";
 
   const ORDERS_STALE_MS = 30_000;
   const ORDERS_POLL_MS = 30_000;
@@ -63,6 +68,20 @@
   ];
   const ORDER_TYPE_TABS = ORDER_TYPE_OPTIONS.map(([key, label]) => ({ key, label }));
 
+  // The default sort set reads ducats/set fields order rows never carry; offer
+  // the two quantities the rows actually show instead ("Owned N" vs "x N listed").
+  const MARKET_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
+    ["name", "Name"],
+    ["platinum", "Platinum"],
+    ["amount", "Listed Quantity"],
+    ["count", "Owned"],
+  ];
+  const RIVEN_CONTRACT_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
+    ["name", "Name"],
+    ["platinum", "Platinum"],
+    ["rerolls", "Rerolls"],
+  ];
+
   const marketFilters = sharedFilters("market");
   const hydration = getInventoryHydrationController();
   const hydrationMetrics = hydration.metricsByKey;
@@ -71,9 +90,13 @@
     return tab === "sell" || tab === "buy";
   }
 
-  function normalizeOrderForFilter(order: WfmOrder): WfmOrder & {
+  function normalizeOrderForFilter(
+    order: WfmOrder,
+    parsedItems: ParsedItem[],
+  ): WfmOrder & {
     name: string;
     amount: number;
+    count: number;
     internalName: string;
     keywords: string[];
   } {
@@ -81,6 +104,7 @@
       ...order,
       name: order.itemName,
       amount: order.quantity,
+      count: ownedCountForMarketOrder(order, parsedItems),
       internalName: order.itemUrlName || "",
       keywords: [order.orderType || "", order.visible ? "visible" : "hidden"],
     };
@@ -473,7 +497,7 @@
     ? $marketOrders[$marketViewState.typeTab] || []
     : [];
   $: filteredOrderRows = applySharedFiltersAndSort(
-    activeOrders.map(normalizeOrderForFilter),
+    activeOrders.map((order) => normalizeOrderForFilter(order, $parsedItems)),
     $marketFilters,
   );
   $: filteredContractRows = applySharedFiltersAndSort(
@@ -667,6 +691,7 @@
         showBasic={true}
         showAdvanced={false}
         basicVariant="quick"
+        sortOptions={isRivensTab ? RIVEN_CONTRACT_SORT_OPTIONS : MARKET_SORT_OPTIONS}
       />
 
       {#if !isRivensTab && $marketSelected.size > 0}

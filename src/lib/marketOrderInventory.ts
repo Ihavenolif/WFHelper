@@ -40,6 +40,10 @@ function ownedCountForOrder(parsedItem: ParsedItem | null): number {
   return parsedItem.currentlyOwned ? 1 : 0;
 }
 
+export function ownedCountForMarketOrder(order: WfmOrder, parsedItems: ParsedItem[]): number {
+  return ownedCountForOrder(parsedItemForOrder(order, parsedItems));
+}
+
 export function buildMarketOrderInventoryItem(
   order: WfmOrder,
   parsedItems: ParsedItem[],

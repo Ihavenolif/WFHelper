@@ -150,6 +150,24 @@ test.describe("Market tab (fixture mode)", () => {
     await expect(qtyValue).toHaveValue("4");
   });
 
+  test("owned-0 rows stay visible under every sort option", async () => {
+    // Field report: sorting by Amount seemed to hide unowned items. The fixture
+    // inventory owns nothing, so every row must survive every sort mode.
+    const rows = page.locator(".order-row");
+    const sortSelect = page.locator(".sort-control-select");
+    for (const key of ["count", "amount", "platinum", "name"]) {
+      await sortSelect.selectOption(key);
+      await expect(rows).toHaveCount(ORDER_COUNT);
+    }
+
+    await sortSelect.selectOption("count");
+    await page.getByRole("button", { name: "Sort direction descending" }).click();
+    await expect(rows).toHaveCount(ORDER_COUNT);
+    await expect(rows.first()).toContainText("Fixture Item 1");
+
+    await sortSelect.selectOption("name");
+  });
+
   test("order-book panel is sticky and height-capped while the list scrolls", async () => {
     // Card centers can land on a stepper arrow, which swallows clicks - use the title.
     await page.locator('[title="Fixture Item 2"]').first().click();
