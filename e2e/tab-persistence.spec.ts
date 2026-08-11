@@ -1,16 +1,11 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { test, expect, type Page } from "@playwright/test";
 
 import {
-  test,
-  expect,
-  _electron as electron,
-  type ElectronApplication,
-  type Page,
-} from "@playwright/test";
-
-import { mainWindow } from "./mainWindow";
+  closeElectronTestHarness,
+  launchElectronTestHarness,
+  writeHarnessInventory,
+  type ElectronTestHarness,
+} from "./electronTestHarness";
 
 const ACCELTRA = "/Lotus/Weapons/Tenno/LongGuns/PrimeAcceltra/PrimeAcceltraWeapon";
 
@@ -19,52 +14,21 @@ const ACCELTRA = "/Lotus/Weapons/Tenno/LongGuns/PrimeAcceltra/PrimeAcceltraWeapo
 test.describe("Horizontal tab persistence", () => {
   test.setTimeout(180_000);
 
-  let app: ElectronApplication;
+  let harness: ElectronTestHarness;
   let page: Page;
-  let sandboxDir: string;
 
   test.beforeAll(async () => {
-    sandboxDir = fs.mkdtempSync(path.join(os.tmpdir(), "wfh-tab-persist-e2e-"));
-    const localAppData = path.join(sandboxDir, "local");
-    const userData = path.join(sandboxDir, "user-data");
-    const helperDir = path.join(userData, "api-helper");
-    fs.mkdirSync(localAppData, { recursive: true });
-    fs.mkdirSync(helperDir, { recursive: true });
-    fs.writeFileSync(path.join(helperDir, "inventory.json"), JSON.stringify({ Suits: [] }));
-
-    const env = { ...process.env } as Record<string, string>;
-    delete env.ELECTRON_RUN_AS_NODE;
-    env.WFHELPER_DISABLE_KEYBOARD_HOOK = "1";
-    env.LOCALAPPDATA = localAppData;
-    env.WFHELPER_USER_DATA = userData;
-
-    app = await electron.launch({ args: ["--no-sandbox", "."], env });
-    page = await mainWindow(app);
-
-    await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
-    await page.evaluate(() => {
-      localStorage.setItem("setup-completed-v2", "1");
-      localStorage.setItem("feature-tour-done", "1");
+    harness = await launchElectronTestHarness("wfh-tab-persist-e2e-");
+    page = harness.page;
+    writeHarnessInventory(harness, {
+      Suits: [],
+      LongGuns: [{ ItemType: ACCELTRA, XP: 450_000 }],
+      XPInfo: [{ ItemType: ACCELTRA, XP: 450_000 }],
     });
-    await page.reload();
-    await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
-
-    // The startup inventory read is pushed before renderer listeners attach, so
-    // masteryData stays null in the sandbox. Rewrite the helper file now that the
-    // renderer is live: the watcher re-push loads mastery data for real.
-    fs.writeFileSync(
-      path.join(helperDir, "inventory.json"),
-      JSON.stringify({
-        Suits: [],
-        LongGuns: [{ ItemType: ACCELTRA, XP: 450_000 }],
-        XPInfo: [{ ItemType: ACCELTRA, XP: 450_000 }],
-      }),
-    );
   });
 
   test.afterAll(async () => {
-    await app?.close();
-    fs.rmSync(sandboxDir, { recursive: true, force: true });
+    await closeElectronTestHarness(harness);
   });
 
   async function openView(label: string): Promise<void> {

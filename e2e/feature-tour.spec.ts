@@ -1,72 +1,43 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import { test, expect, type Page } from "@playwright/test";
 
 import {
-  test,
-  expect,
-  _electron as electron,
-  type ElectronApplication,
-  type Page,
-} from "@playwright/test";
-
-import { mainWindow } from "./mainWindow";
+  closeElectronTestHarness,
+  launchElectronTestHarness,
+  writeHarnessInventory,
+  type ElectronTestHarness,
+} from "./electronTestHarness";
 
 const ACCELTRA = "/Lotus/Weapons/Tenno/LongGuns/PrimeAcceltra/PrimeAcceltraWeapon";
 
 test.describe("Feature tour", () => {
   test.setTimeout(180_000);
 
-  let app: ElectronApplication;
+  let harness: ElectronTestHarness;
   let page: Page;
-  let sandboxDir: string;
 
   test.beforeAll(async () => {
-    sandboxDir = fs.mkdtempSync(path.join(os.tmpdir(), "wfh-feature-tour-e2e-"));
-    const localAppData = path.join(sandboxDir, "local");
-    const userData = path.join(sandboxDir, "user-data");
-    const helperDir = path.join(userData, "api-helper");
-    fs.mkdirSync(localAppData, { recursive: true });
-    fs.mkdirSync(helperDir, { recursive: true });
-    fs.writeFileSync(path.join(helperDir, "inventory.json"), JSON.stringify({ Suits: [] }));
-
-    const env = { ...process.env } as Record<string, string>;
-    delete env.ELECTRON_RUN_AS_NODE;
-    env.WFHELPER_DISABLE_KEYBOARD_HOOK = "1";
-    env.LOCALAPPDATA = localAppData;
-    env.WFHELPER_USER_DATA = userData;
-
-    app = await electron.launch({ args: ["--no-sandbox", "."], env });
-    page = await mainWindow(app);
-    await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
-
-    await page.evaluate(() => {
-      localStorage.setItem("setup-completed-v2", "1");
-      localStorage.setItem("feature-tour-done", "1");
-      localStorage.setItem("wf_tab_visible_foundry", "0");
-      localStorage.setItem("wf_inventory_tab", "resources");
-      localStorage.setItem("wf_mastery_view_tab", "roadmap");
-      localStorage.setItem("wf_rivens_tab", "finder");
+    harness = await launchElectronTestHarness("wfh-feature-tour-e2e-", {
+      storage: {
+        wf_tab_visible_foundry: "0",
+        wf_inventory_tab: "resources",
+        wf_mastery_view_tab: "roadmap",
+        wf_rivens_tab: "finder",
+        "world-tab": "world",
+      },
     });
-    await page.reload();
-    await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
-
-    fs.writeFileSync(
-      path.join(helperDir, "inventory.json"),
-      JSON.stringify({
-        Suits: [],
-        LongGuns: [{ ItemType: ACCELTRA, XP: 450_000 }],
-        XPInfo: [{ ItemType: ACCELTRA, XP: 450_000 }],
-      }),
-    );
+    page = harness.page;
+    writeHarnessInventory(harness, {
+      Suits: [],
+      LongGuns: [{ ItemType: ACCELTRA, XP: 450_000 }],
+      XPInfo: [{ ItemType: ACCELTRA, XP: 450_000 }],
+    });
   });
 
   test.afterAll(async () => {
-    await app?.close();
-    fs.rmSync(sandboxDir, { recursive: true, force: true });
+    await closeElectronTestHarness(harness);
   });
 
-  test("walks every available step and restores expected sub-tabs", async () => {
+  test("walks every available step without replacing saved sub-tabs", async () => {
     await page.locator("#sidebar").getByText("Settings", { exact: true }).click();
     await page.getByRole("button", { name: "Show feature tour" }).click();
 
@@ -131,5 +102,35 @@ test.describe("Feature tour", () => {
 
     await card.getByRole("button", { name: "Done" }).click();
     await expect(card).toHaveCount(0);
+    await expect
+      .poll(() =>
+        page.evaluate(() => ({
+          inventory: localStorage.getItem("wf_inventory_tab"),
+          mastery: localStorage.getItem("wf_mastery_view_tab"),
+          rivens: localStorage.getItem("wf_rivens_tab"),
+          world: localStorage.getItem("world-tab"),
+        })),
+      )
+      .toEqual({ inventory: "resources", mastery: "roadmap", rivens: "finder", world: "world" });
+
+    for (const exit of ["Skip tour", "Escape"] as const) {
+      await page.locator("#sidebar").getByText("Settings", { exact: true }).click();
+      await page.getByRole("button", { name: "Show feature tour" }).click();
+      await expect(card).toBeVisible();
+      if (exit === "Escape") await page.keyboard.press("Escape");
+      else await card.getByRole("button", { name: exit }).click();
+      await expect(card).toHaveCount(0);
+      await expect(
+        page.locator('[data-tour="inventory-tabs"]').getByRole("button", { name: "Resources" }),
+      ).toHaveAttribute("data-active", "true");
+      expect(
+        await page.evaluate(() => [
+          localStorage.getItem("wf_inventory_tab"),
+          localStorage.getItem("wf_mastery_view_tab"),
+          localStorage.getItem("wf_rivens_tab"),
+          localStorage.getItem("world-tab"),
+        ]),
+      ).toEqual(["resources", "roadmap", "finder", "world"]);
+    }
   });
 });

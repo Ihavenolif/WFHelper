@@ -168,6 +168,17 @@ test.describe("Market tab (fixture mode)", () => {
     await sortSelect.selectOption("name");
   });
 
+  test("Riven contracts only offer meaningful sort fields", async () => {
+    await page.locator("#content").getByRole("button", { name: "Rivens", exact: true }).click();
+    const sortSelect = page.locator(".sort-control-select");
+    await expect(sortSelect.locator('option[value="count"]')).toHaveCount(0);
+    await expect(sortSelect.locator('option[value="rerolls"]')).toHaveCount(1);
+    await page
+      .locator("#content")
+      .getByRole("button", { name: "Sell Orders", exact: true })
+      .click();
+  });
+
   test("order-book panel is sticky and height-capped while the list scrolls", async () => {
     // Card centers can land on a stepper arrow, which swallows clicks - use the title.
     await page.locator('[title="Fixture Item 2"]').first().click();
