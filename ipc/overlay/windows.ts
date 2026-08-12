@@ -70,12 +70,10 @@ type OverlayWindowsControllerOptions = {
   /** Background colour used when transparent=false (default: '#060a12'). */
   backgroundColor?: string;
   windowStateKey?: OverlayWindowKey;
-  onWindowBoundsChanged?: (
-    key: OverlayWindowKey,
-    bounds: OverlaySavedWindowBounds,
-  ) => void;
+  onWindowBoundsChanged?: (key: OverlayWindowKey, bounds: OverlaySavedWindowBounds) => void;
   /** Persist moves even in passive mode (arbi summary drags without the unlock hotkey). */
   persistBoundsWhenPassive?: boolean;
+  platform?: NodeJS.Platform;
 };
 
 export function createOverlayWindowBoundsChangeHandler(
@@ -125,6 +123,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     windowStateKey,
     onWindowBoundsChanged,
     persistBoundsWhenPassive = false,
+    platform = process.platform,
   } = options;
 
   let lastOverlayAnchorMeta: OverlayAnchorMeta | null = null;
@@ -241,12 +240,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     const perWindow = windowStateKey
       ? (ctx.overlaySettings?.overlayWindowScales || {})[windowStateKey]
       : undefined;
-    const userScale = clampNumber(
-      perWindow ?? ctx.overlaySettings?.overlayScale,
-      0.75,
-      1.5,
-      1,
-    );
+    const userScale = clampNumber(perWindow ?? ctx.overlaySettings?.overlayScale, 0.75, 1.5, 1);
     return Number((base * userScale).toFixed(3));
   }
 
@@ -367,9 +361,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
 
   function attachRendererDiagnostics(overlayWindow: import("electron").BrowserWindow): void {
     overlayWindow.webContents.on("did-fail-load", (_event, code, description, url) => {
-      log.warn(
-        `[OverlayWindow] ${windowLabel} failed to load ${url}: ${code} ${description}`,
-      );
+      log.warn(`[OverlayWindow] ${windowLabel} failed to load ${url}: ${code} ${description}`);
     });
     overlayWindow.webContents.on("render-process-gone", (_event, details) => {
       rendererReady = false;
@@ -429,6 +421,11 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     const initialBounds = getOverlayBoundsForActiveDisplay(lastOverlayAnchorMeta);
 
     const createdWindow = new BrowserWindow({
+      // Linux compositors activate a newly mapped NORMAL window even when it
+      // is non-focusable, pulling Warframe out of focus (XWayland field
+      // report). Toolbar-type windows are exempt from focus-on-map yet still
+      // accept the explicit focus() interactive mode needs.
+      ...(platform === "linux" ? { type: "toolbar" } : {}),
       width: initialBounds.width,
       height: initialBounds.height,
       x: initialBounds.x,
@@ -463,10 +460,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       log,
     });
 
-    void createdWindow.loadFile(
-      overlayWindowFile,
-      fileSearch ? { search: fileSearch } : undefined,
-    );
+    void createdWindow.loadFile(overlayWindowFile, fileSearch ? { search: fileSearch } : undefined);
     positionOverlayWindow(lastOverlayAnchorMeta);
     // z-order calls un-hide a hidden window on Windows - only touch it when showing
     if (shouldShow) {

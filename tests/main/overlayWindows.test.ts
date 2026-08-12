@@ -84,6 +84,87 @@ describe("createOverlayWindowsController", () => {
   });
 });
 
+function createWindowTypeProbe(platform: NodeJS.Platform) {
+  const captured: Array<Record<string, unknown>> = [];
+  const display = {
+    id: 1,
+    workArea: { x: 0, y: 0, width: 1920, height: 1080 },
+  };
+
+  class FakeBrowserWindow {
+    webContents = {
+      id: 1,
+      on: vi.fn(),
+      send: vi.fn(),
+      setZoomFactor: vi.fn(),
+      isLoadingMainFrame: () => false,
+      isCrashed: () => false,
+    };
+
+    constructor(options: Record<string, unknown>) {
+      captured.push(options);
+    }
+
+    loadFile() {
+      return Promise.resolve();
+    }
+    on() {}
+    setBounds() {}
+    getBounds() {
+      return { x: 0, y: 0, width: 100, height: 100 };
+    }
+    isDestroyed() {
+      return false;
+    }
+    isVisible() {
+      return false;
+    }
+  }
+
+  const controller = createOverlayWindowsController({
+    app: { getAppPath: () => "D:\\app" } as unknown as typeof import("electron").app,
+    BrowserWindow: FakeBrowserWindow as unknown as typeof import("electron").BrowserWindow,
+    screen: {
+      getPrimaryDisplay: () => display,
+      getAllDisplays: () => [display],
+      getCursorScreenPoint: () => ({ x: 960, y: 540 }),
+      getDisplayNearestPoint: () => display,
+    } as unknown as typeof import("electron").screen,
+    ctx: {
+      overlayWindow: null,
+      overlaySettings: {} as OverlaySettings,
+      overlayInteractiveMode: false,
+    },
+    log: { warn: () => {} },
+    hardenBrowserWindowNavigation: () => {},
+    overlayWindowFile: "D:\\app\\renderer\\overlay.html",
+    platform,
+  });
+
+  return { controller, captured };
+}
+
+describe("overlay window type", () => {
+  it("maps overlays as toolbar windows on linux so the game keeps focus", () => {
+    const { controller, captured } = createWindowTypeProbe("linux");
+
+    controller.createOverlayWindow({ show: false });
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0].type).toBe("toolbar");
+    expect(captured[0].focusable).toBe(false);
+  });
+
+  it("keeps the default window type off linux", () => {
+    const { controller, captured } = createWindowTypeProbe("win32");
+
+    controller.createOverlayWindow({ show: false });
+
+    expect(captured).toHaveLength(1);
+    expect(captured[0]).not.toHaveProperty("type");
+  });
+});
+
 describe("createOverlayWindowBoundsChangeHandler", () => {
   it("saves bounds and retires the drag hint on live moves, except for the arbi summary", () => {
     const ctx = {
