@@ -15,6 +15,13 @@
     detected: "Trade Finished",
   };
 
+  const REP_RESULT_LABELS = {
+    sent: { text: "+1 rep sent to {partner}", cls: "ok" },
+    "already-exists": { text: "Already repped {partner}", cls: "ok" },
+    "user-not-found": { text: "{partner} not found on warframe.market", cls: "err" },
+    failed: { text: "Sending rep failed", cls: "err" },
+  };
+
   const notification = document.getElementById("notification");
   const itemThumb = document.getElementById("item-thumb");
   const tradeLabel = document.getElementById("trade-label");
@@ -22,9 +29,24 @@
   const itemName = document.getElementById("item-name");
   const platAmount = document.getElementById("plat-amount");
   const partnerName = document.getElementById("partner-name");
+  const repLine = document.getElementById("rep-line");
 
   let dismissTimer = null;
   let fadeTimer = null;
+
+  function scheduleDismiss(visibleMs, fadeMs) {
+    if (dismissTimer) clearTimeout(dismissTimer);
+    if (fadeTimer) clearTimeout(fadeTimer);
+    dismissTimer = setTimeout(function () {
+      dismissTimer = null;
+      notification.classList.add("fade-out");
+      fadeTimer = setTimeout(function () {
+        fadeTimer = null;
+        notification.classList.add("hidden");
+        window.tradeNotificationApi.dismiss();
+      }, fadeMs);
+    }, visibleMs);
+  }
 
   function showNotification(payload) {
     if (!payload) return;
@@ -66,27 +88,40 @@
 
     partnerName.textContent = match.partner || "";
 
+    const rep = payload.rep;
+    if (rep && rep.partner && rep.hotkey) {
+      repLine.textContent = "Press " + rep.hotkey + " to +1 rep " + rep.partner;
+      repLine.className = "offer";
+      repLine.hidden = false;
+    } else {
+      repLine.textContent = "";
+      repLine.hidden = true;
+    }
+
     // Show with animation
     notification.classList.remove("hidden", "fade-out");
 
-    // Reset auto-dismiss timer
-    if (dismissTimer) clearTimeout(dismissTimer);
-    if (fadeTimer) clearTimeout(fadeTimer);
-    dismissTimer = setTimeout(function () {
-      dismissTimer = null;
-      notification.classList.add("fade-out");
-      fadeTimer = setTimeout(function () {
-        fadeTimer = null;
-        notification.classList.add("hidden");
-        // Notify main process we're done; preload always exposes this.
-        window.tradeNotificationApi.dismiss();
-      }, fadeMs);
-    }, visibleMs);
+    scheduleDismiss(visibleMs, fadeMs);
+  }
+
+  function showRepResult(payload) {
+    if (!payload) return;
+    const label = REP_RESULT_LABELS[payload.result] || REP_RESULT_LABELS.failed;
+    repLine.textContent = label.text.replace("{partner}", payload.partner || "");
+    repLine.className = label.cls;
+    repLine.hidden = false;
+
+    notification.classList.remove("hidden", "fade-out");
+    scheduleDismiss(payload.timing.visibleMs, payload.timing.fadeMs);
   }
 
   // Listen for IPC events from main. The preload script is the only loader
   // that produces this window, so the bridge is always installed.
   window.tradeNotificationApi.onShow(function (payload) {
     showNotification(payload);
+  });
+
+  window.tradeNotificationApi.onRepResult(function (payload) {
+    showRepResult(payload);
   });
 })();

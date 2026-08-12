@@ -81,6 +81,8 @@
   let messageNotificationsEnabled = OVERLAY_DEFAULTS.messageNotificationsEnabled;
   let messageNotificationsWhileFocused = OVERLAY_DEFAULTS.messageNotificationsWhileFocused;
   let autoCloseWfmOrders = OVERLAY_DEFAULTS.autoCloseWfmOrders;
+  let tradeRepHotkeyEnabled = OVERLAY_DEFAULTS.tradeRepHotkeyEnabled;
+  let tradeRepHotkey = OVERLAY_DEFAULTS.tradeRepHotkey;
   let tradeNotificationOverlayEnabled = OVERLAY_DEFAULTS.tradeNotificationOverlayEnabled;
   let relicRewardsOverlayEnabled = OVERLAY_DEFAULTS.relicRewardsOverlayEnabled;
   let relicRecommendationOverlayEnabled = OVERLAY_DEFAULTS.relicRecommendationOverlayEnabled;
@@ -103,6 +105,8 @@
       s.messageNotificationsEnabled ?? OVERLAY_DEFAULTS.messageNotificationsEnabled;
     messageNotificationsWhileFocused = !!s.messageNotificationsWhileFocused;
     autoCloseWfmOrders = s.autoCloseWfmOrders ?? OVERLAY_DEFAULTS.autoCloseWfmOrders;
+    tradeRepHotkeyEnabled = s.tradeRepHotkeyEnabled ?? OVERLAY_DEFAULTS.tradeRepHotkeyEnabled;
+    tradeRepHotkey = s.tradeRepHotkey || OVERLAY_DEFAULTS.tradeRepHotkey;
     tradeNotificationOverlayEnabled =
       s.tradeNotificationOverlayEnabled ??
       s.showTradeNotification ??
@@ -148,6 +152,8 @@
       messageNotificationsEnabled,
       messageNotificationsWhileFocused,
       autoCloseWfmOrders,
+      tradeRepHotkeyEnabled,
+      tradeRepHotkey,
       tradeNotificationOverlayEnabled,
       relicRewardsOverlayEnabled,
       relicRecommendationOverlayEnabled,
@@ -227,6 +233,13 @@
     const accel = captureAccelerator(e);
     if (accel === undefined) return;
     interactionHotkey = accel;
+    autoSave();
+  }
+
+  function recordTradeRepHotkey(e: KeyboardEvent): void {
+    const accel = captureAccelerator(e);
+    if (accel === undefined) return;
+    tradeRepHotkey = accel;
     autoSave();
   }
 
@@ -354,6 +367,29 @@
               bind:checked={autoCloseWfmOrders}
               on:change={autoSave}
               class="accent-accent"
+            />
+          </label>
+
+          <label class="settings-control-row">
+            <span>+1 rep keybind on the trade popup after WFMarket sales</span>
+            <input
+              type="checkbox"
+              bind:checked={tradeRepHotkeyEnabled}
+              on:change={autoSave}
+              class="accent-accent"
+            />
+          </label>
+
+          <label class="settings-control-row settings-control-row-input">
+            <span>+1 rep keybind</span>
+            <input
+              type="text"
+              bind:value={tradeRepHotkey}
+              disabled={!tradeRepHotkeyEnabled}
+              placeholder="Press a key combination"
+              on:keydown={recordTradeRepHotkey}
+              on:change={autoSave}
+              class="settings-input"
             />
           </label>
         </div>

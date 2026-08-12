@@ -38,6 +38,8 @@ export interface OverlaySettings {
   messageNotificationsEnabled: boolean;
   messageNotificationsWhileFocused: boolean;
   autoCloseWfmOrders: boolean;
+  tradeRepHotkeyEnabled: boolean;
+  tradeRepHotkey: string;
   relicRewardsOverlayEnabled: boolean;
   relicRecommendationOverlayEnabled: boolean;
   tradeNotificationOverlayEnabled: boolean;
@@ -78,6 +80,8 @@ export const OVERLAY_SETTINGS_DEFAULTS = Object.freeze({
   // Off by default: while focused you also see your own sends, so stay quiet.
   messageNotificationsWhileFocused: false,
   autoCloseWfmOrders: true,
+  tradeRepHotkeyEnabled: true,
+  tradeRepHotkey: "F9",
   relicRewardsOverlayEnabled: true,
   relicRecommendationOverlayEnabled: true,
   tradeNotificationOverlayEnabled: true,

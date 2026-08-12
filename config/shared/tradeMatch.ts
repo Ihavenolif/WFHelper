@@ -30,6 +30,26 @@ export function summarizeMatches(
   };
 }
 
+export interface TradeRepOffer {
+  partner: string;
+  hotkey: string;
+}
+
+export function resolveRepOffer(
+  match: TradeMatchPayload | null | undefined,
+  status: TradeNotificationStatus,
+  options: { enabled: boolean; hotkey: string },
+): TradeRepOffer | null {
+  if (!options.enabled) return null;
+  const hotkey = String(options.hotkey || "").trim();
+  if (!hotkey) return null;
+  if (!match || match.type !== "sale" || !match.orderId) return null;
+  if (status !== "closed" && status !== "close-failed") return null;
+  const partner = String(match.partner || "").trim();
+  if (!partner) return null;
+  return { partner, hotkey };
+}
+
 /** Toast content when no listing closed. */
 export function summarizeTrade(trade: TradeEvent): TradeMatchPayload {
   const sideItems = trade.items.filter((item) => {

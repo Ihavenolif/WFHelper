@@ -220,6 +220,11 @@ export function createOverlaySettingsController(options: OverlaySettingsControll
       messageNotificationsEnabled: booleanSetting("messageNotificationsEnabled"),
       messageNotificationsWhileFocused: booleanSetting("messageNotificationsWhileFocused"),
       autoCloseWfmOrders: booleanSetting("autoCloseWfmOrders"),
+      tradeRepHotkeyEnabled: booleanSetting("tradeRepHotkeyEnabled"),
+      tradeRepHotkey: normalizeHotkey(
+        candidate.tradeRepHotkey ?? defaults.tradeRepHotkey,
+        String(defaults.tradeRepHotkey),
+      ),
       relicRewardsOverlayEnabled: booleanSetting("relicRewardsOverlayEnabled"),
       relicRecommendationOverlayEnabled: booleanSetting("relicRecommendationOverlayEnabled"),
       tradeNotificationOverlayEnabled,

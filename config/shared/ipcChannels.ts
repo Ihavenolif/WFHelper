@@ -114,6 +114,7 @@ export const RIVEN_SIMILAR_LISTINGS = "riven-similar-listings";
 
 export const TRADE_NOTIFICATION_SHOW = "trade-notification-show";
 export const TRADE_NOTIFICATION_DISMISS = "trade-notification-dismiss";
+export const TRADE_NOTIFICATION_REP_RESULT = "trade-notification-rep-result";
 
 export const ARBI_GET_RUNS = "arbi:get-runs";
 export const ARBI_SET_VITUS = "arbi:set-vitus";

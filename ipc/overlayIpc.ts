@@ -5,8 +5,9 @@ import {
   handleAuthorized,
   onAuthorized,
 } from "./ipcSecurity";
+import { disposeAppHotkeys, overlayHotkeyBackend } from "./hotkeyRegistry";
 import { createOverlaySettingsController } from "./overlay/settings";
-import { createKeyHookShortcut } from "../services/keyHookShortcut";
+import { hideTradeNotification } from "./tradeNotificationIpc";
 import { writeFileAtomicSync } from "../services/atomicFile";
 import { asRecord } from "./ipcValidators";
 import { withScope } from "../services/logger";
@@ -24,6 +25,7 @@ import {
   isRivenOverlayEnabled,
   isTradeNotificationOverlayEnabled,
   OVERLAY_SETTINGS_DEFAULTS,
+  type OverlaySettings,
   type OverlayWindowKey,
 } from "../config/runtime/overlaySettings";
 import { clampNumber } from "../config/shared/numeric";
@@ -49,7 +51,7 @@ import {
 
 const log = withScope("overlayIpc");
 
-import { BrowserWindow, globalShortcut, app, screen, type WebContents } from "electron";
+import { BrowserWindow, app, screen, type WebContents } from "electron";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -254,20 +256,11 @@ function notifyRewardScreenClosed(stalenessMs: number): void {
 
 const OVERLAY_SETTINGS_FILE = path.join(app.getPath("userData"), "overlay-settings.json");
 
-// win32: low-level keyboard hook, swallowing only while Warframe is focused.
-// Elsewhere: globalShortcut. WFHELPER_DISABLE_KEYBOARD_HOOK=1 (e2e) captures nothing.
-const hotkeyBackend =
-  process.env.WFHELPER_DISABLE_KEYBOARD_HOOK === "1"
-    ? { register: () => false, unregister: () => {}, dispose: () => {} }
-    : process.platform === "win32"
-      ? createKeyHookShortcut({ log })
-      : globalShortcut;
-
 const settingsController = createOverlaySettingsController({
   log,
   fs,
   writeFileAtomic: writeFileAtomicSync,
-  globalShortcut: hotkeyBackend,
+  globalShortcut: overlayHotkeyBackend,
   ctx,
   settingsFile: OVERLAY_SETTINGS_FILE,
   defaults: OVERLAY_SETTINGS_DEFAULTS,
@@ -296,7 +289,7 @@ function setActiveMissionTag(tag: string): void {
   rewardOverlayIpc.setActiveMissionTag(tag);
 }
 
-function applyOverlayAvailabilitySettings(): void {
+function applyOverlayAvailabilitySettings(previousSettings: OverlaySettings): void {
   if (!isRelicRewardsOverlayEnabled(ctx.overlaySettings)) {
     rewardOverlayIpc.rewardWindowsController.clearOverlayAutoHideTimer();
     if (ctx.overlayWindow && !ctx.overlayWindow.isDestroyed()) ctx.overlayWindow.hide();
@@ -309,10 +302,11 @@ function applyOverlayAvailabilitySettings(): void {
     }
   }
 
-  if (!isTradeNotificationOverlayEnabled(ctx.overlaySettings)) {
-    if (ctx.tradeNotificationWindow && !ctx.tradeNotificationWindow.isDestroyed()) {
-      ctx.tradeNotificationWindow.hide();
-    }
+  const repSettingsChanged =
+    previousSettings.tradeRepHotkeyEnabled !== ctx.overlaySettings.tradeRepHotkeyEnabled ||
+    previousSettings.tradeRepHotkey !== ctx.overlaySettings.tradeRepHotkey;
+  if (!isTradeNotificationOverlayEnabled(ctx.overlaySettings) || repSettingsChanged) {
+    hideTradeNotification();
   }
 
   if (!isRivenOverlayEnabled(ctx.overlaySettings)) {
@@ -400,11 +394,12 @@ function register(): void {
       const nextScale = incoming ? clampNumber(incoming.overlayScale, 0.75, 1.5, NaN) : NaN;
       const scaleChanged =
         Number.isFinite(nextScale) && nextScale !== ctx.overlaySettings.overlayScale;
+      const previousSettings = ctx.overlaySettings;
       const settings = settingsController.setOverlaySettings(
         scaleChanged ? { ...(incoming ?? {}), overlayWindowScales: {} } : nextSettings,
       );
       settingsController.registerOverlayHotkey();
-      applyOverlayAvailabilitySettings();
+      applyOverlayAvailabilitySettings(previousSettings);
       arbiRunTracker.setArbiTrackingEnabled(settings.arbiTrackingEnabled !== false);
       setOcrDebugDumpsEnabled(settings.ocrDebugImagesEnabled !== false);
       applyMainWindowZoom();
@@ -550,7 +545,7 @@ export const unregisterOverlayHotkey = settingsController.unregisterOverlayHotke
 export const setOverlayHotkeysActive = settingsController.setHotkeysActive;
 
 export function disposeOverlayHotkeys(): void {
-  if ("dispose" in hotkeyBackend) hotkeyBackend.dispose();
+  disposeAppHotkeys();
 }
 
 export {

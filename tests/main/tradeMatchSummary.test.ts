@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { summarizeMatches, summarizeTrade } from "../../config/shared/tradeMatch";
+import { resolveRepOffer, summarizeMatches, summarizeTrade } from "../../config/shared/tradeMatch";
 import type { TradeMatchPayload } from "../../config/shared/tradeMatch";
 import type { TradeEvent } from "../../config/shared/statsTypes";
 
@@ -59,6 +59,45 @@ describe("summarizeMatches", () => {
 
   it("returns null when nothing closed", () => {
     expect(summarizeMatches([], 0)).toBeNull();
+  });
+});
+
+describe("resolveRepOffer", () => {
+  const enabled = { enabled: true, hotkey: "F9" };
+
+  it("offers rep for a closed WFM sale", () => {
+    expect(resolveRepOffer(match("Ash Prime Chassis", 45), "closed", enabled)).toEqual({
+      partner: "Buyer",
+      hotkey: "F9",
+    });
+  });
+
+  it("still offers rep when the matched listing failed to close", () => {
+    expect(resolveRepOffer(match("Ash Prime Chassis", 45), "close-failed", enabled)).not.toBeNull();
+  });
+
+  it("offers rep for a closed riven contract sale", () => {
+    const contract = { ...match("Karak Visican", 200), kind: "contract" as const };
+    expect(resolveRepOffer(contract, "closed", enabled)?.partner).toBe("Buyer");
+  });
+
+  it("never offers rep for purchases", () => {
+    const purchase = { ...match("Serration", 20), type: "purchase" as const };
+    expect(resolveRepOffer(purchase, "closed", enabled)).toBeNull();
+  });
+
+  it("never offers rep for sales that matched no WFM listing", () => {
+    const unmatched = { ...match("Ash Prime Chassis", 45), orderId: "" };
+    expect(resolveRepOffer(unmatched, "no-match", enabled)).toBeNull();
+    expect(resolveRepOffer(match("Ash Prime Chassis", 45), "no-match", enabled)).toBeNull();
+    expect(resolveRepOffer(match("Ash Prime Chassis", 45), "detected", enabled)).toBeNull();
+  });
+
+  it("respects the setting toggle, missing hotkey, and missing partner", () => {
+    expect(resolveRepOffer(match("X", 1), "closed", { enabled: false, hotkey: "F9" })).toBeNull();
+    expect(resolveRepOffer(match("X", 1), "closed", { enabled: true, hotkey: "  " })).toBeNull();
+    const anonymous = { ...match("X", 1), partner: "" };
+    expect(resolveRepOffer(anonymous, "closed", enabled)).toBeNull();
   });
 });
 

@@ -62,6 +62,8 @@ export interface OverlaySettings {
   messageNotificationsEnabled: boolean;
   messageNotificationsWhileFocused: boolean;
   autoCloseWfmOrders: boolean;
+  tradeRepHotkeyEnabled: boolean;
+  tradeRepHotkey: string;
   relicRewardsOverlayEnabled: boolean;
   relicRecommendationOverlayEnabled: boolean;
   tradeNotificationOverlayEnabled: boolean;

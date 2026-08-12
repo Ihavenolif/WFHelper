@@ -1,34 +1,52 @@
-/** Trade result toast window. */
-
 import ctx from "./context";
+import { registerTransientHotkey, unregisterTransientHotkey } from "./hotkeyRegistry";
 import { assertTradeNotificationSender, onAuthorized } from "./ipcSecurity";
 import { withScope } from "../services/logger";
 import { hardenBrowserWindowNavigation } from "../services/windowSecurity";
-import { TRADE_NOTIFICATION_SHOW, TRADE_NOTIFICATION_DISMISS } from "../config/shared/ipcChannels";
-import type { TradeMatchPayload, TradeNotificationStatus } from "../config/shared/tradeMatch";
+import * as wfmReviews from "../services/wfmReviews";
+import {
+  TRADE_NOTIFICATION_SHOW,
+  TRADE_NOTIFICATION_DISMISS,
+  TRADE_NOTIFICATION_REP_RESULT,
+} from "../config/shared/ipcChannels";
+import { resolveRepOffer } from "../config/shared/tradeMatch";
+import type {
+  TradeMatchPayload,
+  TradeNotificationStatus,
+  TradeRepOffer,
+} from "../config/shared/tradeMatch";
 
 const log = withScope("tradeNotificationIpc");
 
 import path from "node:path";
 import { app, BrowserWindow, screen } from "electron";
 
-// Must match the body zoom in trade-notification.css.
 const SCALE = 1.5;
 const WIN_W = 370 * SCALE;
-const WIN_H = 80 * SCALE;
+const WIN_H = 104 * SCALE;
 const MARGIN = 16;
 const NOTIFICATION_FILE = path.join(app.getAppPath(), "renderer", "trade-notification.html");
 
-// Hide after the renderer fade completes.
 const RENDERER_VISIBLE_MS = 5_000;
+// Allows time to reach the keybind while returning to the mission.
+const REP_VISIBLE_MS = 12_000;
+const REP_RESULT_VISIBLE_MS = 4_000;
 const RENDERER_FADE_MS = 400;
 const MAIN_HIDE_BUFFER_MS = 600;
-const AUTO_HIDE_MS = RENDERER_VISIBLE_MS + RENDERER_FADE_MS + MAIN_HIDE_BUFFER_MS;
 
-/** Payload for the vanilla notification renderer. */
 export interface TradeNotificationShowPayload {
   match: TradeMatchPayload;
   status: TradeNotificationStatus;
+  rep: TradeRepOffer | null;
+  timing: {
+    visibleMs: number;
+    fadeMs: number;
+  };
+}
+
+export interface TradeRepResultPayload {
+  result: wfmReviews.SendRepResult;
+  partner: string;
   timing: {
     visibleMs: number;
     fadeMs: number;
@@ -37,21 +55,123 @@ export interface TradeNotificationShowPayload {
 
 let _hideTimer: ReturnType<typeof setTimeout> | null = null;
 let _rendererReady = false;
-let _pendingPayload: TradeNotificationShowPayload | null = null;
+let _notificationRevision = 0;
+
+interface PendingTradeNotification {
+  match: TradeMatchPayload;
+  status: TradeNotificationStatus;
+  revision: number;
+}
+
+let _pendingNotification: PendingTradeNotification | null = null;
+
+interface ArmedRep {
+  accelerator: string;
+  partner: string;
+  revision: number;
+}
+
+let _armedRep: ArmedRep | null = null;
+let _repBusy = false;
+
+function _disarmRep(): void {
+  if (!_armedRep) return;
+  unregisterTransientHotkey(_armedRep.accelerator);
+  _armedRep = null;
+}
+
+function _clearHideTimer(): void {
+  if (!_hideTimer) return;
+  clearTimeout(_hideTimer);
+  _hideTimer = null;
+}
+
+function _invalidateNotification(): void {
+  _notificationRevision += 1;
+  _pendingNotification = null;
+  _disarmRep();
+  _clearHideTimer();
+}
+
+function _armRepOffer(offer: TradeRepOffer, revision: number): boolean {
+  if (_repBusy || revision !== _notificationRevision) return false;
+  _disarmRep();
+  const armed: ArmedRep = {
+    accelerator: offer.hotkey,
+    partner: offer.partner,
+    revision,
+  };
+  const ok = registerTransientHotkey(armed.accelerator, () => void _onRepHotkey(armed));
+  if (!ok) {
+    log.warn(`[TradeRep] could not bind ${armed.accelerator}; offering no rep prompt`);
+    return false;
+  }
+  _armedRep = armed;
+  return true;
+}
+
+async function _onRepHotkey(armed: ArmedRep): Promise<void> {
+  if (_armedRep !== armed || armed.revision !== _notificationRevision) return;
+  _disarmRep();
+  _repBusy = true;
+  try {
+    const result = await wfmReviews.sendPlusRep(armed.partner);
+    if (armed.revision !== _notificationRevision) return;
+    _pushRepResult({
+      result,
+      partner: armed.partner,
+      timing: { visibleMs: REP_RESULT_VISIBLE_MS, fadeMs: RENDERER_FADE_MS },
+    });
+  } finally {
+    _repBusy = false;
+  }
+}
+
+function _pushRepResult(payload: TradeRepResultPayload): void {
+  const win = ctx.tradeNotificationWindow;
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send(TRADE_NOTIFICATION_REP_RESULT, payload);
+  win.showInactive();
+  win.moveTop();
+  _scheduleHide(win, payload.timing.visibleMs + payload.timing.fadeMs + MAIN_HIDE_BUFFER_MS);
+}
+
+function _scheduleHide(win: InstanceType<typeof BrowserWindow>, delayMs: number): void {
+  _clearHideTimer();
+  _hideTimer = setTimeout(() => {
+    _hideTimer = null;
+    _disarmRep();
+    if (!win.isDestroyed()) win.hide();
+  }, delayMs);
+}
 
 function _displayNotification(
   win: InstanceType<typeof BrowserWindow>,
-  payload: TradeNotificationShowPayload,
+  pending: PendingTradeNotification,
 ): void {
+  if (pending.revision !== _notificationRevision) return;
+  const offer = resolveRepOffer(pending.match, pending.status, {
+    enabled: !!ctx.overlaySettings.tradeRepHotkeyEnabled,
+    hotkey: String(ctx.overlaySettings.tradeRepHotkey || ""),
+  });
+  const rep = offer && _armRepOffer(offer, pending.revision) ? offer : null;
+  const payload: TradeNotificationShowPayload = {
+    match: pending.match,
+    status: pending.status,
+    rep,
+    timing: { visibleMs: rep ? REP_VISIBLE_MS : RENDERER_VISIBLE_MS, fadeMs: RENDERER_FADE_MS },
+  };
   win.webContents.send(TRADE_NOTIFICATION_SHOW, payload);
   win.showInactive();
   win.moveTop();
 
-  if (_hideTimer) clearTimeout(_hideTimer);
-  _hideTimer = setTimeout(() => {
-    if (!win.isDestroyed()) win.hide();
-    _hideTimer = null;
-  }, AUTO_HIDE_MS);
+  _scheduleHide(win, payload.timing.visibleMs + payload.timing.fadeMs + MAIN_HIDE_BUFFER_MS);
+
+  log.info(
+    `[TradeNotification] Showing (${pending.status}): ${pending.match.type} ` +
+      `${pending.match.itemName} ${pending.match.platinum}p with ${pending.match.partner}` +
+      `${rep ? ` (+rep armed on ${rep.hotkey})` : ""}`,
+  );
 }
 
 function _getOrCreateWindow(): InstanceType<typeof BrowserWindow> {
@@ -100,10 +220,10 @@ function _getOrCreateWindow(): InstanceType<typeof BrowserWindow> {
   });
   win.webContents.once("did-finish-load", () => {
     _rendererReady = true;
-    if (_pendingPayload) {
-      const payload = _pendingPayload;
-      _pendingPayload = null;
-      _displayNotification(win, payload);
+    if (_pendingNotification) {
+      const pending = _pendingNotification;
+      _pendingNotification = null;
+      _displayNotification(win, pending);
     }
   });
   win.setAlwaysOnTop(true, "screen-saver");
@@ -113,44 +233,43 @@ function _getOrCreateWindow(): InstanceType<typeof BrowserWindow> {
   win.on("closed", () => {
     ctx.tradeNotificationWindow = null;
     _rendererReady = false;
-    _pendingPayload = null;
-    if (_hideTimer) {
-      clearTimeout(_hideTimer);
-      _hideTimer = null;
-    }
+    _invalidateNotification();
   });
 
   ctx.tradeNotificationWindow = win;
   return win;
 }
 
-/** Shows the result of a completed trade. */
 export function showTradeNotification(
   match: TradeNotificationShowPayload["match"],
   status: TradeNotificationStatus,
 ): void {
-  const win = _getOrCreateWindow();
-  const payload: TradeNotificationShowPayload = {
+  _notificationRevision += 1;
+  _pendingNotification = null;
+  _disarmRep();
+  _clearHideTimer();
+
+  const pending: PendingTradeNotification = {
     match,
     status,
-    timing: { visibleMs: RENDERER_VISIBLE_MS, fadeMs: RENDERER_FADE_MS },
+    revision: _notificationRevision,
   };
-  if (_rendererReady) _displayNotification(win, payload);
-  else _pendingPayload = payload;
-
-  log.info(
-    `[TradeNotification] Showing (${status}): ${match.type} ${match.itemName} ${match.platinum}p with ${match.partner}`,
-  );
+  const win = _getOrCreateWindow();
+  if (_rendererReady) _displayNotification(win, pending);
+  else _pendingNotification = pending;
 }
 
-/** Registers notification overlay IPC. */
+export function hideTradeNotification(): void {
+  _invalidateNotification();
+  const win = ctx.tradeNotificationWindow;
+  if (win && !win.isDestroyed()) win.hide();
+}
+
 export function register(): void {
   onAuthorized(TRADE_NOTIFICATION_DISMISS, assertTradeNotificationSender, () => {
     const win = ctx.tradeNotificationWindow;
     if (win && !win.isDestroyed()) win.hide();
-    if (_hideTimer) {
-      clearTimeout(_hideTimer);
-      _hideTimer = null;
-    }
+    _disarmRep();
+    _clearHideTimer();
   });
 }
