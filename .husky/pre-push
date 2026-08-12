@@ -1,10 +1,19 @@
-# same checks as CI so failures show up before the push, not after.
-# worker tests + packaging stay CI-only (heavy). bypass: git push --no-verify
+# Blocking CI checks that can run on the current platform. Packaging stays CI-only.
+# bypass: git push --no-verify
 set -e
+pnpm run verify:onnx-models
 pnpm typecheck
+pnpm run backend:typecheck
 pnpm run check
 pnpm lint
 pnpm run format:check
 pnpm audit --prod --audit-level high
 pnpm run audit:deadcode
 pnpm test
+pnpm run backend:test
+pnpm run build
+
+if [ "${OS:-}" = "Windows_NT" ]; then
+  pnpm run test:dbwin
+  pnpm exec playwright test --config playwright.config.ts
+fi

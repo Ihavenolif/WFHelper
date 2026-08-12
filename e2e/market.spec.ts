@@ -180,6 +180,7 @@ test.describe("Market tab (fixture mode)", () => {
   });
 
   test("order-book panel is sticky and height-capped while the list scrolls", async () => {
+    await page.setViewportSize({ width: 1280, height: 820 });
     // Card centers can land on a stepper arrow, which swallows clicks - use the title.
     await page.locator('[title="Fixture Item 2"]').first().click();
     const heading = page.getByRole("heading", { name: "Market Listings" });
@@ -187,17 +188,23 @@ test.describe("Market tab (fixture mode)", () => {
     await expect(page.getByText("Fixture Item 2", { exact: true }).first()).toBeVisible();
 
     const aside = page.locator("aside", { has: heading });
-    const maxHeight = await aside.evaluate((node) => getComputedStyle(node).maxHeight);
-    expect(maxHeight).not.toBe("none");
+    const styles = await aside.evaluate((node) => {
+      const computed = getComputedStyle(node);
+      return { maxHeight: computed.maxHeight, position: computed.position, top: computed.top };
+    });
+    expect(styles.position).toBe("sticky");
+    expect(styles.maxHeight).not.toBe("none");
 
-    const before = await heading.boundingBox();
-    await page.locator("#content").evaluate((node) => node.scrollTo(0, node.scrollHeight));
+    const content = page.locator("#content");
+    await content.evaluate((node) => node.scrollTo(0, node.scrollHeight));
     // Give sticky positioning a frame to settle before re-measuring.
     await page.waitForTimeout(250);
-    const after = await heading.boundingBox();
 
-    expect(before).not.toBeNull();
+    const contentBox = await content.boundingBox();
+    const after = await aside.boundingBox();
+    expect(contentBox).not.toBeNull();
     expect(after).not.toBeNull();
-    expect(Math.abs((after?.y ?? 0) - (before?.y ?? 0))).toBeLessThan(24);
+    const expectedTop = (contentBox?.y ?? 0) + Number.parseFloat(styles.top);
+    expect(Math.abs((after?.y ?? 0) - expectedTop)).toBeLessThan(2);
   });
 });
