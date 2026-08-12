@@ -372,8 +372,8 @@ async function nativeAuthzReason(reason: string): Promise<HelperRunReason> {
     // GetLastError 5 = ERROR_ACCESS_DENIED (game elevated); else unexpected.
     return reason === "mem-open-5" ? "access-denied" : "error";
   }
-  // crumbs-not-found: memory was readable but held no token - tell "at the
-  // login screen" apart from "logged in but the scan missed it" via EE.log.
+  // A readable scan yielded no safe token; EE.log distinguishes the login screen
+  // from a missed or ambiguous match.
   return classifyNotLoggedIn();
 }
 

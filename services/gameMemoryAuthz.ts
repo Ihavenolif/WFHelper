@@ -33,6 +33,7 @@ export function parseAuthzAt(view: Buffer, at: number): string | null {
     p++;
   }
   if (nonce.length === 0) return null;
+  if (p < view.length && view[p] >= 0x30 && view[p] <= 0x39) return null;
   return `?accountId=${accountId}&nonce=${nonce}`;
 }
 
@@ -46,17 +47,25 @@ export function scanBufferForAuthz(view: Buffer, counts: Map<string, number>): v
   }
 }
 
-// Pick the most frequently seen match (ties resolve to the first seen).
-export function bestAuthz(counts: Map<string, number>): { authz: string | null; hits: number } {
+// Pick a unique most-frequent match; equal leaders are not safe to use.
+export function bestAuthz(counts: Map<string, number>): {
+  authz: string | null;
+  hits: number;
+  ambiguous: boolean;
+} {
   let authz: string | null = null;
   let hits = 0;
+  let ambiguous = false;
   for (const [k, v] of counts) {
     if (v > hits) {
       authz = k;
       hits = v;
+      ambiguous = false;
+    } else if (v === hits && v > 0) {
+      ambiguous = true;
     }
   }
-  return { authz, hits };
+  return { authz: ambiguous ? null : authz, hits, ambiguous };
 }
 
 function findWarframePid(): number | null {
@@ -128,7 +137,12 @@ export async function readGameAuthz(): Promise<AuthzResult> {
   }
 
   if (counts.size === 0) return { authz: null, reason: "crumbs-not-found" };
-  const { authz, hits } = bestAuthz(counts);
-  if (counts.size > 1) log.warn(`Multiple distinct auth matches (${counts.size}) - using the most frequent`);
+  const { authz, hits, ambiguous } = bestAuthz(counts);
+  if (ambiguous) {
+    log.warn(`Multiple auth matches share the highest frequency (${hits}) - refusing all`);
+    return { authz: null, reason: "crumbs-ambiguous" };
+  }
+  if (counts.size > 1)
+    log.warn(`Multiple distinct auth matches (${counts.size}) - using the most frequent`);
   return { authz, reason: `ok-${hits}x` };
 }

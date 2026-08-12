@@ -227,7 +227,11 @@ export async function readGameAuthzWin(): Promise<AuthzResult> {
   }
 
   if (counts.size === 0) return { authz: null, reason: "crumbs-not-found" };
-  const { authz, hits } = bestAuthz(counts);
+  const { authz, hits, ambiguous } = bestAuthz(counts);
+  if (ambiguous) {
+    log.warn(`Multiple auth matches share the highest frequency (${hits}) - refusing all`);
+    return { authz: null, reason: "crumbs-ambiguous" };
+  }
   if (counts.size > 1) {
     log.warn(`Multiple distinct auth matches (${counts.size}) - using the most frequent`);
   }

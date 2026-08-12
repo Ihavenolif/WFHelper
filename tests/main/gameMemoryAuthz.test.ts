@@ -37,6 +37,17 @@ describe("parseAuthzAt", () => {
     expect(parseAuthzAt(buf, 0)).toBeNull();
   });
 
+  it("accepts a nonce at the 24-digit limit", () => {
+    const nonce = "123456789012345678901234";
+    const buf = Buffer.from(`?accountId=${ACC}&nonce=${nonce}\x00`, "latin1");
+    expect(parseAuthzAt(buf, 0)).toBe(`?accountId=${ACC}&nonce=${nonce}`);
+  });
+
+  it("rejects a nonce above the 24-digit limit", () => {
+    const buf = Buffer.from(`?accountId=${ACC}&nonce=1234567890123456789012345\x00`, "latin1");
+    expect(parseAuthzAt(buf, 0)).toBeNull();
+  });
+
   it("returns null when the match runs off the buffer end", () => {
     const buf = Buffer.from(`?accountId=${ACC}&nonce=`, "latin1");
     expect(parseAuthzAt(buf, 0)).toBeNull();
@@ -44,6 +55,14 @@ describe("parseAuthzAt", () => {
 });
 
 describe("scanBufferForAuthz + bestAuthz", () => {
+  it("accepts one well-formed match", () => {
+    expect(bestAuthz(new Map([[VALID, 1]]))).toEqual({
+      authz: VALID,
+      hits: 1,
+      ambiguous: false,
+    });
+  });
+
   it("counts repeated matches and picks the most frequent", () => {
     const other = `?accountId=ffffffffffffffffffffffff&nonce=99`;
     const buf = Buffer.from(`${VALID} junk ${VALID} \x00 ${other} ${VALID}`, "latin1");
@@ -51,7 +70,7 @@ describe("scanBufferForAuthz + bestAuthz", () => {
     scanBufferForAuthz(buf, counts);
     expect(counts.get(VALID)).toBe(3);
     expect(counts.get(other)).toBe(1);
-    expect(bestAuthz(counts)).toEqual({ authz: VALID, hits: 3 });
+    expect(bestAuthz(counts)).toEqual({ authz: VALID, hits: 3, ambiguous: false });
   });
 
   it("ignores malformed candidates while counting valid ones", () => {
@@ -63,6 +82,32 @@ describe("scanBufferForAuthz + bestAuthz", () => {
   });
 
   it("bestAuthz returns null on an empty tally", () => {
-    expect(bestAuthz(new Map())).toEqual({ authz: null, hits: 0 });
+    expect(bestAuthz(new Map())).toEqual({ authz: null, hits: 0, ambiguous: false });
+  });
+
+  it("rejects distinct candidates tied for the highest count", () => {
+    const other = `?accountId=ffffffffffffffffffffffff&nonce=99`;
+    expect(
+      bestAuthz(
+        new Map([
+          [VALID, 2],
+          [other, 2],
+        ]),
+      ),
+    ).toEqual({ authz: null, hits: 2, ambiguous: true });
+  });
+
+  it("accepts a unique leader after a lower-count tie", () => {
+    const other = `?accountId=ffffffffffffffffffffffff&nonce=99`;
+    const leader = `?accountId=aaaaaaaaaaaaaaaaaaaaaaaa&nonce=7`;
+    expect(
+      bestAuthz(
+        new Map([
+          [VALID, 2],
+          [other, 2],
+          [leader, 3],
+        ]),
+      ),
+    ).toEqual({ authz: leader, hits: 3, ambiguous: false });
   });
 });
