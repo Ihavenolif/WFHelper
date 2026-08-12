@@ -21,6 +21,9 @@ test.describe("Feature tour", () => {
         wf_tab_visible_foundry: "0",
         wf_inventory_tab: "resources",
         wf_mastery_view_tab: "roadmap",
+        wf_mastery_roadmap_tab: "platinum",
+        wf_relics_tab: "Axi",
+        wf_market_tab: "buy",
         wf_rivens_tab: "finder",
         "world-tab": "world",
       },
@@ -72,7 +75,11 @@ test.describe("Feature tour", () => {
     await expect(
       page.locator('[data-tour="mastery-view-tabs"]').getByRole("button", { name: "MR Roadmap" }),
     ).toHaveAttribute("data-active", "true");
-    await expect(page.getByRole("button", { name: "From Relics" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "With Platinum" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    await page.getByRole("button", { name: "From Relics" }).click();
 
     const remainingSteps = [
       "Stats tracks resources",
@@ -98,6 +105,13 @@ test.describe("Feature tour", () => {
             .getByRole("button", { name: /^Unveiled \(\d+\)$/ }),
         ).toHaveAttribute("data-active", "true");
       }
+      if (text.startsWith("Relics can")) {
+        await expect(page.getByRole("button", { name: "Axi", exact: true })).toHaveAttribute(
+          "data-active",
+          "true",
+        );
+        await page.getByRole("button", { name: "Lith", exact: true }).click();
+      }
     }
 
     await card.getByRole("button", { name: "Done" }).click();
@@ -107,11 +121,42 @@ test.describe("Feature tour", () => {
         page.evaluate(() => ({
           inventory: localStorage.getItem("wf_inventory_tab"),
           mastery: localStorage.getItem("wf_mastery_view_tab"),
+          roadmap: localStorage.getItem("wf_mastery_roadmap_tab"),
+          relics: localStorage.getItem("wf_relics_tab"),
+          market: localStorage.getItem("wf_market_tab"),
           rivens: localStorage.getItem("wf_rivens_tab"),
           world: localStorage.getItem("world-tab"),
         })),
       )
-      .toEqual({ inventory: "resources", mastery: "roadmap", rivens: "finder", world: "world" });
+      .toEqual({
+        inventory: "resources",
+        mastery: "roadmap",
+        roadmap: "platinum",
+        relics: "Axi",
+        market: "buy",
+        rivens: "finder",
+        world: "world",
+      });
+
+    await page.locator("#sidebar").getByText("Market", { exact: true }).click();
+    await expect(page.getByRole("button", { name: "Buy Orders" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    await page.locator("#sidebar").getByText("Relics", { exact: true }).click();
+    await expect(page.getByRole("button", { name: "Axi", exact: true })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    await page.locator("#sidebar").getByText("Mastery", { exact: true }).click();
+    await expect(page.getByRole("button", { name: "MR Roadmap" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
+    await expect(page.getByRole("button", { name: "With Platinum" })).toHaveAttribute(
+      "data-active",
+      "true",
+    );
 
     for (const exit of ["Skip tour", "Escape"] as const) {
       await page.locator("#sidebar").getByText("Settings", { exact: true }).click();
@@ -127,10 +172,13 @@ test.describe("Feature tour", () => {
         await page.evaluate(() => [
           localStorage.getItem("wf_inventory_tab"),
           localStorage.getItem("wf_mastery_view_tab"),
+          localStorage.getItem("wf_mastery_roadmap_tab"),
+          localStorage.getItem("wf_relics_tab"),
+          localStorage.getItem("wf_market_tab"),
           localStorage.getItem("wf_rivens_tab"),
           localStorage.getItem("world-tab"),
         ]),
-      ).toEqual(["resources", "roadmap", "finder", "world"]);
+      ).toEqual(["resources", "roadmap", "platinum", "Axi", "buy", "finder", "world"]);
     }
   });
 });

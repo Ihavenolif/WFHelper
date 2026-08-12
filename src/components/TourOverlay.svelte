@@ -3,12 +3,16 @@
 
   import { currentView } from "../stores/app.js";
   import { setMarketViewState } from "../stores/market.js";
+  import { setRelicFilter } from "../stores/relics.js";
   import { hiddenTabs } from "../stores/sidebarTabs.js";
   import { endTour } from "../stores/tour.js";
 
   const TOUR_TAB_STORAGE_KEYS = [
     "wf_inventory_tab",
     "wf_mastery_view_tab",
+    "wf_mastery_roadmap_tab",
+    "wf_relics_tab",
+    "wf_market_tab",
     "wf_rivens_tab",
     "world-tab",
   ] as const;
@@ -228,10 +232,29 @@
     measure();
   }
 
-  function restoreTabPreferences(): void {
+  async function restoreTabPreferences(): Promise<void> {
     if (preferencesRestored) return;
     preferencesRestored = true;
     const saved = Object.fromEntries(savedTabPreferences);
+
+    for (const [key, value] of savedTabPreferences) {
+      if (value === null) localStorage.removeItem(key);
+      else localStorage.setItem(key, value);
+    }
+
+    const marketTab =
+      saved.wf_market_tab === "buy" ||
+      saved.wf_market_tab === "rivens" ||
+      saved.wf_market_tab === "browse"
+        ? saved.wf_market_tab
+        : "sell";
+    setMarketViewState({ typeTab: marketTab });
+
+    const relicTab = ["Lith", "Meso", "Neo", "Axi", "Requiem"].includes(saved.wf_relics_tab ?? "")
+      ? saved.wf_relics_tab
+      : "all";
+    setRelicFilter({ tierFilter: relicTab ?? "all" });
+
     if ($currentView === "inventory") {
       const labels: Record<string, string> = {
         all_parts: "All Parts",
@@ -248,9 +271,22 @@
         labels[saved.wf_inventory_tab ?? "all_parts"] ?? "All Parts",
       );
     } else if ($currentView === "mastery") {
+      const roadmapMode =
+        saved.wf_mastery_roadmap_tab === "relics" || saved.wf_mastery_roadmap_tab === "platinum"
+          ? saved.wf_mastery_roadmap_tab
+          : "easy";
       selectTourTab(
         '[data-tour="mastery-view-tabs"]',
         saved.wf_mastery_view_tab === "roadmap" ? "MR Roadmap" : "Collection",
+      );
+      await tick();
+      selectTourTab(
+        '[data-tour="mastery-roadmap"]',
+        {
+          easy: "Easy",
+          relics: "From Relics",
+          platinum: "With Platinum",
+        }[roadmapMode],
       );
     } else if ($currentView === "rivens") {
       const label =
@@ -270,14 +306,14 @@
     }
   }
 
-  function finishTour(): void {
-    restoreTabPreferences();
+  async function finishTour(): Promise<void> {
+    await restoreTabPreferences();
     endTour();
   }
 
   function nextStep(): void {
     if (index >= tourSteps.length - 1) {
-      finishTour();
+      void finishTour();
       return;
     }
     void activate(index + 1);
@@ -289,7 +325,7 @@
 
   function onKeydown(event: KeyboardEvent): void {
     if (event.key === "Escape") {
-      finishTour();
+      void finishTour();
       return;
     }
     // typing into a spotlighted input must not advance the tour
@@ -334,7 +370,7 @@
   });
 
   onDestroy(() => {
-    restoreTabPreferences();
+    void restoreTabPreferences();
     if (pollTimer) clearInterval(pollTimer);
     window.removeEventListener("resize", measure);
     window.removeEventListener("keydown", onKeydown, true);
@@ -421,7 +457,7 @@
       <p class="m-0 text-xs font-semibold text-accent">You can use the highlighted area now.</p>
     {/if}
     <div class="mt-1 flex items-center justify-between">
-      <button class="btn-secondary btn-sm" on:click={finishTour}>Skip tour</button>
+      <button class="btn-secondary btn-sm" on:click={() => void finishTour()}>Skip tour</button>
       <div class="flex gap-2">
         {#if index > 0}
           <button class="btn-secondary btn-sm" on:click={backStep}>Back</button>

@@ -4,10 +4,13 @@
   import SearchBox from "../SearchBox.svelte";
   import ThemedPanel from "../ThemedPanel.svelte";
   import { masteryXpToRank } from "../../../config/shared/masteryXp.js";
+  import { readStorage, writeStorage } from "../../lib/persistence.js";
   import type { MasteryRoadmap, MasteryRoadmapRecommendation } from "../../lib/masteryRoadmap.js";
 
   type RoadmapMode = "easy" | "relics" | "platinum";
   type RoadmapSort = "recommended" | "xp" | "price";
+
+  const MODE_TAB_KEY = "wf_mastery_roadmap_tab";
 
   export let roadmap: MasteryRoadmap;
   export let totalXp: number | null = null;
@@ -28,7 +31,12 @@
     platinum: "Buy on Market",
   } as const;
 
-  let mode: RoadmapMode = "easy";
+  function restoreMode(): RoadmapMode {
+    const raw = readStorage(MODE_TAB_KEY);
+    return raw === "relics" || raw === "platinum" ? raw : "easy";
+  }
+
+  let mode: RoadmapMode = restoreMode();
   let sort: RoadmapSort = "recommended";
   let category = "all";
   let search = "";
@@ -63,6 +71,7 @@
 
   function selectMode(value: string): void {
     mode = value as RoadmapMode;
+    writeStorage(MODE_TAB_KEY, mode);
     sort = "recommended";
   }
 

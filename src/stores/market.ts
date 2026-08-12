@@ -1,4 +1,5 @@
 import { writable } from "svelte/store";
+import { readStorage, writeStorage } from "../lib/persistence.js";
 import type {
   MarketTab,
   OrderModalState,
@@ -8,6 +9,14 @@ import type {
   WfmSession,
   WfmStatus,
 } from "../types/market.js";
+
+const MARKET_TAB_KEY = "wf_market_tab";
+const MARKET_TABS: readonly MarketTab[] = ["sell", "buy", "rivens", "browse"];
+
+function restoreMarketTab(): MarketTab {
+  const raw = readStorage(MARKET_TAB_KEY);
+  return raw && (MARKET_TABS as readonly string[]).includes(raw) ? (raw as MarketTab) : "sell";
+}
 
 export const marketSession = writable<WfmSession>({
   loggedIn: false,
@@ -31,7 +40,7 @@ interface MarketViewState {
 }
 
 const DEFAULT_MARKET_VIEW_STATE: MarketViewState = {
-  typeTab: "sell",
+  typeTab: restoreMarketTab(),
   status: null,
   ordersLastFetch: 0,
   contractsLastFetch: 0,
@@ -49,6 +58,7 @@ export function mutateMarketSelected(mutator: (s: Set<string>) => void): void {
 }
 
 export function setMarketViewState(patch: Partial<MarketViewState>): void {
+  if (patch.typeTab) writeStorage(MARKET_TAB_KEY, patch.typeTab);
   marketViewState.update((state) => ({ ...state, ...patch }));
 }
 
