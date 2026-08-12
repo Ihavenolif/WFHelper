@@ -1,3 +1,4 @@
+import { isInfestedMechPart } from "../../../config/shared/componentNames.js";
 import {
   fallbackNameFromUniqueName,
   sanitizeDisplayName,
@@ -218,7 +219,8 @@ function hasBuildPartPath(internalName: string): boolean {
     /\/Types\/Recipes\//i.test(internalName) ||
     /\/WeaponParts?\//i.test(internalName) ||
     /\/WarframeParts?\//i.test(internalName) ||
-    /\/LandingCraftRecipes\//i.test(internalName)
+    /\/LandingCraftRecipes\//i.test(internalName) ||
+    isInfestedMechPart(internalName)
   );
 }
 
@@ -266,7 +268,7 @@ export function isBuildPartItem(
   const name = String(resolved.name || "").toLowerCase();
 
   if (
-    type.includes("resource") ||
+    (!isInfestedMechPart(internalName) && type.includes("resource")) ||
     type.includes("booster") ||
     type.includes("key") ||
     type.includes("fish") ||

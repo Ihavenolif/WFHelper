@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, it } from "vitest";
 
 import * as itemDb from "../../services/itemDatabase";
+import { deriveGroup } from "../../src/lib/inventory/itemClassification";
 
 describe("itemDatabase WFCD alias enrichment", () => {
   beforeAll(() => {
@@ -136,6 +137,40 @@ describe("itemDatabase WFCD alias enrichment", () => {
         /\b(\w+(?: \w+){0,3}) \1\b/i.test(entry.name || ""),
     );
     expect(doubled).toEqual([]);
+  });
+
+  it("marks crafted Necramech parts tradable but not their Father blueprints", () => {
+    const casingPath =
+      "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/NecromechPartChassisItem";
+    const casing = itemDb.lookupItem(casingPath);
+    const capsule = itemDb.lookupItem(
+      "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/ThanomechPartSystemsItem",
+    );
+    const morghaStock = itemDb.lookupItem(
+      "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/ThanotechGrenadeLauncherStockItem",
+    );
+    const casingBlueprint = itemDb.lookupItem(
+      "/Lotus/Types/Recipes/DeimosRecipes/Mechs/NecromechPartChassisBlueprint",
+    );
+
+    expect(casing?.tradable).toBe(true);
+    expect(
+      casing &&
+        deriveGroup(
+          "MiscItems",
+          casingPath,
+          {
+            name: casing.name,
+            category: casing.category,
+            type: casing.type,
+            tradable: casing.tradable,
+          },
+          { name: casing.name, imageUrl: casing.imageUrl },
+        ),
+    ).toBe("all_parts");
+    expect(capsule?.tradable).toBe(true);
+    expect(morghaStock?.tradable).toBe(true);
+    expect(casingBlueprint?.tradable).not.toBe(true);
   });
 
   it("carries @wfcd vault status onto prime parts and their blueprints", () => {

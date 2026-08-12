@@ -8,6 +8,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 
+import { isInfestedMechPart } from "../config/shared/componentNames";
 import { fallbackNameFromUniqueName, sanitizeDisplayName } from "../config/shared/displayName";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { normalizeDucats } from "../config/shared/numeric";
@@ -772,6 +773,18 @@ function inheritBlueprintDisplayFromResults(): void {
   if (icons > 0) log.info(`[ItemDB] Inherited ${icons} blueprint icons from their crafted item`);
 }
 
+// WFCD inherits false resource tradability for crafted mech parts.
+function applyMechPartTradability(): void {
+  let fixed = 0;
+  for (const [uniqueName, item] of Object.entries(itemsByUniqueName)) {
+    if (!isInfestedMechPart(uniqueName)) continue;
+    if (item.tradable === true) continue;
+    item.tradable = true;
+    fixed++;
+  }
+  if (fixed > 0) log.info(`[ItemDB] Marked ${fixed} Necramech part items tradable`);
+}
+
 export function buildDatabase(): void {
   log.time("[ItemDB] Total build time");
 
@@ -785,6 +798,7 @@ export function buildDatabase(): void {
   const pepCount = loadPublicExportPlus();
   buildRecipeIndex();
   const wfcdCount = loadWfcdItems();
+  applyMechPartTradability();
   linkBlueprintsToResults();
   inheritBlueprintDisplayFromResults();
   resolveAllImages();

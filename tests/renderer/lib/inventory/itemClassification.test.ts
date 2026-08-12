@@ -156,6 +156,16 @@ describe("isResourceItem", () => {
     ).toBe(false);
   });
 
+  it("does not treat crafted Necramech parts as resources", () => {
+    expect(
+      isResourceItem(
+        "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/NecromechPartChassisItem",
+        { category: "Resources", type: "Resource", tradable: true },
+        resolved("Voidrig Casing"),
+      ),
+    ).toBe(false);
+  });
+
   it("keeps Ayatan items out of resources", () => {
     expect(
       isResourceItem(
@@ -192,9 +202,7 @@ describe("isRelicLikeItem", () => {
 describe("isSceneLikeItem", () => {
   it("matches by /PhotoBooth/ path", () => {
     expect(isSceneLikeItem("/Lotus/PhotoBooth/CapturaScene", {})).toBe(true);
-    expect(isSceneLikeItem("/Lotus/Types/Items/MiscItems/PhotoboothTileCetusTown", {})).toBe(
-      true,
-    );
+    expect(isSceneLikeItem("/Lotus/Types/Items/MiscItems/PhotoboothTileCetusTown", {})).toBe(true);
   });
 
   it("matches by type containing 'scene'", () => {
@@ -270,6 +278,17 @@ describe("isBuildPartItem", () => {
     expect(isBuildPartItem("/Lotus/PhotoBooth/FooBlueprint", db, resolved("Foo Blueprint"))).toBe(
       false,
     );
+  });
+
+  it("identifies crafted Necramech parts despite their resource category", () => {
+    const db: ItemDbEntry = { category: "Resources", type: "Resource", tradable: true };
+    expect(
+      isBuildPartItem(
+        "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/ThanomechPartEngineItem",
+        db,
+        resolved("Bonewidow Engine"),
+      ),
+    ).toBe(true);
   });
 
   it("excludes relic-like items", () => {
@@ -378,6 +397,17 @@ describe("deriveGroup", () => {
 
   it("classifies Arcanes source as arcanes", () => {
     expect(deriveGroup("Arcanes", "/Lotus/X", {}, resolved("Arcane Grace"))).toBe("arcanes");
+  });
+
+  it("classifies MiscItems Necramech parts as build parts", () => {
+    expect(
+      deriveGroup(
+        "MiscItems",
+        "/Lotus/Types/Gameplay/InfestedMicroplanet/Resources/Mechs/NecromechPartSystemsItem",
+        { category: "Resources", type: "Resource", tradable: true },
+        resolved("Voidrig Capsule"),
+      ),
+    ).toBe("all_parts");
   });
 
   it("classifies Upgrades arcane as arcanes", () => {

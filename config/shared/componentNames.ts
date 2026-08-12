@@ -1,3 +1,9 @@
+const INFESTED_MECH_PART_PATH = /\/InfestedMicroplanet\/Resources\/Mechs\//i;
+
+export function isInfestedMechPart(uniqueName: string): boolean {
+  return INFESTED_MECH_PART_PATH.test(uniqueName);
+}
+
 export function componentUniqueNameAliases(uniqueName: string): string[] {
   const aliases = [uniqueName];
   if (/Blueprint$/i.test(uniqueName)) aliases.push(uniqueName.replace(/Blueprint$/i, "Component"));
