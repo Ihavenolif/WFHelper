@@ -406,7 +406,7 @@
                   {#each rot.weeks as week}
                     <div
                       class="flex shrink-0 flex-col gap-1.5 rounded-[var(--radius-md)] border p-2 {week.current
-                        ? 'border-warning/60 bg-warning/5 shadow-[0_0_10px_rgba(245,166,35,0.25)]'
+                        ? 'border-warning/60 bg-warning/5'
                         : 'border-border/60'}"
                     >
                       <span
