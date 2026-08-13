@@ -7,6 +7,7 @@ import {
   normalizeWfmOrderBookSide,
   type WfmOrderBookEntry,
 } from "../../../config/shared/wfmOrders.js";
+import { fetchWithTimeout } from "../fetchWithTimeout.js";
 
 export type OrderBookEntry = WfmOrderBookEntry;
 
@@ -24,6 +25,7 @@ type ItemOrderBookResult =
 
 const ORDERBOOK_TTL_MS = 45_000;
 const ORDERBOOK_NO_DATA_TTL_MS = 3 * 60 * 1000;
+const DIRECT_ORDER_BOOK_FETCH_TIMEOUT_MS = 10_000;
 
 interface OrderBookDebugCounters {
   requests: number;
@@ -73,7 +75,7 @@ async function fetchRawOrdersFromEndpoint(
 
   let response: Response;
   try {
-    response = await fetch(url, {
+    response = await fetchWithTimeout(url, DIRECT_ORDER_BOOK_FETCH_TIMEOUT_MS, {
       headers: WFM_HEADERS,
     });
   } catch {

@@ -1,8 +1,10 @@
 import { log } from "./log.js";
 import { BOUNTY_FALLBACK_ICON_URLS } from "./assetUrls.js";
+import { fetchWithTimeout } from "./fetchWithTimeout.js";
 import type { ItemDbEntry } from "../types/inventory.js";
 
 const DROPS_BASE_URL = "https://drops.warframestat.us/data";
+const BOUNTY_FETCH_TIMEOUT_MS = 15_000;
 
 interface RawBountyReward {
   itemName: string;
@@ -135,7 +137,7 @@ function getNameToEntryMap(
 
 async function fetchDropsFile(file: string, rootKey: string): Promise<RawBountyLevel[]> {
   const url = `${DROPS_BASE_URL}/${file}.json`;
-  const resp = await fetch(url);
+  const resp = await fetchWithTimeout(url, BOUNTY_FETCH_TIMEOUT_MS);
   if (!resp.ok) {
     log.warn(`[BountyRewards] Failed to fetch ${url}: ${resp.status}`);
     if (resp.status === 429 || resp.status >= 500) {

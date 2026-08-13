@@ -46,6 +46,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   globalThis.fetch = originalFetch;
 });
 
@@ -124,6 +125,25 @@ describe("fetchItemOrderBookBySlug", () => {
     const [resultA, resultB] = await Promise.all([requestA, requestB]);
 
     expect(resultA).toEqual(resultB);
+  });
+
+  it("settles a stalled direct request at the timeout", async () => {
+    vi.useFakeTimers();
+    globalThis.fetch = vi.fn(
+      (_input: Request | URL | string, init?: Parameters<typeof fetch>[1]) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("aborted", "AbortError")),
+            { once: true },
+          );
+        }),
+    ) as unknown as typeof fetch;
+
+    const request = fetchItemOrderBookBySlug("primed_flow");
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await expect(request).resolves.toEqual({ status: "error", slug: "primed_flow" });
   });
 
   it("keeps a refreshed request owned after the cleared request settles", async () => {

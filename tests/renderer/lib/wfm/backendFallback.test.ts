@@ -66,6 +66,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllEnvs();
   globalThis.fetch = originalFetch;
 });
@@ -194,6 +195,40 @@ describe("WFM backend fallback integration", () => {
     );
   });
 
+  it("releases the price queue after a direct fallback timeout", async () => {
+    vi.useFakeTimers();
+    let directCalls = 0;
+    const fetchMock = vi.fn((input: Request | URL | string, init?: Parameters<typeof fetch>[1]) => {
+      const url = toUrl(input);
+      if (url.startsWith(`${BACKEND_URL}/v1/prices/`)) {
+        return Promise.resolve(new Response("", { status: 503 }));
+      }
+      if (url.startsWith("https://api.warframe.market/v1/items/")) {
+        directCalls += 1;
+        if (directCalls === 2) return Promise.resolve(jsonResponse(200, statsPayload(25)));
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const { fetchPriceBySlug } = await import("../../../../src/lib/wfm/wfmPrice.js");
+
+    const stalled = fetchPriceBySlug("stalled_item", { priority: "normal" });
+    await vi.advanceTimersByTimeAsync(10_000);
+    await expect(stalled).resolves.toMatchObject({ status: "transient" });
+
+    await expect(fetchPriceBySlug("recovered_item", { priority: "normal" })).resolves.toMatchObject(
+      { status: "ok", median: 25 },
+    );
+    expect(directCalls).toBe(2);
+  });
+
   it("supports rank-aware backend price requests", async () => {
     const fetchMock = vi.fn(async (input: Request | URL | string) => {
       const url = toUrl(input);
@@ -319,9 +354,8 @@ describe("WFM backend fallback integration", () => {
   it("drops renderer price fetches when the queue is full", async () => {
     vi.resetModules();
 
-    const { __test__, getPriceDebugCountersForTest } = await import(
-      "../../../../src/lib/wfm/wfmPrice.js"
-    );
+    const { __test__, getPriceDebugCountersForTest } =
+      await import("../../../../src/lib/wfm/wfmPrice.js");
     for (let i = 0; i < 65; i += 1) {
       void __test__.enqueueForTest(() => new Promise(() => {}), "normal").catch(() => {});
     }
@@ -468,5 +502,32 @@ describe("WFM backend fallback integration", () => {
     expect(toUrl(fetchMock.mock.calls[1][0])).toBe(
       "https://api.warframe.market/v2/items/soma_prime_receiver",
     );
+  });
+
+  it("settles item metadata after a direct fallback timeout", async () => {
+    vi.useFakeTimers();
+    const fetchMock = vi.fn((input: Request | URL | string, init?: Parameters<typeof fetch>[1]) => {
+      const url = toUrl(input);
+      if (url === `${BACKEND_URL}/v1/meta/stalled_item`) {
+        return Promise.resolve(new Response("", { status: 503 }));
+      }
+      if (url === "https://api.warframe.market/v2/items/stalled_item") {
+        return new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener(
+            "abort",
+            () => reject(new DOMException("aborted", "AbortError")),
+            { once: true },
+          );
+        });
+      }
+      throw new Error(`Unexpected URL: ${url}`);
+    });
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const { fetchWfmItemMetaBySlug } = await import("../../../../src/lib/wfm/wfmItemMeta.js");
+
+    const request = fetchWfmItemMetaBySlug("stalled_item", { priority: "normal" });
+    await vi.advanceTimersByTimeAsync(10_000);
+
+    await expect(request).resolves.toBeNull();
   });
 });

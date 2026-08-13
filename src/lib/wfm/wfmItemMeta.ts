@@ -12,10 +12,12 @@ import {
 import { formatWfmAssetUrl, normalizeWfmSlug, WFM_HEADERS } from "../../../config/shared/wfm.js";
 import { isWfmExcludedSlug } from "../../../config/shared/wfmExclusions.js";
 import { createSingleFlightMap } from "./requestPolicy.js";
+import { fetchWithTimeout } from "../fetchWithTimeout.js";
 
 const META_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const META_NO_DATA_TTL_MS = 6 * 60 * 60 * 1000;
 const MIN_COMPLETE_SNAPSHOT_SET_COUNT = 200;
+const DIRECT_META_FETCH_TIMEOUT_MS = 10_000;
 
 export interface WfmItemMeta {
   slug: string;
@@ -76,9 +78,11 @@ type DirectMetaResult =
   | { status: "transient" };
 
 async function fetchDirectMetaBySlug(slug: string): Promise<DirectMetaResult> {
-  const response = await fetch(`https://api.warframe.market/v2/items/${slug}`, {
-    headers: WFM_HEADERS,
-  });
+  const response = await fetchWithTimeout(
+    `https://api.warframe.market/v2/items/${slug}`,
+    DIRECT_META_FETCH_TIMEOUT_MS,
+    { headers: WFM_HEADERS },
+  );
   if (response.status === 429 || response.status >= 500) {
     return { status: "transient" };
   }

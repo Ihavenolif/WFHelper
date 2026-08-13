@@ -14,6 +14,7 @@ import { log } from "../log.js";
 import { normalizeWfmSlug, WFM_HEADERS } from "../../../config/shared/wfm.js";
 import { rendererPriceCacheKey } from "../../../config/shared/wfmCacheKeys.js";
 import { createAdaptiveDelayController, createPriorityRequestQueue } from "./requestPolicy.js";
+import { fetchWithTimeout } from "../fetchWithTimeout.js";
 
 const BASE_DELAY_MS = 350;
 const MAX_DYNAMIC_DELAY_MS = 1200;
@@ -23,6 +24,7 @@ const DEFAULT_RETRY_AFTER_SECONDS = 30;
 const MIN_429_COOLDOWN_MS = 30_000;
 const MAX_PRICE_QUEUE_DEPTH = 64;
 const PRICE_QUEUE_FULL_ERROR = "WFM_PRICE_QUEUE_FULL";
+const DIRECT_PRICE_FETCH_TIMEOUT_MS = 10_000;
 // When the backend returns an error and direct fallback is not allowed, suppress
 // retries for this duration so a cold/erroring worker doesn't get hammered.
 
@@ -172,9 +174,11 @@ function enqueue<T>(fn: () => Promise<T>, priority: RequestPriority = "normal"):
 async function fetchStatsJson(slug: string, priority: RequestPriority): Promise<StatsResponse> {
   return enqueue(async () => {
     bumpCounter("httpCalls");
-    const resp = await fetch(`https://api.warframe.market/v1/items/${slug}/statistics`, {
-      headers: WFM_HEADERS,
-    });
+    const resp = await fetchWithTimeout(
+      `https://api.warframe.market/v1/items/${slug}/statistics`,
+      DIRECT_PRICE_FETCH_TIMEOUT_MS,
+      { headers: WFM_HEADERS },
+    );
 
     if (resp.status === 429) {
       bumpCounter("rateLimited");
