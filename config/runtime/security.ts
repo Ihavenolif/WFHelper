@@ -86,6 +86,7 @@ export const MAIN_WINDOW_CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self' https://fonts.googleapis.com",
+  "style-src-attr 'unsafe-inline'",
   "font-src https://fonts.gstatic.com",
   "img-src 'self' data: https:",
   `connect-src ${buildConnectSrcAllowlist()}`,
@@ -96,4 +97,3 @@ export const MAIN_WINDOW_CSP = [
 ].join("; ");
 
 export const PERMISSIONS_POLICY = "camera=(), microphone=(), geolocation=(), usb=()";
-

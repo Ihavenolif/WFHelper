@@ -14,6 +14,7 @@ test.describe("Feature tour", () => {
 
   let harness: ElectronTestHarness;
   let page: Page;
+  const cspErrors: string[] = [];
 
   test.beforeAll(async () => {
     harness = await launchElectronTestHarness("wfh-feature-tour-e2e-", {
@@ -29,6 +30,14 @@ test.describe("Feature tour", () => {
       },
     });
     page = harness.page;
+    page.on("console", (message) => {
+      if (
+        message.type() === "error" &&
+        /content security policy|style-src|inline style/i.test(message.text())
+      ) {
+        cspErrors.push(message.text());
+      }
+    });
     writeHarnessInventory(harness, {
       Suits: [],
       LongGuns: [{ ItemType: ACCELTRA, XP: 450_000 }],
@@ -46,6 +55,12 @@ test.describe("Feature tour", () => {
 
     const card = page.locator("[data-tour-card]");
     const next = card.getByRole("button", { name: "Next" });
+
+    await expect(card).toBeVisible();
+    await expect
+      .poll(() => card.evaluate((node) => node.getBoundingClientRect().width))
+      .toBeCloseTo(380, 0);
+    expect(cspErrors).toEqual([]);
 
     async function expectStep(position: number, text: string): Promise<void> {
       await expect(card).toContainText(`${position} / 16`);
@@ -180,5 +195,7 @@ test.describe("Feature tour", () => {
         ]),
       ).toEqual(["resources", "roadmap", "platinum", "Axi", "buy", "finder", "world"]);
     }
+
+    expect(cspErrors).toEqual([]);
   });
 });
