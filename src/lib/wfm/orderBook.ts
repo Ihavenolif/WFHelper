@@ -41,7 +41,9 @@ type CacheEntry =
   | { status: "not_found"; cachedAt: number };
 
 const cacheBySlug = new Map<string, CacheEntry>();
-const inFlightBySlug = new Map<string, Promise<ItemOrderBookResult>>();
+const inFlightBySlug = new Map<string, { owner: symbol; promise: Promise<ItemOrderBookResult> }>();
+const generationBySlug = new Map<string, number>();
+let clearGeneration = 0;
 
 const orderBookDebugCounters: OrderBookDebugCounters = {
   requests: 0,
@@ -146,8 +148,10 @@ export function resetOrderBookDebugCounters(): void {
 export function clearOrderBookCache(slug?: string | null, rank?: number | null): void {
   const normalizedSlug = normalizeWfmSlug(slug);
   if (!normalizedSlug) {
+    clearGeneration += 1;
     cacheBySlug.clear();
     inFlightBySlug.clear();
+    generationBySlug.clear();
     return;
   }
 
@@ -155,6 +159,7 @@ export function clearOrderBookCache(slug?: string | null, rank?: number | null):
   const key = rendererOrderBookCacheKey(normalizedSlug, normalizedRank);
   cacheBySlug.delete(key);
   inFlightBySlug.delete(key);
+  generationBySlug.set(key, (generationBySlug.get(key) ?? 0) + 1);
 }
 
 export async function fetchItemOrderBookBySlug(
@@ -182,28 +187,39 @@ export async function fetchItemOrderBookBySlug(
   }
 
   const inFlight = inFlightBySlug.get(key);
-  if (inFlight) return inFlight;
+  if (inFlight) return inFlight.promise;
 
+  const requestClearGeneration = clearGeneration;
+  const requestKeyGeneration = generationBySlug.get(key) ?? 0;
+  const isCurrentRequest = (): boolean =>
+    requestClearGeneration === clearGeneration &&
+    requestKeyGeneration === (generationBySlug.get(key) ?? 0);
+
+  const requestOwner = Symbol(key);
   const request = (async (): Promise<ItemOrderBookResult> => {
     try {
       const result = await fetchDirectOrderBook(normalizedSlug, normalizedRank);
       if (result.status === "ok") {
         const data: ItemOrderBook = result.data;
-        cacheBySlug.set(key, { status: "ok", data, cachedAt: Date.now() });
+        if (isCurrentRequest()) {
+          cacheBySlug.set(key, { status: "ok", data, cachedAt: Date.now() });
+        }
         return { status: "ok", data };
       }
 
       if (result.status === "not_found") {
-        cacheBySlug.set(key, { status: "not_found", cachedAt: Date.now() });
+        if (isCurrentRequest()) {
+          cacheBySlug.set(key, { status: "not_found", cachedAt: Date.now() });
+        }
         return { status: "not_found", slug: normalizedSlug };
       }
 
       return { status: "error", slug: normalizedSlug };
     } finally {
-      inFlightBySlug.delete(key);
+      if (inFlightBySlug.get(key)?.owner === requestOwner) inFlightBySlug.delete(key);
     }
   })();
 
-  inFlightBySlug.set(key, request);
+  inFlightBySlug.set(key, { owner: requestOwner, promise: request });
   return request;
 }
