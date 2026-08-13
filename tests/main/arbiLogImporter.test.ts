@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createArbiParser } from "../../services/arbiRunParser";
@@ -21,7 +22,8 @@ const rewardLine = (ts: number) =>
   `${ts.toFixed(3)} Sys [Info]: Created /Lotus/Interface/DefenseReward.swf`;
 
 // Anchor: game time 0 = 2026-03-01 11:00:00 UTC (header line at ts 0.5).
-const HEADER = "0.500 Sys [Diag]: Current time: Sun Mar 01 12:00:00 2026 [UTC: Sun Mar 01 11:00:00 2026]";
+const HEADER =
+  "0.500 Sys [Diag]: Current time: Sun Mar 01 12:00:00 2026 [UTC: Sun Mar 01 11:00:00 2026]";
 
 // Mirror of the tracker's id format: startedAt rendered in this machine's local time.
 const fmtId = (ms: number) => {
@@ -285,5 +287,49 @@ describe("arbiLogImporter", () => {
     expect(result.imported).toHaveLength(1);
     // last line ts 151, run start ts 100 -> startedAt = mtime - 51s
     expect(result.imported[0].startedAt).toBeCloseTo(mtimeMs - 51_000, -2);
+  });
+
+  it.each([
+    ["at the limit", 0, true],
+    ["one byte over the limit", -1, false],
+  ])("captures UTF-8 run data %s", async (_label, capOffset, includesLastLine) => {
+    const { tracker, importer } = await freshImporter();
+    const logPath = path.join(tmpDir, "EE.log");
+    const lines = [
+      missionLine(100, "Arbitration: Casta Defense (Ceres)"),
+      droneLine(150),
+      "200.000 Sys [Info]: " + "é".repeat(12),
+      rewardLine(400),
+      rewardLine(500),
+    ];
+    fs.writeFileSync(logPath, lines.join("\n"), "utf8");
+    const segmentBytes = Buffer.byteLength(`${lines.join("\n")}\n`, "utf8");
+
+    const result = await importer.importEeLog(logPath, {
+      maxSegmentBytes: segmentBytes + capOffset,
+      tempRoot: tmpDir,
+    });
+
+    expect(result.imported).toHaveLength(1);
+    const gzipPath = tracker.getRunLogPath(result.imported[0].id);
+    expect(gzipPath).not.toBeNull();
+    const raw = zlib.gunzipSync(fs.readFileSync(gzipPath!)).toString("utf8");
+    expect(raw.includes(lines.at(-1)!)).toBe(includesLastLine);
+    expect(Buffer.byteLength(raw, "utf8")).toBeLessThanOrEqual(segmentBytes + capOffset);
+    expect(
+      fs.readdirSync(tmpDir).filter((name) => name.startsWith("wfhelper-arbi-import-")),
+    ).toEqual([]);
+  });
+
+  it("removes temporary segments after a read failure", async () => {
+    const { importer } = await freshImporter();
+    const result = await importer.importEeLog(path.join(tmpDir, "missing.log"), {
+      tempRoot: tmpDir,
+    });
+
+    expect(result).toEqual({ imported: [], skipped: 0 });
+    expect(
+      fs.readdirSync(tmpDir).filter((name) => name.startsWith("wfhelper-arbi-import-")),
+    ).toEqual([]);
   });
 });

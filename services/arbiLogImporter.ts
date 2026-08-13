@@ -1,15 +1,13 @@
-/**
- * Batch-extract arbitration runs from an external EE.log file.
- * Streams the file line by line through the pure parser and persists every
- * detected run via arbiRunTracker (deduped by wall-clock id).
- */
-
+import { once } from "node:events";
 import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import readline from "node:readline";
+import { finished } from "node:stream/promises";
 import { withScope } from "./logger";
 import { createArbiParser } from "./arbiRunParser";
 import type { ArbiParsedRun } from "./arbiRunParser";
-import { addImportedRun } from "./arbiRunTracker";
+import { addImportedRunFromFile } from "./arbiRunTracker";
 import type { ArbiImportResult, ArbiRunEndReason } from "../config/shared/arbiTypes";
 import { normalizeErrorMessage } from "../config/shared/errors";
 
@@ -19,17 +17,40 @@ const log = withScope("arbiLogImporter");
 const CURRENT_TIME = /Sys \[Diag\]: Current time: (.+?)(?: \[UTC: (.+?)\])?\s*$/;
 const LINE_TS = /^[^\d]*(\d+\.\d+)/;
 
-/** Hard cap on buffered segment size per run (raw text) to bound memory. */
 const MAX_SEGMENT_BYTES = 256 * 1024 * 1024;
 
 interface WallClockAnchor {
-  /** Wall-clock epoch ms corresponding to game time 0. */
   gameTimeZeroMs: number;
 }
 
-export async function importEeLog(filePath: string): Promise<ArbiImportResult> {
+interface ArbiImportOptions {
+  maxSegmentBytes?: number;
+  tempRoot?: string;
+}
+
+interface SegmentCapture {
+  path: string;
+  stream: fs.WriteStream;
+  bytes: number;
+  truncated: boolean;
+  error: Error | null;
+}
+
+export async function importEeLog(
+  filePath: string,
+  options: ArbiImportOptions = {},
+): Promise<ArbiImportResult> {
   const imported: ArbiImportResult["imported"] = [];
   let skipped = 0;
+  const maxSegmentBytes =
+    typeof options.maxSegmentBytes === "number" &&
+    Number.isFinite(options.maxSegmentBytes) &&
+    options.maxSegmentBytes > 0
+      ? Math.min(Math.floor(options.maxSegmentBytes), MAX_SEGMENT_BYTES)
+      : MAX_SEGMENT_BYTES;
+  const tempDir = await fs.promises.mkdtemp(
+    path.join(options.tempRoot ?? os.tmpdir(), "wfhelper-arbi-import-"),
+  );
 
   let mtimeMs = Date.now();
   try {
@@ -41,9 +62,8 @@ export async function importEeLog(filePath: string): Promise<ArbiImportResult> {
   const parser = createArbiParser();
   let anchor: WallClockAnchor | null = null;
   let lastTs = 0;
-  let segment: string[] = [];
-  let segmentBytes = 0;
-  let segmentTruncated = false;
+  let segment: SegmentCapture | null = null;
+  let segmentIndex = 0;
 
   function computeStartedAt(parsed: ArbiParsedRun): number {
     if (anchor) return anchor.gameTimeZeroMs + parsed.runStartSec * 1000;
@@ -51,28 +71,76 @@ export async function importEeLog(filePath: string): Promise<ArbiImportResult> {
     return mtimeMs - Math.max(0, lastTs - parsed.runStartSec) * 1000;
   }
 
-  // "imported" marks runs whose end was never observed (file ended mid-run).
-  function finishRun(endReason: ArbiRunEndReason = "imported"): void {
+  async function closeSegment(): Promise<string | null> {
+    const capture = segment;
+    segment = null;
+    if (!capture) return null;
+    capture.stream.end();
+    await finished(capture.stream);
+    return capture.path;
+  }
+
+  async function discardSegment(): Promise<void> {
+    const capture = segment;
+    segment = null;
+    if (!capture) return;
+    capture.stream.destroy();
+    try {
+      await finished(capture.stream);
+    } catch {
+      // Cleanup must continue after a stream failure.
+    }
+    try {
+      await fs.promises.unlink(capture.path);
+    } catch {
+      // The stream may not have created the file.
+    }
+  }
+
+  async function finishRun(endReason: ArbiRunEndReason = "imported"): Promise<void> {
     const parsed = parser.finalize();
-    if (!parsed) return;
-    const raw = segment.join("\n") + "\n";
-    segment = [];
-    segmentBytes = 0;
-    segmentTruncated = false;
-    const record = addImportedRun(parsed, computeStartedAt(parsed), raw, endReason);
+    const segmentPath = await closeSegment();
+    if (!parsed || !segmentPath) return;
+    const record = await addImportedRunFromFile(
+      parsed,
+      computeStartedAt(parsed),
+      segmentPath,
+      endReason,
+    );
     if (record) imported.push(record);
     else skipped++;
   }
 
-  function captureLine(line: string): void {
-    if (segmentTruncated) return;
-    segmentBytes += line.length + 1;
-    if (segmentBytes > MAX_SEGMENT_BYTES) {
-      segmentTruncated = true;
+  async function captureLine(line: string): Promise<void> {
+    if (!segment || segment.truncated) return;
+    if (segment.error) throw segment.error;
+    const bytes = Buffer.byteLength(line, "utf8") + 1;
+    if (segment.bytes + bytes > maxSegmentBytes) {
+      segment.truncated = true;
       log.warn("[Arbi] Imported run segment exceeds cap - raw capture truncated");
       return;
     }
-    segment.push(line);
+    segment.bytes += bytes;
+    if (!segment.stream.write(`${line}\n`, "utf8")) {
+      await once(segment.stream, "drain");
+    }
+  }
+
+  async function startSegment(line: string): Promise<void> {
+    await discardSegment();
+    const segmentPath = path.join(tempDir, `segment-${segmentIndex++}.log`);
+    const capture: SegmentCapture = {
+      path: segmentPath,
+      stream: fs.createWriteStream(segmentPath, { encoding: "utf8" }),
+      bytes: 0,
+      truncated: false,
+      error: null,
+    };
+    capture.stream.on("error", (error) => {
+      capture.error = error;
+    });
+    segment = capture;
+    await captureLine(line);
   }
 
   const stream = fs.createReadStream(filePath, { encoding: "utf8" });
@@ -97,32 +165,30 @@ export async function importEeLog(filePath: string): Promise<ArbiImportResult> {
 
       const event = parser.feedLine(line);
       if (event?.type === "run-start") {
-        segment = [line];
-        segmentBytes = line.length + 1;
-        segmentTruncated = false;
+        await startSegment(line);
         continue;
       }
       if (event?.type === "run-end") {
-        finishRun(event.reason);
-        // Back-to-back arbitration: the ending line may start the next run.
+        await finishRun(event.reason);
         const next = parser.feedLine(line);
         if (next?.type === "run-start") {
-          segment = [line];
-          segmentBytes = line.length + 1;
-          segmentTruncated = false;
+          await startSegment(line);
         }
         continue;
       }
-      if (parser.isRunActive()) captureLine(line);
+      if (parser.isRunActive()) await captureLine(line);
     }
 
-    if (parser.isRunActive()) finishRun();
+    if (parser.isRunActive()) await finishRun();
   } catch (err) {
     log.warn("[Arbi] Import failed:", normalizeErrorMessage(err));
     parser.reset();
+    await discardSegment();
   } finally {
     rl.close();
     stream.destroy();
+    await discardSegment();
+    await fs.promises.rm(tempDir, { recursive: true, force: true });
   }
 
   log.info(`[Arbi] Import done: ${imported.length} run(s) imported, ${skipped} skipped`);

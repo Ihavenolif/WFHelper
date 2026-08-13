@@ -8,6 +8,7 @@ import path from "node:path";
 import fs from "node:fs";
 import zlib from "node:zlib";
 import { pipeline } from "node:stream";
+import { pipeline as pipelinePromise } from "node:stream/promises";
 import { app } from "electron";
 import { withScope } from "./logger";
 import { writeFileAtomicSync } from "./atomicFile";
@@ -492,33 +493,58 @@ export function deleteRun(id: string): boolean {
   return true;
 }
 
-/**
- * Persist a run extracted from an external EE.log. Returns null (skip) when a
- * run with the same wall-clock id already exists - re-importing is a no-op.
- */
-export function addImportedRun(
+export async function addImportedRunFromFile(
   parsed: ArbiParsedRun,
   startedAt: number,
-  rawSegment: string,
+  segmentPath: string,
   endReason: ArbiRunEndReason = "imported",
-): ArbiRunRecord | null {
-  if (_skipReason(parsed)) return null;
+): Promise<ArbiRunRecord | null> {
+  const removeSegment = async (): Promise<void> => {
+    try {
+      await fs.promises.unlink(segmentPath);
+    } catch {
+      // The importer may already have removed the segment.
+    }
+  };
+
+  if (_skipReason(parsed)) {
+    await removeSegment();
+    return null;
+  }
   const id = _formatRunId(new Date(startedAt));
-  if (_runs.some((r) => r.id === id) || _reservedIds.has(id)) return null;
+  if (_runs.some((r) => r.id === id) || _reservedIds.has(id)) {
+    await removeSegment();
+    return null;
+  }
   _reservedIds.add(id);
 
   let size = 0;
   try {
-    fs.mkdirSync(_logsDir(), { recursive: true });
-    fs.writeFileSync(_gzPath(id), zlib.gzipSync(rawSegment));
-    size = fs.statSync(_gzPath(id)).size;
+    await fs.promises.mkdir(_logsDir(), { recursive: true });
+    await pipelinePromise(
+      fs.createReadStream(segmentPath),
+      zlib.createGzip(),
+      fs.createWriteStream(_gzPath(id)),
+    );
+    size = (await fs.promises.stat(_gzPath(id))).size;
   } catch (err) {
     log.warn("[Arbi] Failed to write imported run gz:", normalizeErrorMessage(err));
+    try {
+      await fs.promises.unlink(_gzPath(id));
+    } catch {
+      // The output may not have been created.
+    }
+  } finally {
+    await removeSegment();
   }
   const record = _buildRecord({ id, startedAt }, parsed, endReason, size);
   record.source = "imported";
-  _addRecord(record);
-  return record;
+  try {
+    _addRecord(record);
+    return record;
+  } finally {
+    _reservedIds.delete(id);
+  }
 }
 
 /** Absolute path of a run's gz capture, or null when unavailable. */
