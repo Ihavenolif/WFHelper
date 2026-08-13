@@ -1,24 +1,15 @@
 import type { TradeEvent, TradeItem, TradeType } from "../../types/ipc.js";
+import {
+  assertStatsImportRowCount,
+  isDailyStatEntry,
+  isValidStatsImportDate,
+  MAX_TRADE_IMPORT_ROWS,
+} from "../../../config/shared/statsImport.js";
+import type { DailyStatEntry } from "../../../config/shared/statsTypes.js";
 
-interface NormalizedStatEntry {
-  date: string;
-  platDelta: number;
-  creditsDelta: number;
-  endoDelta: number;
-  ducatsDelta: number;
-  ayaDelta: number;
-  relicsOpened: number;
-  dailyTrades: number;
-  absPlat?: number | undefined;
-  absCredits?: number | undefined;
-  absEndo?: number | undefined;
-  absDucats?: number | undefined;
-  absAya?: number | undefined;
-}
+const num = (value: unknown): number | null =>
+  typeof value === "number" && Number.isFinite(value) ? value : null;
 
-const num = (v: unknown): number | null => (typeof v === "number" ? v : null);
-
-/** Explicit delta fields win; otherwise diff the absolute field against the previous row. */
 function readDelta(
   r: Record<string, unknown>,
   prev: Record<string, unknown> | null,
@@ -35,8 +26,7 @@ function readDelta(
   return 0;
 }
 
-/** Normalize stats JSON to daily entries - delta-style or absolute-style rows. */
-export function normalizeAlecaFrameStats(parsed: unknown): NormalizedStatEntry[] {
+export function normalizeAlecaFrameStats(parsed: unknown): DailyStatEntry[] {
   const p = parsed as Record<string, unknown>;
   const rawRows: unknown[] = Array.isArray(parsed)
     ? parsed
@@ -45,8 +35,9 @@ export function normalizeAlecaFrameStats(parsed: unknown): NormalizedStatEntry[]
       : Array.isArray(p?.data)
         ? (p.data as unknown[])
         : [];
+  assertStatsImportRowCount(rawRows.length);
 
-  const normalized: NormalizedStatEntry[] = [];
+  const normalized: DailyStatEntry[] = [];
   for (let i = 0; i < rawRows.length; i++) {
     const item = rawRows[i];
     if (!item || typeof item !== "object") continue;
@@ -55,29 +46,38 @@ export function normalizeAlecaFrameStats(parsed: unknown): NormalizedStatEntry[]
 
     const rawTs = typeof r.ts === "string" ? r.ts : typeof r.date === "string" ? r.date : null;
     const date = rawTs ? rawTs.slice(0, 10) : null;
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
+    if (!isValidStatsImportDate(date)) continue;
 
-    normalized.push({
+    const entry: DailyStatEntry = {
       date,
       platDelta: readDelta(r, prev, ["platGain", "platDelta"], "plat"),
       creditsDelta: readDelta(r, prev, ["creditsDelta"], "credits"),
       endoDelta: readDelta(r, prev, ["endoDelta"], "endo"),
       ducatsDelta: readDelta(r, prev, ["ducatsDelta"], "ducats"),
       ayaDelta: readDelta(r, prev, ["ayaDelta"], "aya"),
+      vitusDelta: readDelta(r, prev, ["vitusDelta"], "vitus"),
       relicsOpened: num(r.relicsOpened) ?? num(r.relicOpened) ?? 0,
+      daysPlayed: num(r.daysPlayed) ?? 1,
       dailyTrades: num(r.trades) ?? num(r.dailyTrades) ?? 0,
-      absPlat: num(r.plat) ?? undefined,
-      absCredits: num(r.credits) ?? undefined,
-      absEndo: num(r.endo) ?? undefined,
-      absDucats: num(r.ducats) ?? undefined,
-      absAya: num(r.aya) ?? undefined,
-    });
+    };
+    for (const [key, source] of [
+      ["absPlat", "plat"],
+      ["absCredits", "credits"],
+      ["absEndo", "endo"],
+      ["absDucats", "ducats"],
+      ["absAya", "aya"],
+      ["absVitus", "vitus"],
+    ] as const) {
+      const value = num(r[source]);
+      if (value !== null) entry[key] = value;
+    }
+    if (isDailyStatEntry(entry)) normalized.push(entry);
   }
 
+  assertStatsImportRowCount(normalized.length);
   return normalized;
 }
 
-/** Parse the trade array from a stats JSON export. */
 export function parseAlecaFrameTrades(parsed: unknown): TradeEvent[] {
   if (!parsed || typeof parsed !== "object") return [];
   const p = parsed as Record<string, unknown>;
@@ -86,7 +86,7 @@ export function parseAlecaFrameTrades(parsed: unknown): TradeEvent[] {
 
   const importedTrades: TradeEvent[] = [];
   let tradeIdx = 0;
-  for (const entry of rawTrades) {
+  for (const entry of rawTrades.slice(0, MAX_TRADE_IMPORT_ROWS)) {
     if (!entry || typeof entry !== "object") continue;
     const t = entry as Record<string, unknown>;
 
@@ -94,12 +94,10 @@ export function parseAlecaFrameTrades(parsed: unknown): TradeEvent[] {
     if (!ts) continue;
 
     const afType = typeof t.type === "number" ? t.type : -1;
-    // 0 = sale, 1 = purchase, 2 = trade (item swap / gift)
     if (afType < 0 || afType > 2) continue;
     const tradeType: TradeType = afType === 1 ? "purchase" : afType === 0 ? "sale" : "trade";
     const totalPlat = num(t.totalPlat) ?? 0;
 
-    // Strip trailing non-printable / PUA unicode chars from partner name
     const rawUser = typeof t.user === "string" ? t.user : "";
     const partner = rawUser.replace(/[\u{E000}-\u{F8FF}\u{F0000}-\u{FFFFD}]+$/u, "").trim();
 

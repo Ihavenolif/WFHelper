@@ -287,62 +287,21 @@ export function getHistory(): DailyStatEntry[] {
 
 const _num = (v: unknown): number | null => (typeof v === "number" ? v : null);
 
-// deltas are pre-processed by the renderer; alternate keys cover older exports
-function _firstNum(r: Record<string, unknown>, ...keys: string[]): number {
-  for (const k of keys) {
-    const v = _num(r[k]);
-    if (v !== null) return v;
-  }
-  return 0;
-}
-
-export function importHistory(raw: unknown[]): number {
+export function importHistory(raw: DailyStatEntry[]): number {
   let imported = 0;
   const today = _todayStr();
+  const byDate = new Map(_history.map((entry) => [entry.date, entry]));
 
-  for (const item of raw) {
-    if (!item || typeof item !== "object") continue;
-    const r = item as Record<string, unknown>;
-
-    // Resolve date field (YYYY-MM-DD)
-    const date =
-      typeof r.date === "string" ? r.date :
-      typeof r.day  === "string" ? r.day  : null;
-    if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) continue;
-
-    // Never overwrite today's live-tracked entry
-    if (date === today) continue;
-
-    const entry: DailyStatEntry = {
-      date,
-      platDelta: _firstNum(r, "platDelta", "platinumDelta", "platGain"),
-      creditsDelta: _firstNum(r, "creditsDelta"),
-      endoDelta: _firstNum(r, "endoDelta"),
-      ducatsDelta: _firstNum(r, "ducatsDelta"),
-      ayaDelta: _firstNum(r, "ayaDelta"),
-      vitusDelta: _firstNum(r, "vitusDelta"),
-      relicsOpened: _firstNum(r, "relicsOpened", "relicOpened"),
-      daysPlayed: _num(r.daysPlayed) ?? 1,
-      dailyTrades: _firstNum(r, "dailyTrades"),
-    };
-
-    // Store absolute values if provided by the import.
-    for (const k of ["absPlat", "absCredits", "absEndo", "absDucats", "absAya", "absVitus"] as const) {
-      const v = _num(r[k]);
-      if (v !== null) entry[k] = v;
-    }
-
-    const idx = _history.findIndex((e) => e.date === date);
-    if (idx >= 0) {
-      _history[idx] = entry;
-    } else {
-      _history.push(entry);
-    }
+  for (const entry of raw) {
+    if (entry.date === today) continue;
+    byDate.set(entry.date, entry);
     imported++;
   }
 
   if (imported > 0) {
-    _history.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+    _history = [...byDate.values()].sort((a, b) =>
+      a.date < b.date ? -1 : a.date > b.date ? 1 : 0,
+    );
     if (_history.length > HISTORY_MAX_DAYS) {
       _history = _history.slice(-HISTORY_MAX_DAYS);
     }

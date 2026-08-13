@@ -21,11 +21,11 @@ import * as statsTracker from "./statsTracker";
 import { lookupTradedCatalogItem } from "./tradeItemName";
 import { stripPlatformGlyphs, isLogFrameworkLine, stripDialogArgTail } from "./tradeLogSanitize";
 import type { TradeType, TradeDirection, TradeItem, TradeEvent } from "../config/shared/statsTypes";
+import { MAX_TRADE_IMPORT_ROWS } from "../config/shared/statsImport";
 
 const log = withScope("tradeTracker");
 
 const MAX_EVENTS = 2000;
-const MAX_IMPORT_EVENTS = 10_000;
 const MAX_ITEMS_PER_TRADE = 12;
 // Stamped dialogs dedupe exactly; unstamped input uses the delivery window.
 const DUPLICATE_WINDOW_MS = 30_000;
@@ -144,7 +144,7 @@ export function loadTradeLog(): void {
     const parsed: unknown = JSON.parse(raw);
     if (Array.isArray(parsed)) {
       _tradeLog = parsed
-        .slice(0, MAX_IMPORT_EVENTS)
+        .slice(0, MAX_TRADE_IMPORT_ROWS)
         .map(sanitizeTradeEvent)
         .filter((event): event is TradeEvent => event != null)
         .slice(0, MAX_EVENTS);
@@ -246,7 +246,7 @@ export function markTradeWfmClosed(tradeId: string): void {
 export function importTradeLog(events: unknown[]): number {
   const existingIds = new Set(_tradeLog.map((t) => t.id));
   let added = 0;
-  for (const raw of events.slice(0, MAX_IMPORT_EVENTS)) {
+  for (const raw of events.slice(0, MAX_TRADE_IMPORT_ROWS)) {
     const e = sanitizeTradeEvent(raw);
     if (!e) continue;
     if (!e.id || existingIds.has(e.id)) continue;

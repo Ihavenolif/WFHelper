@@ -11,6 +11,7 @@
   import SummaryStrip, { type SummaryStripItem } from "../components/SummaryStrip.svelte";
   import StatsTradePanel from "../components/stats/StatsTradePanel.svelte";
   import { STAT_ICON_URLS } from "../lib/assetUrls.js";
+  import { assertStatsImportFileSize } from "../../config/shared/statsImport.js";
   import {
     normalizeAlecaFrameStats,
     parseAlecaFrameTrades,
@@ -108,6 +109,7 @@
     importError = false;
 
     try {
+      assertStatsImportFileSize(file.size);
       const text = await file.text();
       let parsed: unknown;
       try {
