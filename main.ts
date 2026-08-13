@@ -83,10 +83,8 @@ crashReporter.start({ uploadToServer: false });
 app.commandLine.appendSwitch("disable-logging");
 app.commandLine.appendSwitch("log-level", "3");
 
-// Disable GPU hardware acceleration to prevent Chromium's compositor from keeping
-// the discrete GPU active at idle, which causes a significant temperature increase
-// (~15-20°C) even with zero CPU usage.  The app's UI is simple enough that software
-// rendering is indistinguishable and far more power-efficient.
+// Software compositing avoids idle GPU use; grayscale text avoids LCD color fringes.
+app.commandLine.appendSwitch("disable-lcd-text");
 app.disableHardwareAcceleration();
 
 // Set our AUMID in all modes so toast notifications are associated with

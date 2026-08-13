@@ -69,6 +69,15 @@ test.describe("Electron Smoke", () => {
     }
   });
 
+  test("uses grayscale text with software rendering", async () => {
+    const rendering = await app.evaluate(({ app: electronApp }) => ({
+      hardwareAcceleration: electronApp.isHardwareAccelerationEnabled(),
+      lcdTextDisabled: electronApp.commandLine.hasSwitch("disable-lcd-text"),
+    }));
+
+    expect(rendering).toEqual({ hardwareAcceleration: false, lcdTextDisabled: true });
+  });
+
   test("keeps one process and restores its window", async () => {
     await app.evaluate(({ BrowserWindow }) => {
       BrowserWindow.getAllWindows()
