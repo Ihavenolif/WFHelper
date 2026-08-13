@@ -128,4 +128,42 @@ test.describe("Shared view layout", () => {
     await expect(page.getByRole("combobox", { name: "Relics" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Unowned reward" })).toBeVisible();
   });
+
+  test("Relic filters and card headers stay compact at desktop width", async () => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await openView("Relics");
+
+    const filterRow = page.locator("[data-relic-filter-row]");
+    const filterControls = page.locator("[data-relic-filter-controls]");
+    await expect(filterControls).toBeVisible();
+
+    const layout = await filterRow.evaluate((row) => {
+      const tabs = row.querySelector<HTMLElement>("[data-relic-tier-tabs]");
+      const controls = row.querySelector<HTMLElement>("[data-relic-filter-controls]");
+      if (!tabs || !controls) throw new Error("Relic filter sections are missing");
+      const tabsRect = tabs.getBoundingClientRect();
+      const controlsRect = controls.getBoundingClientRect();
+      return {
+        rowFits: row.scrollWidth <= row.clientWidth,
+        bottomDelta: Math.abs(tabsRect.bottom - controlsRect.bottom),
+        maxControlHeight: Math.max(
+          ...Array.from(controls.children, (child) => child.getBoundingClientRect().height),
+        ),
+      };
+    });
+    expect(layout.rowFits).toBe(true);
+    expect(layout.bottomDelta).toBeLessThanOrEqual(12);
+    expect(layout.maxControlHeight).toBeLessThanOrEqual(36);
+
+    await page.getByRole("combobox", { name: "Relics" }).selectOption("all");
+    const firstCard = page.locator(".relic-compact-card").first();
+    await expect(firstCard).toBeVisible({ timeout: 90_000 });
+    const cardHeader = firstCard.locator(".relic-compact-head");
+    const titleBlock = cardHeader.locator(":scope > span").nth(1);
+    const metricBlock = cardHeader.locator(":scope > span").nth(2);
+    const headerLayout = await Promise.all([titleBlock.boundingBox(), metricBlock.boundingBox()]);
+    expect(headerLayout[0]).not.toBeNull();
+    expect(headerLayout[1]).not.toBeNull();
+    expect(Math.abs(headerLayout[0]!.y - headerLayout[1]!.y)).toBeLessThanOrEqual(12);
+  });
 });

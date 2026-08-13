@@ -556,32 +556,42 @@
     Relic Planner ({groups.length} relics)
   </h2>
   <div class="view-sticky-filters mb-4" data-tour="relic-filters">
-    <div class="flex flex-wrap items-end border-b border-white/[0.09]">
-      <HeaderTabs
-        options={TIER_TABS}
-        activeKey={$relicViewState.tierFilter}
-        onSelect={(tierFilter) => setRelicFilter({ tierFilter })}
-      />
-      <div class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2 pb-2">
+    <div
+      class="flex flex-wrap items-end border-b border-white/[0.09] min-[1800px]:flex-nowrap"
+      data-relic-filter-row
+    >
+      <div class="shrink-0" data-relic-tier-tabs>
+        <HeaderTabs
+          options={TIER_TABS}
+          activeKey={$relicViewState.tierFilter}
+          onSelect={(tierFilter) => setRelicFilter({ tierFilter })}
+        />
+      </div>
+      <div
+        class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-1.5 pb-2 min-[1800px]:flex-nowrap"
+        data-relic-filter-controls
+      >
         <SearchBox
           value={$relicViewState.search}
           onValueChange={(search) => setRelicFilter({ search })}
           placeholder="Search relics..."
-          class="min-w-16"
+          class="w-40 min-w-40 shrink-0"
         />
 
-        <SortControl
-          value={$relicViewState.sortMode}
-          options={SORT_OPTIONS}
-          direction={$relicViewState.sortDirection}
-          onSelect={setRelicSortMode}
-          onToggleDirection={toggleRelicSortDirection}
-        />
+        <div class="shrink-0 [&_.sort-control-select]:w-28 [&_.sort-control-select]:min-w-28">
+          <SortControl
+            value={$relicViewState.sortMode}
+            options={SORT_OPTIONS}
+            direction={$relicViewState.sortDirection}
+            onSelect={setRelicSortMode}
+            onToggleDirection={toggleRelicSortDirection}
+          />
+        </div>
 
         <label class="shared-filter-sort" title="Show owned relics or the full relic catalog">
           <span>Relics</span>
           <select
-            class="shared-filter-select"
+            class="shared-filter-select w-32 min-w-32"
             value={$relicViewState.ownershipMode}
             on:change={setRelicOwnershipMode}
           >
@@ -593,7 +603,7 @@
 
         <button
           type="button"
-          class="filter-tab min-h-8"
+          class="filter-tab min-h-8 shrink-0 whitespace-nowrap"
           class:active={$relicViewState.containsUnownedReward}
           title="Only show relics containing at least one reward you do not currently own"
           on:click={() =>
@@ -605,7 +615,7 @@
         <label class="shared-filter-sort" title="Relic quality for EV">
           <span>Quality</span>
           <select
-            class="shared-filter-select"
+            class="shared-filter-select w-32 min-w-32"
             value={$relicViewState.qualityMode}
             on:change={setRelicQualityMode}
           >
@@ -618,7 +628,7 @@
         <label class="shared-filter-sort" title="Vaulted status">
           <span>Vault</span>
           <select
-            class="shared-filter-select min-w-16"
+            class="shared-filter-select w-28 min-w-28"
             value={$relicViewState.vaultedMode}
             on:change={setRelicVaultedMode}
           >
@@ -631,7 +641,7 @@
         <label class="shared-filter-sort" title="Squad size for EV">
           <span>Squad</span>
           <select
-            class="shared-filter-select min-w-16"
+            class="shared-filter-select w-24 min-w-24"
             value={$relicViewState.squadSize}
             on:change={setRelicSquadSize}
           >
@@ -642,7 +652,7 @@
         </label>
 
         <button
-          class="inline-flex min-h-8 cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--ui-control-border)] bg-[var(--ui-control-bg)] px-3 py-0 font-display text-xs font-medium tracking-[0.03em] text-text-secondary transition-[border-color,background-color,color] duration-150 hover:border-accent hover:bg-bg-hover hover:text-accent [&_svg]:shrink-0"
+          class="inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-md)] border border-[var(--ui-control-border)] bg-[var(--ui-control-bg)] px-3 py-0 font-display text-xs font-medium tracking-[0.03em] text-text-secondary transition-[border-color,background-color,color] duration-150 hover:border-accent hover:bg-bg-hover hover:text-accent [&_svg]:shrink-0"
           title="Push current tier & squad filters to the in-game relic overlay"
           on:click={pushFiltersToOverlay}
         >
