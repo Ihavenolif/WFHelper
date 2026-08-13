@@ -191,6 +191,7 @@
   let orderBookPanelOpen = false;
   let selectedContract: { contract: WfmContract; riven: DecodedRiven } | null = null;
   let ordersUiGeneration = 0;
+  let contractsRequestGeneration = 0;
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let unsubscribeWfmNotification: (() => void) | null = null;
@@ -207,6 +208,8 @@
 
   onDestroy(() => {
     ordersUiGeneration += 1;
+    contractsRequestGeneration += 1;
+    invalidateMarketOrdersRefresh();
     unsubscribeWfmNotification?.();
     window.removeEventListener("focus", backgroundRefresh);
     if (pollTimer) clearInterval(pollTimer);
@@ -290,8 +293,10 @@
     invalidateMarketOrdersRefresh();
     clearMarketAccountState();
     ordersUiGeneration += 1;
+    contractsRequestGeneration += 1;
     ordersLoading = false;
     ordersError = "";
+    contractsLoading = false;
     contractsError = "";
     try {
       await invoke("wfmSignOut");
@@ -329,39 +334,53 @@
   }
 
   async function fetchContracts(page = 1, append = false): Promise<void> {
+    const session = $marketSession;
+    if (!session.loggedIn) return;
+
+    const requestGeneration = ++contractsRequestGeneration;
     contractsLoading = true;
     contractsError = "";
 
+    const isCurrent = (): boolean =>
+      requestGeneration === contractsRequestGeneration &&
+      $marketSession.loggedIn &&
+      session.userName === $marketSession.userName &&
+      session.platform === $marketSession.platform;
+
     try {
       const result = await invoke("wfmGetContracts", { page, limit: CONTRACTS_PAGE_SIZE });
+      if (!isCurrent()) return;
+
       if (hasError(result)) {
-        if (result.error.includes("Not logged") || result.error.includes("expired")) {
-          invalidateMarketOrdersRefresh();
+        if (/not logged|expired/i.test(result.error)) {
+          contractsLoading = false;
+          contractsRequestGeneration += 1;
           clearMarketAccountState();
-          return;
+        } else {
+          contractsError = result.error;
         }
-        contractsError = result.error;
         return;
       }
 
-      const merged = append
-        ? [...$marketContracts.contracts, ...result.contracts]
-        : [...result.contracts];
-
-      const deduped = Array.from(
-        new Map(merged.map((contract) => [contract.id, contract])).values(),
-      );
-
-      marketContracts.set({
-        ...result,
-        contracts: deduped,
-      });
-      setMarketViewState({ contractsLastFetch: Date.now() });
+      const contracts = append
+        ? Array.from(
+            new Map(
+              [...$marketContracts.contracts, ...result.contracts].map((contract) => [
+                contract.id,
+                contract,
+              ]),
+            ).values(),
+          )
+        : result.contracts;
+      marketContracts.set({ ...result, contracts });
       marketSelected.set(new Set());
+      setMarketViewState({ contractsLastFetch: Date.now() });
     } catch (error) {
-      contractsError = (error as Error).message;
+      if (isCurrent()) {
+        contractsError = error instanceof Error ? error.message : String(error);
+      }
     } finally {
-      contractsLoading = false;
+      if (requestGeneration === contractsRequestGeneration) contractsLoading = false;
     }
   }
 
