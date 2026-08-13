@@ -342,10 +342,11 @@ function readAlecaFrameInventory(filePath: string): unknown {
   }
 }
 
-function watchInventoryFile(filePath: string): void {
+function watchInventoryFile(filePath: string, source: InventorySource = "json"): void {
   stopInventoryWatcher();
   const generation = _watchGeneration;
   ctx.currentInventoryPath = filePath;
+  _activeInventorySource = source;
 
   const watcher = chokidar.watch(filePath, {
     persistent: true,
@@ -355,6 +356,13 @@ function watchInventoryFile(filePath: string): void {
 
   watcher.on("change", () => {
     if (generation !== _watchGeneration) return;
+    if (source === "aleca") {
+      const previousHash = _lastInventoryHash;
+      const data = readAlecaFrameInventory(filePath);
+      if (!data || _lastInventoryHash === previousHash) return;
+      if (ctx.mainWindow) ctx.mainWindow.webContents.send(INVENTORY_UPDATED, data);
+      return;
+    }
     const snapshot = readInventorySnapshot(filePath);
     if (snapshot == null) return;
 
@@ -399,7 +407,7 @@ function watchInventoryFile(filePath: string): void {
     _watchRetryTimer = setTimeout(() => {
       if (retryGeneration !== _watchGeneration) return;
       _watchRetryTimer = null;
-      watchInventoryFile(filePath);
+      watchInventoryFile(filePath, source);
     }, INVENTORY_WATCH_RETRY_MS);
     _watchRetryTimer.unref?.();
   });
@@ -428,8 +436,12 @@ function loadInitialInventory(): { path: string; data: unknown } | null {
   if (_trustedInventorySource === "aleca" && _trustedInventoryPath) {
     const alecaPath = newestExistingInventoryPath([_trustedInventoryPath]);
     if (alecaPath) {
+      watchInventoryFile(alecaPath, "aleca");
       const data = readAlecaFrameInventory(alecaPath);
-      if (data) return { path: alecaPath, data };
+      if (data) {
+        return { path: alecaPath, data };
+      }
+      return null;
     }
   }
 
@@ -498,7 +510,10 @@ function register(): void {
       : await dialog.showOpenDialog(openOptions);
 
     if (result.canceled || result.filePaths.length === 0) return null;
-    return readAlecaFrameInventory(result.filePaths[0]);
+    const filePath = result.filePaths[0];
+    const data = readAlecaFrameInventory(filePath);
+    if (data) watchInventoryFile(filePath, "aleca");
+    return data;
   });
 
   handleAuthorized(INVENTORY_GET_STATUS, assertMainRendererSender, async () => inventoryStatus());

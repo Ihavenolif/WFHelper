@@ -165,6 +165,62 @@ describe("findInventoryFile", () => {
     });
   });
 
+  it("recovers when the selected AlecaFrame file becomes valid after startup", async () => {
+    const alecaPath = path.join(tmpDir, "local", "AlecaFrame", "lastData.dat");
+    fs.mkdirSync(path.dirname(alecaPath), { recursive: true });
+    fs.writeFileSync(alecaPath, "garbage");
+    writeValidInventory(
+      path.join(tmpDir, "userData", "api-helper", "inventory.json"),
+      "helper",
+      Date.now(),
+    );
+    writeState(alecaPath, "aleca");
+
+    const inventoryIpc = await loadModule();
+    const context = (await import("../../ipc/context")).default;
+    const send = vi.fn();
+    context.mainWindow = {
+      isDestroyed: () => false,
+      webContents: { send },
+    } as never;
+
+    expect(inventoryIpc.loadInitialInventory()).toBeNull();
+    expect(chokidarMock.watch).toHaveBeenCalledWith(alecaPath, expect.anything());
+
+    writeAlecaInventory(alecaPath, { Suits: [], marker: "aleca" });
+    chokidarMock.callbacks.get("change")?.();
+
+    expect(send).toHaveBeenCalledWith(
+      "inventory-updated",
+      expect.objectContaining({ marker: "aleca" }),
+    );
+  });
+
+  it("watches the AlecaFrame file and pushes decoded updates", async () => {
+    const alecaPath = path.join(tmpDir, "local", "AlecaFrame", "lastData.dat");
+    writeAlecaInventory(alecaPath, { Suits: [], marker: "aleca" });
+    writeState(alecaPath, "aleca");
+
+    const inventoryIpc = await loadModule();
+    const context = (await import("../../ipc/context")).default;
+    const send = vi.fn();
+    context.mainWindow = {
+      isDestroyed: () => false,
+      webContents: { send },
+    } as never;
+
+    expect(inventoryIpc.loadInitialInventory()).toMatchObject({ path: alecaPath });
+    expect(chokidarMock.watch).toHaveBeenCalledWith(alecaPath, expect.anything());
+
+    writeAlecaInventory(alecaPath, { Suits: [], marker: "fresh" });
+    chokidarMock.callbacks.get("change")?.();
+
+    expect(send).toHaveBeenCalledWith(
+      "inventory-updated",
+      expect.objectContaining({ marker: "fresh" }),
+    );
+  });
+
   it("accepts changed helper contents immediately after the startup read", async () => {
     const now = Date.now();
     const helper = writeValidInventory(
