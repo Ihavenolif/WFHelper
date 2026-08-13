@@ -73,19 +73,35 @@
       items.push({
         key: "vpm",
         label: $tr("arbi.kpi.vitusPerMin"),
-        value: vitusPerMin ?? `~${stats.vitusPerMin.toFixed(2)}`,
+        value: vitusPerMin ?? `≈${stats.vitusPerMin.toFixed(2)}`,
         tone: vitusPerMin ? "success" : "default",
       });
     }
     return items;
   })();
 
+  // Minimal/border/glass surface styles lose their panels in snapshots
+  // (transparent bg; backdrop-filter is not rendered), so pin solid surfaces.
+  const CAPTURE_SURFACE_VARS: Array<[string, string]> = [
+    ["--ui-panel-bg", "var(--bg-surface)"],
+    ["--ui-panel-border", "var(--border-strong)"],
+    ["--ui-panel-shadow", "none"],
+    ["--ui-control-bg", "var(--bg-raised)"],
+    ["--ui-control-border", "var(--border)"],
+    ["--ui-backdrop-blur", "none"],
+  ];
+
   async function captureImage(): Promise<Blob | null> {
     if (!captureEl) return null;
     // Await fonts so the snapshot doesn't reflow to fallback metrics.
     await document.fonts.ready;
     const bg = getComputedStyle(document.body).backgroundColor || "#101418";
-    return toBlob(captureEl, { backgroundColor: bg, pixelRatio: 2 });
+    for (const [name, value] of CAPTURE_SURFACE_VARS) captureEl.style.setProperty(name, value);
+    try {
+      return await toBlob(captureEl, { backgroundColor: bg, pixelRatio: 2 });
+    } finally {
+      for (const [name] of CAPTURE_SURFACE_VARS) captureEl.style.removeProperty(name);
+    }
   }
 
   async function copyImage(): Promise<void> {
@@ -217,7 +233,7 @@
   </div>
 
   <div bind:this={captureEl} class="flex flex-col gap-4">
-    <SummaryStrip items={kpiItems} />
+    <SummaryStrip items={kpiItems} variant="grid" />
 
     {#if stats}
       <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
