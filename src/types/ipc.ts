@@ -121,7 +121,7 @@ interface AppRuntimeInfo {
 }
 
 interface InventoryReadError {
-  kind: "parse" | "read";
+  kind: "parse" | "read" | "watch";
   message: string;
   path: string;
   at: number;
@@ -545,6 +545,7 @@ interface TradeRecordedEvent {
 
 export interface IpcEventMap {
   "inventory-updated": RawInventoryData;
+  "inventory-status-updated": InventoryStatus;
   "item-db-updated": undefined;
   "app-update-status": AppUpdateState;
   "wfm:notification": WfmNotification;

@@ -8,6 +8,7 @@ import {
   INVENTORY_OPEN_ALECA_FRAME_FILE,
   INVENTORY_GET_STATUS,
   INVENTORY_UPDATED,
+  INVENTORY_STATUS_UPDATED,
   DB_GET_ITEM_DATABASE,
   ITEM_DB_UPDATED,
   DB_GET_WORLD_STATE,
@@ -145,6 +146,10 @@ try {
     onInventoryUpdated: ipcDataBridge<IpcEventMap["inventory-updated"]>(
       ipcRenderer,
       INVENTORY_UPDATED,
+    ),
+    onInventoryStatusUpdated: ipcDataBridge<IpcEventMap["inventory-status-updated"]>(
+      ipcRenderer,
+      INVENTORY_STATUS_UPDATED,
     ),
     onItemDbUpdated: ipcDataBridge<IpcEventMap["item-db-updated"]>(ipcRenderer, ITEM_DB_UPDATED),
     onAppUpdateStatus: ipcDataBridge<IpcEventMap["app-update-status"]>(

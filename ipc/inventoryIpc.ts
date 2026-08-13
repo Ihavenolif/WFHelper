@@ -8,6 +8,7 @@ import {
   INVENTORY_OPEN_ALECA_FRAME_FILE,
   INVENTORY_OPEN_FILE,
   INVENTORY_GET_STATUS,
+  INVENTORY_STATUS_UPDATED,
   INVENTORY_UPDATED,
 } from "../config/shared/ipcChannels";
 import { readAlecaFrameInventoryFile } from "../services/alecaFrameInventory";
@@ -38,6 +39,7 @@ const DEV_FALLBACK_INVENTORY_DIRECTORIES = [
 const INVENTORY_FILENAME_RE = /^inventory(?:_[^\\/:*?"<>|]+)?\.json$/i;
 
 const INVENTORY_WATCH_STABILITY_MS = 500;
+const INVENTORY_WATCH_RETRY_MS = 2_000;
 const MAX_INVENTORY_BYTES = 50 * 1024 * 1024;
 const JSON_ENCODING = "utf-8";
 
@@ -48,9 +50,11 @@ type InventorySource = "json" | "aleca";
 let _trustedInventorySource: InventorySource = "json";
 let _activeInventorySource: InventorySource = "json";
 let _loadedInventoryModifiedAt: number | null = null;
+let _watchGeneration = 0;
+let _watchRetryTimer: ReturnType<typeof setTimeout> | null = null;
 
 interface InventoryReadError {
-  kind: "parse" | "read";
+  kind: "parse" | "read" | "watch";
   message: string;
   path: string;
   at: number;
@@ -130,6 +134,24 @@ function _notifyListenersOncePerProcessHash(hash: string, data: unknown): void {
   if (hash === _lastListenerInventoryHash) return;
   _lastListenerInventoryHash = hash;
   _notifyListeners(data as Record<string, unknown>);
+}
+
+function inventoryStatus(): {
+  path: string | null;
+  found: boolean;
+  lastError: InventoryReadError | null;
+} {
+  return {
+    path: ctx.currentInventoryPath,
+    found: ctx.currentInventoryPath !== null,
+    lastError: _lastReadError,
+  };
+}
+
+function notifyInventoryStatus(): void {
+  const window = ctx.mainWindow;
+  if (!window || window.isDestroyed()) return;
+  window.webContents.send(INVENTORY_STATUS_UPDATED, inventoryStatus());
 }
 
 function newestExistingInventoryPath(paths: string[]): string | null {
@@ -321,16 +343,18 @@ function readAlecaFrameInventory(filePath: string): unknown {
 }
 
 function watchInventoryFile(filePath: string): void {
-  if (ctx.watcher) {
-    void ctx.watcher.close();
-  }
+  stopInventoryWatcher();
+  const generation = _watchGeneration;
+  ctx.currentInventoryPath = filePath;
 
-  ctx.watcher = chokidar.watch(filePath, {
+  const watcher = chokidar.watch(filePath, {
     persistent: true,
     awaitWriteFinish: { stabilityThreshold: INVENTORY_WATCH_STABILITY_MS },
   });
+  ctx.watcher = watcher;
 
-  ctx.watcher.on("change", () => {
+  watcher.on("change", () => {
+    if (generation !== _watchGeneration) return;
     const snapshot = readInventorySnapshot(filePath);
     if (snapshot == null) return;
 
@@ -360,6 +384,40 @@ function watchInventoryFile(filePath: string): void {
       _lastReadError = { kind: "parse", message, path: filePath, at: Date.now() };
     }
   });
+
+  watcher.on("error", (error) => {
+    if (generation !== _watchGeneration) return;
+    const message = normalizeErrorMessage(error);
+    log.error(`Inventory watcher failed for ${filePath}:`, message);
+    _lastReadError = { kind: "watch", message, path: filePath, at: Date.now() };
+    notifyInventoryStatus();
+
+    _watchGeneration += 1;
+    const retryGeneration = _watchGeneration;
+    ctx.watcher = null;
+    void watcher.close();
+    _watchRetryTimer = setTimeout(() => {
+      if (retryGeneration !== _watchGeneration) return;
+      _watchRetryTimer = null;
+      watchInventoryFile(filePath);
+    }, INVENTORY_WATCH_RETRY_MS);
+    _watchRetryTimer.unref?.();
+  });
+
+  watcher.on("ready", () => {
+    if (generation !== _watchGeneration || _lastReadError?.kind !== "watch") return;
+    _lastReadError = null;
+    notifyInventoryStatus();
+  });
+}
+
+function stopInventoryWatcher(): void {
+  _watchGeneration += 1;
+  if (_watchRetryTimer) clearTimeout(_watchRetryTimer);
+  _watchRetryTimer = null;
+  const watcher = ctx.watcher;
+  ctx.watcher = null;
+  if (watcher) void watcher.close();
 }
 
 function getLoadedInventoryModifiedAt(): number | null {
@@ -443,11 +501,7 @@ function register(): void {
     return readAlecaFrameInventory(result.filePaths[0]);
   });
 
-  handleAuthorized(INVENTORY_GET_STATUS, assertMainRendererSender, async () => ({
-    path: ctx.currentInventoryPath,
-    found: ctx.currentInventoryPath !== null,
-    lastError: _lastReadError,
-  }));
+  handleAuthorized(INVENTORY_GET_STATUS, assertMainRendererSender, async () => inventoryStatus());
 }
 
 export {
@@ -455,6 +509,7 @@ export {
   findInventoryFile,
   loadInitialInventory,
   watchInventoryFile,
+  stopInventoryWatcher,
   readInventory,
   getLoadedInventoryModifiedAt,
 };

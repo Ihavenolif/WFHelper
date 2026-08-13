@@ -5,6 +5,7 @@ export const INVENTORY_OPEN_FILE = "open-inventory-file";
 export const INVENTORY_OPEN_ALECA_FRAME_FILE = "open-alecaframe-inventory-file";
 export const INVENTORY_GET_STATUS = "get-inventory-status";
 export const INVENTORY_UPDATED = "inventory-updated";
+export const INVENTORY_STATUS_UPDATED = "inventory-status-updated";
 
 export const DB_GET_ITEM_DATABASE = "get-item-database";
 export const ITEM_DB_UPDATED = "item-db-updated";

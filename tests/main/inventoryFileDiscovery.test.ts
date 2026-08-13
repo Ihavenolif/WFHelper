@@ -8,12 +8,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 let tmpDir = "";
 
 const chokidarMock = vi.hoisted(() => {
-  const callbacks = new Map<string, () => void>();
+  const callbacks = new Map<string, (...args: unknown[]) => void>();
   const watcher = {
     close: vi.fn(),
     on: vi.fn(),
   };
-  watcher.on.mockImplementation((event: string, callback: () => void) => {
+  watcher.on.mockImplementation((event: string, callback: (...args: unknown[]) => void) => {
     callbacks.set(event, callback);
     return watcher;
   });
@@ -223,5 +223,62 @@ describe("findInventoryFile", () => {
 
     expect(listener).toHaveBeenCalledTimes(1);
     expect(inventoryIpc.getLoadedInventoryModifiedAt()).toBeCloseTo(now, -2);
+  });
+
+  it("reports watcher errors and re-arms the watcher", async () => {
+    vi.useFakeTimers();
+    const helper = writeValidInventory(
+      path.join(tmpDir, "userData", "api-helper", "inventory.json"),
+      "watched",
+      Date.now(),
+    );
+    const inventoryIpc = await loadModule();
+    const context = (await import("../../ipc/context")).default;
+    const send = vi.fn();
+    context.mainWindow = {
+      isDestroyed: () => false,
+      webContents: { send },
+    } as never;
+
+    inventoryIpc.watchInventoryFile(helper);
+    chokidarMock.callbacks.get("error")?.(new Error("permission denied"));
+
+    expect(send).toHaveBeenCalledWith(
+      "inventory-status-updated",
+      expect.objectContaining({
+        path: helper,
+        found: true,
+        lastError: expect.objectContaining({ kind: "watch", message: "permission denied" }),
+      }),
+    );
+    expect(chokidarMock.watcher.close).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(chokidarMock.watch).toHaveBeenCalledTimes(2);
+    chokidarMock.callbacks.get("ready")?.();
+    expect(send).toHaveBeenLastCalledWith(
+      "inventory-status-updated",
+      expect.objectContaining({ lastError: null }),
+    );
+    vi.useRealTimers();
+  });
+
+  it("cancels a pending watcher retry during shutdown", async () => {
+    vi.useFakeTimers();
+    const helper = writeValidInventory(
+      path.join(tmpDir, "userData", "api-helper", "inventory.json"),
+      "watched",
+      Date.now(),
+    );
+    const inventoryIpc = await loadModule();
+
+    inventoryIpc.watchInventoryFile(helper);
+    chokidarMock.callbacks.get("error")?.(new Error("permission denied"));
+    inventoryIpc.stopInventoryWatcher();
+    inventoryIpc.stopInventoryWatcher();
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(chokidarMock.watch).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
   });
 });

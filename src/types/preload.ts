@@ -53,6 +53,9 @@ export interface PreloadAPI {
   openScanDebugFolder: () => Promise<IpcInvokeMap["openScanDebugFolder"]["return"]>;
   openLogFolder: () => Promise<IpcInvokeMap["openLogFolder"]["return"]>;
   onInventoryUpdated: (callback: (data: IpcEventMap["inventory-updated"]) => void) => () => void;
+  onInventoryStatusUpdated: (
+    callback: (status: IpcEventMap["inventory-status-updated"]) => void,
+  ) => () => void;
   onItemDbUpdated: (callback: (data: IpcEventMap["item-db-updated"]) => void) => () => void;
   onAppUpdateStatus: (callback: (state: IpcEventMap["app-update-status"]) => void) => () => void;
   onWfmNotification: (

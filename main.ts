@@ -551,7 +551,7 @@ function stopOverlayHotkeyGate(): void {
 
 app.on("before-quit", () => {
   linuxDisplay.disposeWindowPresentationWatchdog();
-  if (ctx.watcher) ctx.watcher.close();
+  inventoryIpc.stopInventoryWatcher();
   apiHelperRunner.stopPolling();
   eeLogMonitor.stopWatching();
   stopOverlayHotkeyGate();

@@ -97,6 +97,14 @@
       }
     });
 
+    const unsubscribeInventoryStatus = on("inventory-status-updated", (status) => {
+      if (status.lastError) {
+        statusText.set(`Inventory watcher error: ${status.lastError.message}`);
+      } else if (status.found) {
+        statusText.set(`${$parsedItems.length} items loaded`);
+      }
+    });
+
     const unsubscribeUpdateStatus = on("app-update-status", (state) => {
       applyUpdateState(state, true);
     });
@@ -163,6 +171,7 @@
       startup.dispose();
       unsubscribeViewChange();
       unsubscribeInventoryUpdated();
+      unsubscribeInventoryStatus();
       unsubscribeUpdateStatus();
       unsubscribeWfmNotification();
       unsubscribeTradeRecorded();
