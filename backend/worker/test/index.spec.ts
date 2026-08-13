@@ -1,6 +1,7 @@
 import { SELF, createExecutionContext, env, waitOnExecutionContext } from 'cloudflare:test';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import worker from '../src/index';
+import { resetDailyBudgetTripStateForTest } from '../src/security/dailyBudget';
 import type { Env } from '../src/types';
 import { buildOrderSummaryPayload, prewarmBatch, prewarmOrderSummaryCatalog } from '../src/services/prewarm';
 import { fetchCatalogSlugs } from '../src/services/prewarmCatalog';
@@ -14,6 +15,7 @@ beforeEach(() => {
 	(env as unknown as Record<string, string>).DAILY_BUDGET_ENABLED = '0';
 	(env as unknown as Record<string, string>).CATALOG_SLUG_GUARD_ENABLED = '0';
 	(env as unknown as Record<string, string>).PUBLIC_RATE_LIMIT_ENABLED = '0';
+	resetDailyBudgetTripStateForTest();
 });
 
 afterEach(() => {
@@ -429,6 +431,40 @@ describe('backend worker', () => {
 		expect(second.status).toBe(503);
 		expect(second.headers.get('retry-after')).toBeTruthy();
 		expect(await second.json()).toEqual({ ok: false, error: 'daily_budget_exceeded' });
+	});
+
+	it('blocks unsampled requests after the daily budget trips', async () => {
+		const testEnv = {
+			...env,
+			DAILY_BUDGET_ENABLED: '1',
+			DAILY_BUDGET_MAX_REQUESTS: '100',
+			DAILY_BUDGET_SAMPLE_RATE: '100',
+		};
+		let randomCall = 0;
+		vi.spyOn(crypto, 'getRandomValues').mockImplementation((array) => {
+			if (!(array instanceof Uint32Array)) throw new Error('expected Uint32Array');
+			array[0] = randomCall++ === 0 ? 0 : 1;
+			return array;
+		});
+
+		const sampledCtx = createExecutionContext();
+		const sampled = await worker.fetch(
+			new IncomingRequest('http://example.com/healthz'),
+			testEnv as unknown as Env,
+			sampledCtx,
+		);
+		await waitOnExecutionContext(sampledCtx);
+		const unsampledCtx = createExecutionContext();
+		const unsampled = await worker.fetch(
+			new IncomingRequest('http://example.com/healthz'),
+			testEnv as unknown as Env,
+			unsampledCtx,
+		);
+		await waitOnExecutionContext(unsampledCtx);
+
+		expect(sampled.status).toBe(503);
+		expect(unsampled.status).toBe(503);
+		expect(await unsampled.json()).toEqual({ ok: false, error: 'daily_budget_exceeded' });
 	});
 
 	it('skips scheduled prewarm when the daily budget is already exceeded', async () => {

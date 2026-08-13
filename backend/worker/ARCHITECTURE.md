@@ -102,8 +102,10 @@ request, while stale entries are refreshed before being patched.
 
 `DAILY_BUDGET_ENABLED=1` enables a sampled daily request cap. The current cap is 300,000 requests
 with a sample rate of 100. Samples are recorded atomically in the `DailyBudgetCounter` Durable
-Object named for the UTC day. Once the cap trips, public requests return
-`503 daily_budget_exceeded` until the next UTC day and scheduled prewarm skips work.
+Object named for the UTC day. Unsampled requests never touch the Durable Object; once a sampled
+request observes the tripped cap, the isolate caches the trip until the next UTC day and rejects
+every request from memory. Tripped requests return `503 daily_budget_exceeded` until the next UTC
+day and scheduled prewarm skips work.
 
 Cloudflare billing alerts are still required. Repository code cannot create account-level billing
 notifications.

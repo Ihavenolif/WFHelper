@@ -88,10 +88,19 @@ export class DailyBudgetCounter {
 	}
 }
 
+let _trippedUntil = 0;
+
+export function resetDailyBudgetTripStateForTest(): void {
+	_trippedUntil = 0;
+}
+
 export async function isDailyBudgetExceeded(env: Env, now = Date.now()): Promise<boolean> {
 	const config = getWorkerConfig(env);
 	if (!config.dailyBudgetEnabled) return false;
-	return (await readBudget(env, now, 0, config.dailyBudgetMaxRequests)).exceeded;
+	if (now < _trippedUntil) return true;
+	const exceeded = (await readBudget(env, now, 0, config.dailyBudgetMaxRequests)).exceeded;
+	if (exceeded) _trippedUntil = nextUtcMidnight(now);
+	return exceeded;
 }
 
 function budgetExceededResponse(req: Request, env: Env, blockUntil: number): Response {
@@ -105,9 +114,12 @@ export async function checkDailyBudget(req: Request, env: Env): Promise<Response
 	if (!config.dailyBudgetEnabled) return null;
 
 	const now = Date.now();
+	if (now < _trippedUntil) return budgetExceededResponse(req, env, _trippedUntil);
+
 	const increment = shouldSample(config.dailyBudgetSampleRate) ? config.dailyBudgetSampleRate : 0;
 	if (increment === 0) return null;
-
 	const result = await readBudget(env, now, increment, config.dailyBudgetMaxRequests);
-	return result.exceeded ? budgetExceededResponse(req, env, nextUtcMidnight(now)) : null;
+	if (!result.exceeded) return null;
+	_trippedUntil = nextUtcMidnight(now);
+	return budgetExceededResponse(req, env, _trippedUntil);
 }
