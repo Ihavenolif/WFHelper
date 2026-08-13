@@ -353,11 +353,12 @@ body {
 }
 
 .slot-rarity {
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
+  border-radius: 999px;
+  padding: 1px 7px;
   font-size: 8px;
   font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -445,6 +446,16 @@ body {
 .slot-meta-chip.building {
   border-color: color-mix(in oklab, var(--building) 45%, transparent);
   color: var(--building);
+}
+
+.slot-meta-chip.mastered {
+  border-color: color-mix(in oklab, #4ade80 40%, transparent);
+  color: #4ade80;
+}
+
+.slot-meta-chip.unmastered {
+  border-color: color-mix(in oklab, #38bdf8 40%, transparent);
+  color: #38bdf8;
 }
 
 .slot-set-parts {

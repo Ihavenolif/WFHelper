@@ -214,9 +214,8 @@ function renderSlot(index) {
   slotEl.classList.add("has-item");
   nameEl.textContent = item.name;
   nameEl.className = "slot-name";
-  rarityEl.textContent = String(item.rarity || "C")
-    .charAt(0)
-    .toUpperCase();
+  const rarityText = String(item.rarity || "common").toLowerCase();
+  rarityEl.textContent = rarityText.charAt(0).toUpperCase() + rarityText.slice(1);
   rarityEl.className = `slot-rarity ${rarityClass(item.rarity)}`;
 
   renderSlotValues(priceEl, price, item.ducats);
@@ -229,6 +228,10 @@ function renderSlot(index) {
       "owned",
     );
   }
+
+  // Only present when the reward builds into masterable equipment.
+  if (item.mastered === true) appendMetaChip(metaEl, "Mastered", "mastered");
+  else if (item.mastered === false) appendMetaChip(metaEl, "Unmastered", "unmastered");
 
   if (item.building) appendMetaChip(metaEl, "In foundry", "building");
 

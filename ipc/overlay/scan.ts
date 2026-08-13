@@ -9,6 +9,7 @@ import { pendingRecipeCounts, withoutFoundryPending } from "../../config/shared/
 import { RELIC_REWARD_ITEMS, RELIC_REWARD_TRIGGER } from "../../config/shared/ipcChannels";
 import { normalizeWfmSlug } from "../../config/shared/wfm";
 import * as itemDatabase from "../../services/itemDatabase";
+import { computeMasteryProgress } from "../../services/masteryHelper";
 import { getWindowsOcrHealth } from "../../services/ocrServer";
 import { sleep } from "../../services/rewardScannerUtils";
 
@@ -203,6 +204,19 @@ function setProgress(
   };
 }
 
+// Mastered flags keyed by catalog uniqueName + lowercase name (the catalog
+// dedups by name). Non-masterables (Forma, Kuva, ...) get no entry, so no chip.
+function masteredByKey(inventoryData: InventoryData): Map<string, boolean> | null {
+  if (!inventoryData) return null;
+  const byKey = new Map<string, boolean>();
+  for (const item of computeMasteryProgress(inventoryData).items) {
+    const mastered = item.status === "mastered";
+    byKey.set(item.uniqueName, mastered);
+    byKey.set(item.name.toLowerCase(), mastered);
+  }
+  return byKey;
+}
+
 function buildOwnedCounts(inventoryData: InventoryData): Map<string, number> {
   if (!inventoryData) return new Map();
   const usable = withoutFoundryPending(inventoryData, itemDatabase.isReusableBlueprint);
@@ -217,6 +231,7 @@ function buildPendingBlueprints(inventoryData: InventoryData): Set<string> {
 function enrichRewardItems(items: unknown[], inventoryData: InventoryData): unknown[] {
   const ownedCounts = buildOwnedCounts(inventoryData);
   const pending = buildPendingBlueprints(inventoryData);
+  const masteredMap = masteredByKey(inventoryData);
 
   return items.map((rawItem) => {
     if (!rawItem || typeof rawItem !== "object") return rawItem;
@@ -231,6 +246,11 @@ function enrichRewardItems(items: unknown[], inventoryData: InventoryData): unkn
     const partOwnedCount = ownedComponentCount(uniqueName, ownedCounts);
     const progress = setProgress(parent, ownedCounts, pending, uniqueName);
     const ducats = finitePositiveInteger(item.ducats) ?? entry?.ducats ?? null;
+    const mastered =
+      masteredMap && parent && parentUniqueName
+        ? (masteredMap.get(parentUniqueName) ??
+          masteredMap.get(String(parent.name || "").toLowerCase()))
+        : undefined;
 
     return {
       ...item,
@@ -238,6 +258,7 @@ function enrichRewardItems(items: unknown[], inventoryData: InventoryData): unkn
       ducats,
       partOwnedCount,
       partRequiredCount,
+      ...(mastered === undefined ? {} : { mastered }),
       ...(isInFoundry(uniqueName, pending) ? { building: true } : {}),
       ...(progress
         ? {

@@ -7,12 +7,18 @@ const PARENT = "/Lotus/Powersuits/Odalisk/ProteaPrime";
 const RECIPES = "/Lotus/Types/Recipes/WarframeRecipes";
 const CHASSIS = `${RECIPES}/ProteaPrimeChassisComponent`;
 
+const FORMA = "/Lotus/Types/Items/MiscItems/Forma";
+const FORMA_BP = "/Lotus/Types/Recipes/Components/FormaBlueprint";
+
 // The set lists parts as ...Component; the inventory holds the ...Blueprint recipes.
 const ITEM_DB: Record<string, Record<string, unknown>> = {
+  [FORMA]: { uniqueName: FORMA, name: "Forma", category: "Misc" },
+  [FORMA_BP]: { uniqueName: FORMA_BP, name: "Forma Blueprint", componentOf: FORMA },
   [CHASSIS]: { uniqueName: CHASSIS, name: "Protea Prime Chassis Blueprint", componentOf: PARENT },
   [PARENT]: {
     uniqueName: PARENT,
     name: "Protea Prime",
+    category: "Warframe",
     components: [
       { name: "Blueprint", uniqueName: `${RECIPES}/ProteaPrimeBlueprint`, itemCount: 1 },
       { name: "Chassis", uniqueName: CHASSIS, itemCount: 1 },
@@ -33,6 +39,7 @@ vi.mock("../../services/itemDatabase", () => ({
   lookupItemByNameOrSlug: (name: string) =>
     Object.values(ITEM_DB).find((entry) => entry.name === name) || null,
   isReusableBlueprint: () => false,
+  getAllItems: () => ITEM_DB,
 }));
 
 const noop = () => {};
@@ -40,6 +47,8 @@ const noop = () => {};
 async function scanWithInventory(
   recipes: Array<{ ItemType: string; ItemCount: number }>,
   pendingRecipes: Array<{ ItemType: string }> = [],
+  extraInventory: Record<string, unknown> = {},
+  rewardName = "Protea Prime Chassis Blueprint",
 ) {
   const events: Array<{ channel: string; payload: unknown }> = [];
 
@@ -47,14 +56,19 @@ async function scanWithInventory(
     log: { info: noop, warn: noop, error: noop },
     rewardScanner: {
       scanRewardsDetailed: async () => ({
-        items: [{ name: "Protea Prime Chassis Blueprint" }],
+        items: [{ name: rewardName }],
         meta: null,
       }),
     },
     ctx: {
       overlaySettings: {},
       overlayWindow: null,
-      currentInventoryData: { MiscItems: [], Recipes: recipes, PendingRecipes: pendingRecipes },
+      currentInventoryData: {
+        MiscItems: [],
+        Recipes: recipes,
+        PendingRecipes: pendingRecipes,
+        ...extraInventory,
+      },
     },
     windows: {
       setAnchorMeta: noop,
@@ -123,5 +137,31 @@ describe("overlay set progress", () => {
 
     expect(item?.setOwnedCount).toBe(1);
     expect(item?.completeSetCount).toBe(0);
+  });
+});
+
+describe("overlay mastery status", () => {
+  it("marks rewards whose equipment is mastered", async () => {
+    // Suits use 1000 affinity per rank squared: 30^2 * 1000 = rank 30.
+    const item = await scanWithInventory([], [], { Suits: [{ ItemType: PARENT, XP: 900_000 }] });
+
+    expect(item?.mastered).toBe(true);
+  });
+
+  it("marks rewards whose equipment is unmastered, leveling or missing", async () => {
+    const leveling = await scanWithInventory([], [], {
+      Suits: [{ ItemType: PARENT, XP: 400_000 }],
+    });
+    const missing = await scanWithInventory([]);
+
+    expect(leveling?.mastered).toBe(false);
+    expect(missing?.mastered).toBe(false);
+  });
+
+  it("adds no mastery flag to rewards without masterable equipment", async () => {
+    const item = await scanWithInventory([], [], {}, "Forma Blueprint");
+
+    expect(item?.mastered).toBeUndefined();
+    expect(item?.partOwnedCount).toBe(0);
   });
 });
