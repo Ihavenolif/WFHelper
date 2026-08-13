@@ -138,6 +138,9 @@ async function fetchDropsFile(file: string, rootKey: string): Promise<RawBountyL
   const resp = await fetch(url);
   if (!resp.ok) {
     log.warn(`[BountyRewards] Failed to fetch ${url}: ${resp.status}`);
+    if (resp.status === 429 || resp.status >= 500) {
+      throw new Error(`Bounty rewards request failed: HTTP ${resp.status}`);
+    }
     return [];
   }
   const json = (await resp.json()) as Record<string, unknown>;
@@ -150,10 +153,15 @@ async function fetchDropsFile(file: string, rootKey: string): Promise<RawBountyL
 }
 
 function getDropsData(file: string): Promise<RawBountyLevel[]> {
-  if (!fileCache.has(file)) {
-    fileCache.set(file, fetchDropsFile(file, file));
-  }
-  return fileCache.get(file)!;
+  const cached = fileCache.get(file);
+  if (cached) return cached;
+
+  const request = fetchDropsFile(file, file);
+  fileCache.set(file, request);
+  void request.catch(() => {
+    if (fileCache.get(file) === request) fileCache.delete(file);
+  });
+  return request;
 }
 
 /**
@@ -291,23 +299,27 @@ export function getBountyRewards(
   tierIndex?: number,
 ): Promise<BountyStageRewards[]> {
   const cacheKey = `${syndicateKey}:${enemyLevels[0]}-${enemyLevels[1]}:${stageCount}:${rotation || "all"}:${tierIndex ?? "lvl"}`;
-  if (!jobCache.has(cacheKey)) {
-    const file = resolveDropsFile(syndicateKey);
-    if (!file) {
-      jobCache.set(cacheKey, Promise.resolve([]));
-    } else {
-      jobCache.set(
-        cacheKey,
-        getDropsData(file).then((entries) => {
-          const level =
-            (tierIndex != null ? entries[tierIndex] : undefined) ??
-            matchBountyLevel(entries, enemyLevels);
-          return level ? buildStageRewards(level, stageCount, rotation) : [];
-        }),
-      );
-    }
+  const cached = jobCache.get(cacheKey);
+  if (cached) return cached;
+
+  const file = resolveDropsFile(syndicateKey);
+  if (!file) {
+    const empty = Promise.resolve([]);
+    jobCache.set(cacheKey, empty);
+    return empty;
   }
-  return jobCache.get(cacheKey)!;
+
+  const request = getDropsData(file).then((entries) => {
+    const level =
+      (tierIndex != null ? entries[tierIndex] : undefined) ??
+      matchBountyLevel(entries, enemyLevels);
+    return level ? buildStageRewards(level, stageCount, rotation) : [];
+  });
+  jobCache.set(cacheKey, request);
+  void request.catch(() => {
+    if (jobCache.get(cacheKey) === request) jobCache.delete(cacheKey);
+  });
+  return request;
 }
 
 /**
