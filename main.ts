@@ -107,6 +107,19 @@ process.on("unhandledRejection", (reason: unknown) => {
   log.error("[Main] unhandledRejection:", error);
 });
 
+const hasSingleInstanceLock = app.requestSingleInstanceLock();
+if (!hasSingleInstanceLock) {
+  app.quit();
+} else {
+  app.on("second-instance", () => {
+    const window = ctx.mainWindow;
+    if (!window || window.isDestroyed()) return;
+    if (window.isMinimized()) window.restore();
+    window.show();
+    window.focus();
+  });
+}
+
 function createWindow(): void {
   ctx.mainWindow = new BrowserWindow({
     width: 1280,
@@ -210,7 +223,8 @@ async function isMainWindowPresented(window: BrowserWindow): Promise<boolean> {
   return Boolean(source && !source.thumbnail.isEmpty());
 }
 
-app.whenReady().then(async () => {
+void app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return;
   const startupStartedAt = Date.now();
   const profileStage = (label: string, startedAt: number): void => {
     log.info(`[StartupProfile][main] ${label}: ${Date.now() - startedAt}ms`);

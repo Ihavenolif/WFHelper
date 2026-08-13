@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawn, type ChildProcess } from "node:child_process";
 
 import {
   test,
@@ -16,19 +17,37 @@ test.describe("Electron Smoke", () => {
   let app: ElectronApplication;
   let page: Page;
   let sandboxDir: string;
+  let launchEnv: Record<string, string>;
+
+  function waitForExit(child: ChildProcess, timeoutMs: number): Promise<number | null> {
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        child.kill();
+        reject(new Error("second Electron process did not exit"));
+      }, timeoutMs);
+      child.once("error", (error) => {
+        clearTimeout(timeout);
+        reject(error);
+      });
+      child.once("exit", (code) => {
+        clearTimeout(timeout);
+        resolve(code);
+      });
+    });
+  }
 
   test.beforeAll(async () => {
     sandboxDir = fs.mkdtempSync(path.join(os.tmpdir(), "wfh-smoke-e2e-"));
     const localAppData = path.join(sandboxDir, "local");
     fs.mkdirSync(localAppData, { recursive: true });
 
-    const env = { ...process.env } as Record<string, string>;
-    delete env.ELECTRON_RUN_AS_NODE;
-    env.WFHELPER_DISABLE_KEYBOARD_HOOK = "1";
-    env.LOCALAPPDATA = localAppData;
-    env.WFHELPER_USER_DATA = path.join(sandboxDir, "user-data");
+    launchEnv = { ...process.env } as Record<string, string>;
+    delete launchEnv.ELECTRON_RUN_AS_NODE;
+    launchEnv.WFHELPER_DISABLE_KEYBOARD_HOOK = "1";
+    launchEnv.LOCALAPPDATA = localAppData;
+    launchEnv.WFHELPER_USER_DATA = path.join(sandboxDir, "user-data");
 
-    app = await electron.launch({ args: ["--no-sandbox", "."], env });
+    app = await electron.launch({ args: ["--no-sandbox", "."], env: launchEnv });
     page = await mainWindow(app);
   });
 
@@ -48,5 +67,38 @@ test.describe("Electron Smoke", () => {
     } else {
       await expect(page.getByRole("heading", { name: "Welcome to WFHelper" })).toBeVisible();
     }
+  });
+
+  test("keeps one process and restores its window", async () => {
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()
+        .find((window) => window.webContents.getURL().includes("renderer/dist/index.html"))
+        ?.minimize();
+    });
+
+    const executableName = fs.readFileSync(
+      path.join(process.cwd(), "node_modules", "electron", "path.txt"),
+      "utf8",
+    );
+    const executable = path.join(process.cwd(), "node_modules", "electron", "dist", executableName);
+    const second = spawn(executable, ["--no-sandbox", "."], {
+      cwd: process.cwd(),
+      env: launchEnv,
+      stdio: "ignore",
+    });
+
+    await expect(waitForExit(second, 15_000)).resolves.toBe(0);
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => {
+          const window = BrowserWindow.getAllWindows().find((candidate) =>
+            candidate.webContents.getURL().includes("renderer/dist/index.html"),
+          );
+          return window
+            ? { minimized: window.isMinimized(), visible: window.isVisible() }
+            : { minimized: true, visible: false };
+        }),
+      )
+      .toEqual({ minimized: false, visible: true });
   });
 });
