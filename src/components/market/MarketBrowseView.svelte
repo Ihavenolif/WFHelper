@@ -61,8 +61,8 @@
 
   let contentView: ContentView = "orders";
   let side: BrowseSide = "sell";
-  // "all" mirrors warframe.market's default listing view.
-  let statusFilter: StatusFilter = "all";
+  // Default to in-game sellers - the only ones you can actually trade with.
+  let statusFilter: StatusFilter = "ingame";
   let rankFilter: RankFilter = "all";
   let minPrice: number | null = null;
   let maxPrice: number | null = null;
@@ -679,8 +679,8 @@
           <div class="filter-tabs">
             <button
               class="filter-tab"
-              class:active={statusFilter === "all"}
-              on:click={() => (statusFilter = "all")}>All</button
+              class:active={statusFilter === "ingame"}
+              on:click={() => (statusFilter = "ingame")}>In Game</button
             >
             <button
               class="filter-tab"
@@ -689,8 +689,8 @@
             >
             <button
               class="filter-tab"
-              class:active={statusFilter === "ingame"}
-              on:click={() => (statusFilter = "ingame")}>In Game</button
+              class:active={statusFilter === "all"}
+              on:click={() => (statusFilter = "all")}>All</button
             >
           </div>
         </div>
