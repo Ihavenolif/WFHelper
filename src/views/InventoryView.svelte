@@ -36,6 +36,7 @@
   import { sharedFilters, updateSharedFilters } from "../stores/filters.js";
   import { activeItem } from "../stores/modals.js";
   import { isRankedGroup } from "../../config/shared/numeric.js";
+  import type { SharedSortKey, SharedFiltersState } from "../types/filters.js";
 
   const METRIC_VISIBLE_PREFETCH_LIMIT = 42;
   const METRIC_BACKGROUND_PREFETCH_LIMIT = 210;
@@ -49,6 +50,32 @@
     const known = INVENTORY_FILTERS.some((entry) => entry.key === raw);
     return known ? (raw as InventoryFilterTab) : "all_parts";
   }
+
+  // Only sorts the active tab can actually compute; anything else would
+  // silently fall back to a name sort (metrics missing on those items).
+  const FULL_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
+    ["name", "Name"],
+    ["platinum", "Platinum"],
+    ["ducats", "Ducats"],
+    ["amount", "Amount"],
+    ["ducatonator", "Ducatonator"],
+    ["complete_sets", "Complete (Sets)"],
+    ["missing_parts", "Parts to Complete"],
+  ];
+  const PRICED_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
+    ["name", "Name"],
+    ["platinum", "Platinum"],
+    ["amount", "Amount"],
+  ];
+  const RESOURCE_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
+    ["name", "Name"],
+    ["amount", "Amount"],
+  ];
+  const SORT_OPTIONS_BY_TAB: Partial<Record<InventoryFilterTab, Array<[SharedSortKey, string]>>> = {
+    all_parts: FULL_SORT_OPTIONS,
+    full_sets: FULL_SORT_OPTIONS,
+    resources: RESOURCE_SORT_OPTIONS,
+  };
 
   let filter: InventoryFilterTab = restoreFilterTab();
   let showFilterPanel = false;
@@ -303,6 +330,19 @@
 
   $: filteredResources = filterAndSortResources(resourceList, $inventoryFilters);
   $: filteredTotalCount = filter === "resources" ? filteredResources.length : filtered.length;
+  function countActiveAdvancedFilters(state: SharedFiltersState): number {
+    let active = 0;
+    if (state.orderPlaced !== "all") active++;
+    if (state.vaulted !== "all") active++;
+    if (state.partType !== "all") active++;
+    if (state.favorite !== "all") active++;
+    if (state.equipped !== "all") active++;
+    if (state.leveledUp !== "all") active++;
+    if (state.minimumPlatinum > 0) active++;
+    if (state.minimumAmount > 0) active++;
+    return active;
+  }
+  $: activeAdvancedCount = countActiveAdvancedFilters($inventoryFilters);
   $: showDucats = filter === "all_parts" || filter === "full_sets";
   $: metricNeeds = metricNeedsFromFilters($inventoryFilters, filter);
   $: wfmItemsLoaded = Object.keys($wfmItems).length > 0;
@@ -318,6 +358,9 @@
     filters={FILTERS}
     activeFilter={filter}
     {showFilterPanel}
+    sortOptions={SORT_OPTIONS_BY_TAB[filter] ?? PRICED_SORT_OPTIONS}
+    advancedCount={activeAdvancedCount}
+    filtersEnabled={filter !== "resources"}
     on:filter={handleFilterSelect}
     on:toggle={handleToggleFilterPanel}
   >

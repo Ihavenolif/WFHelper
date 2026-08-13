@@ -4,11 +4,15 @@
   import HeaderTabs from "../HeaderTabs.svelte";
   import SharedFilterBar from "../SharedFilterBar.svelte";
   import type { InventoryFilterTab } from "../../lib/inventoryMarket.js";
+  import type { SharedSortKey } from "../../types/filters.js";
 
   export let totalCount = 0;
   export let filters: Array<{ key: InventoryFilterTab; label: string }> = [];
   export let activeFilter: InventoryFilterTab = "all_parts";
   export let showFilterPanel = false;
+  export let sortOptions: Array<[SharedSortKey, string]> | null = null;
+  export let advancedCount = 0;
+  export let filtersEnabled = true;
 
   const dispatch = createEventDispatcher<{
     filter: InventoryFilterTab;
@@ -48,19 +52,32 @@
         showBasic={true}
         showAdvanced={false}
         basicVariant="quick"
+        {sortOptions}
       />
-      <button
-        class="filter-tab inline-flex min-h-8 items-center gap-1.5 pt-0 pb-0 [&_svg]:h-3.5 [&_svg]:w-3.5"
-        class:active={showFilterPanel}
-        on:click={toggleFilters}
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M3 5h18" />
-          <path d="M6 12h12" />
-          <path d="M10 19h4" />
-        </svg>
-        Filters
-      </button>
+      {#if filtersEnabled}
+        <button
+          class="filter-tab inline-flex min-h-8 items-center gap-1.5 pt-0 pb-0 [&_svg]:h-3.5 [&_svg]:w-3.5"
+          class:active={showFilterPanel || advancedCount > 0}
+          title={advancedCount > 0
+            ? `${advancedCount} advanced filter${advancedCount === 1 ? "" : "s"} active`
+            : "Advanced filters"}
+          on:click={toggleFilters}
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 5h18" />
+            <path d="M6 12h12" />
+            <path d="M10 19h4" />
+          </svg>
+          Filters
+          {#if advancedCount > 0}
+            <span
+              class="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-[color:var(--accent)] px-1 text-[10px] font-bold leading-none text-bg-deep"
+            >
+              {advancedCount}
+            </span>
+          {/if}
+        </button>
+      {/if}
     </div>
   </div>
   <slot />
