@@ -48,6 +48,25 @@ describe("stats import limits", () => {
     expect(isValidStatsImportPayload([{ ...VALID_ROW, relicsOpened: -1 }])).toBe(false);
   });
 
+  it("imports the app's own stats export back", () => {
+    const exported = {
+      exportedAt: "2026-08-13T00:00:00.000Z",
+      history: [{ ...VALID_ROW, absPlat: 1234 }],
+      trades: [
+        {
+          id: "trade-1",
+          date: "2026-01-01T10:00:00.000Z",
+          type: "sale",
+          platChange: 50,
+          items: [],
+        },
+      ],
+    };
+
+    expect(normalizeAlecaFrameStats(exported)).toEqual([{ ...VALID_ROW, absPlat: 1234 }]);
+    expect(parseAlecaFrameTrades(exported)).toEqual(exported.trades);
+  });
+
   it("stops parsing trades at the import limit", () => {
     const trades = Array.from({ length: MAX_TRADE_IMPORT_ROWS + 1 }, (_, index) => ({
       ts: `2026-01-01T00:00:${index}Z`,

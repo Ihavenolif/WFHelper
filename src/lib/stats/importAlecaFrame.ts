@@ -32,9 +32,11 @@ export function normalizeAlecaFrameStats(parsed: unknown): DailyStatEntry[] {
     ? parsed
     : Array.isArray(p?.generalDataPoints)
       ? (p.generalDataPoints as unknown[])
-      : Array.isArray(p?.data)
-        ? (p.data as unknown[])
-        : [];
+      : Array.isArray(p?.history)
+        ? (p.history as unknown[])
+        : Array.isArray(p?.data)
+          ? (p.data as unknown[])
+          : [];
   assertStatsImportRowCount(rawRows.length);
 
   const normalized: DailyStatEntry[] = [];
@@ -68,7 +70,7 @@ export function normalizeAlecaFrameStats(parsed: unknown): DailyStatEntry[] {
       ["absAya", "aya"],
       ["absVitus", "vitus"],
     ] as const) {
-      const value = num(r[source]);
+      const value = num(r[key]) ?? num(r[source]);
       if (value !== null) entry[key] = value;
     }
     if (isDailyStatEntry(entry)) normalized.push(entry);
@@ -89,6 +91,16 @@ export function parseAlecaFrameTrades(parsed: unknown): TradeEvent[] {
   for (const entry of rawTrades.slice(0, MAX_TRADE_IMPORT_ROWS)) {
     if (!entry || typeof entry !== "object") continue;
     const t = entry as Record<string, unknown>;
+
+    if (
+      typeof t.id === "string" &&
+      typeof t.date === "string" &&
+      (t.type === "sale" || t.type === "purchase" || t.type === "trade") &&
+      Array.isArray(t.items)
+    ) {
+      importedTrades.push(t as unknown as TradeEvent);
+      continue;
+    }
 
     const ts = typeof t.ts === "string" ? t.ts : null;
     if (!ts) continue;
