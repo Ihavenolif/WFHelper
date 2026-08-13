@@ -3,6 +3,10 @@ import fs from "node:fs";
 import { app } from "electron";
 import { withScope } from "./logger";
 import { writeFileAtomicSync } from "./atomicFile";
+import {
+  collectRelicInventoryCounts,
+  totalRelicInventoryCount,
+} from "../config/shared/relicCounts";
 
 const log = withScope("statsTracker");
 
@@ -218,11 +222,6 @@ export function onInventoryData(data: Record<string, unknown>): void {
   // Vitus Essence's internal name is Elitium
   const vitus   = _findMiscItemCount(data, "/Lotus/Types/Items/MiscItems/Elitium");
 
-  // Relics (VoidProjection items) appear in LevelKeys for some inventory
-  // export formats, but in modern Warframe exports they live in MiscItems.
-  // We scan both arrays, counting only items whose ItemType path contains
-  // "VoidProjection" or "/Lotus/Relics/" so we don't conflate mission keys
-  // (e.g. DojoKey, TestKeyErisBoss) with actual void relics.
   const today = _todayStr();
 
   // Reset accumulator when the day rolls over
@@ -249,20 +248,7 @@ export function onInventoryData(data: Record<string, unknown>): void {
     _todayDateForTrades = today;
   }
 
-  const relicArrays: Array<Record<string, unknown>>[] = [
-    Array.isArray(data.LevelKeys) ? (data.LevelKeys as Array<Record<string, unknown>>) : [],
-    Array.isArray(data.MiscItems) ? (data.MiscItems as Array<Record<string, unknown>>) : [],
-  ];
-
-  function _isRelicEntry(e: Record<string, unknown>): boolean {
-    const t = typeof e.ItemType === "string" ? e.ItemType : "";
-    return /VoidProjection/i.test(t) || /\/Lotus\/Relics\//i.test(t);
-  }
-
-  const relicTotal = relicArrays.flat().reduce(
-    (sum, e) => (_isRelicEntry(e) && typeof e.ItemCount === "number" ? sum + e.ItemCount : sum),
-    0,
-  );
+  const relicTotal = totalRelicInventoryCount(collectRelicInventoryCounts(data));
   if (_lastRelicTotal !== null && relicTotal < _lastRelicTotal) {
     _todayRelicsOpened += _lastRelicTotal - relicTotal;
   }

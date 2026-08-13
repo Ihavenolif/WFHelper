@@ -1,6 +1,7 @@
 import { normalizeDucats, toFiniteOr, clampNumber } from "../../config/shared/numeric";
 import { normalizeErrorMessage } from "../../config/shared/errors";
 import { RELIC_RECOMMENDATIONS, RELIC_PLANNER_TRIGGER } from "../../config/shared/ipcChannels";
+import { collectRelicInventoryCounts } from "../../config/shared/relicCounts";
 import { getWindowsOcrHealth } from "../../services/ocrServer";
 import { rewardOcrOnnxAvailable } from "../../services/rewardOcrOnnx";
 import { normalizeWfmSlugKey } from "../../config/shared/wfm";
@@ -182,40 +183,10 @@ function parseOwnedRelicCounts(
   const owned: Record<string, OwnedCountRow> = {};
   if (!inventoryData) return owned;
 
-  const countedByItemType = new Map<string, number>();
-
-  const addEntries = (entries: unknown, allowOverwriteExisting = false): void => {
-    if (!Array.isArray(entries)) return;
-    for (const entry of entries) {
-      if (!entry || typeof entry !== "object") continue;
-      const raw = entry as { ItemType?: string; ItemCount?: number };
-      if (!raw.ItemType) continue;
-
-      const info = byUniqueName[raw.ItemType];
-      if (!info) continue;
-
-      const count = Math.max(0, Math.floor(toFiniteOr(raw.ItemCount, 1) || 1));
-      if (countedByItemType.has(raw.ItemType)) {
-        if (allowOverwriteExisting) {
-          const existing = countedByItemType.get(raw.ItemType) || 0;
-          countedByItemType.set(raw.ItemType, Math.max(existing, count));
-        }
-        continue;
-      }
-
-      countedByItemType.set(raw.ItemType, count);
-    }
-  };
-
-  addEntries(inventoryData.LevelKeys, true);
-  addEntries(inventoryData.MiscItems);
-  addEntries((inventoryData as Record<string, unknown>).Recipes);
-
-  if (countedByItemType.size === 0) {
-    for (const value of Object.values(inventoryData)) {
-      addEntries(value);
-    }
-  }
+  const countedByItemType = collectRelicInventoryCounts(
+    inventoryData,
+    (itemType) => byUniqueName[itemType] !== undefined,
+  );
 
   for (const [itemType, count] of countedByItemType) {
     const info = byUniqueName[itemType];

@@ -258,6 +258,30 @@ describe("relic helpers", () => {
     expect(owned["Neo B7"].intact).toBe(5);
   });
 
+  it("uses the largest count when duplicate collections disagree", () => {
+    const db: RelicDatabase = {
+      groups: {
+        "Neo B7": {
+          key: "Neo B7",
+          name: "Neo B7",
+          tier: "Neo",
+          code: "B7",
+          imageUrl: null,
+          qualities: {},
+        },
+      },
+      byUniqueName: {
+        "/Lotus/Relics/NeoB7Intact": { groupKey: "Neo B7", quality: "intact" },
+      },
+    };
+    const data: RawInventoryData = {
+      LevelKeys: [{ ItemType: "/Lotus/Relics/NeoB7Intact", ItemCount: 2 }],
+      MiscItems: [{ ItemType: "/Lotus/Relics/NeoB7Intact", ItemCount: 5 }],
+    };
+
+    expect(parseOwnedRelics(data, db)["Neo B7"].intact).toBe(5);
+  });
+
   it("computeSquadEV returns 0 when all prices are null", () => {
     const rewards = [{ chance: 50 }, { chance: 50 }];
     const prices = [null, null];

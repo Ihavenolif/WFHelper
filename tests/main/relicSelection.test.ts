@@ -161,7 +161,7 @@ describe("relic selection planner", () => {
     expect(controller.getSnapshotPrice("akarius_prime_blueprint")).toBeNull();
   });
 
-  function makeTwoEraController() {
+  function makeTwoEraController(currentInventoryData?: Record<string, unknown>) {
     const cacheFilePath = makeTempSnapshot({
       version: 1,
       generatedAt: Date.now(),
@@ -194,7 +194,7 @@ describe("relic selection planner", () => {
       log: { info: vi.fn(), warn: vi.fn(), error: vi.fn() },
       ctx: {
         overlaySettings: { autoTriggerEnabled: true } as OverlaySettings,
-        currentInventoryData: {
+        currentInventoryData: currentInventoryData ?? {
           LevelKeys: [
             { ItemType: "/Lotus/Types/Game/Projections/LithTestIntact", ItemCount: 1 },
             { ItemType: "/Lotus/Types/Game/Projections/NeoTestIntact", ItemCount: 1 },
@@ -242,6 +242,28 @@ describe("relic selection planner", () => {
 
     return { controller, ocrSpy, lastRecommendation };
   }
+
+  it("uses the shared split-stack and collection precedence rules", async () => {
+    const lith = "/Lotus/Types/Game/Projections/LithTestIntact";
+    const neo = "/Lotus/Types/Game/Projections/NeoTestIntact";
+    const { controller, lastRecommendation } = makeTwoEraController({
+      LevelKeys: [
+        { ItemType: lith, ItemCount: 2 },
+        { ItemType: lith, ItemCount: 3 },
+      ],
+      MiscItems: [
+        { ItemType: lith, ItemCount: 4 },
+        { ItemType: lith, ItemCount: 3 },
+        { ItemType: neo, ItemCount: 0 },
+      ],
+      Recipes: [{ ItemType: lith, ItemCount: 1 }],
+    });
+
+    await controller.onRelicSelectionTrigger("manual");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+
+    expect(lastRecommendation().rows?.map((row) => row.label)).toEqual(["7x Lith Test Intact"]);
+  });
 
   it("omnia mission tag recommends every era; tile-style OCR cannot override it", async () => {
     const { controller, ocrSpy, lastRecommendation } = makeTwoEraController();
