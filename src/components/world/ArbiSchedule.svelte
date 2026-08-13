@@ -1,8 +1,10 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { toBlob } from "html-to-image";
 
   import { invoke } from "../../lib/ipc.js";
   import { tr } from "../../lib/i18n.js";
+  import { log } from "../../lib/log.js";
   import { clockStore } from "../../lib/timers.js";
   import type { ArbiScheduleAlerts, ArbiScheduleEntry } from "../../types/ipc.js";
   import {
@@ -21,11 +23,14 @@
     saveDaysToShow,
     saveSelectedNodeIds,
     saveSelectionPresets,
+    scheduleEntryKey,
     searchUnmatchedFeedback,
+    selectedScheduleEntries,
     type ArbiSelectionPreset,
   } from "../../lib/world/arbiScheduleData.js";
 
   const DAY_OPTIONS = [7, 14, 30, 60];
+  const MAX_COPY_ROWS = 80;
 
   let entries: ArbiScheduleEntry[] = [];
   let alerts: ArbiScheduleAlerts = { occurrences: [], favoriteNodes: [], minutesBefore: 5 };
@@ -40,6 +45,11 @@
   let presetStatus = "";
   let searchRaw = "";
   let daysToShow = loadDaysToShow();
+  let copySelection: Set<string> = new Set();
+  let copyState: "idle" | "busy" | "done" | "error" | "max" = "idle";
+  let copyStateTimer: ReturnType<typeof setTimeout> | null = null;
+  let activeCopyStage: HTMLElement | null = null;
+  let destroyed = false;
 
   const nowClock = clockStore(1000);
   $: nowMs = $nowClock;
@@ -72,6 +82,7 @@
       return aSel - bSel || a.node.localeCompare(b.node);
     });
   $: visibleEntries = filterScheduleEntries(entries, selected, searchState, daysToShow, nowMs);
+  $: selectedCopyEntries = selectedScheduleEntries(visibleEntries, copySelection);
   $: dayGroups = groupEntriesByDay(visibleEntries);
   $: occurrenceSet = new Set(alerts.occurrences);
   $: favoriteSet = new Set(alerts.favoriteNodes);
@@ -83,6 +94,9 @@
     window.addEventListener("resize", updateAsideHeight);
     window.addEventListener("scroll", updateAsideHeight, true);
     return () => {
+      destroyed = true;
+      if (copyStateTimer) clearTimeout(copyStateTimer);
+      activeCopyStage?.remove();
       window.removeEventListener("resize", updateAsideHeight);
       window.removeEventListener("scroll", updateAsideHeight, true);
     };
@@ -92,6 +106,9 @@
     try {
       const payload = await invoke("getArbiSchedule");
       entries = payload.entries;
+      copySelection = new Set(
+        selectedScheduleEntries(entries, copySelection).map(scheduleEntryKey),
+      );
       alerts = payload.alerts;
       fetchedAt = payload.fetchedAt;
       loadFailed = payload.entries.length === 0;
@@ -191,6 +208,105 @@
     if (!Number.isFinite(value)) return;
     const next = await invoke("setArbiScheduleLead", Math.min(120, Math.max(1, Math.floor(value))));
     if (next) alerts = next;
+  }
+
+  function toggleCopyRow(entry: ArbiScheduleEntry): void {
+    const key = scheduleEntryKey(entry);
+    copySelection = copySelection.has(key)
+      ? new Set([...copySelection].filter((v) => v !== key))
+      : new Set([...copySelection, key]);
+  }
+
+  function flashCopyState(state: typeof copyState): void {
+    if (destroyed) return;
+    copyState = state;
+    if (copyStateTimer) clearTimeout(copyStateTimer);
+    copyStateTimer = setTimeout(() => {
+      copyStateTimer = null;
+      if (!destroyed) copyState = "idle";
+    }, 2000);
+  }
+
+  function timezoneLabel(): string {
+    const zone = Intl.DateTimeFormat().resolvedOptions().timeZone || "";
+    const offsetMin = -new Date().getTimezoneOffset();
+    const sign = offsetMin < 0 ? "-" : "+";
+    const abs = Math.abs(offsetMin);
+    const hours = Math.floor(abs / 60);
+    const minutes = abs % 60;
+    const offset = `UTC${sign}${hours}${minutes ? `:${String(minutes).padStart(2, "0")}` : ""}`;
+    return zone ? `${zone.replace(/_/g, " ")} · ${offset}` : offset;
+  }
+
+  function cardEl(className: string, textContent?: string): HTMLDivElement {
+    const node = document.createElement("div");
+    node.className = className;
+    if (textContent !== undefined) node.textContent = textContent;
+    return node;
+  }
+
+  function buildCopyCard(chosen: ArbiScheduleEntry[]): { stage: HTMLElement; card: HTMLElement } {
+    const card = cardEl("wfh-arbicard");
+    card.appendChild(cardEl("wfh-arbicard-header", `Selected Arbitrations (${chosen.length})`));
+    card.appendChild(cardEl("wfh-arbicard-tz", timezoneLabel()));
+
+    for (const group of groupEntriesByDay(chosen)) {
+      card.appendChild(cardEl("wfh-arbicard-day", group.dayLabel));
+      for (const entry of group.entries) {
+        const row = cardEl("wfh-arbicard-row");
+        row.appendChild(cardEl("wfh-arbicard-time", formatEntryTime(entry.epochMs)));
+        row.appendChild(cardEl("wfh-arbicard-node", entry.node));
+        row.appendChild(cardEl("wfh-arbicard-mission", entry.mission));
+        row.appendChild(
+          cardEl(
+            `wfh-arbicard-faction wfh-arbicard-f-${factionBadgeKey(entry.faction)}`,
+            entry.faction,
+          ),
+        );
+        card.appendChild(row);
+      }
+    }
+
+    const footer = cardEl("wfh-arbicard-footer");
+    footer.appendChild(cardEl("wfh-arbicard-url", "wfhelper.com"));
+    footer.appendChild(cardEl("wfh-arbicard-brand", "WARFRAME ARBITRATIONS"));
+    card.appendChild(footer);
+
+    const stage = document.createElement("div");
+    stage.setAttribute("aria-hidden", "true");
+    stage.className = "wfh-arbicard-stage";
+    stage.appendChild(card);
+    return { stage, card };
+  }
+
+  async function copySelectedRows(): Promise<void> {
+    if (copyState === "busy" || destroyed) return;
+    const chosen = [...selectedCopyEntries].sort((a, b) => a.epochMs - b.epochMs);
+    if (chosen.length === 0) return;
+    if (chosen.length > MAX_COPY_ROWS) {
+      flashCopyState("max");
+      return;
+    }
+
+    copyState = "busy";
+    const { stage, card } = buildCopyCard(chosen);
+    activeCopyStage = stage;
+    document.body.appendChild(stage);
+    try {
+      await document.fonts.ready;
+      if (destroyed) return;
+      const blob = await toBlob(card, { pixelRatio: 2, backgroundColor: "#0a0e17" });
+      if (!blob) throw new Error("render produced no image");
+      if (destroyed) return;
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+      flashCopyState("done");
+    } catch (err) {
+      log.warn("[ArbiSched] copy selected failed", String(err));
+      flashCopyState("error");
+    } finally {
+      if (activeCopyStage === stage) activeCopyStage = null;
+      stage.remove();
+    }
   }
 </script>
 
@@ -368,7 +484,21 @@
       {#if updatedAgo}
         <span class="text-xs text-text-muted">{$tr("arbisched.updated", { ago: updatedAgo })}</span>
       {/if}
-      <span class="ml-auto flex items-center gap-1.5 text-xs text-text-secondary">
+      <button
+        class="btn-secondary btn-sm ml-auto"
+        disabled={selectedCopyEntries.length === 0 || copyState === "busy"}
+        title={$tr("arbisched.copySelectedTitle")}
+        on:click={copySelectedRows}
+      >
+        {copyState === "done"
+          ? $tr("arbisched.copied")
+          : copyState === "error"
+            ? $tr("arbisched.copyFailed")
+            : copyState === "max"
+              ? $tr("arbisched.copyMax", { max: String(MAX_COPY_ROWS) })
+              : $tr("arbisched.copySelected", { n: String(selectedCopyEntries.length) })}
+      </button>
+      <span class="flex items-center gap-1.5 text-xs text-text-secondary">
         <svg
           class="h-3.5 w-3.5"
           viewBox="0 0 24 24"
@@ -405,13 +535,14 @@
       <div class="overflow-x-auto">
         <div class="flex min-w-[560px] flex-col">
           <div
-            class="grid grid-cols-[90px_minmax(0,1.3fr)_minmax(0,1fr)_110px_130px_36px] gap-x-3 border-b border-border px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted"
+            class="grid grid-cols-[90px_minmax(0,1.3fr)_minmax(0,1fr)_110px_130px_36px_28px] gap-x-3 border-b border-border px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted"
           >
             <span>{$tr("arbisched.col.time")}</span>
             <span>{$tr("arbisched.col.node")}</span>
             <span>{$tr("arbisched.col.mission")}</span>
             <span>{$tr("arbisched.col.faction")}</span>
             <span class="text-right">{$tr("arbisched.col.startsIn")}</span>
+            <span></span>
             <span></span>
           </div>
           {#each dayGroups as group (group.dayKey)}
@@ -422,9 +553,12 @@
             </div>
             {#each group.entries as entry (`${entry.epochMs}:${entry.nodeId}`)}
               {@const countdown = formatScheduleCountdown(entry.epochMs, nowMs)}
-              {@const belled = occurrenceSet.has(`${entry.epochMs}:${entry.nodeId}`)}
+              {@const key = scheduleEntryKey(entry)}
+              {@const belled = occurrenceSet.has(key)}
               <div
-                class="grid grid-cols-[90px_minmax(0,1.3fr)_minmax(0,1fr)_110px_130px_36px] items-center gap-x-3 border-b border-border/40 px-2 py-1.5 text-sm hover:bg-white/[0.03]"
+                class="grid grid-cols-[90px_minmax(0,1.3fr)_minmax(0,1fr)_110px_130px_36px_28px] items-center gap-x-3 border-b border-border/40 px-2 py-1.5 text-sm hover:bg-white/[0.03] {copySelection.has(key)
+                  ? 'bg-accent/5'
+                  : ''}"
               >
                 <span class="font-display tracking-[0.02em] whitespace-nowrap text-text-secondary"
                   >{formatEntryTime(entry.epochMs)}</span
@@ -487,6 +621,16 @@
                       >
                     </button>
                   {/if}
+                </span>
+                <span class="flex justify-center">
+                  <input
+                    type="checkbox"
+                    class="accent-accent h-3.5 w-3.5 cursor-pointer"
+                    checked={copySelection.has(key)}
+                    aria-label={$tr("arbisched.copyRowLabel", { node: entry.node })}
+                    title={$tr("arbisched.copyRowLabel", { node: entry.node })}
+                    on:change={() => toggleCopyRow(entry)}
+                  />
                 </span>
               </div>
             {/each}
@@ -557,5 +701,111 @@
   .arbisched-lead-input::-webkit-outer-spin-button {
     -webkit-appearance: none;
     margin: 0;
+  }
+
+  /* Offscreen clipboard card; :global because it is built imperatively on body. */
+  :global(.wfh-arbicard-stage) {
+    position: fixed;
+    left: -99999px;
+    top: 0;
+    pointer-events: none;
+  }
+  :global(.wfh-arbicard) {
+    min-width: 480px;
+    width: max-content;
+    background: #0a0e17;
+    border: 1px solid rgba(212, 168, 67, 0.25);
+    border-radius: 6px;
+    padding: 20px 24px;
+    font-family: var(--font-body, "Barlow", sans-serif);
+    color: #e8e4dc;
+  }
+  :global(.wfh-arbicard-header) {
+    font-family: var(--font-display, "Rajdhani", sans-serif);
+    font-size: 0.95rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #d4a843;
+    margin-bottom: 4px;
+  }
+  :global(.wfh-arbicard-tz) {
+    font-size: 0.72rem;
+    color: #8b93a5;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid rgba(212, 168, 67, 0.2);
+  }
+  :global(.wfh-arbicard-day) {
+    margin-top: 10px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #8b93a5;
+  }
+  :global(.wfh-arbicard-row) {
+    display: grid;
+    grid-template-columns: 52px 170px 1fr 90px;
+    align-items: center;
+    gap: 10px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.82rem;
+  }
+  :global(.wfh-arbicard-time) {
+    color: #f0c95c;
+    font-family: var(--font-display, "Rajdhani", sans-serif);
+    font-weight: 600;
+  }
+  :global(.wfh-arbicard-node) {
+    color: #fff;
+    font-weight: 700;
+  }
+  :global(.wfh-arbicard-mission) {
+    color: #c3cad6;
+  }
+  :global(.wfh-arbicard-faction) {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    text-align: center;
+    padding: 1px 7px;
+    border-radius: 3px;
+    border: 1px solid;
+  }
+  :global(.wfh-arbicard-f-grineer) {
+    color: var(--world-faction-grineer, #ef5350);
+  }
+  :global(.wfh-arbicard-f-corpus) {
+    color: var(--world-faction-corpus, #42a5f5);
+  }
+  :global(.wfh-arbicard-f-infested) {
+    color: var(--world-faction-infested, #66bb6a);
+  }
+  :global(.wfh-arbicard-f-corrupted) {
+    color: #f5a623;
+  }
+  :global(.wfh-arbicard-f-other) {
+    color: #8b93a5;
+  }
+  :global(.wfh-arbicard-footer) {
+    margin-top: 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  :global(.wfh-arbicard-url) {
+    font-size: 0.65rem;
+    color: #5b6478;
+  }
+  :global(.wfh-arbicard-brand) {
+    font-family: var(--font-display, "Rajdhani", sans-serif);
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    font-size: 0.8rem;
+    color: #5b6478;
   }
 </style>

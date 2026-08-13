@@ -163,6 +163,12 @@ export const en = {
   "arbisched.empty": "No results. Adjust node selection or search.",
   "arbisched.bellTitle": "Windows notification for this arbitration",
   "arbisched.starTitle": "Notify on every occurrence of this node",
+  "arbisched.copySelected": "Copy image ({n})",
+  "arbisched.copySelectedTitle": "Copy the checked rows to the clipboard as an image",
+  "arbisched.copied": "Copied!",
+  "arbisched.copyFailed": "Copy failed",
+  "arbisched.copyMax": "Max {max} rows",
+  "arbisched.copyRowLabel": "Select {node} for image copy",
 
   "stats.title": "Stats",
   "stats.sessionTitle": "Today",

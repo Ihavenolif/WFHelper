@@ -110,6 +110,17 @@ export function filterScheduleEntries(
     .sort((a, b) => a.epochMs - b.epochMs);
 }
 
+export function scheduleEntryKey(entry: ArbiScheduleEntry): string {
+  return `${entry.epochMs}:${entry.nodeId}`;
+}
+
+export function selectedScheduleEntries(
+  entries: ArbiScheduleEntry[],
+  selectedKeys: ReadonlySet<string>,
+): ArbiScheduleEntry[] {
+  return entries.filter((entry) => selectedKeys.has(scheduleEntryKey(entry)));
+}
+
 export function groupEntriesByDay(entries: ArbiScheduleEntry[]): ArbiScheduleDayGroup[] {
   const groups: ArbiScheduleDayGroup[] = [];
   let current: ArbiScheduleDayGroup | null = null;

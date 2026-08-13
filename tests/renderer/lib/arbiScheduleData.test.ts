@@ -9,7 +9,9 @@ import {
   formatUpdatedAgo,
   groupEntriesByDay,
   matchesSearch,
+  scheduleEntryKey,
   searchUnmatchedFeedback,
+  selectedScheduleEntries,
 } from "../../../src/lib/world/arbiScheduleData.js";
 import type { ArbiScheduleEntry } from "../../../src/types/ipc.js";
 
@@ -83,6 +85,17 @@ describe("filterScheduleEntries", () => {
     );
     expect(onlyCasta).toHaveLength(2);
     expect(onlyCasta.every((e) => e.nodeId === "SolNode149")).toBe(true);
+  });
+});
+
+describe("selectedScheduleEntries", () => {
+  it("keeps only checked rows that remain visible", () => {
+    const first = entry(10, "a");
+    const hidden = entry(20, "b");
+    const visible = [first, entry(30, "c")];
+    const selected = new Set([scheduleEntryKey(first), scheduleEntryKey(hidden)]);
+
+    expect(selectedScheduleEntries(visible, selected)).toEqual([first]);
   });
 });
 
