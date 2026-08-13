@@ -124,7 +124,8 @@ function createWindow(): void {
     height: 820,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: "#0a0e17",
+    show: false,
+    backgroundColor: "#060a12",
     icon: path.join(app.getAppPath(), "assets", "logo.ico"),
     titleBarStyle: "hidden",
     ...(process.platform === "darwin" ? { titleBarOverlay: false } : { frame: false }),
@@ -142,7 +143,14 @@ function createWindow(): void {
     log,
   });
 
-  ctx.mainWindow.loadFile(MAIN_WINDOW_ENTRY_FILE);
+  const mainWindow = ctx.mainWindow;
+  mainWindow.once("ready-to-show", () => {
+    if (!mainWindow.isDestroyed()) mainWindow.show();
+  });
+  void mainWindow.loadFile(MAIN_WINDOW_ENTRY_FILE).catch((error: unknown) => {
+    log.error("[Main] Failed to load the renderer:", error);
+    if (!mainWindow.isDestroyed()) mainWindow.show();
+  });
 
   // Zoom resets on navigation, so re-apply on load; on move, to re-fit per display.
   ctx.mainWindow.webContents.on("did-finish-load", applyMainWindowZoom);
