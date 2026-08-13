@@ -26,7 +26,7 @@
     "lint:renderer": "eslint src tests e2e playwright.config.ts --ext .ts,.svelte",
     "lint:main": "eslint main.ts preload.ts preload-overlay.ts preload-riven.ts preload-trade-notification.ts preload-arbi.ts config ipc services renderer --ext .js,.ts",
     "lint:worker": "eslint backend/worker/src backend/worker/test --ext .ts",
-    "check:comments": "node scripts/check-comment-style.mjs",
+    "check:comments": "node scripts/check-comment-style.mjs --all",
     "audit:prod": "pnpm audit --prod",
     "audit:all": "pnpm audit",
     "audit:deadcode": "knip && node scripts/check-prod-dead-exports.mjs",

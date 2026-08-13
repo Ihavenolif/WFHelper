@@ -57,23 +57,8 @@ const LOCAL_UNTRADABLE_SKIP_TTL_MS = 6 * 60 * 60 * 1000;
 let catalogSlugSetCache: { expiresAt: number; slugs: Set<string> } | null = null;
 const localUntradableSkipCache = new Map<string, number>();
 
-/**
- * Circuit-breaker state is per-V8-isolate, not global.
- *
- * Cloudflare Workers run in multiple isolates across hundreds of PoPs. Each
- * isolate loads its own copy of this module, so these counters are NOT shared
- * across isolates. The practical effect:
- *
- *   - Under steady load, each isolate independently discovers upstream is down
- *     (up to ~6 failed calls per isolate before opening).
- *   - A "tripped" breaker in PoP-A does not prevent PoP-B from hammering WFM.
- *   - Aggregate failed calls during a full outage can be up to N * threshold,
- *     where N is the number of active isolates (typically single-digits).
- *
- * This is acceptable: the goal is to stop *this* isolate from retry-storming
- * WFM, not to coordinate a global shutdown. A true global breaker would require
- * KV-backed state, which adds a KV read per request - not worth it.
- */
+// The breaker is isolate-local by design: it stops local retry storms without adding a KV
+// read to every request. Other isolates may each incur up to the failure threshold.
 let localOrderSummaryTransientStreak = 0;
 let localOrderSummaryCircuitOpenUntil = 0;
 

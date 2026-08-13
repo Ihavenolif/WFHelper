@@ -1,8 +1,5 @@
-// Persistent screen-capture stream for Linux. Holds one getDisplayMedia stream
-// so the Wayland portal prompts once; main drives it via executeJavaScript:
-//   __startCapture()  -> void (idempotent, needs a user gesture)
-//   __captureState()  -> "idle" | "starting" | "live" | "dead"
-//   __grabFrame()     -> Promise<string|null>  (PNG data URL at native size)
+// Reuse one display stream so the Wayland portal prompts only once. Main drives
+// capture through the exported window functions.
 
 (function () {
   "use strict";

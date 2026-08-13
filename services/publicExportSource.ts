@@ -1,9 +1,4 @@
-/**
- * Fetches DE's official Public Export so masterable items track live patches,
- * instead of waiting on the bundled npm packages to republish. Overlays only
- * warframes/weapons/sentinels; the bundled package owns everything else and is
- * the offline fallback.
- */
+// Use live DE exports so mastery data does not wait for package releases.
 
 import { app } from "electron";
 import fs from "node:fs";
@@ -174,10 +169,6 @@ export function getOverlay(): PublicExportOverlay | null {
   return overlay;
 }
 
-/**
- * Refreshes the on-disk overlay from DE, re-downloading only manifests whose
- * hash changed. Returns whether anything changed so the caller can rebuild.
- */
 export async function refreshOverlayFromDE(): Promise<{ changed: boolean }> {
   if (refreshPromise) return refreshPromise;
 

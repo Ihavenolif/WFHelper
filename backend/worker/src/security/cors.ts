@@ -18,10 +18,8 @@ export function originIsAllowed(req: Request, env: Env): boolean {
 	if (!origin) return true;
 
 	const allowList = allowedOrigins(env);
-	// Wildcard is intentionally NOT supported. A misconfigured "*" in production
-	// would allow any site to read authenticated responses. Browser clients must
-	// come from an explicitly listed origin; all other clients pass the !origin
-	// check above.
+	// Wildcards could expose authenticated responses, so browser clients must use an
+	// explicitly listed origin. Non-browser clients pass the no-origin check above.
 	return allowList.includes(origin);
 }
 

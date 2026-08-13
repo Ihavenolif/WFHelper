@@ -37,10 +37,6 @@ const MAX_DEPTH = 5;
 /** Common resource path prefixes - never recurse into these sub-trees. */
 const LEAF_RESOURCE_PREFIXES = ["/Lotus/Types/Items/MiscItems/", "/Lotus/Types/Items/Research/"];
 
-/**
- * Build a crafting tree for the given item uniqueName.
- * Returns null if the item has no recipe.
- */
 export function buildCraftingTree(
   uniqueName: string,
   itemDb: Record<string, ItemDbEntry>,
@@ -133,9 +129,8 @@ function buildNode(
 
   const children: CraftingTreeNode[] = [];
   if (effectiveRecipe && depth < MAX_DEPTH) {
-    // Add blueprint as first child (it's needed to craft but not listed in
-    // ingredients). A part component is its own blueprint under a second
-    // spelling, so listing both shows the same pile twice.
+    // Blueprints are not listed as ingredients. Skip alternate component spellings
+    // that would show the same owned pile twice.
     if (
       effectiveRecipe.blueprintUniqueName &&
       !isSameOwnedItem(uniqueName, effectiveRecipe.blueprintUniqueName)

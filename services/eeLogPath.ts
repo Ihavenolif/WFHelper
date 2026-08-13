@@ -1,15 +1,5 @@
-/**
- * EE.log location discovery.
- *
- * Windows: the game writes %LOCALAPPDATA%\Warframe\EE.log.
- * Linux: Warframe runs under Proton, so the same file lives inside the Wine
- * prefix of the Steam library that holds the game:
- *   <library>/steamapps/compatdata/230410/pfx/drive_c/users/steamuser/AppData/Local/Warframe/EE.log
- * Steam libraries are discovered from the known Steam roots (native, flatpak,
- * snap) plus every entry in steamapps/libraryfolders.vdf.
- *
- * WFHELPER_EE_LOG overrides discovery on every platform (also used by tests).
- */
+/** Locate EE.log in Windows or Steam Proton data.
+ * WFHELPER_EE_LOG overrides discovery for tests and custom installs. */
 
 import fs from "node:fs";
 import os from "node:os";
@@ -19,7 +9,7 @@ import { normalizeErrorMessage } from "../config/shared/errors";
 
 const log = withScope("eeLogPath");
 
-/** Warframe's Steam app id — names the Proton prefix directory. */
+/** Warframe's Steam app id names the Proton prefix directory. */
 const WARFRAME_STEAM_APP_ID = "230410";
 
 function candidateSteamRoots(): string[] {
@@ -84,9 +74,7 @@ function discoverLinuxEeLog(): string | null {
     const candidate = protonEeLogPath(lib);
     if (fs.existsSync(candidate)) return candidate;
   }
-  // Game installed but EE.log not written yet (never launched this session/
-  // fresh prefix): return the expected path inside an existing prefix so the
-  // caller can report it and a later watcher can pick the file up.
+  // Return the expected path in a fresh prefix so a later watcher can attach.
   for (const lib of libraries) {
     const prefix = path.join(lib, "steamapps", "compatdata", WARFRAME_STEAM_APP_ID);
     if (fs.existsSync(prefix)) return protonEeLogPath(lib);

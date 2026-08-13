@@ -1,9 +1,3 @@
-/**
- * Arbitration run lifecycle: consumes EE.log lines from eeLogMonitor, captures
- * the raw log segment of each run to arbi-logs/<id>.log.gz, computes stats via
- * the pure parser, and persists the run index to arbi-runs.json.
- */
-
 import path from "node:path";
 import fs from "node:fs";
 import zlib from "node:zlib";

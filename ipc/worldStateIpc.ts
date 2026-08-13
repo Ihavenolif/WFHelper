@@ -140,10 +140,7 @@ function escapeXml(text: string): string {
     .replace(/'/g, "&apos;");
 }
 
-/**
- * Ensure a Start Menu shortcut exists with our AUMID so Windows treats us
- * as a properly registered app for toast notifications and Focus Assist.
- */
+// The AUMID shortcut lets Windows route toasts through Focus Assist correctly.
 function ensureStartMenuShortcut(): void {
   if (process.platform !== "win32") return;
   try {
@@ -230,18 +227,13 @@ function writeToastScript(kind: "show" | "remove", tag: string): string | null {
   }
 }
 
-/** Send a Windows toast via PowerShell WinRT. scenario="incomingCall" is REQUIRED:
- *  it's the only way the toast reliably gets delivered while gaming (a plain toast
- *  silently fails). incomingCall forces the looping call ringtone, so the toast is
- *  kept silent and we play a normal notification .wav ourselves. Auto-dismissed
- *  from the action center after TOAST_DISMISS_MS so alerts don't pile up. */
+// incomingCall reaches games reliably; keep it silent to avoid its looping ringtone.
+// A separate sound plays, and the toast auto-dismisses to avoid stale alerts.
 function notificationSoundEnabled(): boolean {
   return ctx.overlaySettings.notificationSoundEnabled !== false;
 }
 
-// A custom .wav can't be a toast's own audio in an unpackaged Win32 app, so we play
-// it via SoundPlayer alongside the silent toast. notification.wav is a copy of the
-// soft, non-chime Windows Background sound, bundled so it works on any machine.
+// Unpackaged Win32 toasts cannot embed custom audio, so play the bundled sound separately.
 const NOTIFICATION_SOUND_FILE = resolveRuntimeResourcePath("notification.wav");
 
 // One sound per toast burst - overlapping SoundPlayers stack into a blare.
@@ -353,10 +345,7 @@ function sendDesktopNotification(title: string, body: string): void {
   sendDesktopNotificationRaw(title, body);
 }
 
-/**
- * Ungated desktop toast, reused by in-game message notifications which apply
- * their own settings gate. Respects platform + canSendNotifications().
- */
+/** Sends a toast for callers that apply their own settings gate. */
 export function sendDesktopNotificationRaw(title: string, body: string): void {
   try {
     if (!canSendNotifications()) return;
@@ -528,11 +517,7 @@ function maybeNotifyWorldEvents(state: unknown): void {
   }
 }
 
-/**
- * Time-based pre-cycle notifications. Runs on EVERY poll (including cached
- * responses) so we never miss the lead-time window. Transition detection
- * stays in maybeNotifyWorldEvents which only runs on fresh fetches.
- */
+// Check cached polls for lead-time alerts; transitions remain limited to fresh data.
 function checkPreCycleNotifications(state: unknown): void {
   if (!canSendNotifications()) return;
 

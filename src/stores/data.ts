@@ -52,10 +52,8 @@ export const parsedItems = derived([usableInventory, itemDb], ([$inv, $db]): Par
   return parseInventory($inv, $db);
 });
 
-/**
- * Foundry building / recipe list. Memoised on input identity - parsing the
- * full itemDb costs ~1 s on large accounts; only real input changes re-parse.
- */
+// Parsing the full itemDb costs about one second on large accounts, so cache by
+// input identity.
 let _foundryCache: FoundryData = { building: [], recipes: [] };
 let _foundryInvRef: RawInventoryData | null = null;
 let _foundryDbRef: Record<string, ItemDbEntry> | null = null;

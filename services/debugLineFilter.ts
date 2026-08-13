@@ -1,6 +1,4 @@
-// Shared prefilter for real-time debug-line sources: the Win32 DBWIN worker
-// and the Linux Proton log tail. Only lines that can match an eeLogMonitor
-// trigger pattern pass; handleLine() still does the authoritative regex check.
+// Prefilter real-time sources before IPC; eeLogMonitor remains authoritative.
 
 // Lowercase to allow a single case-insensitive check without regex cost.
 const FILTER_SUBSTRINGS_LOWER = [
@@ -23,9 +21,7 @@ const FILTER_SUBSTRINGS_LOWER = [
   "chatredux::addtab",         // incoming whisper opens a private chat tab
 ] as const;
 
-// Relic picker lines (LoadingCompleteEnd / PopulateInventoryGrid) can repeat
-// while the fissure screen is open. Match the eeLogMonitor cooldown so one
-// delivery per trigger cycle reaches handleLine.
+// Match eeLogMonitor's picker cooldown because the game repeats these lines.
 const RELIC_PICKER_SUPPRESS_MS = 7500;
 // One AddTab forward per window is enough; also guards re-delivery regressions.
 const CHAT_TAB_SUPPRESS_MS = 2000;

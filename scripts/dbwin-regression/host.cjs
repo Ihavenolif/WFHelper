@@ -1,6 +1,5 @@
-// Hosts the compiled dbwinWorker under real Electron - the only runtime that
-// reproduces the koffi.view memory-cage fatal. argv: [workerPath, stopFilePath];
-// stop comes via the stop file (Electron main gets no piped stdin on Windows).
+// Real Electron reproduces the koffi memory-cage failure that Node misses.
+// argv: [workerPath, stopFilePath]; Electron receives no piped stdin on Windows.
 
 const { app } = require("electron");
 const { Worker } = require("worker_threads");

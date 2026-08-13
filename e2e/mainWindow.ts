@@ -9,10 +9,8 @@ export function findMainWindow<T extends { url: () => string }>(app: {
   return app.windows().find((win) => win.url().includes(MAIN_RENDERER_URL)) ?? null;
 }
 
-/**
- * firstWindow() is a race: the planner overlay pre-warms 4s after launch, so on a
- * cold runner it can attach first and every #app assertion then fails.
- */
+// The planner overlay can win firstWindow() on a cold runner, so wait for the
+// window containing the app shell.
 export async function mainWindow(app: ElectronApplication, timeoutMs = 60_000): Promise<Page> {
   await app.firstWindow();
 

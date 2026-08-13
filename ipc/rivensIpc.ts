@@ -142,9 +142,7 @@ function register(): void {
 
       const attributes = stats.map((s) => {
         const urlName = rivenData.tagToWfmUrlName(String(s.tag));
-        // WFM stores values exactly as the game displays them, signed: recoil
-        // buff -41 positive=true, recoil curse +7 positive=false (live API).
-        // Forcing curse signs flipped recoil-type stats -> too_many_positives.
+        // WFM preserves displayed signs, including negative recoil buffs and positive curses.
         const value = toFiniteNumber(s.value) ?? 0;
         return {
           url_name: urlName || String(s.tag),

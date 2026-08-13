@@ -27,17 +27,8 @@ function parseCompletionDate(value: unknown): Date | null {
   return null;
 }
 
-/**
- * Normalise a foundry blueprint into one of the in-game Foundry filter
- * buckets. Uses productCategory (@wfcd/items' finer-grained label:
- * Suits/LongGuns/Pistols/Melee/SpaceSuits/Sentinels/...), the raw `category`
- * from PEP, and path-segment fallbacks in that order.
- *
- * Component blueprints (e.g. `HildrynPrimeChassisComponent`) have raw
- * category "Resource" but belong with their parent - we follow
- * `componentOf` when present, and otherwise derive from the blueprint path
- * (`/WarframeRecipes/` -> Warframe, `/Pistols/` -> Secondary, ...).
- */
+// Prefer productCategory, raw category, then path fallbacks. Component blueprints
+// inherit their parent's category because their raw category is Resource.
 function classifyForFoundry(
   productUn: string | null,
   blueprintUn: string,
@@ -142,9 +133,6 @@ export function parseFoundry(
   const building: FoundryData["building"] = [];
   const recipes: FoundryData["recipes"] = [];
 
-  // Build reverse maps once per call:
-  //   blueprintUniqueName -> productUniqueName
-  //   Set<ingredientUniqueName> across all recipes
   const blueprintToProduct = new Map<string, string>();
   const ingredientSet = new Set<string>();
   for (const [productUn, entry] of Object.entries(itemDb)) {
@@ -187,10 +175,7 @@ export function parseFoundry(
     };
   }
 
-  /** Pull recipe details (ingredients / buildPrice / buildTime) for a product.
-   *  Prefers the product's recipe; falls back to the blueprint entry's recipe
-   *  if the blueprint is its own itemDb entry (rare but happens for recipes
-   *  we couldn't map back to a product). */
+  // Prefer the product recipe; unmapped standalone blueprints may carry their own.
   function resolveRecipeDetails(
     productUn: string | null,
     blueprintUn: string,

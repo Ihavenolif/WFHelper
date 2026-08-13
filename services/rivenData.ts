@@ -1,20 +1,7 @@
-/**
- * Riven mod data service (main-process only)
- *
- * Loads and indexes riven-related data from warframe-public-export-plus:
- *  - Weapon disposition (omegaAttenuation)
- *  - Riven type resolution (weapon -> riven mod)
- *  - Upgrade entries (base stat values per riven type)
- *  - Stat tag ↔ display name mapping
- *
- * All indexes are built lazily on first access.
- */
-
 import { withScope } from "./logger";
 import { levenshteinDistance } from "./rewardScannerUtils";
 
 const log = withScope("rivenData");
-
 
 interface UpgradeEntry {
   tag: string;
@@ -43,7 +30,6 @@ interface RivenModInfo {
   entries: UpgradeEntry[];
 }
 
-
 let _built = false;
 
 /** Lowercase weapon display name -> weapon info */
@@ -67,9 +53,7 @@ const _rivenModByKey = new Map<string, RivenModInfo>();
 /** Upgrade tag -> cleaned display name (from locTags) */
 const _tagToDisplayName = new Map<string, string>();
 
-// Maps the stat names as they appear in OCR output (and in-game) to the
-// internal upgrade tag identifiers. This table is manually maintained because
-// the game's locTags include formatting placeholders and color tags.
+// Manual mapping is required because locTags contain formatting placeholders and color tags.
 
 const STAT_NAME_TO_TAG: Record<string, string> = {
   // Shared ranged stats
@@ -128,8 +112,7 @@ for (const [name, tag] of Object.entries(STAT_NAME_TO_TAG)) {
   }
 }
 
-// WFM uses its own attribute identifiers for the /auctions/search endpoint.
-// These do NOT match a simple lowercase+underscore of the display name.
+// WFM auction attribute IDs do not follow display-name normalization.
 // Source: https://api.warframe.market/v1/riven/attributes
 
 const TAG_TO_WFM_URL_NAME: Record<string, string> = {
@@ -171,7 +154,6 @@ const TAG_TO_WFM_URL_NAME: Record<string, string> = {
   WeaponMeleeFactionDamageInfested: "damage_vs_infested",
 };
 
-
 const RIVEN_MODS_BY_CATEGORY: Record<string, string> = {
   LongGuns: "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare",
   Pistols: "/Lotus/Upgrades/Mods/Randomized/LotusPistolRandomModRare",
@@ -185,7 +167,6 @@ const SHOTGUN_RIVEN_KEY = "/Lotus/Upgrades/Mods/Randomized/LotusShotgunRandomMod
 // Modular weapon overrides
 const KITGUN_RIVEN_KEY = "/Lotus/Upgrades/Mods/Randomized/LotusModularPistolRandomModRare";
 const ZAW_RIVEN_KEY = "/Lotus/Upgrades/Mods/Randomized/LotusModularMeleeRandomModRare";
-
 
 function stripColorTags(text: string): string {
   // Remove <DT_*_COLOR> tags from localized strings
@@ -301,39 +282,27 @@ function ensureBuilt(): void {
   }
 }
 
-
-/**
- * Reverse-lookup weapon display name from uniqueName (e.g. /Lotus/Weapons/...).
- * Used to resolve riven fingerprint compat field.
- */
+/** Resolves a riven fingerprint compat path to a weapon display name. */
 export function getWeaponNameByUniqueName(uniqueName: string): string | null {
   ensureBuilt();
   return _weaponByUniqueName.get(uniqueName) || null;
 }
 
-/**
- * Look up weapon disposition (omegaAttenuation) by display name.
- * Returns null if weapon not found.
- */
+/** Returns weapon disposition by display name, or null when unknown. */
 export function getWeaponDisposition(weaponName: string): number | null {
   ensureBuilt();
   const info = _weaponByNameLc.get(weaponName.toLowerCase());
   return info ? info.omegaAttenuation : null;
 }
 
-/**
- * Look up weapon product category by display name.
- */
+/** Returns a weapon's product category by display name. */
 export function getWeaponCategory(weaponName: string): string | null {
   ensureBuilt();
   const info = _weaponByNameLc.get(weaponName.toLowerCase());
   return info ? info.productCategory : null;
 }
 
-/**
- * Resolve which riven mod type applies to a weapon.
- * Returns the riven mod uniqueName or null.
- */
+/** Resolves the riven mod uniqueName for a weapon, or null when unknown. */
 export function resolveRivenType(weaponName: string): string | null {
   ensureBuilt();
   const info = _weaponByNameLc.get(weaponName.toLowerCase());
@@ -341,9 +310,8 @@ export function resolveRivenType(weaponName: string): string | null {
 
   const cat = info.productCategory;
 
-  // Check for shotgun. Current export data marks shotguns via holsterCategory
-  // only (compatibilityTags carry trigger tags now, and six shotguns have no
-  // tags at all); keep the old tag check for older data.
+  // Current data identifies some shotguns only by holsterCategory.
+  // Retain the compatibility-tag check for older exports.
   if (
     cat === "LongGuns" &&
     (info.holsterCategory === "SHOTGUN" || info.compatibilityTags.includes("SHOTGUN"))
@@ -362,28 +330,19 @@ export function resolveRivenType(weaponName: string): string | null {
   return RIVEN_MODS_BY_CATEGORY[cat] || null;
 }
 
-/**
- * Get the upgrade entries for a riven mod type.
- */
+/** Returns the upgrade entries for a riven mod type. */
 function getRivenTypeEntries(rivenTypeKey: string): UpgradeEntry[] {
   ensureBuilt();
   return _rivenModByKey.get(rivenTypeKey)?.entries || [];
 }
 
-/**
- * Map an OCR stat display name to the internal upgrade tag.
- * Returns null if no match found.
- */
+/** Maps an OCR stat label to its upgrade tag, or null when unknown. */
 export function statNameToTag(statName: string): string | null {
   const lc = statName.toLowerCase().trim();
   return STAT_NAME_TO_TAG[lc] || null;
 }
 
-/**
- * Get the canonical display name for an upgrade tag.
- * WeaponFireRateMod is shared by Fire Rate and Attack Speed; pass melee=true
- * to get the melee label, matching what the game shows on the card.
- */
+/** Uses Attack Speed for WeaponFireRateMod on melee cards. */
 export function getStatDisplayName(tag: string, melee = false): string {
   ensureBuilt();
   if (melee && tag === "WeaponFireRateMod") return "Attack Speed";
@@ -395,15 +354,11 @@ export function tagToWfmUrlName(tag: string): string | null {
   return TAG_TO_WFM_URL_NAME[tag] || null;
 }
 
-/**
- * Find the UpgradeEntry for a stat within a specific riven type.
- * Matches by tag.
- */
+/** Finds an upgrade entry by tag within a riven type. */
 export function findUpgradeEntry(rivenTypeKey: string, tag: string): UpgradeEntry | null {
   const entries = getRivenTypeEntries(rivenTypeKey);
-  // Some melee stats have different faction damage tags
-  // (WeaponMeleeFactionDamageCorpus vs WeaponFactionDamageCorpus)
-  // Try exact match first, then fall back to suffix match
+  // Melee faction damage uses distinct tags, so fall back to suffix matching
+  // only after an exact match fails.
   let found = entries.find((e) => e.tag === tag);
   if (!found) {
     // Try matching without the "Melee" prefix - e.g. "WeaponMeleeFactionDamageCorpus"
@@ -421,19 +376,8 @@ export function findUpgradeEntry(rivenTypeKey: string, tag: string): UpgradeEntr
   return found || null;
 }
 
-/**
- * Generate the riven suffix name from buffs with their fingerprint Values.
- *
- * Mirrors RivenParser.js (calamity-inc/warframe-riven-info, the same source
- * as the fingerprint float decode):
- *  - Curses do NOT affect the name.
- *  - Buffs sort by fingerprint Value DESCENDING (tie: lower baseValue first).
- *  - First buff: TitleCase(prefix). Middle buff (3-buff rolls): "-" + prefix.
- *    Last buff: suffix, no separator.
- *
- * Examples: "Satidra" (multishot > fire rate), "Critacan" (crit chance >
- * multishot), "Visi-satican" (3 buffs).
- */
+// Matches RivenParser.js: sort buffs by descending fingerprint Value, then baseValue.
+// Curses do not contribute; prefixes precede the final suffix.
 export function generateRivenSuffix(
   rivenTypeKey: string,
   buffs: Array<{ tag: string; value: number }>,
@@ -483,12 +427,7 @@ export function generateRivenSuffix(
   return name;
 }
 
-/**
- * Try to find a known weapon name inside OCR text (case-insensitive).
- * Used to extract the weapon from riven card text before the cycle dialog
- * reveals it.  Prefers the longest match to avoid e.g. "Bo" matching inside
- * "Boar".  Returns the canonical (properly cased) weapon name or null.
- */
+/** Prefers the longest OCR weapon match so "Bo" does not match inside "Boar". */
 export function findWeaponInText(text: string): string | null {
   ensureBuilt();
   const lc = text.toLowerCase();
@@ -577,11 +516,7 @@ export function findWeaponInText(text: string): string | null {
 const VARIANT_SUFFIXES = [" Prime", " Wraith", " Vandal", " Prisma", " Dex"];
 const VARIANT_PREFIXES = ["MK1-", "Mk1-", "Kuva ", "Tenet "];
 
-/**
- * Derive the base weapon family slug for WFM riven auction search.
- * Rivens apply to the weapon family, not a specific variant.
- * E.g. "Boar Prime" -> "boar", "Kuva Bramma" -> "bramma"
- */
+/** Derives the WFM riven family slug, such as "Boar Prime" -> "boar". */
 export function getRivenFamilySlug(weaponName: string): string {
   let name = weaponName.trim();
   for (const suffix of VARIANT_SUFFIXES) {
@@ -603,10 +538,7 @@ export function getRivenFamilySlug(weaponName: string): string {
     .replace(/^_|_$/g, "");
 }
 
-/**
- * All variants sharing a weapon's riven family (e.g. Boar -> Boar, Boar Prime),
- * with their dispositions. Includes the weapon itself.
- */
+/** Returns every variant and disposition in a weapon's riven family. */
 export function getFamilyVariants(
   weaponName: string,
 ): Array<{ name: string; disposition: number }> {
@@ -622,10 +554,7 @@ export function getFamilyVariants(
   return out;
 }
 
-/**
- * Get all weapon display names that have riven disposition.
- * Returns an alphabetically sorted array.
- */
+/** Returns sorted weapon names that have riven disposition. */
 export function getAllRivenWeaponNames(): string[] {
   ensureBuilt();
   const names = [..._weaponDisplayNames.values()];
@@ -633,10 +562,7 @@ export function getAllRivenWeaponNames(): string[] {
   return names;
 }
 
-/**
- * Get the common riven stat tags used for WFM auction attribute filters.
- * Returns array of { tag, wfmUrlName, displayName }.
- */
+/** Returns common riven stat tags for WFM auction filters. */
 export function getRivenStatOptions(): { tag: string; wfmUrlName: string; displayName: string }[] {
   ensureBuilt();
   const result: { tag: string; wfmUrlName: string; displayName: string }[] = [];
@@ -650,4 +576,3 @@ export function getRivenStatOptions(): { tag: string; wfmUrlName: string; displa
   result.sort((a, b) => a.displayName.localeCompare(b.displayName));
   return result;
 }
-

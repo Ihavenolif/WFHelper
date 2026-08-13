@@ -80,9 +80,8 @@ const priceDebugCounters: PriceDebugCounters = {
   queueDropped: 0,
 };
 
-// Per-slug transient error cooldown. Populated when backend errors with no fallback
-// allowed so retries are suppressed for WFM_BACKEND_ERROR_COOLDOWN_MS instead of
-// hammering the worker on every render cycle.
+// Cool down slugs after backend errors with no fallback to avoid retrying on
+// every render cycle.
 const backendErrorCooldown = new Map<string, number>(); // cacheKey -> expiry timestamp
 // Tracks slugs that returned no price data this session so the warning is
 // only logged once rather than on every hydration cycle.

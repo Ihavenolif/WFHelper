@@ -1,10 +1,5 @@
-// Minimal, safe renderer model for GitHub release notes (Markdown).
-//
-// The notes come from our own GitHub release body, but we still never inject
-// them as raw HTML: parseReleaseNotes turns the text into a block/segment tree
-// that the changelog modal renders with plain Svelte text nodes. Links are
-// restricted to http(s) at the regex level, so no javascript:/data: URLs slip
-// through and there is no XSS surface.
+// Parse release Markdown into plain Svelte text nodes rather than raw HTML.
+// Restrict links to HTTP(S) so release content cannot inject active URLs.
 
 interface InlineSegment {
   kind: "text" | "bold" | "link";

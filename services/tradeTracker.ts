@@ -1,16 +1,4 @@
-/**
- * Persists trade events detected from EE.log trade
- * confirmation dialogs.
- *
- * Trade detection is driven exclusively by EE.log parsing in eeLogMonitor.ts:
- *   1. "Are you sure you want to accept this trade?" dialog is buffered.
- *   2. "The trade was successful!" confirmation fires recordTradeFromLog().
- *
- * Inventory-diff based detection was removed because it produced false
- * positives (mission rewards, Baro, store purchases all change items + plat).
- *
- * Stored in %APPDATA%/WFHelper/trade-log.json.
- */
+/** Persist confirmed EE.log trades; inventory diffs produce unrelated false positives. */
 
 import path from "node:path";
 import fs from "node:fs";
@@ -135,9 +123,7 @@ function _saveLog(): void {
   }
 }
 
-/**
- * Load persisted trade log from disk. Call once on startup.
- */
+/** Load the persisted trade log once at startup. */
 export function loadTradeLog(): void {
   try {
     const raw = fs.readFileSync(_logPath(), "utf-8");
@@ -158,10 +144,7 @@ export function loadTradeLog(): void {
   }
 }
 
-/**
- * Record a trade detected from the EE.log trade confirmation dialog.
- * Returns the created TradeEvent (or null if suppressed by cooldown).
- */
+/** Record a confirmed EE.log trade, or null when deduplicated. */
 export function recordTradeFromLog(parsed: {
   partner: string;
   platChange: number;
@@ -228,9 +211,7 @@ export function recordTradeFromLog(parsed: {
   return event;
 }
 
-/**
- * Mark an existing trade event as having had its WFM order auto-closed.
- */
+/** Mark a trade's WFM order as automatically closed. */
 export function markTradeWfmClosed(tradeId: string): void {
   const trade = _tradeLog.find((t) => t.id === tradeId);
   if (trade) {
@@ -239,10 +220,7 @@ export function markTradeWfmClosed(tradeId: string): void {
   }
 }
 
-/**
- * Import trade events from an external trade export.
- * Deduplicates by id. Returns the number of newly added events.
- */
+/** Import external trades by id and return the number added. */
 export function importTradeLog(events: unknown[]): number {
   const existingIds = new Set(_tradeLog.map((t) => t.id));
   let added = 0;
@@ -264,9 +242,7 @@ export function importTradeLog(events: unknown[]): number {
   return added;
 }
 
-/**
- * Returns all persisted trade events (newest first).
- */
+/** Return persisted trades newest first. */
 export function getTradeLog(): TradeEvent[] {
   return _tradeLog;
 }

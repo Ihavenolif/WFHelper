@@ -297,9 +297,8 @@
     }
   }
 
-  // Overlay placement: draggable dummy panels over a game screenshot. The
-  // preview box maps 1:1 onto the primary display's work area, so dropping a
-  // dummy saves where the real overlay window will appear.
+  // The preview maps directly to the primary display work area, so dummy panel
+  // positions can be saved for the real overlays.
   type PlacementKey = "reward" | "planner" | "rivenLeft" | "rivenRight" | "arbiSummary";
   type PlacementRect = { x: number; y: number; width: number; height: number };
 

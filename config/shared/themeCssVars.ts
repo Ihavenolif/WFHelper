@@ -1,8 +1,4 @@
-/**
- * CSS vars forwarded renderer -> overlay windows for theming. src/main.ts builds
- * the payload, ipc/overlayIpc.ts sanitizes against this list. New themed vars go
- * here plus THEME_*_CSS_MAP in src/types/theme.ts.
- */
+// Overlay IPC accepts only these theme variables. Keep them aligned with THEME_*_CSS_MAP.
 
 /** Color tokens (mirror of THEME_COLOR_CSS_MAP values + derived --accent-glow). */
 export const OVERLAY_FORWARDED_COLOR_VARS = [

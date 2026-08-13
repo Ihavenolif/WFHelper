@@ -1,9 +1,6 @@
 /** Shared error-message normalizer (main, IPC, renderer, worker). */
 
-/**
- * Message from `.message` or a string value, else `fallback`. Looser than
- * `instanceof Error` on purpose - IPC/worker errors are duck-typed.
- */
+/** Accepts duck-typed errors because IPC and Worker errors may cross realms. */
 export function normalizeErrorMessage(err: unknown, fallback: string = "Unknown error"): string {
   if (
     err &&

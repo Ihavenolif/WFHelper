@@ -96,9 +96,7 @@ export const OVERLAY_SETTINGS_DEFAULTS = Object.freeze({
   overlayDragHintDismissed: false,
 });
 
-// Retired interaction-hotkey default. Control+Tab is a system-global grab that
-// steals the browser/app tab-switch shortcut, so migrate anyone still on the
-// old default to the new one on load. See normalizeOverlaySettings.
+// Migrate the old default because its global grab steals the standard tab shortcut.
 export const LEGACY_INTERACTION_HOTKEY = "Control+Tab";
 
 type OverlayToggleKey =

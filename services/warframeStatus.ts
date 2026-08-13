@@ -221,11 +221,7 @@ function getDisplayIdForBounds(bounds: WindowBounds | null): string | null {
   }
 }
 
-/**
- * Linux: Warframe runs under Proton/Wine, so Warframe.x64.exe shows up as a
- * regular /proc entry (comm truncates to 15 chars but still contains
- * "warframe").
- */
+/** Proton exposes Warframe as a regular, truncated /proc comm entry. */
 function isWarframeProcessRunningLinux(): boolean {
   try {
     for (const entry of fs.readdirSync("/proc")) {
@@ -244,9 +240,7 @@ function isWarframeProcessRunningLinux(): boolean {
 
 function collectStatusLinux(): WarframeStatus {
   const processRunning = isWarframeProcessRunningLinux();
-  // There is no portable foreground-window query (X11 vs Wayland). Reward
-  // triggers come from the game's own log, so a running game is treated as
-  // focused - otherwise every eelog-triggered scan would be skipped.
+  // Treat a running game as focused because X11 and Wayland lack one portable query.
   return {
     isOpen: processRunning,
     isFocused: processRunning,

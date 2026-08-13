@@ -1,8 +1,3 @@
-<!--
-  Segmented-control: horizontal button group with one active option, styled as
-  a single rounded bar with dividers. Generic over T; pass `options`/`value`,
-  `onChange` fires on click.
--->
 <script lang="ts" generics="T extends string | number">
   export let value: T;
   export let options: ReadonlyArray<{ value: T; label: string }>;

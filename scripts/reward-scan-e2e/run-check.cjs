@@ -1,9 +1,5 @@
-// Reward-scan regression harness: drives the PRODUCTION pipeline (layout detect,
-// crop, binarize, real Windows OCR, matching) over synthetic screens and screens
-// rebuilt from real game crops, inside a sandboxed app instance.
-//
-// Usage: pnpm run build && node scripts/reward-scan-e2e/run-check.cjs
-// Windows-only (WinRT OCR). Exit 0 = all gating checks pass.
+// Runs synthetic and reconstructed screens through the production scanner.
+// Windows-only after `pnpm run build`; exit 0 means all gating checks passed.
 const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");

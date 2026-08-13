@@ -40,11 +40,8 @@ function cropRivenStatArea(roughCrop: NativeImage): NativeImage {
   const { width: w, height: h } = roughCrop.getSize();
   if (w < 50 || h < 50) return roughCrop;
 
-  // Trim to the in-game riven card aspect, then crop the stat text band.
-  // The kept window is centered on the detected text column, not the geometric
-  // center: letterbox detection shaving a dark scene edge (or a game layout
-  // shift) moves the card sideways, which used to slice every stat line
-  // ("Critical Chance" OCR'd as "ical Chance") and match zero stats.
+  // Center on detected text because letterbox trimming can move the card off center.
+  // A geometric crop can then cut the start of every stat line.
   const expectedW = Math.floor(h * RIVEN_CARD_CROP_TUNING.cardAspectRatio);
   let trimmed = roughCrop;
   let tw = w;

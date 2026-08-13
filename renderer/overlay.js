@@ -516,9 +516,8 @@ async function applyRewardItems(payload) {
 
   updateBestPick();
 
-  // Crown once after every slot's price settled - per-arrival updates made
-  // the gold highlight hop between cards while prices streamed in. The cap
-  // crowns the best-so-far if one lookup drags.
+  // Delay crowning until prices settle to avoid a hopping highlight. The cap
+  // still crowns the best known item when one lookup stalls.
   const crownCap = setTimeout(() => {
     if (generation === rewardGeneration) updateBestPick();
   }, BEST_PICK_SETTLE_CAP_MS);

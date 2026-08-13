@@ -306,9 +306,8 @@ export async function putMetaPayload(env: Env, payload: MetaPayload): Promise<Re
 		expirationTtl: cacheTtlSec(env),
 	});
 
-	// MetaPayload is an interface; TS won't implicitly widen interfaces to
-	// Record<string, unknown> (no index signature). The double-cast is the
-	// standard workaround, not a loose return type.
+	// MetaPayload has no implicit index signature, so returning it through the generic
+	// cache boundary requires the double cast.
 	return payload as unknown as Record<string, unknown>;
 }
 
@@ -737,9 +736,8 @@ export async function prewarmBatch(
 	await env.PRICE_CACHE.put(PREWARM_CURSOR_KEY, String(result.cursorAfter));
 	await env.PRICE_CACHE.put(PREWARM_LAST_RUN_KEY, JSON.stringify(result));
 
-	// Incrementally patch the snapshot with items written this batch.
-	// This means after a full catalog walk the snapshot contains all items - no
-	// per-invocation subrequest cap applies here since we only do 1 read + 1 write.
+	// Each batch adds its writes with one read and one write, so a full catalog walk
+	// eventually fills the snapshot without hitting the invocation subrequest cap.
 	if (Object.keys(snapshotPrices).length > 0 || Object.keys(snapshotMeta).length > 0) {
 		await patchSnapshot(env, { prices: snapshotPrices, meta: snapshotMeta });
 	}
@@ -747,11 +745,7 @@ export async function prewarmBatch(
 	return result;
 }
 
-/**
- * Merge new prices, meta, and/or orderSummaries entries into the persisted snapshot blob.
- * Costs 1 KV read + 1 KV write regardless of how many entries are merged, so it is safe
- * to call at the end of every prewarm batch without approaching the subrequest limit.
- */
+/** Snapshot patches always cost one KV read and one write, regardless of entry count. */
 interface SnapshotBlob {
 	version: number;
 	generatedAt: number;

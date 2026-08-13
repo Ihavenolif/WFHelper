@@ -7,13 +7,7 @@ import { BACKEND_URL } from "../config/shared/backendConfig";
 
 const log = withScope("wfmCatalog");
 
-/**
- * Warframe.market item catalog (main-process only)
- *
- * Loads the full WFM item list on first demand and keeps it cached in memory.
- * Uses the v2 API directly (v1 /items returns 404).
- * Exposes lookups used by order forms and the renderer item-link mapping IPC.
- */
+/** Lazily cache the WFM v2 item catalog for main-process lookups. */
 
 const ITEMS_PATH = "/items";
 // Second try matters: after a chromium-transport timeout wfmClient latches the

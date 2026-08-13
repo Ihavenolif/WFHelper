@@ -30,14 +30,7 @@ interface BountyStageRewards {
   items: BountyRewardItem[];
 }
 
-/**
- * Resolve an icon path for a bounty reward item.
- * Priority order:
- *  1. Credits items
- *  2. Endo items
- *  3. Mod items (via itemDb category === "Mod")
- *  4. CDN image from itemDb
- */
+// Credit and Endo names use local fallback icons before itemDb lookup.
 function resolveRewardIconPath(
   itemName: string,
   nameToEntry?: Map<string, NameLookupEntry>,
@@ -166,14 +159,7 @@ function getDropsData(file: string): Promise<RawBountyLevel[]> {
   return request;
 }
 
-/**
- * Classify raw stage labels into one of four drop table categories.
- * The drops data uses these raw labels regardless of actual bounty length:
- *   "Stage 1"                                      -> FIRST
- *   "Stage 2, Stage 3 of 4, and Stage 3 of 5"      -> MID
- *   "Stage 4 of 5"                                  -> PREFINAL
- *   "Final Stage"                                   -> FINAL
- */
+// Drop tables use the raw stage labels regardless of the bounty's actual length.
 type DropTable = "FIRST" | "MID" | "PREFINAL" | "FINAL";
 
 function classifyRawStage(stage: string): DropTable {
@@ -286,13 +272,8 @@ function buildStageRewards(
   return result;
 }
 
-/**
- * Get bounty rewards for a specific job, identified by syndicateKey, enemy level range, and stage count.
- * When rotation is provided (e.g. "A", "B", "C"), only that rotation's rewards are shown.
- * Seed-cycle bounties (Zariman/Cavia/Hex) pass tierIndex: their drops files are ordered
- * tier 1..N and Hex pool labels sit 10 below in-game levels, so level matching misfires.
- * Returns cached promises so Svelte {#await} blocks don't re-trigger on re-render.
- */
+// Seed-cycle bounties use tierIndex because Hex labels do not match in-game levels.
+// Promise caching prevents Svelte await blocks from refetching on every render.
 export function getBountyRewards(
   syndicateKey: string,
   enemyLevels: [number, number],
@@ -324,10 +305,6 @@ export function getBountyRewards(
   return request;
 }
 
-/**
- * Look up a reward icon from itemDb CDN or local assets.
- * Call at render time so the result isn't stale-cached.
- */
 export function resolveRewardIcon(
   itemName: string,
   itemDb?: Record<string, ItemDbEntry>,
@@ -335,10 +312,6 @@ export function resolveRewardIcon(
   return resolveRewardIconPath(itemName, getNameToEntryMap(itemDb));
 }
 
-/**
- * Look up the uniqueName (internal key) for a bounty reward item name.
- * Strips count prefix before matching.
- */
 export function resolveRewardUniqueName(
   itemName: string,
   itemDb?: Record<string, ItemDbEntry>,

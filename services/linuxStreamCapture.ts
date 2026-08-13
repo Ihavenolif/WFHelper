@@ -1,6 +1,4 @@
-// Persistent-stream screen capture for Linux. Per-scan desktopCapturer.getSources()
-// reopens the Wayland portal picker every time; instead we hold ONE
-// getDisplayMedia stream in a hidden window so the portal prompts once per session.
+// Keep one stream because per-scan capture reopens the Wayland portal picker.
 
 import type { BrowserWindow as BrowserWindowType, NativeImage } from "electron";
 import path from "node:path";
@@ -156,10 +154,6 @@ async function _ensureStream(): Promise<boolean> {
   return _starting;
 }
 
-/**
- * Grab one frame from the persistent stream as a NativeImage.
- * Returns null when the stream is unavailable (declined portal, cooldown).
- */
 export async function captureLinuxStreamFrame(): Promise<NativeImage | null> {
   const live = await _ensureStream();
   if (!live || !_win || _win.isDestroyed()) return null;

@@ -111,9 +111,8 @@ export function buildFullSetItems(
     const explicitComponents = overrideComponents(uniqueName, itemDb);
     const components =
       explicitComponents || (Array.isArray(dbEntry.components) ? dbEntry.components : []);
-    // Don't gate on the root's `tradable` flag: assembled Warframes are
-    // tradable:false even though their parts and the set are tradable. The
-    // tradable-component count below + isEligibleFullSetRoot handle eligibility.
+    // Do not gate on root tradability: assembled Warframes are untradable even
+    // when their parts and full set are tradable.
     if (components.length === 0) continue;
 
     const resolved = itemDb[uniqueName]

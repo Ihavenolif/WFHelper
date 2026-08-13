@@ -118,7 +118,7 @@ describe("matchSingleRewardTextDetailed", () => {
   });
 
   it("lifts a read that lost an interior word when it is an unambiguous subsequence", () => {
-    // real crop: glare ate "Prime" -> "Wukon Chassis" + "ålueprint" joins to this
+    // Real crop: glare removed "Prime" and garbled "Blueprint".
     const pool = [
       { name: "Wukong Prime Chassis Blueprint" },
       { name: "Wukong Prime Blueprint" },

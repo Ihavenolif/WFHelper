@@ -44,10 +44,8 @@ test.describe("Market tab (fixture mode)", () => {
     const fixturePath = path.join(sandboxDir, "wfm-orders.json");
     fs.writeFileSync(fixturePath, JSON.stringify(fixtureOrders()));
 
-    // Without an inventory the app reopens setup on reload
-    // (reopenSetupWhenInventoryIsUnavailable) and #sidebar never renders.
-    // Seed the sandbox helper dir; local runs only passed by accident via
-    // the real profile's Downloads/Documents scan.
+    // Seed sandbox inventory so reload stays out of setup. Local runs previously
+    // passed only because they discovered inventory in the real profile.
     const helperDir = path.join(sandboxDir, "user-data", "api-helper");
     fs.mkdirSync(helperDir, { recursive: true });
     fs.writeFileSync(path.join(helperDir, "inventory.json"), JSON.stringify({ Suits: [] }));

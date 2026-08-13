@@ -1,7 +1,3 @@
-/**
- * OCR text -> item matching helpers for reward scanning.
- */
-
 import { levenshteinDistance } from "./rewardScannerUtils";
 import { normalizeForOcr, normalizeForSearch } from "../config/shared/textNormalize";
 
@@ -239,10 +235,7 @@ function normalizeRewardText(text: string): string {
     .trim();
 }
 
-// Partial reads (wrapped first line, quantity prefix noise, glare-eaten word)
-// rank below the slot gate. When a read structurally identifies exactly ONE
-// item - name prefix, contained full name, or ordered word-subsequence with
-// decent coverage - lift it over the gate; ambiguity leaves the gate in force.
+// Lift a partial structural match only when it uniquely identifies one item.
 const UNIQUE_STRUCTURAL_CONFIDENCE = 0.93;
 
 // Word-level tolerance mirrors the fuzzy pass: OCR corruptions the alias table
@@ -272,9 +265,7 @@ function boostUniqueStructuralCandidate(
   if (textWords.length < 2) return;
   if (ranked.some((entry) => entry.mode === "exact")) return;
 
-  // Competitors are always present in `ranked`: containment implies a substring
-  // entry, and subsequence coverage >= 0.6 clears the fuzzy word-ratio floor.
-  // Keyed by name so duplicate pool entries don't fake ambiguity.
+  // Key by name so duplicate pool entries cannot fake ambiguity.
   const prefixHits = new Map<string, SingleItemMatchResult>();
   const containsHits = new Map<string, SingleItemMatchResult>();
   const subsequenceHits = new Map<string, SingleItemMatchResult>();

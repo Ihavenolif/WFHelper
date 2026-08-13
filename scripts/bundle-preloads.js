@@ -1,14 +1,5 @@
-/**
- * Post-build step: bundles each preload script into a single self-contained file.
- *
- * Electron's sandboxed preload `require()` cannot resolve relative file paths,
- * so all local dependencies (e.g. config/shared/ipcChannels) must be inlined.
- * Running esbuild over the tsc output achieves this while keeping the rest of
- * the main-process code as normal CommonJS modules.
- *
- * Pass `--watch` to keep re-bundling whenever the tsc output changes (used by
- * `npm run dev`). Without it we bundle once and exit (used by `npm run build`).
- */
+// Sandboxed preloads cannot resolve local modules, so bundle their dependencies.
+// --watch rebuilds them during development.
 const esbuild = require("esbuild");
 const fs = require("fs");
 const path = require("path");

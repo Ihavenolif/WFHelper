@@ -87,11 +87,7 @@ app.commandLine.appendSwitch("log-level", "3");
 app.commandLine.appendSwitch("disable-lcd-text");
 app.disableHardwareAcceleration();
 
-// Set our AUMID in all modes so toast notifications are associated with
-// "WFHelper" in Windows Settings -> Notifications, and Focus Assist
-// "Priority only" mode recognises us as a proper app.  A matching Start Menu
-// shortcut is created in worldStateIpc.register() so Windows has the full
-// AUMID -> shortcut mapping that desktop-app toasts require.
+// Windows uses the AUMID for notification settings and Focus Assist.
 if (process.platform === "win32") {
   app.setAppUserModelId(WIN_APP_USER_MODEL_ID);
 }
@@ -417,10 +413,8 @@ void app.whenReady().then(async () => {
     }
   }
 
-  // Start helper polling (runs exe every 10 min; chokidar picks up changes).
-  // On a first-ever install there's no inventory.json yet, so the watcher
-  // above was never installed. After each helper run, if we still have no
-  // path, try discovering the freshly-written file and attach to it.
+  // The first helper run can create inventory.json after initial discovery.
+  // Re-run discovery after polling so the watcher attaches.
   apiHelperRunner.startPolling(undefined, attachInventoryAfterHelperRun);
 
   profileStage("inventory:auto-detect", inventoryDetectStart);
@@ -523,14 +517,10 @@ void app.whenReady().then(async () => {
 });
 
 app.on("window-all-closed", () => {
-  if (process.platform === "darwin") return;
   app.quit();
 });
 
-// Arm the overlay global shortcuts only while Warframe is running. Polling the
-// cheap cached status (native EnumProcesses on win32, /proc on linux) lets us
-// release every global shortcut the moment the game closes, so WFHelper never
-// holds a hotkey while the user is in a browser or other app.
+// Release global shortcuts when Warframe exits so they do not affect other apps.
 let _hotkeyGateTimer: ReturnType<typeof setInterval> | null = null;
 let _hotkeyGameActive = false;
 

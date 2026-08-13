@@ -188,8 +188,7 @@ function _getOrCreateWindow(): InstanceType<typeof BrowserWindow> {
   const { x: dX, y: dY, width: dW } = primaryDisplay.workArea;
 
   const win = new BrowserWindow({
-    // Never-interactive toast: notification type keeps Linux compositors from
-    // focusing it on map (which would pull Warframe out of focus).
+    // Notification windows prevent Linux focus-on-map for non-interactive toasts.
     ...(process.platform === "linux" ? { type: "notification" } : {}),
     width: WIN_W,
     height: WIN_H,

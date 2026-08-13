@@ -1,11 +1,4 @@
-/**
- * YOLO + PaddleOCR CH v3 pipeline for riven stat OCR: a YOLO detector finds the
- * stat-line boxes, crops are height-filtered and upscaled, PaddleOCR runs CTC
- * recognition, then regex post-correction merges names split across boxes.
- *
- * Models live in resources/riven-ocr/: yolo/stat_line_detector.onnx,
- * paddle/ch_PP-OCRv3_rec_infer.onnx, paddle/ch_dict.txt.
- */
+/** YOLO stat-line detection followed by PaddleOCR CH v3 recognition. */
 
 import { existsSync, readFileSync } from "node:fs";
 import os from "node:os";
@@ -32,12 +25,7 @@ const YOLO_MODEL_PARTS = [RIVEN_OCR_ASSET_DIR, "yolo", "stat_line_detector.onnx"
 const CH_REC_MODEL_PARTS = [RIVEN_OCR_ASSET_DIR, "paddle", "ch_PP-OCRv3_rec_infer.onnx"] as const;
 const CH_DICT_PARTS = [RIVEN_OCR_ASSET_DIR, "paddle", "ch_dict.txt"] as const;
 
-/**
- * Minimal structural interface that onnxruntime-node's InferenceSession
- * satisfies directly (so no cast is needed when assigning a real session).
- * Tensor `data` is left as `unknown` and narrowed to the concrete element
- * type at each call site where the output kind is actually known.
- */
+/** Keeps ONNX tensor data unknown until each output kind is narrowed. */
 interface OrtInferenceSession {
   inputNames: readonly string[];
   outputNames: readonly string[];
@@ -103,9 +91,7 @@ async function getChRecSession(): Promise<OrtInferenceSession> {
 
     const ort: typeof import("onnxruntime-node") = require("onnxruntime-node");
 
-    // Load dictionary: index 0 = blank (CTC), then one char per line.
-    // Use /\r?\n/ split to handle Windows CRLF line endings - plain \n split
-    // leaves \r on each character, breaking all CTC decoded text.
+    // Split CRLF explicitly; leaving \r on dictionary characters corrupts CTC decoding.
     if (existsSync(dictPath)) {
       const dictContent = readFileSync(dictPath, "utf8");
       const lines = dictContent.split(/\r?\n/);
@@ -125,10 +111,7 @@ async function getChRecSession(): Promise<OrtInferenceSession> {
   return _chRecSessionPromise;
 }
 
-/**
- * Returns true if both YOLO and PaddleOCR CH model files exist on disk.
- * Does NOT load the models - just checks file paths.
- */
+/** Checks whether both model files exist without loading them. */
 export function rivenOcrOnnxAvailable(): boolean {
   return (
     existsSync(resolveRuntimeResourcePath(...YOLO_MODEL_PARTS)) &&
@@ -144,15 +127,7 @@ interface YoloBox {
   confidence: number;
 }
 
-/**
- * Run YOLO detector on a stat area image and return bounding boxes sorted by Y.
- *
- * @param rgbaBuf Raw RGBA buffer from Sharp
- * @param W       Image width
- * @param H       Image height
- * @param confThresh Minimum detection confidence (default 0.25)
- * @param iouThresh  NMS IoU threshold (default 0.5)
- */
+/** Detects stat boxes and returns them in vertical order. */
 async function yoloDetectStatLines(
   rgbaBuf: Buffer,
   W: number,
@@ -168,21 +143,21 @@ async function yoloDetectStatLines(
 
   const imgsz = _yoloInputSize; // 640
 
-  // Letterbox resize: scale to fit 640×640, center-pad with 114
+  // Letterbox resize: scale to fit 640x640, center-pad with 114
   const scale = Math.min(imgsz / H, imgsz / W);
   const newW = Math.round(W * scale);
   const newH = Math.round(H * scale);
   const padLeft = Math.floor((imgsz - newW) / 2);
   const padTop = Math.floor((imgsz - newH) / 2);
 
-  // Resize RGBA to newW×newH, then extract RGB channels
+  // Resize RGBA to newWxnewH, then extract RGB channels
   const resizedBuf: Buffer = await sharp(rgbaBuf, { raw: { width: W, height: H, channels: 4 } })
     .resize(newW, newH, { kernel: "linear" })
     .removeAlpha()
     .raw()
     .toBuffer();
 
-  // Build padded 640×640 blob in CHW format, RGB, normalized 0-1
+  // Build padded 640x640 blob in CHW format, RGB, normalized 0-1
   const blobSize = 3 * imgsz * imgsz;
   const blob = new Float32Array(blobSize);
   const fillVal = 114 / 255;
@@ -285,10 +260,7 @@ export interface RgbCrop {
   height: number;
 }
 
-/**
- * Extract RGB crops from YOLO boxes with padding, filter by height, and
- * upscale uniformly so the widest crop is at least MIN_OCR_WIDTH.
- */
+/** Extracts padded RGB crops and uniformly upscales them for recognition. */
 async function extractAndUpscaleCrops(
   rgbaBuf: Buffer,
   W: number,
@@ -363,10 +335,7 @@ export function recognizePaddleCrops(crops: RgbCrop[]): Promise<OcrLineResult[]>
   return recognizeCropsBatch(crops);
 }
 
-/**
- * CTC greedy decode: argmax per timestep, remove blanks and duplicates.
- * Returns decoded text and mean confidence (from softmax probabilities).
- */
+/** Greedy-decodes CTC output and returns text with mean softmax confidence. */
 function ctcGreedyDecode(
   preds: Float32Array,
   seqLen: number,
@@ -406,10 +375,7 @@ function ctcGreedyDecode(
   return { text, confidence };
 }
 
-/**
- * Batch-recognize all crops using PaddleOCR CH v3.
- * Preprocessing: resize to h=48, preserve aspect, normalize [-1,1], zero-pad.
- */
+/** Batch-recognizes crops after aspect-preserving resize, normalization, and padding. */
 async function recognizeCropsBatch(crops: RgbCrop[]): Promise<OcrLineResult[]> {
   if (crops.length === 0) return [];
   const session = await getChRecSession();
@@ -578,10 +544,7 @@ function normForMerge(s: string): string {
   return n;
 }
 
-/**
- * Merge consecutive OCR lines that are fragments of a known multi-word stat.
- * e.g. ["..Critical Chance", "for Slide Attack.."] -> ["..Critical Chance for Slide Attack.."]
- */
+/** Merges consecutive fragments of a known multi-word stat. */
 function mergeSplitLines(lines: string[]): string[] {
   if (lines.length <= 1) return lines;
 
@@ -628,14 +591,7 @@ export interface RivenOcrResult {
 /** Confidence threshold below which a stat line is considered unreliable. */
 export const LOW_CONFIDENCE_THRESHOLD = 0.8;
 
-/**
- * Run the full YOLO + PaddleOCR pipeline on a stat area image.
- *
- * @param rgbaBuf Raw RGBA buffer of the stat area (from Sharp)
- * @param W       Width of the stat area image
- * @param H       Height of the stat area image
- * @returns       OCR results with per-line confidence scores
- */
+/** Runs detection and recognition on a raw RGBA stat-area image. */
 export async function recognizeStatArea(
   rgbaBuf: Buffer,
   W: number,
@@ -699,7 +655,7 @@ export async function recognizeStatArea(
   }
 
   const text = mergedLines.map((l) => l.text).join("\n");
-  // Only stat-relevant lines (starting with +/-/x/×) count for minConfidence;
+  // Only stat-relevant lines (starting with a value marker) count for minConfidence;
   // title, MR footer, and continuation fragments are excluded.
   const statLineRe = /^[+\-x×]/i;
   const statConfs = mergedLines
@@ -720,12 +676,8 @@ export async function recognizeStatArea(
   };
 }
 
-/**
- * Check if any *stat-relevant* line has low confidence.
- * Only lines that look like stat values (starting with +, -, x, ×) are checked;
- * title lines ("Sobek Croni-zetican"), MR/footer lines, and continuation
- * fragments ("Bows)") are ignored since they don't affect parsed stats.
- */
+// Titles, footers, and continuations do not affect parsed stats.
+// Only value-prefixed lines can fail the confidence gate.
 export function hasLowConfidenceLine(result: RivenOcrResult): boolean {
   const statLineRe = /^[+\-x×]/i;
   const statLines = result.lines.filter((l) => statLineRe.test(l.text.trim()));

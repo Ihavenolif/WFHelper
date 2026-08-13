@@ -1,7 +1,4 @@
-// Linux-only: read Warframe's accountId+nonce from the Proton game's memory via
-// /proc/<pid>/mem, so inventory needs no external helper. Sainan's helper wants
-// 3 identical copies of the auth string (false-positive guard) which Proton's
-// heap does not keep - we take the most frequent well-formed match instead.
+// Proton often keeps fewer than Sainan's three copies, so accept a unique leading match.
 import fs from "node:fs";
 
 import { withScope } from "./logger";

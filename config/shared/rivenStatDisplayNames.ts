@@ -1,8 +1,4 @@
-/**
- * Upgrade-tag ID -> display name ("WeaponCritDamageMod" -> "Critical Damage").
- * Kept in config/shared so the renderer avoids main-process imports.
- * AS shares FR's tag (WeaponFireRateMod); pass melee=true to label it Attack Speed.
- */
+// Attack speed shares the fire-rate tag, so melee callers must opt into its label.
 
 const STAT_TAG_TO_DISPLAY_NAME: Record<string, string> = {
   WeaponCritChanceMod: "Critical Chance",
@@ -40,10 +36,7 @@ const STAT_TAG_TO_DISPLAY_NAME: Record<string, string> = {
   WeaponMeleeComboBonusOnHitMod: "Additional Combo Count Chance",
 };
 
-/**
- * Resolve a tag to a display name. For `WeaponFireRateMod` returns
- * "Attack Speed" when `melee` is true.
- */
+/** Resolves an upgrade tag to its display label. */
 export function statTagToDisplayName(tag: string, melee = false): string {
   if (melee && tag === "WeaponFireRateMod") return "Attack Speed";
   return STAT_TAG_TO_DISPLAY_NAME[tag] ?? tag;

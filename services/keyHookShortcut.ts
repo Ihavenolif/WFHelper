@@ -1,8 +1,3 @@
-/**
- * globalShortcut facade backed by an isolated WH_KEYBOARD_LL process.
- * It falls back to Electron's shortcut API if the native hook fails.
- */
-
 import path from "node:path";
 import { parseAccelerator, type ParsedAccelerator } from "./acceleratorVk";
 

@@ -10,9 +10,7 @@ const RECONNECT_BASE_MS = 1_000;
 const RECONNECT_CAP_MS = 60_000;
 const RECONNECT_JITTER_MS = 500;
 const PING_INTERVAL_MS = 30_000;
-// A rejected sign-in is usually a transient WFM-side error, not a dead token -
-// retry through the backoff loop, but a token rejected this many times in a row
-// is genuinely invalid and retrying would just spam WFM.
+// Retry transient sign-in failures, but stop after repeated token rejection.
 const MAX_SIGNIN_FAILURES = 3;
 
 let _active = false;

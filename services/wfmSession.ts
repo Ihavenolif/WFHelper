@@ -142,9 +142,7 @@ export async function signIn(email: string, password: string): Promise<SignInRes
     throw new Error("Email and password are required.");
   }
 
-  // Header-mode sign-in first: no CSRF page fetch, so no Cloudflare challenge.
-  // Credential errors (401, or WFM's 400 app.account.*) must not resubmit the
-  // same credentials down the legacy path - the auth style is not the problem.
+  // Do not retry credential errors through legacy auth; the auth style is not the cause.
   let raw: Awaited<ReturnType<typeof requestRaw>>;
   try {
     raw = await requestRaw("POST", "/auth/signin", {

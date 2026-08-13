@@ -16,10 +16,8 @@ import {
 const SNAPSHOT_FRESH_MS = 2 * 60 * 60 * 1000;
 const SNAPSHOT_FETCH_TIMEOUT_MS = 20_000;
 
-// In-memory ETag for the snapshot. Persisted across re-fetches within the same
-// session. On startup the disk cache path skips the network entirely if fresh,
-// so the ETag is only relevant for mid-session re-fetches (not yet implemented)
-// but wiring it now keeps the door open at zero extra cost.
+// The ETag applies only to repeated loads in one renderer session; a fresh disk
+// cache skips the network entirely.
 let _cachedEtag: string | null = null;
 
 // Object type alias (not interface) so it carries an implicit index signature
@@ -36,11 +34,8 @@ function isValidSnapshot(d: unknown): d is SnapshotBlob {
   return isValidSnapshotBlob(d);
 }
 
-/**
- * Called once during app startup. Loads the bulk snapshot from disk (if < 2 h
- * old) or fetches it from the backend. Imports into all three in-memory caches
- * (prices, meta, order summaries). Never throws; logs and returns on failure.
- */
+// Load a fresh disk snapshot or fetch one, then populate all in-memory caches.
+// Failures are logged and do not reject startup.
 export async function tryLoadSnapshot(): Promise<void> {
   if (!isBackendLiteConfigured()) return;
 

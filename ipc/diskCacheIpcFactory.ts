@@ -1,13 +1,3 @@
-/**
- * Factory for disk-backed JSON cache IPC handlers.
- *
- * Each cache pair exposes two IPC channels:
- *   - `<prefix>:load`  - reads a JSON file from `userData` and returns its contents
- *   - `<prefix>:save`  - writes a JSON blob to the same file
- *
- * All handlers enforce sender authorization via `assertMainRendererSender`.
- */
-
 import { assertMainRendererSender, handleAuthorized } from "./ipcSecurity";
 import { withScope, type ScopedLogger } from "../services/logger";
 import { normalizeErrorMessage } from "../config/shared/errors";
@@ -25,16 +15,9 @@ interface DiskCacheIpcConfig {
   channelPrefix: string;
   /** Human-readable noun for log messages, e.g. `"price cache"`. */
   noun: string;
-  /**
-   * Maximum serialized payload size in bytes. Save calls exceeding this limit
-   * are rejected to prevent a compromised renderer from exhausting disk.
-   * Defaults to 64 MiB (snapshot cache is ~2 MiB today, so 30x headroom).
-   */
+  // Limits renderer-controlled disk usage. The default leaves ample snapshot headroom.
   maxPayloadBytes?: number;
-  /**
-   * Maximum top-level key count. Rejects absurdly large objects even if their
-   * serialized size fits. Defaults to 200_000 (snapshot has ~13k top-level keys).
-   */
+  // Caps object complexity independently of serialized byte size.
   maxKeyCount?: number;
   /** Optional cache-specific shape validator applied on load and save. */
   validateData?: (data: Record<string, unknown>) => boolean;
@@ -43,10 +26,6 @@ interface DiskCacheIpcConfig {
 const DEFAULT_MAX_PAYLOAD_BYTES = 64 * 1024 * 1024;
 const DEFAULT_MAX_KEY_COUNT = 200_000;
 
-/**
- * Create a `{ register }` object that, when `register()` is called, installs
- * `:load` and `:save` IPC handlers for a JSON cache file on disk.
- */
 function createDiskCacheIpc(config: DiskCacheIpcConfig): { register: () => void } {
   const { scope, filename, channelPrefix, noun } = config;
   const maxPayloadBytes = config.maxPayloadBytes ?? DEFAULT_MAX_PAYLOAD_BYTES;

@@ -51,9 +51,7 @@ function buildConnectSrcAllowlist(): string {
     // If electron isn't available (e.g. tests), skip localhost entries
   }
 
-  // Backend-lite Worker URL: use env override or shared config.
-  // The renderer gets this via Vite's import.meta.env, but the main process
-  // doesn't use Vite, so we read the shared config directly.
+  // Main has no Vite env, so fall back to the shared backend URL.
   let backendUrl = process.env.VITE_WFM_BACKEND_URL || "";
   if (!backendUrl) {
     backendUrl = BACKEND_URL || "";

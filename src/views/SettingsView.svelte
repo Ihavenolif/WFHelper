@@ -198,10 +198,8 @@
     void save();
   }
 
-  // Turn a keydown into an Electron accelerator so users can *press* a combo to
-  // set a hotkey instead of typing the string. Returns undefined for presses we
-  // let through (Escape to abort, bare Tab to keep field navigation, a lone
-  // modifier while waiting for the full combo).
+  // Return undefined for Escape, bare Tab, and lone modifiers so cancellation,
+  // navigation, and incomplete combos retain their normal behavior.
   function captureAccelerator(e: KeyboardEvent): string | undefined {
     const key = e.key;
     if (key === "Escape") return undefined;

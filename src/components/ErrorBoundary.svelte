@@ -3,10 +3,8 @@
   import { log } from "../lib/log.js";
   import { normalizeErrorMessage } from "../../config/shared/errors.js";
 
-  // <svelte:boundary> catches render/effect crashes and swaps in the failed
-  // snippet (reset remounts the subtree). Async errors never reach a boundary,
-  // so window 'error'/'unhandledrejection' are reported separately as toasts
-  // and don't tear down the UI.
+  // Svelte boundaries handle render failures, but not async errors. Report window
+  // errors separately without replacing the UI.
   function reportAsync(reason: unknown): void {
     addToast({
       level: "error",

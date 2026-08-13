@@ -272,9 +272,8 @@
   $: foundryIndex = buildFoundryIndex($foundryData);
   $: subsumedFamilies = buildSubsumedFamilySet($inventoryData, $itemDb);
 
-  // Pre-compute per-item derived values here so {#each} never reads
-  // $wfmItems directly - a wfmItems store update won't trigger a full
-  // template re-render; Svelte will patch only changed items via the key.
+  // Precompute values outside the keyed loop so WFM updates patch only changed
+  // items instead of rerendering the full template.
   function hydrateMasteryItems(
     data: typeof $masteryData,
     wfmLookup: typeof $wfmItems,

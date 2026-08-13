@@ -3,9 +3,7 @@ import { normalizeForSearch } from "./textNormalize";
 
 const BLOOD_FOR_SLUGS = new Set(["blood_for_ammo", "blood_for_energy", "blood_for_life"]);
 
-// Slugs that exist in the Warframe inventory but have no WFM listing at all.
-// Excluded from every price AND meta lookup. Add entries here when an item
-// produces repeated 404s (e.g. vendor packs, internal placeholder items).
+// Skip inventory slugs that have no WFM listing and would repeatedly return 404.
 const WFM_EXCLUDED_SLUGS = new Set(["vendor_relic"]);
 
 function isKnownUnlistedSlugPattern(slug: string): boolean {
@@ -41,11 +39,7 @@ export function isExcludedRankedMarketItem(name: unknown, slug: unknown): boolea
   return false;
 }
 
-/**
- * Returns true for slugs that should never be looked up on warframe.market
- * (price OR meta). These are items that exist in the Warframe inventory but
- * are not tradable and have no WFM listing.
- */
+/** Whether a slug is known to have no Warframe Market listing. */
 export function isWfmExcludedSlug(slug: unknown): boolean {
   const normalizedSlug = normalizeWfmSlugKey(slug);
   if (!normalizedSlug) return false;

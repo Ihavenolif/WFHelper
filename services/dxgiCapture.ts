@@ -1,10 +1,4 @@
-/**
- * GDI BitBlt screen capture via koffi FFI.
- *
- * BitBlt reads from the final display output after hardware overlay
- * composition, so it always captures the current screen content regardless
- * of Multi-Plane Overlay (MPO) / DWM optimisations. ~15-50 ms per capture.
- */
+/** BitBlt captures final display output after MPO and DWM composition. */
 
 import { withScope } from "./logger";
 
@@ -89,15 +83,7 @@ function ensureGdi(): boolean {
   }
 }
 
-/**
- * Capture a display via GDI BitBlt.  Always returns *current* screen content
- * regardless of Multi-Plane Overlay (MPO) / DWM optimisations.
- *
- * If `displayId` is provided (Electron display.id = HMONITOR as int32),
- * captures that specific monitor; otherwise captures the primary display.
- *
- * Returns BGRA pixel data or `null` on failure.
- */
+/** Capture current BGRA display output, selecting an HMONITOR when supplied. */
 interface GameWindowRect {
   x: number;
   y: number;
@@ -105,12 +91,8 @@ interface GameWindowRect {
   height: number;
 }
 
-/**
- * Client rect of the running Warframe window in virtual-screen coords, or
- * null when the game is not running, minimized, or too small to be a game
- * viewport. In borderless/exclusive fullscreen this equals the monitor, so
- * cropping to it is a no-op; in windowed mode it excludes titlebar/borders.
- */
+/** Return the usable Warframe client rect in virtual-screen coordinates.
+ * Fullscreen matches the monitor; windowed mode excludes window chrome. */
 export function getGameWindowClientRect(): GameWindowRect | null {
   if (process.platform !== "win32") return null;
   if (!ensureGdi()) return null;

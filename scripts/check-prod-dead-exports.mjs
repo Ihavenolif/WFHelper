@@ -1,19 +1,6 @@
 #!/usr/bin/env node
-/**
- * Finds exports whose only references live in test files.
- *
- * knip can't catch these: knip.json lists the test globs as `entry` (its
- * vitest plugin doesn't detect the worker subpackage layout), so a function
- * can rot in prod while staying "reachable" through a test import.
- *
- * Dumb token matching, no AST. A name showing up in a comment or string of a
- * prod file counts as a prod reference, and multi-line `export { ... } from`
- * blocks count as prod-used - both make the gate under-report, so it never
- * asks you to delete something that's actually live.
- *
- * Intentional test seams use the `...ForTest`/`...ForTesting` suffix or the
- * ALLOWLIST below. Exits 1 if anything else is test-only.
- */
+// Finds exports referenced only by tests, which knip treats as entry points.
+// Token matching deliberately under-reports to avoid deleting live exports.
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -107,10 +94,8 @@ const REEXPORT_LINE_RE = /^\s*export\s+(?:type\s+)?\{/;
 const IDENT_RE = /[A-Za-z_$][\w$]*/g;
 const TEST_BAG_OPEN_RE = /^\s*export\s+const\s+__test__\s*=\s*\{/;
 
-// Map every exported symbol -> its defining file. Also pull members out of
-// `export const __test__ = { ... }` bags so they get tracked individually,
-// and remember each bag's line range so refs inside it don't count as
-// prod use of the wrapped helper.
+// Track normal exports and __test__ bag members without counting the bag body
+// as production use of its members.
 const defs = new Map(); // name -> { file, line }
 const defAtLine = new Map(); // `${file}\0${line}` -> name
 const testBagRanges = new Map(); // file -> Array<[startLine, endLine]>
@@ -139,17 +124,13 @@ for (const file of collectFiles(DEF_DIRS, DEF_ROOT_FILES)) {
     }
     if (!testBagRanges.has(file)) testBagRanges.set(file, []);
     testBagRanges.get(file).push([i, j]);
-    // Pull member names. Bags use shorthand (`{ foo, bar }`) or `key: value`
-    // - accept identifier tokens, ignore literal values (kept simple: any
-    // identifier that resolves to a local declaration in this file counts).
+    // Resolve identifier-shaped bag members back to declarations in this file.
     const body = lines.slice(i, j + 1).join("\n");
     const inner = body.slice(body.indexOf("{") + 1, body.lastIndexOf("}"));
     const memberNames = new Set(inner.match(IDENT_RE) || []);
     for (const name of memberNames) {
       if (defs.has(name)) continue;
-      // Locate the actual declaration line in this same file so the gate
-      // can later skip the def occurrence the same way it does for normal
-      // exports. Falls back to the bag line if no declaration is found.
+      // Use the declaration line when possible so it is not counted as a reference.
       const declRe = new RegExp(
         `^\\s*(?:async\\s+)?(?:function|const|let|var|class)\\s+${name}\\b`,
       );

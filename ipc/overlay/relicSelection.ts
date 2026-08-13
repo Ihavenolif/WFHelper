@@ -429,14 +429,11 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
   let lastKnownGameDisplayId: string | null = null;
   let desktopSquadSize: number = RECOMMENDATION_SQUAD_SIZE;
   let desktopTierHint: string | null = null;
-  // Era cache for the current mission session: set on first confident detection,
-  // reused for later picks (endless rotations) so OCR is skipped. TTL refreshes
-  // on hit; expires only after leaving the mission for longer than the TTL.
+  // Reuse confident era OCR across endless rotations until the mission cache expires.
   let activeMissionTier: string | null = null;
   let activeMissionTierSetAt = 0;
-  // Fissure tier from the EE.log mission tag - authoritative over OCR (omnia
-  // screens OCR as "lith" from the visible tiles) and TTL-free (long endless
-  // runs outlive the OCR cache). Cleared when a non-fissure mission loads.
+  // The mission tag overrides OCR because omnia tiles can look like Lith.
+  // It lasts through long endless runs and clears on the next non-fissure mission.
   let logMissionTier: string | null = null;
   let cache: {
     key: string;
@@ -600,9 +597,7 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
     try {
       const eraDetectStartedAt = Date.now();
 
-      // Era cached: just captureSourceMeta (display anchor refresh). Era needed:
-      // skip captureSourceMeta - detectRelicSelectionEra captures the screen itself,
-      // a second capture would waste ~600 ms.
+      // Era detection already captures the screen, so skip the separate anchor capture.
       const cacheAge = Date.now() - activeMissionTierSetAt;
       let era: string | null =
         logMissionTier ||
@@ -619,10 +614,8 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
             : `[RelicSelection] mission tier cache hit: ${era} (age ${Math.round(cacheAge / 1000)}s)`,
         );
         if (logMissionTier && typeof rewardScanner.detectRelicSelectionEra === "function") {
-          // The tag outlives its mission (no orbiter line clears it), so a lith
-          // tag can linger into an omnia equip screen. The filter-tab label is
-          // the truth for the pick on screen: a confident read overrides the
-          // tag, a miss (mid-mission screens have no tabs) keeps it.
+          // Mission tags can linger into an omnia picker. A confident visible tab
+          // overrides the tag; missing tabs keep it for mid-mission screens.
           const labelDetection = await rewardScanner.detectRelicSelectionEra({
             timeoutMs: ERA_DETECTION_TIMEOUT_MS,
             preferredDisplayId,
@@ -819,9 +812,7 @@ export function createRelicSelectionController(options: OverlayRecommendationCon
       windows.sendOverlayEvent(RELIC_PLANNER_TRIGGER, { source });
       windows.scheduleOverlayAutoHide(OVERLAY_AUTO_HIDE_DETECTING_MAX_MS);
 
-      // Only send immediate rows if we have a cached era from this mission session.
-      // Without one, buildRecommendations(null) returns all eras which causes a visible
-      // flash of every relic before OCR completes.
+      // Avoid flashing all eras before OCR by sending rows only with a cached era.
       const cachedEra =
         logMissionTier ||
         (activeMissionTier && Date.now() - activeMissionTierSetAt < RELIC_MISSION_TIER_CACHE_TTL_MS

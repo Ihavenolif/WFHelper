@@ -1,9 +1,4 @@
-/**
- * ONNX reward-strip reader: reuses the shipped PaddleOCR CH v3 recognizer
- * from the riven pipeline; works when Windows OCR has no language pack.
- * Rows come from ink projection on an Otsu mono, but recognition runs on the
- * raw RGB rows - binarizing eats glare-thinned strokes.
- */
+/** Detect rows on Otsu mono but recognize raw RGB to preserve glare-thinned strokes. */
 
 import { withScope } from "./logger";
 import { normalizeErrorMessage } from "../config/shared/errors";
@@ -105,11 +100,7 @@ export function splitStripRows(mono: Uint8Array, width: number, height: number):
     .sort((a, b) => a.y1 - b.y1);
 }
 
-/**
- * The CH model drops word spaces on raw crops ("BratonPrimeStock") - item
- * names are Title Case, so re-split at case boundaries and strip non-ASCII
- * decode artifacts.
- */
+/** Restore spaces lost by the CH model at item-name case boundaries. */
 export function cleanOnnxRowText(text: string): string {
   return String(text || "")
     .replace(/([a-z0-9])([A-Z])/g, "$1 $2")

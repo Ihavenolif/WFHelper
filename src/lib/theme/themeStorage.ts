@@ -193,10 +193,7 @@ function normalizeCustomThemes(value: unknown): CustomThemePreset[] {
   return themes;
 }
 
-/**
- * Build a ThemeFontSizes object, only including optional properties when they
- * have a defined value. This satisfies exactOptionalPropertyTypes.
- */
+/** Omit undefined font sizes to satisfy exactOptionalPropertyTypes. */
 function buildFontSizes(
   globalScale: number,
   headingSize: number | undefined,

@@ -80,10 +80,7 @@ interface InventoryReadError {
 interface InventoryStatus {
   path: string | null;
   found: boolean;
-  /**
-   * Most recent inventory read/parse failure; cleared on success. Distinguishes
-   * "no file discovered" (null) from "file unreadable/corrupt".
-   */
+  /** The last read failure, or null when no file was discovered or after success. */
   lastError?: InventoryReadError | null;
 }
 

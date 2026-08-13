@@ -1,12 +1,5 @@
-/**
- * Structured renderer logger.
- *
- * In development: passes through to console.*.
- * In production:
- *   - warn/error are forwarded to the main-process file transport via
- *     window.api.logWarn (IPC send -> main process electron-log).
- *   - info/debug are suppressed to avoid log noise.
- */
+// Development logs to the console. Production forwards warnings and errors to
+// the main-process file logger and suppresses lower levels.
 
 const isDev = import.meta.env.MODE === "development";
 

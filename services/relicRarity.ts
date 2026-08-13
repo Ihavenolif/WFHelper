@@ -1,6 +1,4 @@
-/** DE's drop tables tag rarity by chance band, putting every relic common
- * (25.33/23.33/20/16.67%) in the "Uncommon" band; upstream datasets inherit
- * that, so derive relic reward rarity from refinement + chance instead. */
+/** DE chance bands mislabel relic commons, so derive rarity from refinement and chance. */
 
 type RelicRefinement = "intact" | "exceptional" | "flawless" | "radiant";
 

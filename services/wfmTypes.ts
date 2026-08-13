@@ -1,12 +1,4 @@
-/**
- * Shared Warframe.market API response types (main-process only)
- *
- * WFM has two response envelope shapes depending on API version:
- * - v1: `{ payload: T }`
- * - v2: `{ data: T }`
- *
- * `unwrapWfmResponse()` normalises both into a plain T.
- */
+/** Main-process types shared across WFM v1 and v2 response envelopes. */
 
 /** v1 auction search: `GET /v1/auctions/search` */
 export interface WfmAuctionSearchPayload {
@@ -87,15 +79,7 @@ export interface WfmCloseOrderResult {
   remainingQuantity: number;
 }
 
-/**
- * Unwrap a WFM API response from its envelope.
- *
- * - v2 responses: `{ data: T }` -> returns `T`
- * - v1 responses: `{ payload: T }` -> returns `T`
- * - Already unwrapped: returns as-is
- *
- * The caller is responsible for asserting the inner type.
- */
+/** Unwrap v1 payload or v2 data; callers assert the inner type. */
 export function unwrapWfmResponse<T = unknown>(raw: unknown): T {
   if (raw == null || typeof raw !== "object") return raw as T;
   const obj = raw as Record<string, unknown>;

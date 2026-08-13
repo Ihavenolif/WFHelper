@@ -245,9 +245,8 @@ export async function handlePublicRoutes(req: Request, url: URL, env: Env, ctx?:
 	}
 
 	if (req.method === 'GET' && url.pathname === '/v1/snapshot') {
-		// Public bulk data, fetched at startup before the bootstrap token exists - no auth here.
-		// Cached per PoP via the Cache API; hits are rewrapped below so CORS matches the current
-		// request. Guard runs before cache lookup (cache hits still execute the Worker).
+		// Startup fetches this before bootstrap. Cache hits are rewrapped for the request's CORS
+		// headers, and the guard still runs before every cache lookup.
 		const guardResponse = await guardPublicRequest(req, env, 'snapshot');
 		if (guardResponse) return guardResponse;
 

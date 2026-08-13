@@ -1,17 +1,5 @@
-/**
- * Worker thread that tails Warframe's OutputDebugString output via the Win32
- * DBWIN shared-memory protocol and posts matching log lines to the parent.
- *
- * DBWIN requires the *reader* to create the named objects first; until they
- * exist every OutputDebugString call (from any process) is a silent no-op. So
- * we run two phases to keep CPU near zero:
- *   - Phase 0 (Warframe not running): sleep on Atomics.wait, poll the process list.
- *   - Phase 1 (Warframe running): create the DBWIN objects, run the message loop,
- *     cheaply filter non-Warframe PIDs (read the 4-byte PID, cached image-name check).
- * When Warframe exits we tear the objects down and drop back to Phase 0.
- *
- * Shutdown: parent sets stopBuffer[0]=1 via Atomics; worker exits within WAIT_TIMEOUT_MS.
- */
+/** DBWIN readers must create the shared objects before writers can emit.
+ * Keep them absent while Warframe is closed so the worker can sleep. */
 
 import { workerData, parentPort } from "worker_threads";
 import koffi from "koffi";
@@ -104,20 +92,13 @@ const WARFRAME_RECHECK_MS = 5000;
 // error under Electron's memory cage (no external ArrayBuffers) - never use it.
 const uint8ArrayType = koffi.array("uint8", DBWIN_BUFFER_SIZE, "Typed");
 
-// Only forward lines that can possibly match a pattern in eeLogMonitor.
-// Everything else is discarded here in the Worker - no IPC overhead.
-// Filter list + repeat suppression shared with the Linux Proton tail.
+// Drop irrelevant lines before IPC; Proton uses the same filter and suppression.
 const lineGate = new DebugLineGate();
 
-// isWarframePid - check (and cache) whether a PID belongs to Warframe.x64.exe
-// Caches pid -> boolean so that QueryFullProcessImageNameW is called once per
-// newly-seen PID, not once per DBWIN message.  Caller is responsible for
-// clearing the cache when re-entering Phase 1 after a Warframe restart.
+// Cache image-name checks per phase; a restart clears stale PID ownership.
 
 const _pidIsWarframe = new Map<number, boolean>();
-// Upper bound on the cache between WARFRAME_RECHECK_MS resets. On a noisy
-// system with many chatty debug-emitting processes, this prevents the Map
-// from growing without limit within a single recheck window.
+// Bound PID churn from unrelated debug-emitting processes within one phase.
 const MAX_PID_CACHE_SIZE = 256;
 
 function rememberPid(pid: number, value: boolean): void {
@@ -160,11 +141,9 @@ function isWarframePid(pid: number): boolean {
   return result;
 }
 
-// isWarframeRunning - scan the process list for Warframe.x64.exe
-// Uses EnumProcesses (psapi) + isWarframePid (kernel32).  The whole scan is
-// cheap: for most PIDs isWarframePid is a single Map.get() after caching.
+// Cache image-name lookups so process enumeration stays cheap.
 
-// Pre-allocated buffer for up to 1024 PIDs (4096 bytes ÷ 4 bytes per DWORD)
+// Pre-allocated buffer for up to 1024 PIDs (4096 bytes / 4 bytes per DWORD)
 const _pidsBuf      = Buffer.alloc(4096);
 const _pidsUsedBuf  = Buffer.alloc(4); // DWORD: bytes returned by EnumProcesses
 
@@ -296,16 +275,13 @@ function runDbwinLoop(): void {
 }
 
 function run(): void {
-  //
-  // Phase 0: DBWIN objects do NOT exist -> all other processes' OutputDebugString
-  //          calls are no-ops -> worker sleeps; CPU cost ~ 0.
-  // Phase 1: Warframe detected -> DBWIN active -> message loop (runDbwinLoop).
+  // Keep DBWIN absent until Warframe starts, then enter the message loop.
 
   while (Atomics.load(stopFlag, 0) === 0) {
     while (Atomics.load(stopFlag, 0) === 0) {
       if (isWarframeRunning()) break;
       // Atomics.wait sleeps up to WARFRAME_POLL_MS but wakes immediately
-      // (returning "not-equal") if the parent sets stopFlag ≠ 0.
+      // (returning "not-equal") if the parent sets stopFlag != 0.
       Atomics.wait(stopFlag, 0, 0, WARFRAME_POLL_MS);
     }
 

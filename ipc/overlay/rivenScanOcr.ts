@@ -60,9 +60,7 @@ function logScanTiming(label: string, t: RivenScanTiming): void {
   );
 }
 
-// When a scan finds nothing, keep the card/stat crops on disk so users can
-// attach them to reports - misaligned crops are impossible to diagnose from
-// OCR fragments alone. Only the card region is saved, never the full screen.
+// Empty scans save only card crops because OCR text cannot reveal crop alignment.
 const DEBUG_DUMP_KEEP = 10;
 
 function dumpFailedScanCrops(label: string, cardCrop: NativeImage, statCrop: NativeImage): void {

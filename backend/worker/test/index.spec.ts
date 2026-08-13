@@ -147,9 +147,6 @@ describe('backend worker', () => {
 	});
 
 	it('blocks requests from origins not in the allowlist', async () => {
-		// Only origins listed in ALLOW_ORIGIN (wrangler.jsonc default: https://wfhelper.com)
-		// are permitted from browser contexts. Requests from other origins are rejected
-		// with 403 regardless of whether they carry auth credentials.
 		const request = new IncomingRequest('http://example.com/admin/prewarm', {
 			method: 'POST',
 			headers: {
@@ -167,9 +164,6 @@ describe('backend worker', () => {
 	});
 
 	it('allows requests from the configured ALLOW_ORIGIN domain', async () => {
-		// The desktop app itself runs as a file:// or app:// origin and doesn't send
-		// an Origin header, but browser-based integrations using https://wfhelper.com
-		// should be served normally.
 		const request = new IncomingRequest('http://example.com/healthz', {
 			headers: { Origin: 'https://wfhelper.com' },
 		});

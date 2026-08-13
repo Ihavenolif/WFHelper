@@ -1,11 +1,3 @@
-/**
- * Arbitration schedule: fetches the pre-computed rotation from browse.wf
- * (epoch,nodeId lines - the schedule is deterministic and published ~a year
- * ahead), resolves node metadata offline via warframe-public-export-plus,
- * and drives the per-arbitration desktop alerts (one-shot bells + favorite
- * nodes) with disk-persisted state.
- */
-
 import path from "node:path";
 import fs from "node:fs";
 import { app } from "electron";
@@ -85,10 +77,6 @@ interface DueAlert {
   key: string;
 }
 
-// ---------------------------------------------------------------------------
-// Pure helpers (exported for tests)
-// ---------------------------------------------------------------------------
-
 export function parseArbysText(text: string): ArbiScheduleRow[] {
   const rows: ArbiScheduleRow[] = [];
   for (const rawLine of String(text || "").split("\n")) {
@@ -160,10 +148,7 @@ export function filterScheduleWindow(
     .sort((a, b) => a.epochMs - b.epochMs);
 }
 
-/**
- * Alerts due right now: inside the lead window (start - lead <= now < start),
- * not fired yet, and either belled individually or on a favorite node.
- */
+/** Return unfired alerts inside their lead window. */
 export function computeDueAlerts(
   entries: ArbiScheduleEntry[],
   alerts: ArbiScheduleAlerts,
@@ -192,10 +177,6 @@ export function pruneAlertKeys(keys: string[], nowMs: number): string[] {
     return Number.isFinite(epochMs) && epochMs >= nowMs - FIRED_RETENTION_MS;
   });
 }
-
-// ---------------------------------------------------------------------------
-// Region translation (offline, from warframe-public-export-plus)
-// ---------------------------------------------------------------------------
 
 let _translation: RegionTranslation | null = null;
 
@@ -228,10 +209,6 @@ function loadRegionTranslation(): RegionTranslation {
   _translation = { regions: {}, dict: {} };
   return _translation;
 }
-
-// ---------------------------------------------------------------------------
-// Stateful service
-// ---------------------------------------------------------------------------
 
 interface ArbiScheduleDeps {
   /** Desktop toast dispatcher (already platform-guarded). */

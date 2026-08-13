@@ -1,12 +1,3 @@
-/**
- * Reward scanner public surface and runtime wiring.
- *
- * The scan steps are split into cohesive stage modules:
- *   - rewardScannerPipeline.ts  (capture, guards, dedup, slot scan + text fallback)
- *   - rewardScannerSlotScan.ts  (per-slot OCR and reward assignment)
- *   - rewardScannerEra.ts       (relic selection era OCR)
- */
-
 import fs from "node:fs";
 import { withScope } from "./logger";
 import { createEraOcr, createRewardOcrRunner } from "./rewardScannerOcr";

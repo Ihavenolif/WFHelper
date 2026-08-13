@@ -1,8 +1,6 @@
 #!/usr/bin/env node
-// Regression harness for the two v1.1.3 koffi bugs: the koffi.view memory-cage
-// fatal (needs the real Electron host) and the BOOL-flag event flood (caught by
-// the [N, 3N] delivered-count band). Windows-only, needs build:main first;
-// unreliable if another DBWIN reader is active (DebugView, Overwolf, WFHelper).
+// Covers Electron's koffi memory cage and the BOOL event-flood regression.
+// Windows-only after build:main; close other DBWIN readers before running.
 
 import { spawn } from "node:child_process";
 import { createRequire } from "node:module";

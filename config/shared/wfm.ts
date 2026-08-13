@@ -1,18 +1,9 @@
 import { normalizeForSlug } from "./textNormalize";
 
-/**
- * Shared Warframe Market constants and helpers (headers, asset URLs, slug
- * normalization) used by main-process, renderer, and the worker.
- */
-
 /** Warframe.market user presence status. */
 export type WfmStatus = "online" | "ingame" | "invisible";
 
-/**
- * Standard request headers for the warframe.market v1 API.
- *
- * Individual callers may spread these and add extras (e.g. `User-Agent`).
- */
+/** Standard Warframe Market v1 request headers. */
 export const WFM_HEADERS: Readonly<Record<string, string>> = Object.freeze({
   Platform: "pc",
   Language: "en",
@@ -31,11 +22,8 @@ function readEnv(name: string): string | undefined {
 
 const ICON_MIRROR_BASE = readEnv("WFHELPER_ICON_MIRROR_URL") || "https://assets.wfhelper.com";
 
-/**
- * Mirror key for a WFM thumb URL: the asset path with content-hash segments
- * stripped, so the key survives WFM re-exports and the mirror updates in
- * place. Returns null for non-thumb assets (icons, avatars stay upstream).
- */
+// Strip content hashes so mirror keys survive WFM re-exports.
+// Non-thumbnail assets stay upstream and return null.
 export function wfmThumbMirrorPath(url: string): string | null {
   let pathname: string;
   try {

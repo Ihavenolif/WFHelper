@@ -1,10 +1,3 @@
-/**
- * OCR scanning for the riven rolling screen.
- *
- * Overlay/session timing stays in rivenOverlayIpc. This module owns scan state,
- * the three public scan entrypoints, and one shared capture/hash/retry runner.
- */
-
 import { withScope } from "../../services/logger";
 import { captureScreenFast, type CaptureResult } from "../../services/screenCapture";
 import { detectGameContentRect } from "../../services/rewardScannerImage";

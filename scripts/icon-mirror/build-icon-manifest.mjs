@@ -106,9 +106,8 @@ function collectItemDatabaseUrls(urls) {
   }
 }
 
-// WFM thumbs (the framed card art the app shows for mods/arcanes) are
-// challenge-gated on warframe.market - mirror them under stable /wfm/ keys.
-// Downloaded by download-wfm-thumbs.cjs (Electron), not the plain downloader.
+// WFM challenge-gates its thumbnails, so the Electron downloader mirrors them
+// under stable /wfm/ keys.
 async function collectWfmThumbEntries() {
   const { wfmThumbMirrorPath } = requireCompiled("config/shared/wfm.js");
   const response = await fetch("https://api.warframe.market/v2/items", {

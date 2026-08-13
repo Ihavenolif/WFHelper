@@ -58,9 +58,7 @@ export async function fetchPriceBySlug(slugInput: unknown): Promise<number | nul
 
   const task = (async (): Promise<number | null> => {
     try {
-      // Route through the shared wfmClient queue so stats fetches share the
-      // 350 ms rate-limit budget with every other WFM call. A direct fetch()
-      // here would bypass the queue and can trigger 429 bans.
+      // Share wfmClient's rate-limit queue to avoid 429 bans.
       const payload = await wfmClient.request("GET", `/items/${slug}/statistics`);
       const median = extractMedianFromStatsPayload(payload);
       if (median == null) return null;

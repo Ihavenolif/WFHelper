@@ -746,10 +746,7 @@ describe("parseRivenStats", () => {
   });
 
   it("pairs orphan value with stat name when noise line intervenes (Gelimantiton/Cold scenario)", () => {
-    // WinRT OCR on bright-150+dilate sometimes places the riven-name suffix (e.g.
-    // "Gelimantiton") BETWEEN the element value line and the element name line.
-    // The FIFO queue in collapseOrphanValueLines must skip over that noise and pair
-    // "+95.5%" with "Cold", not with "Gelimantiton".
+    // WinRT can place the riven suffix between an orphan value and its stat name.
     const text = [
       "+95,50/0", // Cold value (+95.5%) - 0/0 is WinRT misread of %
       "Gelimantiton", // riven-name suffix injected as a stats-area line by WinRT
@@ -785,9 +782,6 @@ describe("parseRivenStats", () => {
   });
 
   it("FIFO: does not steal orphan value from stat-name line that already has its own value", () => {
-    // bright+dilate OCR produces two orphan values then a stat+value line:
-    //   "+180.7%" "+133.9%" "-1.1 Range"
-    // The -1.1 belongs to Range and must NOT be overwritten by the orphan +180.7.
     const text = ["+180.7%", "+133.9%", "-1.1 Range"].join("\n");
     const result = parseRivenStats(text);
     const range = result.find((s) => s.name === "Range");
@@ -799,9 +793,7 @@ describe("parseRivenStats", () => {
   });
 
   it("does not carry-forward when icon-artifact dash present before element stat (Magnatox scenario)", () => {
-    // WinRT reads element icons as "-ÔÇ×e" between Impact and Toxin.
-    // The prefix " -ÔÇ×e " contains "-" followed by garbage chars, so carry-forward
-    // must NOT fire - Impact=180.7 must not bleed into Toxin (separate card rows).
+    // Garbled icon text marks Toxin as a separate row, not a combined element.
     const text = "+180.7% Impact -ÔÇ×e Toxin -1.1 Range";
     const result = parseRivenStats(text);
     const impact = result.find((s) => s.name === "Impact");
@@ -817,10 +809,7 @@ describe("parseRivenStats", () => {
   });
 
   it("does not carry-forward from non-damage-type stat (Status Duration + Electricity)", () => {
-    // WinRT reads "+126.2% Status Duration + Electricity" as a single line.
-    // Status Duration is NOT a damage-type stat, so the "+" before Electricity
-    // is the sign indicator for a separate stat - not a combined element.
-    // Carry-forward must NOT fire; Electricity should have null value.
+    // Status Duration and Electricity are separate stats despite the merged OCR line.
     const text = "+126.2% Status Duration + Electricity";
     const result = parseRivenStats(text);
     const sd = result.find((s) => s.name === "Status Duration");
@@ -984,10 +973,7 @@ describe("parseRivenStats", () => {
   });
 
   it("rejoins split x-multiplier decimal: WinRT splits 'x 1,3 Damage' into 'x 1' + ',3 Damage to Corpus'", () => {
-    // WinRT OCR splits the word group across two lines when the icon between
-    // "x value" and "Stat Name" causes a layout break.
-    // After xl-fix "x 1" -> "x1" and comma->dot ",3" -> ".3", the preprocessor
-    // must join "x1\n.3 Damage to Corpus" into "x1.3 Damage to Corpus".
+    // An intervening icon can split the multiplier's integer and decimal parts.
     const text = "x 1\n,3 Damage to Corpus\nx 1,36 Damage to Grineer\n-68,4% Impact";
     const result = parseRivenStats(text);
     const corpus = result.find((s) => s.name === "Damage to Corpus");
@@ -1001,9 +987,7 @@ describe("parseRivenStats", () => {
   });
 
   it("does not carry-forward value from multiplier stat to elemental stat on same line", () => {
-    // WinRT OCR merges "x 1,36 Damage to Grineer" and "*Heat" onto one line when
-    // the Heat value "+62,2%" is missed entirely. The carry-forward must NOT
-    // assign Grineer's multiplier value (1.36) to Heat.
+    // A merged multiplier must not supply the missing value of the following stat.
     const text = "x1.36 Damage to Grineer  Heat";
     const result = parseRivenStats(text);
     const grineer = result.find((s) => s.name === "Damage to Grineer");
@@ -1016,9 +1000,7 @@ describe("parseRivenStats", () => {
   });
 
   it("normalises spaced decimal comma in percent value: '+62, 2% Heat' -> 62.2", () => {
-    // WinRT OCR sometimes outputs "+62.2%" as "+62, 2%" when the decimal separator
-    // (comma) is followed by a space.  The preprocessing fix must recover the full
-    // value before parsing so Heat gets 62.2, not 2 or carry-forward.
+    // WinRT sometimes inserts a space after a decimal comma.
     const text = "x1.3 Damage to Corpus\nx1.36 Damage to Grineer\n+62, 2% Heat\n-68.4% Impact";
     const result = parseRivenStats(text);
     const heat = result.find((s) => s.name === "Heat");
@@ -1028,9 +1010,7 @@ describe("parseRivenStats", () => {
   });
 
   it("orphan '+62,' (trailing comma) pairs with following stat name", () => {
-    // WinRT OCR splits "+62.2%" across two structural lines: "+62," and "2% Heat".
-    // The orphan-value detection must recognise "+62," (with trailing comma) as a
-    // value fragment, so Heat doesn't fall through to carry-forward.
+    // A trailing comma still marks an orphan numeric fragment.
     const text = "+62,\nHeat";
     const result = parseRivenStats(text);
     const heat = result.find((s) => s.name === "Heat");
@@ -1041,9 +1021,7 @@ describe("parseRivenStats", () => {
   });
 
   it("deduplication prefers non-integer over integer value for same stat (xl vs x1.3)", () => {
-    // The duplicate stat panel typically OCRs "xl" -> x1 (value=1) while the main
-    // panel shows "x 1,3" -> x1.3 (value=1.3).  Bounding-box sort may put the
-    // duplicate first; the parser must keep the more precise value.
+    // Duplicate panels can yield x1 before the more precise x1.3 reading.
     const text = "xl Damage to Corpus\nx 1,3 Damage to Corpus";
     const result = parseRivenStats(text);
     // Only one "Damage to Corpus" entry
@@ -1054,9 +1032,7 @@ describe("parseRivenStats", () => {
   });
 
   it("deduplication does NOT replace when integer parts differ (value=2 vs value=62.2)", () => {
-    // Ensure the precision-replacement only fires when the integer-part matches
-    // (floor(new)==existing).  A genuine duplicate like "+2% Heat" followed by
-    // "+62.2% Heat" must NOT replace the first entry because floor(62.2)=62 ≠ 2.
+    // Precision replacement is safe only when both readings share an integer part.
     const text = "+2% Heat\n+62.2% Heat";
     const result = parseRivenStats(text);
     const matches = result.filter((s) => s.name === "Heat");
@@ -1175,9 +1151,7 @@ describe("parseRivenStats truncated roll crops", () => {
   });
 });
 
-// Real lines from a 2026-07-08 EE.log: the roll screen's diorama streams in the
-// riven's weapon model between session open and diorama setup - the resource
-// path is an exact, localization-proof weapon id.
+// The streamed diorama resource path is a localization-independent weapon ID.
 describe("dioramaWeaponLoad", () => {
   it("captures the weapon path from all three resource-load line forms", () => {
     const lines = [

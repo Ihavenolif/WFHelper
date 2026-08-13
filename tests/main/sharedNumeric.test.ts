@@ -2,9 +2,7 @@ import { describe, it, expect } from "vitest";
 
 import { toFiniteNumber, normalizeDucats } from "../../config/shared/numeric";
 
-// The only non-obvious bit worth guarding: Warframe's inventory JSON wraps
-// numbers in BSON boxes ($numberLong etc.), sometimes nested. The trivial
-// finite/clamp/parse paths aren't worth a test each.
+// Warframe inventory numbers may use nested BSON wrappers.
 describe("toFiniteNumber boxed-number handling", () => {
   it("unwraps BSON-style boxed numbers, including nested", () => {
     expect(toFiniteNumber({ $numberLong: "1000" })).toBe(1000);

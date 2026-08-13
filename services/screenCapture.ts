@@ -1,8 +1,4 @@
-// Platform-dispatched screen capture for reward/riven scanning.
-// win32: GDI BitBlt via koffi (~15-50 ms), cropped to the Warframe client rect.
-// elsewhere: Electron desktopCapturer full-screen (X11 direct; Wayland goes
-// through the PipeWire portal and may prompt once), trimmed to the letterboxed
-// game content rect since no native window rect exists off-Windows.
+// Capture game content through GDI on Windows or Electron elsewhere.
 
 import type { NativeImage } from "electron";
 import { withScope } from "./logger";
@@ -35,9 +31,7 @@ async function captureWin32Gdi(preferredDisplayId?: string | null): Promise<Capt
     height: gdiResult.height,
   });
   if (!img || img.isEmpty()) return null;
-  // Windowed game: crop the monitor capture to the game's client rect so
-  // layout ratios anchor to game content, not desktop + window chrome.
-  // Borderless/fullscreen client rect equals the monitor -> no crop.
+  // Crop windowed captures so layout ratios exclude desktop and window chrome.
   try {
     const gameRect = getGameWindowClientRect();
     if (gameRect) {
@@ -118,9 +112,7 @@ async function captureDesktopCapturer(
   }
 }
 
-// Linux: one persistent getDisplayMedia stream (single portal prompt per
-// session). Returns null rather than falling back to desktopCapturer, which
-// would re-open the Wayland picker.
+// Do not fall back after portal capture fails because that would reopen its picker.
 async function captureLinuxStream(): Promise<CaptureResult | null> {
   try {
     const frame = await captureLinuxStreamFrame();
@@ -138,9 +130,7 @@ async function captureLinuxStream(): Promise<CaptureResult | null> {
   }
 }
 
-// Sole platform dispatch point. On win32 a GDI failure returns null rather
-// than falling back to desktopCapturer, which can serve stale MPO content.
-// _captureTimeoutMs kept for API compatibility; both backends return current content.
+// Do not fall back after GDI failure because desktopCapturer can return stale MPO content.
 export async function captureScreenFast(
   preferredDisplayId?: string | null,
   _captureTimeoutMs = 0,

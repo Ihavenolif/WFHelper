@@ -1,14 +1,5 @@
-/**
- * Downloads warframe.market thumbs for the icon mirror.
- *
- * WFM gates /static/assets behind a Cloudflare challenge that blocks every
- * non-browser client (node fetch, Playwright Chromium). Electron's native
- * Chromium passes it, so this stage runs via `electron <this file>`: a hidden
- * window earns clearance, then thumbs are fetched in-page.
- *
- * Incremental via wfm-state.json (mirrorPath -> sourceUrl): a thumb is only
- * re-fetched when WFM's content-hashed source URL changes or the file is gone.
- */
+// Electron clears WFM's browser challenge before fetching thumbnails in-page.
+// wfm-state.json avoids downloads unless the source URL or local file changes.
 const { app, BrowserWindow, session } = require("electron");
 const fs = require("node:fs");
 const os = require("node:os");

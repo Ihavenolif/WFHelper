@@ -1,7 +1,4 @@
-/**
- * WCAG 2.1 contrast-ratio utilities.
- * All colour inputs are CSS hex strings (#rgb or #rrggbb) or rgb()/rgba() strings.
- */
+/** WCAG 2.1 contrast utilities for CSS hex, rgb(), and rgba() colors. */
 
 interface Rgb {
   r: number;

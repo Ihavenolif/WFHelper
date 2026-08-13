@@ -88,9 +88,8 @@
     void runSearch();
   }
 
-  // Drop rows carry only a display name; map it back to a db entry so the row
-  // can open the same detail modal the rest of the app uses. Items without an
-  // entry (mods, arcanes, raw blueprints) stay non-clickable.
+  // Map display names back to itemDb entries for detail modals. Rows without an
+  // entry remain non-clickable.
   $: nameIndex = buildItemNameIndex($itemDb);
 
   // Bundled rows like "2x Orokin Cell" carry a quantity prefix the db lacks.

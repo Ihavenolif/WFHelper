@@ -1,7 +1,4 @@
-/**
- * Isolates the Koffi keyboard callback because teardown can crash its host.
- * Watched combos are swallowed only while Warframe is foreground.
- */
+/** Isolate Koffi because hook teardown can crash its host process. */
 
 import koffi from "koffi";
 

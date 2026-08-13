@@ -1,8 +1,3 @@
-/**
- * Failed/diverging reward scans dump strip crops + read texts to
- * <userData>/scan-debug/<stamp>/; size-capped, oldest pruned.
- */
-
 import fs from "node:fs";
 import path from "node:path";
 import { withScope } from "./logger";
@@ -77,10 +72,7 @@ function stampNow(): string {
   );
 }
 
-/**
- * Strips only (full frames can contain squad names). Writes stay sync on
- * copied buffers - async fs on nativeImage-derived buffers races rapid scans.
- */
+/** Store strips only because full frames expose names; copy before synchronous writes. */
 export function dumpRewardScanDebug(
   reason: string,
   slots: ScanDebugSlot[],

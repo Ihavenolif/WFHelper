@@ -96,11 +96,7 @@ async function fetchDirectMetaBySlug(slug: string): Promise<DirectMetaResult> {
   return { status: "ok", data: parsed };
 }
 
-/**
- * Bulk-import meta entries from the snapshot blob.
- * Only imports entries that are fresher than what's already in memory (or absent).
- * Never throws.
- */
+/** Import only fresh snapshot metadata that is newer than the in-memory entry. */
 export function importMetaFromSnapshot(data: Record<string, WfmItemMeta>): number {
   let count = 0;
   for (const [slug, entry] of Object.entries(data)) {

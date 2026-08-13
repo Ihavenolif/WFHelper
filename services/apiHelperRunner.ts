@@ -1,8 +1,3 @@
-/**
- * Runs the warframe-api-helper binary in the background (no CMD window) on a timer.
- * After each run, the existing chokidar file-watcher on inventory.json picks up changes.
- */
-
 import crypto from "node:crypto";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -51,11 +46,7 @@ function sha256OfFile(filePath: string): string {
   return crypto.createHash("sha256").update(buf).digest("hex");
 }
 
-/**
- * Extract the single file from a zip archive (the upstream Linux.zip holds
- * exactly one ELF binary). Dependency-free: parses the end-of-central-directory
- * record and inflates with node:zlib. Throws on anything unexpected.
- */
+/** Extract the single-file Linux archive without a zip dependency. */
 export function extractSingleZipEntry(zip: Buffer): Buffer {
   let eocd = -1;
   const scanFloor = Math.max(0, zip.length - 22 - 65_535);
@@ -259,10 +250,7 @@ export function getStatus(): HelperStatus {
   };
 }
 
-/**
- * Run the helper exe once and resolve when it exits.
- * Uses `windowsHide: true` so no CMD window appears.
- */
+/** Run the helper without showing a console window. */
 // Linux: skip the external ELF entirely - read the auth query from game memory
 // and reuse the same inventory fetch as Windows.
 async function runOnceLinux(): Promise<boolean> {
@@ -390,9 +378,8 @@ function runHelperExe(): Promise<{ ok: boolean; reason: HelperRunReason | null }
       return;
     }
 
-    // Re-hash right before spawn (not only at discovery): closes the TOCTOU
-    // window where the binary could be swapped after the discovery-time check.
-    // The duplicate check is intentional - don't remove it.
+    // Re-hash at spawn time to close the TOCTOU gap after discovery validation.
+    // The duplicate check is intentional; do not remove it.
     try {
       const hashNow = sha256OfFile(_exePath);
       if (!isPinnedHash(hashNow)) {
@@ -453,9 +440,7 @@ function runHelperExe(): Promise<{ ok: boolean; reason: HelperRunReason | null }
     });
 
     child.on("exit", (code: number | null) => {
-      // Don't gate on exit code: helper's own HTTP request to mobile.warframe.com
-      // returns empty 200s, but the authz it prints is still valid against
-      // api.warframe.com, so we fetch ourselves.
+      // The helper can print valid auth after its own mobile API request fails.
       if (code !== 0) log.warn(`Helper exited with code ${code}`);
       const m = outputBuf.match(/\?accountId=[a-f0-9]+&nonce=\d+/i);
       if (!m) {
@@ -519,21 +504,8 @@ async function fetchInventoryWithAuthz(authz: string, destPath: string): Promise
   throw lastErr ?? new Error("All inventory hosts failed");
 }
 
-/**
- * Start the periodic polling loop (default 10 minutes).
- *
- * Cooldown honours `inventory.json` mtime across restarts: if the last refresh
- * happened less than `intervalMs` ago, we defer the first run until
- * `mtime + intervalMs`. This keeps the 10-minute rate-limit stable even when
- * the app is relaunched repeatedly.
- *
- * `onRunComplete` fires after each polling-driven run settles. The first run
- * on a brand-new install is where this matters: there is no inventory.json at
- * startup, so the file watcher in inventoryIpc is never installed, and the
- * helper's first successful run produces a file nothing is listening for.
- * Main wires this callback to discover + watch + push the file to the renderer
- * the moment it appears.
- */
+/** Preserve the inventory mtime cooldown across restarts.
+ * `onRunComplete` lets first-run installs attach their initially absent file. */
 export function startPolling(
   intervalMs = DEFAULT_POLL_INTERVAL_MS,
   onRunComplete?: (ok: boolean) => void,
@@ -659,10 +631,7 @@ function httpsGetBuffer(
   });
 }
 
-/**
- * Stream-download a URL to a file, calling `onProgress` with byte counts.
- * Follows one redirect (GitHub asset URLs redirect to S3).
- */
+/** Stream a download to disk and follow one GitHub asset redirect. */
 function httpsDownloadToFile(
   url: string,
   destPath: string,
@@ -767,11 +736,7 @@ interface GitHubRelease {
   assets: GitHubAsset[];
 }
 
-/**
- * Download the pinned helper binary from GitHub Releases (.exe on Windows,
- * Linux.zip's inner ELF elsewhere). Saves to `userData/api-helper/`.
- * Calls `onProgress` with download progress updates.
- */
+/** Download the pinned helper binary into userData. */
 export async function downloadHelper(
   onProgress: (progress: DownloadProgress) => void,
 ): Promise<boolean> {
@@ -824,9 +789,7 @@ export async function downloadHelper(
       });
     });
 
-    // verify binary format + SHA-256 against the pin set before swapping in.
-    // The pin is always on the executable itself (on linux: the ELF inside the
-    // zip), matching what findExePath()/runOnce() hash on disk.
+    // Validate the extracted executable against the same pin used at launch.
     let binaryBytes: Buffer = fs.readFileSync(tempPath);
     if (!IS_WINDOWS) binaryBytes = extractSingleZipEntry(binaryBytes);
     const magicOk = IS_WINDOWS
@@ -880,10 +843,6 @@ export async function downloadHelper(
   }
 }
 
-/**
- * Initialise the runner: find the exe, cache its path.
- * Does NOT start polling yet - call startPolling() separately.
- */
 export function init(): boolean {
   _exePath = findExePath();
   if (_exePath) {

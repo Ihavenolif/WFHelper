@@ -1,8 +1,5 @@
-/**
- * Vitus Essence probability model for arbitration runs.
- * Ported from svesk.github.io/arbi (normal approximation of drop variance).
- * Shared by main (finalize) and renderer (luck percentile, scenario table).
- */
+// Normal-approximation Vitus model ported from svesk.github.io/arbi.
+// Shared by main run finalization and renderer projections.
 
 /** Vitus drop chance per drone kill. */
 const VITUS_DROP_CHANCE = 0.15;

@@ -34,10 +34,7 @@ let _todayDateForRelics = ""; // tracks which day the relics counter belongs to
 let _todayDailyTrades = 0;
 let _todayDateForTrades = "";
 
-// Resumed deltas from previous app sessions today.
-// When the app restarts mid-day, loadHistory() captures the saved daily deltas
-// so they can be added on top of the new session's baseline-relative deltas.
-// This prevents _upsertToday() from overwriting accumulated daily totals with 0.
+// Resume saved daily deltas so a restart cannot overwrite them with fresh baselines.
 let _resumedPlatDelta = 0;
 let _resumedCreditsDelta = 0;
 let _resumedEndoDelta = 0;
@@ -141,9 +138,7 @@ export function loadHistory(): void {
   try {
     const raw = fs.readFileSync(_historyPath(), "utf-8");
     const parsed: unknown = JSON.parse(raw);
-    // Accept both the v1 legacy format (bare array) and the v2 envelope
-    // ({ schemaVersion, entries }). Tag loaded data with whichever version
-    // was on disk so we know whether to log a migration notice.
+    // Track the loaded schema while accepting both the legacy array and v2 envelope.
     let entries: unknown = null;
     let loadedVersion = 1;
     if (Array.isArray(parsed)) {
@@ -175,9 +170,7 @@ export function loadHistory(): void {
           `[StatsTracker] Migrating history schema v${loadedVersion} -> v${HISTORY_SCHEMA_VERSION} ` +
             `(day boundaries now local timezone; legacy UTC-keyed entries retained as-is).`,
         );
-        // Persist the envelope + version so future loads don't re-log. Existing
-        // entry date keys are intentionally preserved - without per-event
-        // timestamps, re-attributing old aggregates is not possible.
+        // Preserve old date keys because aggregates lack timestamps for re-attribution.
         _saveHistory();
       }
       // Restore today's relic accumulator so app restarts don't reset the daily count to 0

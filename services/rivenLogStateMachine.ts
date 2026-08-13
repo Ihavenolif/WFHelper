@@ -58,13 +58,8 @@ let _rivenSessionActive = false;
 let _rivenSessionStartedAt = 0;
 let _rivenSessionIdleTimer: ReturnType<typeof setTimeout> | null = null;
 const RIVEN_SESSION_IDLE_TIMEOUT_MS = 120_000;
-/**
- * Absolute ceiling on a single riven session. The 120s idle timer only fires
- * when matches stop arriving; if the user reliably pulls new rolls every <120s
- * (easy during bulk kuva grinding) the session can extend indefinitely. Nothing
- * downstream wants a "session" that's been open for an hour, so hard-cap at
- * 30 minutes and force-close even if matches keep coming.
- */
+// The idle timeout cannot cap active rolling because every match resets it.
+// Force-close sessions at 30 minutes even while matches continue.
 const RIVEN_SESSION_MAX_MS = 30 * 60_000;
 
 let _rivenNextDialog: "cycle" | "choice" = "cycle";
@@ -95,9 +90,7 @@ let _rivenWeaponPathSent = false;
 /** Accept the diorama weapon-load line this long after session open. */
 const RIVEN_WEAPON_PATH_WINDOW_MS = 15_000;
 
-/** True once the diorama-setup line fires.
- * Close patterns (ClearAgents / recycled effects) are gated on this so that
- * lines emitted during the loading transition TO the riven screen are ignored. */
+// Gate close patterns on diorama setup so loading-transition lines cannot close the screen.
 let _rivenDioramaReady = false;
 
 let _rivenForceEndedAt = 0;
@@ -125,13 +118,7 @@ function resetRivenIdleTimer(): void {
   }, RIVEN_SESSION_IDLE_TIMEOUT_MS);
 }
 
-/**
- * If the current session has exceeded RIVEN_SESSION_MAX_MS, force-close it and
- * fire the session-close callback. Call at the top of every log-line handler
- * that would otherwise extend the session, so a continuous stream of matches
- * can't keep a session alive past the cap.
- * Returns true if the session was force-closed on this call.
- */
+/** Force-closes an overlong session and returns whether this call closed it. */
 function forceEndRivenSessionIfExpired(): boolean {
   if (!_rivenSessionActive || _rivenSessionStartedAt === 0) return false;
   if (Date.now() - _rivenSessionStartedAt < RIVEN_SESSION_MAX_MS) return false;
@@ -153,10 +140,7 @@ function forceEndRivenSessionIfExpired(): boolean {
 }
 
 
-/**
- * Process a single EE.log line for riven-related patterns.
- * Returns `true` if a SendResult was consumed by the riven flow (gates relic picker close).
- */
+/** Returns whether the riven flow consumed a SendResult from this EE.log line. */
 export function processRivenPatterns(
   line: string,
   source: "dbwin" | "file",
@@ -164,10 +148,7 @@ export function processRivenPatterns(
 ): boolean {
   const skipRivenFromFilePoll = dbwinActive && source === "file";
 
-  // Hard cap: if the session's been open > RIVEN_SESSION_MAX_MS, force-close
-  // before processing this line. Prevents a continuous kuva grind from keeping
-  // a "session" alive indefinitely (the 120s idle timer only fires when
-  // matches STOP).
+  // Check before extending the session so continuous matches cannot bypass the cap.
   forceEndRivenSessionIfExpired();
 
   if (!skipRivenFromFilePoll && RIVEN_PATTERNS.sessionOpen.test(line)) {
@@ -191,12 +172,8 @@ export function processRivenPatterns(
     }
   }
 
-  // Diorama weapon load: right after session open the screen streams in the
-  // riven's weapon model - the resource path IS the weapon (exact variant,
-  // localization-proof). Cannot be gated on !_rivenDioramaReady: DBWIN latches
-  // diorama-ready in real time while the Resloader line only arrives via the
-  // lagging file poll, which closed that gate every single session. A short
-  // wall-clock window keeps relay bystander weapon loads out instead.
+  // The short open window excludes relay bystanders while allowing the file poll's delayed
+  // exact-variant path after DBWIN has already marked the diorama ready.
   const weaponMatch = line.match(RIVEN_PATTERNS.dioramaWeaponLoad);
   if (
     _rivenSessionActive &&
@@ -210,9 +187,7 @@ export function processRivenPatterns(
     _callbacks.onRivenWeaponPath?.(weaponMatch[1]);
   }
 
-  // Diorama ready: both cards are now displayed - trigger roll OCR immediately.
-  // Arrives via both DBWIN and file poll. Not gated by skipRivenFromFilePoll
-  // so it works regardless of which source delivers first.
+  // Accept readiness from either source so DBWIN/file ordering cannot block roll OCR.
   if (
     _rivenSessionActive &&
     RIVEN_PATTERNS.dioramaSetup.test(line)
@@ -227,9 +202,7 @@ export function processRivenPatterns(
     }
   }
 
-  // Session close: NpcManager::ClearAgents or recycled effects.
-  // Gated on _rivenDioramaReady because these lines can fire during the loading
-  // transition TO the riven screen, before the diorama is set up.
+  // Require diorama readiness because these close lines also fire during screen loading.
   if (!skipRivenFromFilePoll && _rivenSessionActive && _rivenDioramaReady && (RIVEN_PATTERNS.sessionClose.test(line) || RIVEN_PATTERNS.recycledEffects.test(line))) {
     log.info("[EELog] Riven session close detected -> dispatching overlay close");
     _rivenSessionActive = false;

@@ -1,8 +1,3 @@
-/**
- * Pure data/format helpers for the Arbitrations schedule sub-tab.
- * No Svelte, i18n, or IPC dependencies (unit-tested directly).
- * Filtering/search semantics ported from arbischedule.com.
- */
 import type { ArbiScheduleEntry } from "../../types/ipc.js";
 
 interface ArbiNodeItem {
@@ -180,8 +175,6 @@ export function factionBadgeKey(
   if (low.includes("corrupt") || low.includes("orokin")) return "corrupted";
   return "other";
 }
-
-// --- localStorage-backed UI prefs (renderer only passes storage in) ---------
 
 const SELECTED_KEY = "arbi-sched-selected";
 const PRESETS_KEY = "arbi-sched-presets";

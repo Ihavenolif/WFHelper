@@ -1,8 +1,5 @@
 #!/usr/bin/env npx tsx
-/**
- * Tests various crop positions against the multipanel corpus images to find
- * the one that correctly reads the new roll card stats.
- */
+// Probes crop positions against multipanel images for readable new-roll stats.
 import sharp from "sharp";
 import path from "node:path";
 import fs from "node:fs";

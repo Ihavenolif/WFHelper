@@ -206,11 +206,7 @@ function renderOverallGrade(attributeGrade) {
   wrapper.classList.remove("is-hidden");
 }
 
-/**
- * Apply grading data to already-rendered stat rows.
- * Grading data arrives AFTER stats are rendered (separate IPC event),
- * so we overlay grade badges onto existing rows.
- */
+// Grading arrives through a later IPC event, so rebuild the existing stat rows.
 function applyGradingToStats(gradingResult) {
   if (!gradingResult) return;
   const { stats, attributeGrade } = gradingResult;
@@ -238,18 +234,12 @@ function applyGradingToStats(gradingResult) {
   refreshBestAttributeHighlights();
 }
 
-/**
- * Handle initial grading (single panel - current stats).
- */
 function onGradingInitial(grading) {
   if (_isLeft) {
     applyGradingToStats(grading);
   }
 }
 
-/**
- * Handle roll grading (both panels - left=current, right=new roll).
- */
 function onGradingRoll(payload) {
   if (!payload) return;
   const side = _isLeft ? payload.left : payload.right;
@@ -343,9 +333,7 @@ function abbreviateStat(name) {
   return STAT_ABBREVIATIONS[name.toLowerCase()] || name;
 }
 
-// Sign-aware chip highlights: BEST chips light only for buffs, NEG only for
-// curses, compared by canonical name (never substring), so a "Damage" roll
-// cannot light "Critical Damage".
+// Match sign and canonical name so a Damage roll cannot highlight Critical Damage.
 function refreshBestAttributeHighlights() {
   var chips = document.querySelectorAll(".best-chip");
   for (var i = 0; i < chips.length; i++) {
@@ -558,10 +546,8 @@ function onChoiceMade(side) {
     }, 2000);
   }
 
-  // After a choice the game returns to single-card view.
-  // Reset the right (new roll) panel back to "Waiting for roll..."
-  // Use a short delay only when the right panel has a highlight to let it show
-  // briefly; otherwise reset immediately so stale roll data doesn't linger.
+  // Preserve a chosen right-side highlight briefly; otherwise clear stale roll
+  // data as soon as the game returns to one card.
   if (!_isLeft) {
     const delay = side === "right" ? 2000 : 0;
     setTimeout(() => {

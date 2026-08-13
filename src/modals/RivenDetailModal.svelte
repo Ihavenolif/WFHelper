@@ -181,9 +181,8 @@
     if (e.key === "Escape") onclose();
   }
 
-  // Buffs only: a desired-positive chip must not light up when the stat rolled
-  // as a curse (matches the sign-aware negative check below).  Canonical names
-  // so the melee/ranged label split (Attack Speed vs Fire Rate) still matches.
+  // Match only buffs, using canonical names so melee and ranged labels still
+  // agree without allowing curses to light positive chips.
   const myStatNamesLc = $derived(
     new Set(riven.stats.filter((s) => s.positive).map((s) => canonicalRivenStatName(s.name))),
   );

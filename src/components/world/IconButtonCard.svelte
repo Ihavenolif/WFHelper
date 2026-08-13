@@ -1,8 +1,4 @@
 <script lang="ts">
-  // Generic icon button card: bordered image + label below.
-  // Used for featured primes, circuit items, and similar grids.
-  // The `owned` flag highlights the border + adds a soft glow.
-
   export let name: string;
   export let imageUrl: string | null | undefined = null;
   export let owned = false;

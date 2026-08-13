@@ -1,17 +1,20 @@
 #!/usr/bin/env node
-// Comment gate over added diff lines only, so existing comments never fire.
-// Modes: --staged (pre-commit), --range <a>..<b>, --ci (GitHub push/PR).
+// Comment gate for added diff lines, with --all for the tracked codebase.
+// Modes: --staged, --range <a>..<b>, --ci, and --all.
 
 import { execFileSync } from "node:child_process";
 
 import { resolveRange } from "./commit-range.mjs";
 
-const MAX_RUN_LINES = 3;
+const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+const MAX_RUN_LINES = 2;
 const CODE_FILE_RE = /\.(ts|js|mjs|cjs|svelte|css)$/;
+const EXCLUDED_FILES = new Set(["backend/worker/worker-configuration.d.ts"]);
 const DIRECTIVE_RE = /^\/[/*]\s*(eslint|@ts-|prettier-ignore|global\b|c8 |v8 |istanbul|knip)/;
 const BANNER_RE = /[=\-*#_~]{4,}/;
 const STEP_RE = /^\/\/\s*step\s*\d/i;
 const EM_DASH_RE = /\u2014/;
+const NON_ASCII_RE = /[^\p{ASCII}]/u;
 // Mask strings before looking for comment markers such as URLs.
 const LITERAL_RE = /(["'`])(?:\\.|(?!\1)[^\\])*\1/g;
 const REGEXP_LITERAL_RE = /(^|[=(,:![{;]\s*)(\/(?![/*])(?:\\.|[^/\\\r\n])+\/[dgimsuvy]*)/g;
@@ -29,6 +32,9 @@ function diffSelection() {
     const range = process.argv[3];
     if (!range) throw new Error("--range needs <base>..<head>");
     return { primary: ["diff", "-U3", "--diff-filter=ACMR", range] };
+  }
+  if (mode === "--all") {
+    return { primary: ["diff", "-U0", "--diff-filter=ACMR", EMPTY_TREE] };
   }
   if (mode !== "--ci") throw new Error(`unknown mode ${mode}`);
 
@@ -154,7 +160,7 @@ function collectRuns(diff) {
       blockKind = null;
       const target = raw.slice(4).trim();
       file = target === "/dev/null" ? null : target.replace(/^b\//, "");
-      if (file && !CODE_FILE_RE.test(file)) file = null;
+      if (file && (!CODE_FILE_RE.test(file) || EXCLUDED_FILES.has(file))) file = null;
       continue;
     }
     if (raw.startsWith("@@")) {
@@ -183,7 +189,11 @@ function collectRuns(diff) {
 }
 
 function auditGlyphs(line, at, problems) {
-  if (EM_DASH_RE.test(line)) problems.push(`${at}: em dash in a comment - use plain punctuation`);
+  if (EM_DASH_RE.test(line)) {
+    problems.push(`${at}: em dash in a comment - use plain punctuation`);
+  } else if (NON_ASCII_RE.test(line)) {
+    problems.push(`${at}: non-ASCII character in a comment`);
+  }
   if (BANNER_RE.test(line)) problems.push(`${at}: banner comment - drop the rule line`);
   if (STEP_RE.test(line)) problems.push(`${at}: numbered "Step N" comment - let the code say it`);
 }
@@ -210,9 +220,9 @@ for (const comment of inline) {
 }
 
 if (problems.length > 0) {
-  console.error("\ncomment style problems in added lines:\n");
+  console.error("\ncomment style problems:\n");
   for (const problem of problems) console.error(`  ${problem}`);
-  console.error("\nrules: max 3 lines per comment, no em dashes, banners, or step numbering\n");
+  console.error("\nrules: max 2 lines per comment; ASCII only; no banners or step numbering\n");
   process.exit(1);
 }
 

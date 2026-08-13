@@ -203,12 +203,7 @@ function isAuthorizedSender(
   }
 }
 
-/**
- * Register an `ipcMain.handle` handler that first asserts the sender is
- * authorized. Rejects with "Unauthorized IPC sender" when the guard fails,
- * so the renderer's invoke() promise rejects. Keeps the channel name
- * single-sourced so a copy-pasted handler can't drift.
- */
+// Reject unauthorized invokes so renderer promises fail instead of silently hanging.
 function handleAuthorized<Args extends unknown[], R>(
   channel: string,
   assertFn: AssertSenderFn,
@@ -220,11 +215,7 @@ function handleAuthorized<Args extends unknown[], R>(
   });
 }
 
-/**
- * Register an `ipcMain.on` handler that silently drops messages from
- * unauthorized senders (logged at warn level). Fire-and-forget counterpart
- * to `handleAuthorized`.
- */
+/** Drops unauthorized fire-and-forget messages after logging a warning. */
 function onAuthorized<Args extends unknown[]>(
   channel: string,
   assertFn: AssertSenderFn,

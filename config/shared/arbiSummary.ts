@@ -18,10 +18,7 @@ interface ArbiSummaryPayload {
 
 const HIGH_SATURATION_MIN_COUNT = 15;
 
-/**
- * Post-run overlay payload, or null when the run shouldn't pop one (live,
- * 2+ rotations, ended at the mission itself, stats present).
- */
+/** Returns an overlay payload only for eligible completed live runs. */
 export function buildArbiSummaryPayload(run: ArbiRunRecord): ArbiSummaryPayload | null {
   if (run.source !== "live") return null;
   if (run.rotations < 2) return null;

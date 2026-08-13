@@ -3,9 +3,7 @@
 export default defineConfig({
   testDir: "./e2e",
   timeout: 120_000,
-  // Retry the smoke test on CI: Electron cold-start can transiently exceed the
-  // #app mount timeout on a loaded runner (flake, not a real failure). Local
-  // runs keep retries at 0.
+  // Loaded CI runners can miss the Electron mount timeout; local runs do not retry.
   retries: process.env.CI ? 2 : 0,
   fullyParallel: false,
   workers: 1,

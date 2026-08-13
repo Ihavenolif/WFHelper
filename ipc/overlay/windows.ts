@@ -421,10 +421,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     const initialBounds = getOverlayBoundsForActiveDisplay(lastOverlayAnchorMeta);
 
     const createdWindow = new BrowserWindow({
-      // Linux compositors activate a newly mapped NORMAL window even when it
-      // is non-focusable, pulling Warframe out of focus (XWayland field
-      // report). Toolbar-type windows are exempt from focus-on-map yet still
-      // accept the explicit focus() interactive mode needs.
+      // Toolbar windows avoid Linux focus-on-map while still allowing explicit focus.
       ...(platform === "linux" ? { type: "toolbar" } : {}),
       width: initialBounds.width,
       height: initialBounds.height,

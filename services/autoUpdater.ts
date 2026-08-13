@@ -231,9 +231,6 @@ export function initialize(windowRef: import("electron").BrowserWindow): void {
     return;
   }
 
-  // Auto-check only: the timers below READ the public release feed so the UI can
-  // flag a new version, but downloads and installs always wait for an explicit
-  // user click. Exposure to a compromised feed stays limited to metadata reads.
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = false;
   autoUpdater.allowPrerelease = false;
@@ -384,4 +381,3 @@ export function installDownloadedUpdate(): { ok: boolean; message?: string } {
 
   return { ok: true };
 }
-

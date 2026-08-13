@@ -19,9 +19,7 @@ const SCAN_MAX_ATTEMPTS = 10;
 // Consecutive no-layout scans before the trigger is written off as a false one.
 const NO_LAYOUT_MAX_ATTEMPTS = 3;
 const MAX_REWARD_ITEMS = 4;
-// Max wait for the reward-UI render signal before scanning anyway. The signal
-// is unreliable (DBWIN can miss the icon burst), so this is a fallback delay,
-// not the expected path - keep it short.
+// Scan after a short fallback delay when DBWIN misses the reward render signal.
 const EELOG_REWARD_SCAN_DELAY_MS = 600;
 // Settle after the render signal so the card fade-in finishes.
 const EELOG_UI_READY_SETTLE_MS = 500;
@@ -29,9 +27,7 @@ const EELOG_UI_READY_SETTLE_MS = 500;
 // lands in the same log chunk as "Got rewards", before the scan dispatches).
 const EELOG_UI_READY_FRESH_MS = 3_000;
 
-// The in-game relic reward vote runs ~15s from the "Got rewards" log line.
-// Hide just before it ends, anchored to the trigger timestamp (AlecaFrame
-// uses the same mechanism with the same 14.5s window).
+// Hide just before the 15s relic vote ends, anchored to the trigger timestamp.
 const REWARD_VOTE_WINDOW_MS = 14_500;
 // Omnia missions crack relics back-to-back mid-gameplay; a 14.5s card sits in
 // the way. Hide sooner - the next crack redraws it anyway.
@@ -386,9 +382,8 @@ export function createOverlayScanController(options: OverlayScanControllerOption
     return Math.max(REWARD_MIN_VISIBLE_MS, eelogTriggerAt + voteWindowMs - Date.now());
   }
 
-  // Reward screen closed (solo confirm, force close, or vote end): stop waiting
-  // out the vote window, hide once the reading floor is met. First close per
-  // crack only - the mid-mission relic picker reuses ProjectionRewardChoice.lua.
+  // Close after the reading floor. Only the first close belongs to this crack because
+  // the mid-mission picker reuses ProjectionRewardChoice.lua.
   function notifyRewardScreenClosed(stalenessMs = 0): void {
     if (!eelogTriggerAt || stalenessMs > REWARD_CLOSE_STALE_MAX_MS) return;
     if (rewardScreenClosedAt) return;

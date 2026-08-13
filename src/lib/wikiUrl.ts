@@ -1,7 +1,3 @@
-/**
- * Convert a Fandom wiki URL to the official wiki.warframe.com URL.
- * Returns the input unchanged if it's already an official URL or unparseable.
- */
 export function toOfficialWikiUrl(url: string): string {
   try {
     const parsed = new URL(url);
@@ -18,10 +14,6 @@ export function toOfficialWikiUrl(url: string): string {
   return url;
 }
 
-/**
- * Build a direct wiki URL from an item/component name.
- * Falls back to search if the name might not match a page title exactly.
- */
 export function buildWikiUrl(name: string): string {
   return `https://wiki.warframe.com/w/${encodeURIComponent(name.replace(/ /g, "_"))}`;
 }

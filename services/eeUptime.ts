@@ -1,11 +1,4 @@
-/**
- * Measures how stale an EE.log line is when it reaches us. The engine buffers
- * log writes; at quiet moments (staring at a reward screen) a line can hit the
- * file 10-15s after the event it describes. Each line carries a game-uptime
- * prefix ("5160.682 Sys [Info]: ..."); tracking the minimum of wallclock-uptime
- * across lines gives the true offset, and a line's staleness is how far its
- * own wallclock-uptime sits above that minimum.
- */
+/** Estimate file-line delay from the minimum wall-clock minus game-uptime offset. */
 
 const UPTIME_PREFIX = /^(\d+)\.(\d{3}) /;
 
@@ -20,10 +13,7 @@ export class EeUptimeTracker {
     this.lastStalenessMs = 0;
   }
 
-  /**
-   * Feed one file line; returns its staleness in ms (0 while unknown).
-   * Unstamped lines (JSON block rows) inherit the batch's last staleness.
-   */
+  /** Return line staleness; unstamped rows inherit the current batch delay. */
   observe(line: string, nowMs: number): number {
     const m = UPTIME_PREFIX.exec(line);
     if (!m) return this.lastStalenessMs;

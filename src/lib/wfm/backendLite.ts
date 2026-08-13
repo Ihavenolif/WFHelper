@@ -24,15 +24,8 @@ const RAW_BACKEND_URL = (import.meta.env.VITE_WFM_BACKEND_URL || BACKEND_URL).tr
 const BACKEND_BASE_URL = RAW_BACKEND_URL.replace(/\/+$/, "");
 const REQUEST_TIMEOUT_MS = 3500;
 
-// When VITE_WFM_BACKEND_BOOTSTRAP_ENABLED=1 the client fetches a short-lived
-// HMAC-signed token from /v1/bootstrap and attaches it to every subsequent
-// backend request via x-wfhelper-bootstrap.  The server binds the token to the
-// caller's IP + User-Agent hash, so it cannot be replayed from other machines.
-//
-// Deployment sequence (see backend/worker/ARCHITECTURE.md):
-//   1. wrangler secret put BOOTSTRAP_TOKEN_SECRET
-//   2. Deploy app with VITE_WFM_BACKEND_BOOTSTRAP_ENABLED=1
-//   3. Set PUBLIC_BOOTSTRAP_REQUIRED=1 in wrangler.jsonc and redeploy worker
+// Optional bootstrap tokens are short-lived and bound to the caller's IP and
+// User-Agent. See backend/worker/ARCHITECTURE.md for deployment order.
 
 const BOOTSTRAP_ENABLED = (import.meta.env.VITE_WFM_BACKEND_BOOTSTRAP_ENABLED || "").trim() === "1";
 const BOOTSTRAP_HEADER = "x-wfhelper-bootstrap";
@@ -41,9 +34,8 @@ const BOOTSTRAP_REFRESH_MARGIN_MS = 60_000; // re-fetch 1 min before expiry
 let _bootstrapToken: string | null = null;
 let _bootstrapTokenExpiry = 0;
 let _bootstrapInFlight: Promise<string | null> | null = null;
-// After a failed bootstrap fetch, suppress retries for this long so a
-// CSP block / network error doesn't cause every parallel request to pile
-// up on the bootstrap endpoint.
+// Back off after bootstrap failures so parallel requests do not pile up on
+// the endpoint.
 let _bootstrapRetryAfter = 0;
 
 async function ensureBootstrapToken(): Promise<string | null> {

@@ -1,8 +1,3 @@
-/**
- * Image processing helpers for reward scanning.
- * Crop, enhance, and build OCR variants from Electron NativeImage objects.
- */
-
 import { withScope } from "./logger";
 import type { NativeImage } from "electron";
 import { clamp01, computeMeanAndStd, luminanceFromBgr } from "./rewardScannerUtils";
@@ -150,10 +145,8 @@ export function cropRect(nativeImage: NativeImage, rect: Rect | null | undefined
   return nativeImage.crop({ x, y, width: cropWidth, height: cropHeight });
 }
 
-/**
- * Letterbox-aware crop: ratios apply relative to the detected 16:9 content
- * area, not the full frame. On 16:9 displays contentRect is the whole frame.
- */
+// Ratios are relative to the detected 16:9 content area, not the full frame.
+// On native 16:9 displays contentRect covers the whole frame, matching cropRect.
 export function cropRectContent(
   nativeImage: NativeImage,
   rect: Rect | null | undefined,
@@ -255,10 +248,7 @@ interface RewardSlotLayout {
 
 const SLOT_LAYOUT_REGION = Object.freeze({ x: 0.03, y: 0.37, width: 0.94, height: 0.34 });
 
-// Cards are 0.122W wide on a 0.127W pitch centered at x=0.5 for every choice
-// count (measured on real 1080p screens). Ratios assume the frame is game
-// content - windowed captures are pre-cropped to the client rect (win32) or
-// letterbox-trimmed (elsewhere) in screenCapture.
+// Measured card ratios assume screenCapture has isolated the game content.
 const FIXED_REWARD_LAYOUTS: Readonly<
   Record<number, Array<{ x: number; y: number; width: number; height: number }>>
 > = Object.freeze({
@@ -552,12 +542,8 @@ function detectRewardSlotLayout(nativeImage: NativeImage): RewardSlotLayout {
   };
 }
 
-/**
- * Detect whether the in-game chat console is open. Pressing `/` or `T` shows a
- * bright text bar over the bottom ~4%, whose text would corrupt reward OCR.
- * Heuristic: in that strip, >55% of pixels bright (luminance >= 140) and
- * low-saturation (<= 0.3) - Warframe's near-white chat overlay.
- */
+// An open chat console draws a near-white bar over the bottom strip that corrupts reward OCR.
+// Open = over 55% of strip pixels bright (luminance >= 140) with low saturation (<= 0.3).
 export function detectConsoleOpen(nativeImage: NativeImage): boolean {
   if (!nativeImage || typeof nativeImage.getSize !== "function") return false;
 
@@ -628,9 +614,6 @@ export function otsuThreshold(gray: Buffer | Uint8Array): number {
   return threshold;
 }
 
-// Extract a vertical band (topFrac/heightFrac of the crop height), upscale,
-// grayscale and Otsu-binarize to dark-on-white for Windows OCR. Returns a PNG,
-// or null if the region is too small.
 export async function binarizeRewardRegion(
   pngBuffer: Buffer,
   topFrac: number,
@@ -644,10 +627,8 @@ export async function binarizeRewardRegion(
     if (srcW < 8 || srcH < 8) return null;
     const top = Math.max(0, Math.min(srcH - 1, Math.round(srcH * topFrac)));
     const height = Math.max(1, Math.min(srcH - top, Math.round(srcH * heightFrac)));
-    // Materialize normalised gray once and threshold it manually. Chaining
-    // sharp's threshold() after normalise() ran the threshold on pre-normalise
-    // values (fixed libvips op order), which turned names over bright art into
-    // solid black. removeAlpha keeps alpha bytes out of the Otsu histogram.
+    // Threshold materialized normalized gray; libvips otherwise reorders these operations.
+    // Remove alpha bytes from the Otsu histogram.
     const { data, info } = await sharp(pngBuffer)
       .extract({ left: 0, top, width: srcW, height })
       .resize({ width: srcW * 3, kernel: "lanczos3" })

@@ -230,10 +230,6 @@ function isRivenOverlayEnabled(): boolean {
   return isRivenOverlaySettingEnabled(ctx.overlaySettings);
 }
 
-/**
- * Try to grade stats using the current weapon name.
- * Returns the grading result or null if weapon is unknown/unresolvable.
- */
 function tryGradeStats(stats: rivenScan.RivenStat[]): rivenGrading.RivenGradeResult | null {
   if (!_rivenWeaponName || _rivenWeaponName === "Riven" || stats.length === 0) return null;
   // Value-plausibility gate: rename garbled stat names whose value only fits a
@@ -275,10 +271,6 @@ function scoreRivenStatSimilarity(
   return score;
 }
 
-/**
- * Send grading data for initial stats to the overlay.
- * Called when we have both weapon name AND initial stats.
- */
 function sendGradedInitialStats(): void {
   const graded = tryGradeStats(_rivenInitialStats);
   if (graded) {
@@ -288,9 +280,6 @@ function sendGradedInitialStats(): void {
   }
 }
 
-/**
- * Send best attributes and trigger WFM search when weapon name becomes available.
- */
 function sendWeaponEnrichment(): void {
   if (!_rivenWeaponName || _rivenWeaponName === "Riven") return;
 
@@ -334,11 +323,7 @@ function clearRivenScanTimers(): void {
   }
 }
 
-/**
- * Detect the weapon from card OCR text when it is not known yet (the cycle
- * dialog no longer carries the weapon name reliably) and unblock everything
- * gated on it: weapon label, best attributes, WFM similar listings, grading.
- */
+// A detected weapon unblocks labels, grading, attributes, and market enrichment.
 function applyDetectedWeapon(detected: string, source: string): void {
   log.info(`[RivenScan] weapon detected from ${source}: "${detected}"`);
   _rivenWeaponName = detected;
@@ -358,11 +343,7 @@ function maybeDetectWeaponFromText(ocrText: string): void {
   applyDetectedWeapon(detected, "OCR");
 }
 
-/**
- * The roll screen's diorama loads the riven's weapon model right after the
- * screen opens - the resource path is an exact, localization-proof weapon id
- * (e.g. /Lotus/Weapons/Grineer/KuvaLich/LongGuns/Sobek/KuvaSobek).
- */
+// The diorama resource path identifies the weapon without localized text.
 export function onRivenWeaponPath(weaponPath: string): void {
   const name = rivenDataSvc.getWeaponNameByUniqueName(weaponPath);
   if (!name) {
@@ -371,9 +352,7 @@ export function onRivenWeaponPath(weaponPath: string): void {
   }
   if (_rivenWeaponName && _rivenWeaponName !== "Riven") {
     if (_rivenWeaponName === name) return;
-    // OCR reads the family name off the card ("Boar"), but the game renders
-    // the values at the LINKED variant's disposition ("Boar Prime"). The
-    // exact diorama path wins within the same family so grading fits.
+    // Within one family, the exact diorama variant controls disposition and grading.
     if (
       rivenDataSvc.getRivenFamilySlug(name) === rivenDataSvc.getRivenFamilySlug(_rivenWeaponName)
     ) {
@@ -399,9 +378,7 @@ function triggerInitialScan(layout: rivenScan.InitialCardLayout = "reroll"): voi
       // Try to extract weapon name from OCR text if not already known
       maybeDetectWeaponFromText(titleText || rawText);
 
-      // Always notify the overlay so it can stop the scanning spinner.
-      // When stats is empty, the overlay shows the "waiting" placeholder;
-      // when stats are present, it renders them.
+      // Always settle the spinner; empty stats leave the waiting placeholder.
       rivenSession.onInitialStats(getRivenWindows(), stats);
       if (stats.length > 0) {
         // If weapon name is already known, send grading immediately
@@ -574,9 +551,7 @@ export function onRivenRollPending(weapon: string, kuvaPerRoll: number): void {
   log.info(
     `[OverlayRoute] onRivenRollPending: weapon="${weapon}", kuva=${kuvaPerRoll}, current="${_rivenWeaponName}"`,
   );
-  // Update weapon name from the cycle dialog text (first time we learn it).
-  // Don't call startSession - that would reset the roll count and wipe
-  // the stats that the initial scan already populated.
+  // Do not restart the session here; that would wipe the scanned stats and roll count.
   const isFirstReveal = _rivenWeaponName === "" || _rivenWeaponName === "Riven";
   if (weapon) {
     _rivenWeaponName = weapon;

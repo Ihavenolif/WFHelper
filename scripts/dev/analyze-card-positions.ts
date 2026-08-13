@@ -1,9 +1,5 @@
 #!/usr/bin/env npx tsx
-/**
- * Analyzes the multipanel corpus images to find where the actual riven cards sit.
- * Outputs brightness profiles and saves annotated card-region crops so we can
- * determine the correct ROLL_CARD_CROP coordinates.
- */
+// Produces brightness profiles and annotated crops for ROLL_CARD_CROP calibration.
 import sharp from "sharp";
 import fs from "node:fs";
 import path from "node:path";
@@ -52,9 +48,7 @@ async function analyze(file: string) {
     console.log(`    ${pct}% (${(bx0 + bx1) >> 1}px): ${avg.toFixed(0).padStart(4)} ${bar}`);
   }
 
-  // Find the darkest region > 150px wide - that's the card area
-  // Look specifically for the RIGHT card (new roll)
-  // Darkness threshold: below 100 avg = likely card background
+  // Dark horizontal regions identify candidate card bounds.
   const DARK_THRESH = 120;
   let regions: Array<{ x0: number; x1: number; avgBr: number }> = [];
   let inDark = false;

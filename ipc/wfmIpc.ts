@@ -269,10 +269,7 @@ function register(): void {
 }
 
 
-/**
- * Called after session restore on startup - starts the WS listener if a
- * token is already present (i.e., the user was logged in before).
- */
+/** Restarts the WFM socket when session restore finds a saved token. */
 function startListenerIfLoggedIn(): void {
   const token = wfmSession.getToken();
   if (token) {

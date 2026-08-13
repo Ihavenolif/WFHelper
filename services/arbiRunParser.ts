@@ -1,9 +1,3 @@
-/**
- * Pure incremental EE.log parser for arbitration runs.
- * No fs/electron/Date.now - feed lines, get lifecycle events, finalize for stats.
- * Patterns and math ported from svesk.github.io/arbi (verified against its script.js).
- */
-
 import type {
   ArbiMissionType,
   ArbiRunStats,
@@ -32,16 +26,12 @@ const WAVE_COUNTDOWN = /\/Lotus\/Interface\/ProjectionsCountdown\.swf/;
 const TERRITORY = /Script \[Info\]: TerritoryMission\.lua/;
 const TERRITORY_START = /TerritoryMission\.lua: .*(control|captured)/i;
 
-// Mission select flows through squad-system lines carrying the internal sector
-// name; a _EliteAlert suffix marks an arbitration regardless of UI language.
-// All three fire before the Mission name line (Host loading fires after - skip it).
+// _EliteAlert on a squad mission sector is locale-independent and precedes the mission name.
 const PENDING_SECTOR_PLAIN = /(?:ThemedSquadOverlay\.lua: Pending mission:|MapRedux\.lua: Confirm sector) (\S+)/;
 const PENDING_SECTOR_JSON = /Set squad mission.*?"name":"([^"]+)"/;
 const ELITE_SECTOR = /^(SolNode\d+)_EliteAlert$/;
-// Joining a squad's mission already in progress - no "Mission name:" line ever
-// follows. Standard for disruption: one player rolls tiles, invites, then drops
-// so the migration hands hosting to whoever stays. Either marker starts the run,
-// whichever lands first; the engine mission type follows both.
+// Mid-mission joins omit "Mission name", so either client-load marker can start the run.
+// The engine mission type arrives afterward.
 const CLIENT_MISSION_JOIN =
   /Client (?:joining mission in-progress|loaded)[^{]*\{"name":"([^"]+)"\}/;
 const CACHED_MISSION_NAME = /ThemedSquadOverlay\.lua: Cached mission name=(.+) \((SolNode\d+)\)/;
@@ -50,14 +40,8 @@ const CACHED_MISSION_NAME = /ThemedSquadOverlay\.lua: Cached mission name=(.+) \
 const SYNC_CONSUMABLES = /SyncAutoPopulatedConsumables for mission (MT_[A-Z_]+) with location (\S+)/;
 const STATE_STARTED = /Game \[Info\]: OnStateStarted, mission type=(MT_[A-Z_]+)/;
 
-// Run-end markers, verified against real abort / quit-to-desktop / survival logs:
-// - TopMenu Abort only fires on a CONFIRMED abort (the AbortMissionConfirm
-//   dialog alone must not end the run - the player can pick No)
-// - the EOM inventory commit fires whenever the local player's mission ends
-//   (extraction, abort, quit-to-desktop alike)
-// NOT used: EndOfMatch.lua Initialize (fires repeatedly IN-mission, seen 11s
-// into a survival with "Mission Succeeded"); SS_STARTED->SS_ENDING (unclear
-// whether it fires on the staying client during a host migration).
+// Confirmed abort and EOM inventory commit are reliable run ends.
+// EndOfMatch initialization repeats mid-mission and is unsafe here.
 const ABORT_CONFIRMED = /TopMenu\.lua: Abort:/;
 const EOM_COMMIT = /Sys \[Info\]: EOM missionLocationUnlocked=/;
 
@@ -113,9 +97,7 @@ export interface ArbiParser {
   feedLine(line: string): ArbiParserEvent | null;
   isRunActive(): boolean;
   lastActivitySec(): number;
-  /** Monotonic count of combat events (spawns, drones, rewards, waves, tick samples)
-   * in the active run. Freezes once the mission is over (orbiter lines don't count),
-   * so the tracker can distinguish "mission still running" from "idling after it". */
+  /** Monotonic combat activity count; orbiter lines cannot keep a run alive. */
   activityCount(): number;
   finalize(): ArbiParsedRun | null;
   reset(): void;

@@ -1,11 +1,5 @@
-/**
- * Riven stat grading (main-process only). Ports browse.wf/calamity's
- * RivenParser.js: reverse the displayed stat value back to its 0-1 roll float,
- * then map that to a letter grade. We unparse by dividing the known factors out
- * of the forward formula:
- *   buff:  value = base * (1.5*disp*10) * 1.25^curses * lerp(0.9,1.1,roll) * atten * (lvl+1)
- *   curse: value = -base * (1.5*disp*10) * lerp(0.9,1.1,roll) * atten[buffs] * atten[curses] * (lvl+1)
- */
+// Reverses browse.wf/calamity RivenParser.js display values to roll floats before grading.
+// The forward formulas are inverted in unparseBuff and unparseCurse.
 
 import { withScope } from "./logger";
 import * as rivenData from "./rivenData";
@@ -41,11 +35,7 @@ export interface RivenGradeResult {
 /** Default riven max rank. Most rivens are rank 8 (lvl 0..8). */
 const DEFAULT_LVL = 8;
 
-/**
- * Grade thresholds mapped from lerp(-10, 10, rollFloat).
- * Score >= threshold -> grade. Evenly spaced at 2-point intervals.
- * Matches RivenParser.js floatToGrade exactly.
- */
+/** RivenParser.js thresholds map lerp(-10, 10, rollFloat) to letter grades. */
 const GRADE_THRESHOLDS: { min: number; grade: string }[] = [
   { min: 9.5, grade: "S" },
   { min: 7.5, grade: "A+" },
@@ -68,10 +58,7 @@ function inverseLerp(a: number, b: number, v: number): number {
   return (v - a) / (b - a);
 }
 
-/**
- * Convert a 0-1 roll float to a letter grade.
- * For curses, pass isCurse=true: the grade is inverted (low absolute curse value = good).
- */
+/** Converts a roll float to a grade, inverting curses so lower magnitude grades higher. */
 export function floatToGrade(rollFloat: number, isCurse: boolean): string {
   const f = isCurse ? 1 - rollFloat : rollFloat;
   const score = lerp(-10, 10, f);
@@ -81,20 +68,8 @@ export function floatToGrade(rollFloat: number, isCurse: boolean): string {
   return "F";
 }
 
-/**
- * Reverse-calculate the roll float from a displayed buff value.
- *
- * Mirrors RivenParser.js unparseBuff():
- *   value /= (lvl + 1)
- *   value /= numBuffsAtten[numBuffs]
- *   value /= pow(1.25, numCurses)
- *   value /= (1.5 * omegaAttenuation * 10)
- *   value /= baseValue
- *   rollFloat = (value - 0.9) / 0.2
- *
- * `displayedValue` is the percentage shown in-game (e.g. +190.9%).
- * For non-percentage stats (faction damage, combo, range), pass the raw displayed number.
- */
+/** Inverts RivenParser.js's buff formula for percentage or raw special-stat values.
+ * Forward: base * (1.5*disp*10) * 1.25^curses * lerp(0.9,1.1,roll) * buffsAtten * (lvl+1). */
 export function unparseBuff(
   displayedValue: number,
   baseValue: number,
@@ -137,29 +112,15 @@ function unparseBuffRaw(
   value /= buffsAtten;
   value /= curseAtten;
   value /= attenuation;
-  // Use abs(baseValue) because our OCR input is always the absolute displayed
-  // value. Some stats like recoil have negative baseValues even when appearing
-  // as buffs - the sign is already handled by the buff/curse classification.
+  // OCR values are unsigned; abs(baseValue) handles negative-base stats such as recoil.
   value /= Math.abs(baseValue);
 
   // value is now lerp(0.9, 1.1, rollFloat) -> invert
   return (value - 0.9) / 0.2;
 }
 
-/**
- * Reverse-calculate the roll float from a displayed curse value.
- *
- * Mirrors RivenParser.js unparseCurse() but adapted for OCR input where the
- * displayed value is always positive (the sign is tracked separately).
- *
- * RivenParser.js forward curse formula:
- *   rawValue = baseValue * -1 * attenuation * lerp(0.9,1.1,roll)
- *            * numBuffsCurseAtten[numBuffs] * numBuffsAtten[numCurses] * (lvl+1)
- *
- * In RivenParser.js unparseCurse, `value` is negative (raw internal), and divides by -1
- * to make it positive before extracting rollFloat. Since our OCR gives us the absolute
- * displayed value already, we skip the /-1 step.
- */
+/** Inverts RivenParser.js's curse formula after OCR has removed the displayed sign.
+ * Forward: -base * (1.5*disp*10) * lerp(0.9,1.1,roll) * curseAtten * buffsAtten * (lvl+1). */
 export function unparseCurse(
   displayedValue: number,
   baseValue: number,
@@ -206,10 +167,7 @@ function unparseCurseRaw(
   value /= buffsInCurseTable;
   value /= attenuation;
   value /= Math.abs(baseValue);
-  // RivenParser.js does: value /= baseValue; value /= -1.0;
-  // Since baseValue can be negative (e.g. recoil = -0.01), dividing by baseValue
-  // and then by -1 is equivalent to dividing by |baseValue|. Our OCR input is
-  // already the absolute displayed value, so we just use |baseValue| directly.
+  // OCR is already absolute, so abs(baseValue) replaces division by baseValue then -1.
 
   return (value - 0.9) / 0.2;
 }
@@ -233,9 +191,8 @@ const STAT_CONFUSION_SIBLINGS: Record<string, string[]> = {
   WeaponStunChanceMod: ["WeaponCritChanceMod"],
 };
 
-// Melee rivens only ever roll Melee Damage, ranged only Damage; the riven
-// type data lists BOTH tags with identical bases, so map to the one the game
-// actually uses for this weapon before any range check.
+// Riven type data lists both damage tags with identical bases, but cards use one by class.
+// Normalize to the card's form before checking its numeric range.
 function weaponDamageTag(tag: string, isMelee: boolean): string {
   if (isMelee && tag === "WeaponDamageAmountMod") return "WeaponMeleeDamageMod";
   if (!isMelee && tag === "WeaponMeleeDamageMod") return "WeaponDamageAmountMod";
@@ -248,9 +205,8 @@ const CORRECTION_FIT_TOLERANCE = 0.02;
 // Only rename when the parsed stat is clearly impossible, not merely marginal.
 const CORRECTION_MISFIT_THRESHOLD = 0.1;
 
-// Value-plausibility gate for OCR stats: a value impossible under its parsed
-// name that fits exactly one confusion sibling is renamed to that sibling;
-// uncorrectable misfits are kept but logged.
+// Rename an impossible OCR stat only when exactly one confusion sibling fits.
+// Keep and log uncorrectable misfits.
 export function correctScannedStats(
   weaponName: string,
   stats: ScannedStat[],
@@ -356,14 +312,7 @@ export function correctScannedStats(
   return { stats: corrected, corrections };
 }
 
-/**
- * Per-attribute grade:
- *   Decisive  - positive listed in some `goodAttrs[*].mandatory`
- *   Good      - positive in some `goodAttrs[*].optional`,
- *               or a negative listed in `acceptedBadAttrs`
- *   Bad       - negative listed in some `goodAttrs[*].mandatory|optional`
- *   NotHelping - anything else
- */
+/** Scores each attribute as Decisive, Good, Bad, or NotHelping. */
 type AlecaAttrGrade = "Decisive" | "Good" | "NotHelping" | "Bad";
 
 function gradeFromGoodRolls(
@@ -399,7 +348,7 @@ function gradeFromGoodRolls(
   }
 
   // Does at least one full GoodRoll match? (all mandatory present, and the
-  // user's positives are a subset of mandatory∪optional)
+  // user's positives are a subset of mandatory or optional)
   const goodSet = new Set(goodTags);
   const matches = data.goodAttrs.filter((g) => {
     if (!g.mandatory.every((m) => goodSet.has(m))) return false;
@@ -432,14 +381,7 @@ function gradeFromGoodRolls(
   return { positive, negative, overall };
 }
 
-/**
- * Compute an attribute-quality grade for a riven.
- *
- * Uses scoring against the per-weapon `GoodRollData` sourced from
- * 44bananas' "good rolls for selling" sheet (see
- * `config/shared/rivenGoodRolls.ts`). Returns "?" when the weapon
- * isn't in the dataset.
- */
+/** Scores 44bananas' per-weapon good-roll data; unknown weapons return "?". */
 export function computeAttributeGrade(
   stats: { name: string; positive: boolean }[],
   weaponName: string,
@@ -455,11 +397,7 @@ export function computeAttributeGrade(
   return gradeFromGoodRolls(data, goodTags, badTags).overall;
 }
 
-/**
- * Grade a complete riven given weapon name and OCR'd stats.
- *
- * Returns null if the weapon can't be found or riven type can't be resolved.
- */
+/** Grades OCR stats, or returns null when the weapon or riven type is unknown. */
 export function gradeRiven(
   weaponName: string,
   stats: {
@@ -536,10 +474,8 @@ export function gradeRiven(
           assumedLevel,
         );
 
-  // The roll screen renders values with the dispo of the variant the riven is
-  // linked to but only names the family ("Boar" card, Boar Prime values). If
-  // the named weapon's dispo pushes any value outside its possible range,
-  // re-fit against the family's other variants and grade with the best match.
+  // The roll screen names the family but uses the linked variant's disposition.
+  // Refit out-of-range values against sibling variants and choose the best match.
   let disposition = baseDisposition;
   const gradeable = prepared.filter((p) => p.tag && p.entry && p.displayedValue != null);
   if (gradeable.length > 0) {

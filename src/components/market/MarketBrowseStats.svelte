@@ -370,9 +370,8 @@
     };
   }
 
-  // Fritsch-Carlson monotone cubic: tangents are clamped to the neighbouring
-  // secants, so the curve hits every sample and never overshoots into a
-  // price the item never traded at.
+  // Clamping Fritsch-Carlson tangents to neighbouring secants makes the curve
+  // hit every sample without inventing price extremes.
   function monotonePath(points: Point[]): string {
     const count = points.length;
     if (count === 0) return "";

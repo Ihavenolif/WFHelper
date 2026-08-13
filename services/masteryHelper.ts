@@ -1,8 +1,3 @@
-/**
- * Builds a complete list of all masterable items in the game,
- * then compares against the user's inventory to show owned / missing / mastered.
- */
-
 import fs from "node:fs";
 import path from "node:path";
 
@@ -409,9 +404,7 @@ function getRegionMastery(): Record<string, number> {
   return _regionMastery;
 }
 
-// First completion of a node grants its mastery; Steel Path (Tier 1) grants it
-// once more. The Missions array has one entry per node with the total count and
-// the highest completed tier.
+// Node mastery is granted once normally and once again on Steel Path tier 1.
 function computeMissionMasteryXp(inventoryData: Record<string, unknown>): number {
   const missions = inventoryData.Missions;
   if (!Array.isArray(missions)) return 0;
@@ -632,9 +625,7 @@ function getExcludeReason(
   if (uniqueName.includes("/QuestVersions/")) return "quest-version";
   if (uniqueName.includes("/PrototypeVersions/")) return "prototype-version";
 
-  // Exalted weapons (level with parent frame)
-  // WFCD can provide exalted as an array on warframes (linked exalted weapons).
-  // Exclude only when the item itself is explicitly flagged as exalted.
+  // Exclude only explicitly flagged exalted weapons; WFCD links can be incidental.
   if (item && item.exalted === true) return "wfcd-exalted-flag";
   if (
     item &&

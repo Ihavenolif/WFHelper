@@ -1,7 +1,4 @@
-/**
- * E2E-only WFM stub: WFHELPER_WFM_FIXTURES points at an orders JSON file and
- * the market IPC surface serves it in-memory. Refused in packaged builds.
- */
+// E2E-only in-memory WFM fixture, disabled in packaged builds.
 import fs from "node:fs";
 import { app } from "electron";
 

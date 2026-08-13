@@ -1,8 +1,3 @@
-/**
- * Pure math / string utility functions for reward scanning.
- * No Electron or Node dependencies - safe for unit-testing.
- */
-
 import { clampNumber } from "../config/shared/numeric";
 
 export function clamp01(value: unknown): number {

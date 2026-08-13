@@ -1,8 +1,4 @@
-/**
- * Item database service.
- * Primary:  warframe-public-export-plus (Sainan/calamity-inc) - raw game data
- * Fallback: @wfcd/items (WFCD) - curated community data with proven image CDN
- */
+// Keep WFCD as the offline fallback when live DE exports are unavailable.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -133,9 +129,7 @@ function buildComponentDisplayName(
 
   if (!parent) return finalComponent;
 
-  // A comp name whose head overlaps the parent name's tail is already a full
-  // item name ("Bonewidow Weapon Pod", "War Blade" under "Broken War") and must
-  // not be prefixed; verified vs DE dict + WFM, the overlap is never merged.
+  // A component overlapping the parent's tail is already a full item name.
   const parentWords = parent.split(/\s+/);
   const componentWords = finalComponent.split(/\s+/);
   for (let k = Math.min(parentWords.length, componentWords.length); k > 0; k--) {
@@ -388,9 +382,7 @@ function loadWfcdItems(): number {
     let wfcdComponentNewCount = 0;
     let wfcdComponentSupplementCount = 0;
 
-    // Comps that are themselves top-level @wfcd items already carry their full
-    // display name ("Damaged Necramech Pod" as a comp of "Bonewidow Capsule") -
-    // prefixing the parent onto those corrupts a standalone tradable's name.
+    // Top-level WFCD components already carry their complete tradable name.
     const wfcdStandaloneNames = new Map<string, string>();
     for (const item of items) {
       if (item.uniqueName && item.name) {

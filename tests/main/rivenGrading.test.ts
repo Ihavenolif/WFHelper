@@ -139,13 +139,7 @@ describe("floatToGrade", () => {
 });
 
 describe("unparseBuff", () => {
-  // Forward formula reference: displayed% = baseValue * 15 * disp * pow(1.25,numCurses)
-  //   * lerp(0.9,1.1,roll) * buffsAtten[numBuffs] * (lvl+1) * 100
-  // For baseValue=0.016666, disp=0.7, 1 buff, 0 curses, lvl=8:
-  //   scale = 0.016666 * 15 * 0.7 * 1 * 1 * 9 = 1.574937
-  //   min (roll=0.0): 1.574937 * 0.9 * 100 = 141.7
-  //   mid (roll=0.5): 1.574937 * 1.0 * 100 = 157.5
-  //   max (roll=1.0): 1.574937 * 1.1 * 100 = 173.2
+  // These fixtures are the min, midpoint, and max of the forward buff formula.
 
   it("returns ~0.5 for a mid-range value", () => {
     const result = unparseBuff(157.5, 0.016666, 0.7, 1, 0, "WeaponCritChanceMod");
@@ -209,9 +203,6 @@ describe("unparseCurse", () => {
   });
 
   it("uses swapped attenuation indexing (buffsTable[numCurses] × curseTable[numBuffs])", () => {
-    // For 3 buffs 1 curse: cursesInBuffTable = buffsAtten[1]=1, buffsInCurseTable = curseAtten[3]=0.5
-    // For 2 buffs 2 curses: cursesInBuffTable = buffsAtten[2]=0.66, buffsInCurseTable = curseAtten[2]=0.33
-    // Same displayed value should give different rollFloats
     const a = unparseCurse(30, 0.01, 1.0, 3, 1);
     const b = unparseCurse(30, 0.01, 1.0, 2, 2);
     expect(a).not.toBeCloseTo(b, 2);
@@ -337,9 +328,7 @@ describe("rivenData", () => {
   });
 
   describe("generateRivenSuffix", () => {
-    // Game rule (RivenParser.js): buffs sort by fingerprint Value DESCENDING;
-    // first buff -> TitleCase prefix, middle -> "-" + prefix, last -> suffix.
-    // Ground truth: the user's Boar rivens named "Satidra" and "Critacan" in game.
+    // In-game names order buffs by descending fingerprint value.
     it("orders buffs by roll value descending (Boar Satidra)", () => {
       const shotgunType = rivenData.resolveRivenType("Boar")!;
       const name = rivenData.generateRivenSuffix(shotgunType, [
@@ -452,9 +441,8 @@ describe("gradeRiven", () => {
   });
 
   it("grades shotgun stats against shotgun bases (Boar Critacan regression)", () => {
-    // Real riven, AlecaFrame grades B / S / A-. Two stacked bugs produced
-    // S/F/S: rifle bases (no SHOTGUN tag in export) and base-Boar dispo for
-    // values the game rendered at Boar Prime dispo (variant re-fit covers it).
+    // AlecaFrame grades this real riven B/S/A-; it exercises shotgun bases and
+    // variant-disposition fitting together.
     const result = gradeRiven("Boar", [
       { name: "Multishot", positive: true, value: 199.3 },
       { name: "Critical Chance", positive: true, value: 163.6 },

@@ -1,9 +1,3 @@
-/**
- * Shared arbitration-run types used by both main-process and renderer.
- *
- * Single source of truth - do not duplicate these types elsewhere.
- */
-
 export type ArbiMissionType = "defense" | "interception" | "disruption" | "other";
 
 type ArbiRunSource = "live" | "imported";

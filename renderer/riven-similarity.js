@@ -17,11 +17,8 @@ export function canonicalRivenStatName(name) {
   return STAT_NAME_CANON[n] || n;
 }
 
-/**
- * @param {string[]} myStatNames
- * @param {Array<{ name?: string | null }>} listingStats
- * @returns {{ pct: number, matchedNames: Set<string> }}
- */
+/** @param {string[]} myStatNames @param {Array<{ name?: string | null }>} listingStats
+ * @returns {{ pct: number, matchedNames: Set<string> }} */
 export function computeRivenStatSimilarity(myStatNames, listingStats) {
   if (!myStatNames.length || !Array.isArray(listingStats) || !listingStats.length) {
     return { pct: 0, matchedNames: new Set() };

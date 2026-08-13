@@ -7,12 +7,7 @@ export function sanitizeDisplayName(name: string | null | undefined): string {
   return raw.replace(LEADING_BRACKET_TOKEN, "").trim() || raw;
 }
 
-/**
- * Derive a human-readable fallback name from a `/Lotus/...`-style uniqueName:
- * take the last path segment and space out camelCase boundaries.
- * `/Lotus/Language/...` keys always end in `Name` - drop it, else we'd surface
- * "Archon Crystal Green Name".
- */
+// Language keys end in `Name`; drop it to avoid labels such as "Archon Crystal Green Name".
 export function fallbackNameFromUniqueName(uniqueName: string | null | undefined): string {
   if (!uniqueName) return "Unknown";
   const raw = String(uniqueName);

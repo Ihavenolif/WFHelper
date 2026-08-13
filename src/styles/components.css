@@ -1,9 +1,3 @@
-/*
- * Shared infrastructure styles.
- *
- * View-specific styles live in scoped <style> blocks within each Svelte component.
- */
-
 @layer components {
   /* app layout */
   #app {
@@ -12,8 +6,7 @@
   }
   #content {
     flex: 1;
-    /* min-width 0 lets the column shrink as a flex child; wide content must
-       bring its own overflow-x container — the page never scrolls sideways. */
+    /* Wide content owns horizontal overflow so the page stays fixed. */
     min-width: 0;
     overflow-y: auto;
     overflow-x: hidden;

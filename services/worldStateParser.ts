@@ -306,10 +306,7 @@ function formatMissionTypeLabel(missionType: string, nodeId: string): string {
   return missionType || "Unknown";
 }
 
-// Railjack void storms carry no MissionType in world state; the real type lives on
-// the node's railjack mission (Survival, Volatile, Skirmish, ...). Dict labels are
-// uppercase, so normalise to Title Case to match normal fissures. Falls back to
-// "Railjack" for nodes we can't resolve.
+// Void storms omit MissionType, so resolve the node mission and normalize its dict label.
 function railjackMissionLabel(nodeId: string): string {
   const name = resolveDictValue(REGION_TRANSLATION.regions[nodeId]?.missionName);
   if (!name) return "Railjack";
@@ -455,9 +452,7 @@ const RAW_BOUNTY_SYNDICATES: Record<string, string> = {
   EntratiSyndicate: "Entrati",
 };
 
-// These syndicates don't have Jobs in the raw world state - they're procedurally
-// generated from a seed. oracle.browse.wf/bounty-cycle pre-computes the node
-// assignments. Standing and enemy levels are static per tier index.
+// The oracle resolves seed-generated syndicate jobs absent from raw world state.
 interface BountyCycleJob {
   node: string;
   challenge?: string;
@@ -596,11 +591,7 @@ const CHALLENGE_DESC_PREFIXES = [
 // Difficulty suffixes appended by the oracle that don't exist in the dict
 const DIFFICULTY_SUFFIXES = ["VeryHard", "Hard", "Normal", "Easy"];
 
-/**
- * Resolve an oracle challenge path to a human-readable name and description.
- * Oracle paths like `/Lotus/Types/Challenges/Zariman/ZarimanFindMelicaCacheChallenge`
- * map to dict keys like `/Lotus/Language/Challenges/Challenge_ZarimanFindMelicaCacheChallenge_Desc`.
- */
+/** Resolve oracle challenge paths through their language dictionary keys. */
 function resolveChallengeInfo(
   challengePath: string,
   allyName?: string,
@@ -858,10 +849,7 @@ export async function fetchAndParse(): Promise<Record<string, unknown>> {
   // Steel Path is computed locally (epoch-based rotation) - no external API needed
   const steelPath = computeSteelPathHonors();
 
-  // Merge bounties from three sources:
-  // 1. Raw world state (Ostrons/Solaris/Entrati - most reliable)
-  // 2. Warframestat (same syndicates, fallback with nicer names)
-  // 3. Bounty-cycle (seed-generated: Holdfasts/Cavia/Hex)
+  // Prefer raw bounties, then fill gaps from warframestat and the seed oracle.
   const rawBounties = (parsed.bounties || []) as { syndicateKey?: string }[];
   const warframestatBounties = (extras?.bounties || []) as { syndicateKey?: string }[];
   const seedBounties = ((cycles?.bountyCycleBounties || []) as { syndicateKey?: string }[]);

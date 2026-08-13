@@ -1,11 +1,3 @@
-/**
- * Decode riven stats from inventory UpgradeFingerprint
- *
- * Converts the raw encoded fingerprint data (buffs/curses with IEEE 754 float32
- * encoded Values) into displayable stat values, grades, and attribute quality.
- * No OCR needed - this reads directly from inventory JSON.
- */
-
 import { withScope } from "./logger";
 import * as rivenData from "./rivenData";
 import * as rivenGrading from "./rivenGrading";
@@ -56,9 +48,7 @@ const RIVEN_TYPE_LABELS: Record<string, string> = {
   RawModularMeleeRandomMod: "Zaw",
 };
 
-// Uses exact inventory path segment names from external riven challenge data.
-// Keys match the last path component of "/Lotus/Types/Challenges/<Name>".
-// Use {n} as placeholder for the Required count.
+// Keys match exact challenge path suffixes; {n} is replaced with the Required count.
 
 const CHALLENGE_DESCS: Record<string, string> = {
   // Exact inventory names (with prefixes)
@@ -136,11 +126,7 @@ const COMPLICATION_DESCS: Record<string, string> = {
   Undetected: "while undetected",
 };
 
-/**
- * Extract a readable challenge description from a veiled riven fingerprint.
- * Looks up the exact path segment name in CHALLENGE_DESCS, substitutes {n}
- * with the Required count, and appends any complication text.
- */
+/** Builds a veiled challenge description from its exact path suffix and complication. */
 function describeChallengeType(
   challengeType: string,
   required?: number,
@@ -172,9 +158,7 @@ function getRivenTypeLabel(itemType: string): string {
   return "Riven";
 }
 
-// Riven fingerprint Values are NOT IEEE 754 floats. They are integers that
-// encode a 0-1 roll float as `Math.round(f * 0x3FFFFFFF)`. To decode:
-//   rollFloat = intValue / 0x3FFFFFFF
+// Fingerprint Values encode rolls as Math.round(f * 0x3FFFFFFF), not IEEE floats.
 // Source: browse.wf/rivencalc -> RivenParser.js `rivenIntToFloat`.
 
 function rivenIntToFloat(i: number): number {

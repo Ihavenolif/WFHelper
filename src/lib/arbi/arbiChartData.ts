@@ -1,7 +1,3 @@
-/**
- * Pure data/format helpers for the Arbi Analyze views.
- * No Svelte, i18n, or IPC dependencies (unit-tested directly).
- */
 import type { ArbiRunRecord, ArbiRunStats } from "../../types/ipc.js";
 
 /** Game-mode names for the engine MT_* types that show up as "other" arbis. */
@@ -13,10 +9,7 @@ const MT_LABELS: Record<string, string> = {
   MT_ALCHEMY: "Alchemy",
 };
 
-/**
- * Specific game-mode label for "other"-type runs when the log carried the
- * engine mission type; null means use the generic missionType i18n label.
- */
+/** Resolve an engine label for "other" runs, or null to use the generic label. */
 export function missionKindLabel(
   run: Pick<ArbiRunRecord, "missionType" | "missionTypeRaw">,
 ): string | null {
@@ -62,11 +55,8 @@ export function dronesPerRotation(stats: ArbiRunStats): number[] {
   return out;
 }
 
-/**
- * Drones-per-minute for each rotation. Rotation 1 starts at the run's precise
- * start (or first drone); each following rotation starts at the previous
- * reward. Mirrors the reference analyzer.
- */
+// The first rotation starts at the precise run start or first drone. Later
+// rotations start at the previous reward.
 export function dpmSeries(stats: ArbiRunStats): number[] {
   if (stats.rewardTimestamps.length === 0) return [];
   let start =

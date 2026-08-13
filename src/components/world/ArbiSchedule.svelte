@@ -556,7 +556,9 @@
               {@const key = scheduleEntryKey(entry)}
               {@const belled = occurrenceSet.has(key)}
               <div
-                class="grid grid-cols-[90px_minmax(0,1.3fr)_minmax(0,1fr)_110px_130px_36px_28px] items-center gap-x-3 border-b border-border/40 px-2 py-1.5 text-sm hover:bg-white/[0.03] {copySelection.has(key)
+                class="grid grid-cols-[90px_minmax(0,1.3fr)_minmax(0,1fr)_110px_130px_36px_28px] items-center gap-x-3 border-b border-border/40 px-2 py-1.5 text-sm hover:bg-white/[0.03] {copySelection.has(
+                  key,
+                )
                   ? 'bg-accent/5'
                   : ''}"
               >

@@ -7,15 +7,6 @@ import { lookupItem, lookupItemByNameOrSlug, toIconMirrorUrl } from "./itemDatab
 
 const log = withScope("relicService");
 
-/**
- * Relic database built from @wfcd/items
- *
- * Groups all Warframe relics by "Tier Code" (e.g. "Axi A1"), exposing all four
- * quality variants (Intact/Exceptional/Flawless/Radiant) with their per-item
- * drop chances and WFM slugs. Also provides a uniqueName->group lookup so the
- * renderer can cross-reference player inventory (LevelKeys[]).
- */
-
 const WFCD_CDN = "https://cdn.warframestat.us/img/";
 const QUALITIES = new Set(["Intact", "Exceptional", "Flawless", "Radiant"]);
 
@@ -173,9 +164,6 @@ function buildRelicDatabase(): RelicDatabase {
   return { groups, byUniqueName };
 }
 
-/**
- * Returns the relic database (cached after first call).
- */
 export function getRelicDatabase(): RelicDatabase {
   if (!_db) {
     log.time("[RelicDB] build");

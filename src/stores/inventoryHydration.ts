@@ -1,11 +1,3 @@
-/**
- * Inventory hydration controller - Svelte stores, queue pump, and singleton.
- *
- * Core hydration logic lives in `src/stores/hydration/hydrateItemMetrics.ts`.
- * Pure helpers and types live in `hydrationHelpers.ts`, `hydrationCacheHelpers.ts`,
- * and `hydrationTypes.ts` respectively.
- */
-
 import { writable } from "svelte/store";
 
 import { normalizeWfmSlug } from "../../config/shared/wfm.js";

@@ -84,7 +84,7 @@ describe("createOverlayWindowsController", () => {
   });
 });
 
-function createWindowTypeProbe(platform: NodeJS.Platform) {
+function createWindowTypeProbe(platform: typeof process.platform) {
   const captured: Array<Record<string, unknown>> = [];
   const display = {
     id: 1,

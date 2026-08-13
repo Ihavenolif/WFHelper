@@ -201,9 +201,8 @@
     }
   }
 
-  // The order book endpoint keeps only the cheapest 500 per side; on ranked
-  // items rank-0 listings crowd out maxed ones, so Maxed must be a separate
-  // rank-filtered fetch (filtered before the cap) rather than a client filter.
+  // The endpoint caps each side at 500 listings, so max-rank filtering must happen
+  // upstream before rank-zero listings can crowd out maxed ones.
   function currentFetchRank(): number | null {
     return rankFilter === "maxed" && effectiveMaxRank > 0 ? effectiveMaxRank : null;
   }

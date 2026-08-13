@@ -1,9 +1,3 @@
-/**
- * Shared arbitration-schedule types used by both main-process and renderer.
- *
- * Single source of truth - do not duplicate these types elsewhere.
- */
-
 export interface ArbiScheduleEntry {
   epochMs: number;
   /** Star chart node id, e.g. "SolNode149". */

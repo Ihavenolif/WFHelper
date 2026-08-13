@@ -1,11 +1,4 @@
-/**
- * Typed interfaces for external game data packages:
- * - warframe-public-export-plus (raw DE data)
- * - @wfcd/items (curated community data)
- *
- * These cover the fields actually accessed in itemDatabase.ts,
- * worldStateParser.ts, and masteryHelper.ts.
- */
+/** Fields consumed from DE public exports and WFCD items. */
 
 
 /** A single item from any PEP Export* record. */
@@ -206,4 +199,3 @@ interface EndlessXpScheduleEntry {
   Expiry?: WorldStateDate;
   CategoryChoices?: EndlessXpChoice[];
 }
-

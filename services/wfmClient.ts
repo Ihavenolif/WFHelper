@@ -4,9 +4,7 @@ import { normalizeErrorMessage } from "../config/shared/errors";
 
 const log = withScope("wfmClient");
 
-// Warframe.market HTTP client (main-process only): serial 350ms queue, 401 ->
-// err.code WFM_UNAUTHORIZED. Header-only auth (Bearer on v2, JWT on v1, plus
-// auth_type: header; verified live 2026-08-03), cookie+csrf kept as fallback.
+// Serialize WFM requests; prefer header auth and retain cookie plus CSRF fallback.
 
 interface WfmRequestOptions {
   json?: unknown;
@@ -46,11 +44,7 @@ const REQUEST_TIMEOUT_MS = 20000;
 const MAX_QUEUE_DEPTH = 64;
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
-// Shared by both _coreRequest and requestRaw. The auth (Authorization/Cookie)
-// and CSRF (Origin/Referer) headers are NOT here because the two callers have
-// different auth models - _coreRequest uses the user JWT via _getToken(),
-// requestRaw uses _cookieJwt. Keep those at the call sites where the
-// difference is visible.
+// Keep auth and CSRF at call sites because core and raw requests use different tokens.
 const WFM_BASE_HEADERS: Readonly<Record<string, string>> = {
   Accept: "application/json",
   "Content-Type": "application/json",
@@ -62,11 +56,7 @@ let _queue: Promise<void> = Promise.resolve();
 let _lastRequestAt = 0;
 let _queueDepth = 0;
 
-/**
- * Enqueue a function that returns a promise, ensuring at least MIN_DELAY_MS
- * between consecutive requests. Rejects synchronously when the pending-request
- * backlog exceeds MAX_QUEUE_DEPTH - prevents unbounded growth during WFM outages.
- */
+/** Space requests and reject excessive backlog during WFM outages. */
 function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   if (_queueDepth >= MAX_QUEUE_DEPTH) {
     return Promise.reject(
@@ -176,9 +166,7 @@ function _solveChallengeInWindow(): Promise<boolean> {
     try {
       const { BrowserWindow, session } = require("electron") as typeof import("electron");
       const part = session.fromPartition("persist:wfm-clearance");
-      // Do NOT spoof the UA here: a Chrome UA string with Electron's real JS
-      // client hints is a mismatch Turnstile detects, and the checkbox then
-      // loops forever. Native Chromium is internally consistent and passes.
+      // Keep Chromium's native UA because Turnstile detects mismatched client hints.
       const win = new BrowserWindow({
         width: 480,
         height: 640,

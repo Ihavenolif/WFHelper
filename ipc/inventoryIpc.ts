@@ -107,10 +107,7 @@ _loadPersistedState();
 type InventoryDataListener = (data: Record<string, unknown>) => void;
 const _inventoryListeners: InventoryDataListener[] = [];
 
-/**
- * Register a main-process callback to be called whenever inventory data is read.
- * Returns an unsubscribe function.
- */
+/** Subscribes to inventory reads and returns an unsubscribe function. */
 export function addInventoryListener(fn: InventoryDataListener): () => void {
   _inventoryListeners.push(fn);
   return () => {

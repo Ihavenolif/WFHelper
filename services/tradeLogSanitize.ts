@@ -1,6 +1,4 @@
-// EE.log trade-dialog name sanitizers. Platform glyphs (PUA U+E000..U+F8FF)
-// arrive as 1 utf8 char; pre-1.1.3 dbwin decoded them latin1 into 3-char
-// mojibake runs that persist in old saved entries - strip both forms.
+// Strip both live UTF-8 platform glyphs and legacy Latin-1 mojibake.
 
 const PUA_GLYPHS = /[\uE000-\uF8FF\uFFFD]+/g;
 const MOJIBAKE_GLYPHS = /[\u00EE\u00EF][\u0080-\u00BF]{2}/g;

@@ -47,19 +47,13 @@ export function isCacheEntryFresh(
   return isTimestampFresh(record[timestampKey], status === "ok" ? okTtlMs : noDataTtlMs);
 }
 
-/**
- * Like {@link toFiniteNumber} but returns a configurable fallback instead
- * of `null`.
- */
+/** Like {@link toFiniteNumber}, but returns a fallback instead of `null`. */
 export function toFiniteOr(value: unknown, fallback: number = 0): number {
   const n = toFiniteNumber(value);
   return n !== null ? n : fallback;
 }
 
-/**
- * Clamp to [min, max]. 3-arg form throws on a non-finite value; 4-arg form
- * coerces and returns `fallback` when not finite.
- */
+// The 3-arg form rejects non-finite values; the 4-arg form coerces and falls back.
 export function clampNumber(value: number, min: number, max: number): number;
 export function clampNumber(value: unknown, min: number, max: number, fallback: number): number;
 export function clampNumber(value: unknown, min: number, max: number, fallback?: number): number {
@@ -101,9 +95,7 @@ export function toFinitePositiveInt(value: unknown): number | null {
   return null;
 }
 
-/**
- * Coerce a value to a finite non-negative (>= 0) integer, or `null`.
- */
+/** Coerces a value to a finite non-negative integer, or returns `null`. */
 export function toFiniteNonNegativeInt(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
     return Math.round(value);
@@ -120,10 +112,7 @@ export function normalizeDucats(value: unknown): number | null {
   return parsed != null && parsed >= 0 ? Math.round(parsed) : null;
 }
 
-/**
- * Return `true` when the given inventory group is rank-bearing
- * (currently `"mods"` or `"arcanes"`).
- */
+/** Whether an inventory group has rank-bearing entries. */
 export function isRankedGroup(group: string | null | undefined): boolean {
   return group === "mods" || group === "arcanes";
 }

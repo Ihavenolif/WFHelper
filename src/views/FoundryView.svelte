@@ -144,9 +144,6 @@
     ...foundry.recipes.map(toEntryFromRecipe),
   ];
 
-  /** All category tabs, always shown regardless of whether items exist in that
-   *  category right now - matches the in-game Foundry which always displays
-   *  the full bar. */
   /** Lookup: ingredient uniqueName -> owned count (tracks componentOwnership store). */
   $: ownedMap = $componentOwnership;
   function buildProductOwnedLookup(items: typeof $parsedItems): SvelteMap<string, number> {
@@ -488,7 +485,6 @@
             on:click={() => openItem(item.productUniqueName)}
             disabled={!item.productUniqueName}
           >
-            <!-- Header: item icon + name (+ ×count) + status line; pr clears the pin button -->
             <div class="flex items-center gap-3 min-w-0 pr-8">
               <div class="h-14 w-14 shrink-0 flex items-center justify-center">
                 <ItemImage

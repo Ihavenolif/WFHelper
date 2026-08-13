@@ -1,10 +1,3 @@
-// Linux real-time triggers: tail Proton's steam-<appid>.log for wine
-// OutputDebugString traces - the same stream the DBWIN worker hears on
-// Windows. Opt-in: the user adds PROTON_LOG=1 %command% to Warframe's Steam
-// launch options; Proton's default WINEDEBUG already includes +seh (whose
-// warn class carries OutputDebugStringA in modern wine) and +debugstr (the
-// pre-kernelbase channel), so no WINEDEBUG override is needed.
-
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -19,9 +12,7 @@ const WARFRAME_STEAM_APP_ID = "230410";
 const POLL_INTERVAL_MS = 250;
 const MAX_READ_BYTES = 256 * 1024;
 const MAX_READ_LOOPS_PER_TICK = 8;
-// The monitor only counts as active while the log keeps growing. A stale log
-// left by a session whose launch options were since removed must not report
-// active - that would permanently suppress the file-poll trigger paths.
+// Require recent growth so a stale Proton log cannot suppress file polling.
 const ACTIVE_WINDOW_MS = 30_000;
 
 export function resolveProtonLogPath(): string {
@@ -30,10 +21,7 @@ export function resolveProtonLogPath(): string {
   return path.join(os.homedir(), `steam-${WARFRAME_STEAM_APP_ID}.log`);
 }
 
-// Wine trace lines: [ts:]pid:tid:class:channel:function payload. Modern wine
-// (kernelbase) logs OutputDebugStringA at warn:seh; older wine used
-// trace:debugstr. The payload is a C-escaped quoted string (\n \r \t \" \\
-// plus \xNN hex bytes; W strings carry an L prefix and \xNNNN code units).
+// Support both modern warn:seh and legacy trace:debugstr escaped payloads.
 const DEBUGSTR_OPEN_RE = /(?:trace|warn):(?:debugstr|seh):OutputDebugString[AW]\s+(L?)"/;
 
 interface ParsedDebugstr {
@@ -114,12 +102,7 @@ export function parseWineDebugstr(raw: string): ParsedDebugstr | null {
   };
 }
 
-/**
- * Incremental tail over Proton's log. Proton truncates the file on each game
- * launch, so size-below-offset means "fresh session, read from the start";
- * the first sighting of an already-present file seeks to the end instead
- * (its content belongs to a previous session).
- */
+/** Treat truncation as a fresh session and ignore an existing stale file on attach. */
 export class ProtonLogTail {
   private offset = 0;
   private remainder = "";

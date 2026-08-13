@@ -1,32 +1,12 @@
-/**
- * Live smoke tests - run against the deployed Worker, NOT Miniflare.
- *
- * Purpose: catch failures that mocked tests fundamentally cannot.
- *   - cron stopped running (stale snapshot.generatedAt)
- *   - prewarm cursor stuck on a subset (per-slug timestamps go stale)
- *   - KV lost data (snapshot entry count collapses)
- *   - upstream WFM outage causing stale data to linger
- *   - auth flow broken (bootstrap token no longer accepted)
- *
- * Thresholds derived from a real snapshot sample on 2026-04-18:
- *   prices:         6760 (floor: 5000)
- *   meta:           3764 (floor: 2500)
- *   orderSummaries: 2996 (floor: 2000)
- *   age p95:        5.2h  (bar: 24h)
- *   age p99:       10.3h  (bar: 36h)
- *   age max:       ~29d   (bar: 45d)
- *   99.9% under 24h       (bar: 95%)
- *
- * Run:     WORKER_URL=https://api.wfhelper.com npm run test:smoke
- * Default: https://api.wfhelper.com  (matches config/shared/backendConfig.ts BACKEND_URL)
- */
+// Live deployment checks for failures Miniflare cannot reproduce. Override the default
+// https://api.wfhelper.com endpoint with WORKER_URL.
 import { describe, it, expect, beforeAll } from 'vitest';
 
 const BASE_URL = (process.env.WORKER_URL || 'https://api.wfhelper.com').replace(/\/$/, '');
 const HOUR = 3600 * 1000;
 const DAY = 24 * HOUR;
 
-// ---- thresholds (tune if catalog size shifts materially) ---------------------
+// Tune these thresholds only when the catalog size shifts materially.
 const MIN_PRICES = 5_000;
 const MIN_META = 2_500;
 const MIN_ORDER_SUMMARIES = 2_000;

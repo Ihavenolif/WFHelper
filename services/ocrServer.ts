@@ -11,12 +11,8 @@ const REQUEST_TIMEOUT_MS = 8_000;
 const MAX_RESTARTS = 3;
 const RESTART_BASE_DELAY_MS = 1_500;
 const SHUTDOWN_GRACE_MS = 1_000;
-/**
- * PowerShell OCR worker pool. Each worker holds Windows.Media.Ocr state
- * (~80-120 MB RSS). Reward scanner peaks at 3 concurrent slots, +1 for riven
- * overlap -> ceiling 4. Default 2 (scans usually serialize);
- * WF_OCR_SERVER_POOL overrides.
- */
+/** Windows OCR workers cost roughly 80-120 MB each. Reward scans peak at 3 slots
+ * plus 1 riven overlap, so cap at 4; default 2, WF_OCR_SERVER_POOL overrides. */
 const OCR_SERVER_POOL_SIZE = Math.max(
   1,
   Math.min(4, Number.parseInt(String(process.env.WF_OCR_SERVER_POOL || "2"), 10) || 2),
@@ -71,15 +67,10 @@ interface QueuedRequest {
   timeoutHandle: ReturnType<typeof setTimeout>;
 }
 
-// Throttle for malformed-stdout warnings: log the first occurrence immediately,
-// then at most once per MALFORMED_WARN_INTERVAL_MS with the accumulated count.
-// Without this, a helper that starts emitting garbage would either spam the log
-// or (previously) vanish silently.
+// Report malformed output without flooding the log.
 const MALFORMED_WARN_INTERVAL_MS = 30_000;
 
-// The ps1 exits before READY with a startup payload when WinRT OCR cannot init
-// (typically no OCR language pack installed). Latch that so scans fail fast with
-// the cause instead of respawning PowerShell workers for every crop.
+// Latch WinRT initialization failures instead of respawning for every crop.
 const ENGINE_UNAVAILABLE_RETRY_MS = 10 * 60_000;
 
 let _engineUnavailableReason: string | null = null;

@@ -90,20 +90,29 @@ describe("commit subject policy", () => {
 });
 
 describe("comment style policy", () => {
-  it("accepts three lines and unrelated Unicode", () => {
+  it("accepts two ASCII lines", () => {
     const cwd = initRepo();
-    stageSource(cwd, "export const seed = 1;\n// première\n// second\n// third\n");
+    stageSource(cwd, "export const seed = 1;\n// first\n// second\n");
 
     expect(runCheck(COMMENT_CHECK, ["--staged"], cwd).status).toBe(0);
   });
 
-  it("rejects four consecutive comment lines", () => {
+  it("rejects three consecutive comment lines", () => {
     const cwd = initRepo();
-    stageSource(cwd, "// one\n// two\n// three\n// four\nexport const seed = 1;\n");
+    stageSource(cwd, "// one\n// two\n// three\nexport const seed = 1;\n");
 
     const result = runCheck(COMMENT_CHECK, ["--staged"], cwd);
     expect(result.status).toBe(1);
-    expect(result.output).toContain("comment is 4 lines, max 3");
+    expect(result.output).toContain("comment is 3 lines, max 2");
+  });
+
+  it("rejects non-ASCII comments", () => {
+    const cwd = initRepo();
+    stageSource(cwd, "export const seed = 1; // première\n");
+
+    const result = runCheck(COMMENT_CHECK, ["--staged"], cwd);
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("non-ASCII character in a comment");
   });
 
   it("rejects an em dash in a trailing line comment", () => {
@@ -124,20 +133,35 @@ describe("comment style policy", () => {
 
   it("counts multiline block comments that begin after code", () => {
     const cwd = initRepo();
-    stageSource(cwd, "export const seed = 1; /* one\ntwo\nthree\nfour */\n");
+    stageSource(cwd, "export const seed = 1; /* one\ntwo\nthree */\n");
 
     const result = runCheck(COMMENT_CHECK, ["--staged"], cwd);
     expect(result.status).toBe(1);
-    expect(result.output).toContain("comment is 4 lines, max 3");
+    expect(result.output).toContain("comment is 3 lines, max 2");
   });
 
   it("counts multiline HTML comments", () => {
     const cwd = initRepo();
-    stageSource(cwd, "<div>\n<!-- one\ntwo\nthree\nfour -->\n</div>\n", "sample.svelte");
+    stageSource(cwd, "<div>\n<!-- one\ntwo\nthree -->\n</div>\n", "sample.svelte");
 
     const result = runCheck(COMMENT_CHECK, ["--staged"], cwd);
     expect(result.status).toBe(1);
-    expect(result.output).toContain("comment is 4 lines, max 3");
+    expect(result.output).toContain("comment is 3 lines, max 2");
+  });
+
+  it("passes all tracked code without grandfathered violations", () => {
+    expect(runCheck(COMMENT_CHECK, ["--all"], REPO_ROOT).status).toBe(0);
+  });
+
+  it("rejects any tracked-code violation", () => {
+    const cwd = initRepo(
+      "[test] - seed repository",
+      "// one\n// two\n// three\nexport const seed = 1;\n",
+    );
+
+    const result = runCheck(COMMENT_CHECK, ["--all"], cwd);
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("comment is 3 lines, max 2");
   });
 });
 
@@ -145,7 +169,7 @@ describe("CI range fallback", () => {
   it("checks a new branch against the default branch when before is zero", () => {
     const cwd = initRepo();
     git(cwd, ["checkout", "-b", "feature"]);
-    stageSource(cwd, "// one\n// two\n// three\n// four\nexport const feature = true;\n");
+    stageSource(cwd, "// one\n// two\n// three\nexport const feature = true;\n");
     git(cwd, ["commit", "--no-verify", "-m", "[fix] - invalid Uppercase"]);
 
     const env = {
@@ -158,7 +182,7 @@ describe("CI range fallback", () => {
     expect(commitResult.status).toBe(1);
     expect(commitResult.output).toContain("invalid Uppercase");
     expect(commentResult.status).toBe(1);
-    expect(commentResult.output).toContain("comment is 4 lines, max 3");
+    expect(commentResult.output).toContain("comment is 3 lines, max 2");
   });
 
   it("retains the normal push and pull-request ranges", () => {
@@ -185,7 +209,7 @@ describe("CI range fallback", () => {
   it("checks HEAD when the default-branch range is empty", () => {
     const cwd = initRepo(
       "[fix] - invalid Uppercase",
-      "// one\n// two\n// three\n// four\nexport const seed = 1;\n",
+      "// one\n// two\n// three\nexport const seed = 1;\n",
     );
     const env = {
       BASE_REF: "",

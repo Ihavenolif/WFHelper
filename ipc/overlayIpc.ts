@@ -143,9 +143,7 @@ function toggleOverlayInteractionMode(source = "unknown"): void {
   setOverlayInteractionMode(!ctx.overlayInteractiveMode, source);
 }
 
-// Allowlist is derived from the shared list in config/shared/themeCssVars.ts so
-// renderer (sender) and main (gate) cannot drift. Update that file to add a new
-// themed variable.
+// Share the theme allowlist so renderer payloads and main validation cannot drift.
 const OVERLAY_THEME_VAR_ALLOWLIST: ReadonlySet<string> = new Set(OVERLAY_FORWARDED_CSS_VARS);
 const OVERLAY_COLOR_VAR_SET: ReadonlySet<string> = new Set(OVERLAY_FORWARDED_COLOR_VARS);
 const OVERLAY_FONT_VAR_SET: ReadonlySet<string> = new Set(OVERLAY_FORWARDED_FONT_VARS);

@@ -273,10 +273,8 @@ export const CIRCUIT_HARD_ROTATION: string[][] = [
   ["Vectis", "Stug", "Ballistica", "Destreza", "Obex"],
 ];
 
-/**
- * Week index the live choices belong to; -1 when they don't match any known
- * group (DE changed the tables - callers should fall back to current-only).
- */
+// Return -1 when live choices no longer match a known week so callers can fall
+// back to current-only data.
 export function circuitRotationIndex(rotation: string[][], choices: string[]): number {
   const set = new Set(choices.map(circuitNameKey));
   let best = -1;
@@ -291,11 +289,8 @@ export function circuitRotationIndex(rotation: string[][], choices: string[]): n
   return bestHits >= Math.ceil((rotation[best]?.length ?? 2) / 2) ? best : -1;
 }
 
-/**
- * Resolve circuit choice names to images and ownership.
- * Warframes: owned if found in inventory Suits OR subsumed (ConsumedSuits).
- * Weapons: owned if found in weapon inventory (LongGuns/Pistols/Melee).
- */
+// Subsumed frames count as owned alongside Suits; weapons use their inventory
+// collections.
 export function resolveCircuitChoices(
   choices: string[],
   itemDb: Record<string, ItemDbEntry>,

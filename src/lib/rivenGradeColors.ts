@@ -1,9 +1,3 @@
-/**
- * Shared riven grade color utilities.
- * Grade colors are defined as CSS custom properties in tokens.css and
- * can be customized via the theme system.
- */
-
 /** Return the CSS variable reference for a riven overall grade (S, A, B, C, D, F). */
 export function gradeColor(grade: string): string {
   const base = grade.charAt(0);

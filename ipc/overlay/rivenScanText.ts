@@ -36,9 +36,7 @@ const RIVEN_STAT_ALIAS_REPLACEMENTS: ReadonlyArray<[RegExp, string]> = Object.fr
   [/\bl\s*eat\b/gi, "Heat"],
   [/\bQ\s*Toxin\b/gi, "Toxin"],
   [/\bQ\s*Electricity\b/gi, "Electricity"],
-  // Only one stat ends in "Combo Count Chance"; PaddleOCR garbles the leading
-  // "Additional" ("Aal", ...) beyond the fuzzy budget, so rebuild the full
-  // name from the unambiguous tail (also covers the word being lost entirely).
+  // The unique tail recovers "Additional" when PaddleOCR garbles or drops it.
   [/\b(?:[A-Za-z]{2,12}\s+)?Combo\s+Count\s+Chance\b/gi, "Additional Combo Count Chance"],
 ]);
 
@@ -102,23 +100,13 @@ export interface RivenStat {
 
 const MAX_REASONABLE_VALUE = 500;
 
-/**
- * Stats where the game displays a minus sign for the BUFF direction.
- * For these, a "-XX%" value on-screen means the stat is beneficial (positive),
- * and "+XX%" would mean a curse (negative).  We flip `positive` after parsing
- * so the overlay colours green/red correctly.
- * Only Recoil reverses display polarity; Zoom keeps normal polarity.
- */
+// Recoil alone displays buffs with a minus sign, so its parsed polarity must flip.
 const INVERTED_POLARITY_STATS = new Set(["weapon recoil", "recoil"]);
 
 function preprocessOcrText(raw: string): string {
   let text = raw;
 
-  // Re-join two-word stat names that WinRT OCR splits across lines.
-  // The riven card UI places a coloured icon between the stat sign/value and
-  // the name, causing the OCR layout engine to emit the first word on one line
-  // and "Damage" / "Chance" / etc. on the next.  Fix before any other processing
-  // so the stat names are intact for all subsequent logic.
+  // Colored stat icons make WinRT split two-word names; rejoin before other repairs.
   text = text.replace(/\bFinisher\s*\n+\s*(?=Damage\b)/gi, "Finisher ");
   text = text.replace(/\bMelee\s*\n+\s*(?=Damage\b)/gi, "Melee ");
   text = text.replace(/\bCritical\s*\n+\s*(?=(?:Chance|Damage)\b)/gi, "Critical ");
@@ -149,33 +137,22 @@ function preprocessOcrText(raw: string): string {
   // "<1,32 Damage to Infeste" -> "x1.32 Damage to Infested".
   text = text.replace(/[<‹]\s*(\d+[.,]\d+)\s+(?=Damage\s+to\s+)/gi, "x$1 ");
   text = text.replace(/\bx\s*O([.,]\d)/gi, "x0$1");
-  // Fix xl/xI misread: WinRT OCR reads "x1" as "xl" (lowercase L) or "xI" (capital i).
-  // e.g. "xl,56 Damage to Corpus" -> "x1,56 Damage to Corpus" before comma->dot pass.
-  // Also handle spaced variants where WinRT separates the parts:
-  // "x I , 44 Damage to Grineer" -> "x1.44 Damage to Grineer".
+  // WinRT reads x1 as xl or xI and may separate the glyphs.
   text = text.replace(/\bx\s+[lI1]\s*[,.]\s*(\d+)/gi, "x1.$1");
   text = text.replace(/\bx\s+[lI1]\b/gi, "x1");
   text = text.replace(/\bx[lI]([,.]?\d)/g, "x1$1");
   text = text.replace(/\bx[lI]\b/g, "x1");
   // Collapse spaced decimal on multiplier: "x1 , 44" or "x1 ,44" -> "x1.44".
   text = text.replace(/\bx(\d)\s*,\s*(\d+)/g, "x$1.$2");
-  // Fix spaced decimal comma in percent values: "+62, 2%" -> "+62.2%".
-  // WinRT OCR sometimes splits a value like "+62.2%" into "+62, 2%" when comma
-  // is the decimal separator and a space follows.  The general comma->period pass
-  // below requires no intervening space; this handles the space-separated variant.
+  // Repair spaced decimal commas before the general comma conversion.
   text = text.replace(/([+\-\u2013]?\d+),\s+(\d+)\s*%/g, "$1.$2%");
   text = text.replace(/,(\d)/g, ".$1");
-  // Rejoin split x-multiplier integer + decimal across a line boundary:
-  // "x1\n.3 Damage to Corpus" -> "x1.3 Damage to Corpus"
-  // WinRT OCR sometimes splits "x 1,3 Damage" into two lines: "x 1" and ",3 Damage".
-  // After xl-fix ("x 1" -> "x1") and comma->dot (",3" -> ".3"), we get "x1\n.3 Damage".
+  // Rejoin multiplier decimals that WinRT splits across a line boundary.
   text = text.replace(/(x\d+)\n(\.\d+)/g, "$1$2");
   // Also rejoin when the decimal is on the same line with a space:
   // "x1 .3 Damage" -> "x1.3 Damage" / "x1 .36 Damage" -> "x1.36 Damage"
   text = text.replace(/\b(x\d+)\s+\.(\d+)/g, "$1.$2");
-  // Rejoin x-multiplier where WinRT splits the decimal after the stat name:
-  // "x1 Damage to Corpus\n.3" or "x1\nDamage to Corpus .3" - capture the trailing
-  // orphan decimal and attach to the previous x-multiplier on the same or prior line.
+  // Attach a trailing orphan decimal to the preceding multiplier.
   text = text.replace(/\b(x\d+)(\s+(?:Damage\s+to\s+\w+|[A-Z][a-z]+))\n\.(\d+)/g, "$1.$3$2");
   // Handle WinRT emitting an integer x-multiplier followed by isolated decimal on next line:
   // "x1\n3 Damage" -> "x1.3 Damage" (when digit after newline is 1-9 and followed by space+stat)
@@ -246,9 +223,7 @@ function sanitiseValue(value: number): number {
     const corrected = parseFloat(str.slice(0, -1) + "." + str.slice(-1));
     if (Number.isFinite(corrected)) return corrected;
   }
-  // Non-integer values > 1000 (e.g. 1126.2) have a spurious leading digit from
-  // an adjacent OCR strip that got merged in.  Strip the leading digit when the
-  // result would be <= MAX_REASONABLE_VALUE, e.g. 1126.2 -> 126.2.
+  // Merged OCR strips can prepend a digit; strip it only when the result is plausible.
   if (value > 1000 && !Number.isInteger(value)) {
     const str = String(Math.round(value * 10) / 10);
     const dotIdx = str.indexOf(".");
@@ -323,13 +298,7 @@ function lineContainsKnownStat(line: string): boolean {
   return KNOWN_RIVEN_STATS.some((stat) => lineLower.includes(stat.toLowerCase()));
 }
 
-/**
- * Complete a right-truncated stat name: the stat crop clips the card's right
- * edge, so OCR yields prefixes like "Critical Cha" or "Status Dura".  Returns
- * the known stat the fragment is a prefix of - only when the candidates are
- * unambiguous (they all extend the shortest one, e.g. "Critical Cha" ->
- * "Critical Chance", never picking between "Damage to Corpus/Grineer/...").
- */
+// Complete crop-truncated stat names only when every candidate has one shared prefix.
 function completeTruncatedStatName(fragment: string): string | null {
   const frag = fragment
     .toLowerCase()
@@ -348,13 +317,7 @@ function completeTruncatedStatName(fragment: string): string | null {
 
 function collapseOrphanValueLines(lines: string[]): string[] {
   const collapsed: string[] = [];
-  // FIFO queue of "value-only" lines waiting to be paired with a following stat-name line.
-  // Using a queue (rather than an immediate merge) ensures that noise lines appearing
-  // between a numeric value and its stat name (e.g. the riven suffix "Gelimantiton"
-  // interleaved by WinRT OCR between "+95.5%" and "Cold") do not consume the pending
-  // value.  Each value pairs with the *oldest* unmatched stat-name line that follows
-  // it, preserving Cold=+95.5, Impact=+122.4, etc. even when OCR mixes the riven
-  // name text into the stats area.
+  // Queue orphan values so interleaved name noise cannot consume their matching stat.
   const pendingValues: string[] = [];
 
   for (let index = 0; index < lines.length; index += 1) {
@@ -369,9 +332,7 @@ function collapseOrphanValueLines(lines: string[]): string[] {
       // Allow trailing comma so "+62," (integer part of a split "+62.2%") is
       // treated as a value-only orphan and paired with the following stat name.
       /^[+\-\u2013x\d\s.,% ]+$/i.test(current) &&
-      // Reject bare integers (1-4 digits, no sign, %, s, x, or .) - these are
-      // UI artefacts such as tier indicators ("7"), polarity+rank ("47") or MR
-      // numbers that appear at the edges of the stats area and are not stat values.
+      // Bare integers are edge UI artifacts, not stat values.
       !/^\d{1,4}$/.test(current.trim());
 
     if (looksLikeValueOnly) {
@@ -380,10 +341,7 @@ function collapseOrphanValueLines(lines: string[]): string[] {
     }
 
     if (pendingValues.length > 0 && lineContainsKnownStat(current)) {
-      // Only pair the oldest pending value with this stat-name line if the line
-      // does NOT already have its own extractable value. If it does (e.g.
-      // "-1.1 Range"), the orphan is irrelevant - the stat's value is right
-      // there in the line and prepending would corrupt it.
+      // Do not prepend an orphan when this stat line already carries its own value.
       const lineOwnValue = extractSignAndValue(current);
       if (lineOwnValue === null || lineOwnValue.value === null) {
         const prefix = pendingValues.shift()!;
@@ -404,10 +362,7 @@ function collapseOrphanValueLines(lines: string[]): string[] {
   return collapsed;
 }
 
-// Riven damage-type stats that can appear combined on a single roll without
-// their own value (e.g. "+112% Electricity Impact" = one slot giving both).
-// When such a stat has no value but the PREVIOUS stat in the same OCR line does,
-// we carry the value forward rather than leaving it null.
+// Combined damage types share one displayed value, so the second may inherit the first.
 const DAMAGE_TYPE_STAT_NAMES: ReadonlySet<string> = new Set([
   "electricity",
   "corrosive",
@@ -445,9 +400,7 @@ function parseStatsFromLines(text: string, dropped?: string[]): RivenStat[] {
       if (idx !== -1) hits.push({ stat, idx });
     }
 
-    // Fuzzy fallback: if no exact match but the line looks like a stat line
-    // (starts with +/-/x), try Levenshtein distance against known stat names.
-    // Handles single-character OCR misreads like "Maximur" -> "Maximum".
+    // Fuzzy-match signed lines to recover small OCR errors in known stat names.
     if (hits.length === 0) {
       if (/^[+\-\u2013x\xd7]/i.test(line)) {
         // Strip sign+value prefix to isolate the stat name portion
@@ -498,10 +451,7 @@ function parseStatsFromLines(text: string, dropped?: string[]): RivenStat[] {
       }
     }
 
-    // Upgrade short-form matches whose line tail is a truncated longer stat:
-    // "x1.57 Damage to Infe" matches "Damage" but completes to "Damage to Infested".
-    // Only when the cleaned tail EXTENDS the match - a complete name followed
-    // by junk ("Critical Chance +99...") must not jump to a longer stat.
+    // Extend short matches only when the cleaned tail is an unambiguous longer stat.
     for (let index = 0; index < filtered.length; index++) {
       const hit = filtered[index];
       const tailEnd = index + 1 < filtered.length ? filtered[index + 1].idx : line.length;
@@ -542,18 +492,11 @@ function parseStatsFromLines(text: string, dropped?: string[]): RivenStat[] {
       const displayPositive = positive;
       const multiplier = extracted?.multiplier ?? false;
 
-      // x-multiplier values exist only on faction damage ("x1.3 Damage to
-      // Grineer"); an x-value on any other stat is OCR junk, e.g. "x2 fol"
-      // left over from a clipped "(x2 for Bows)" qualifier.
+      // Multipliers belong only to faction damage; elsewhere they are qualifier OCR junk.
       if (multiplier && !/^Damage\b/.test(stat)) continue;
 
       if (seen.has(key)) {
-        // When the duplicate occurrence carries more precision than the first,
-        // replace it.  The canonical case: the small duplicate stat panel shows
-        // "xl" (-> x1, value=1) while the main panel shows "x 1,3" (-> x1.3,
-        // value=1.3).  Bounding-box sort may put the duplicate first in statsText.
-        // Condition: existing value is an integer, new value has decimals and the
-        // same integer part (e.g. 1.0 -> 1.3, but not 1.0 -> 62.2).
+        // Prefer a duplicate with decimal precision when its integer part still matches.
         if (value !== null) {
           const existingIdx = results.findIndex((r) => r.name.toLowerCase() === key);
           if (existingIdx >= 0) {
@@ -578,26 +521,11 @@ function parseStatsFromLines(text: string, dropped?: string[]): RivenStat[] {
       }
       seen.add(key);
 
-      // Carry-forward: when a damage-type stat has no value but the previous
-      // stat in the SAME line segment does, they share a single combined roll
-      // (e.g. "+112% Electricity Impact" -> Impact inherits 112% from Electricity).
-      // Guard: block carry-forward when a sign char in the prefix is followed by
-      // non-whitespace garbage (e.g. "-ÔÇ×e" from a WinRT element-icon misread),
-      // which means the two stats are on SEPARATE card rows, not a combined element.
-      // A prefix of "+ " (sign + whitespace only, directly before the stat name)
-      // IS the combined-element separator and SHOULD carry forward.
-      // Also require the PREVIOUS stat itself to be a damage type - combined
-      // element combos only happen between two damage-type stats (e.g.
-      // "Electricity Impact", "Cold Toxin").  Non-damage stats like
-      // "Status Duration" or "Melee Damage" never combine with an element.
+      // Carry values only across adjacent damage types; noisy signs mark separate OCR rows.
       const hasNoisySignInPrefix = /[+\-\u2013]\s*\S/.test(prefix);
       if (value === null && index > 0 && DAMAGE_TYPE_STAT_NAMES.has(key) && !hasNoisySignInPrefix) {
         const prev = results[results.length - 1];
-        // Do not carry-forward from multiplier stats (x1.3 Damage to Grineer is a
-        // different stat class - carry-forward is only for shared elemental combos
-        // like "+112% Electricity Impact").
-        // Do not carry-forward from non-damage-type stats - those are separate
-        // card rows that WinRT OCR merged onto one line.
+        // Multipliers and non-damage stats cannot start combined elemental rolls.
         const prevIsDamageType = prev && DAMAGE_TYPE_STAT_NAMES.has(prev.name.toLowerCase());
         if (prev && prev.value !== null && !prev.multiplier && prevIsDamageType) {
           value = prev.value;
@@ -605,9 +533,7 @@ function parseStatsFromLines(text: string, dropped?: string[]): RivenStat[] {
         }
       }
 
-      // Inverted-polarity stats: the game shows a minus sign for the buff
-      // direction (e.g. "-70.9% Weapon Recoil" is beneficial).  Flip the
-      // positive flag so the overlay shows the correct green/red colour.
+      // Recoil displays buffs with a minus sign, opposite the parsed polarity.
       if (INVERTED_POLARITY_STATS.has(key)) {
         effectivePositive = !effectivePositive;
       }

@@ -49,11 +49,7 @@ const REWARD_UI_READY_PATTERN = /ProjectionRewardChoice\.lua:\s*Missing icon dat
 // Fires the moment the in-game reward screen closes - after "Selection
 // countdown done" (vote ended) or "Reward choice force closed" (solo confirm).
 const REWARD_SCREEN_CLOSE_PATTERN = /ProjectionRewardChoice\.lua:\s*Relic reward screen shut down/i;
-// Primary: LoadingCompleteEnd fires when the relic-selection screen is fully rendered
-// and interactive.
-// Fallback: PopulateInventoryGrid fires earlier in the load sequence; kept so that
-// if DE renames the lua file the trigger still works (it re-fires after cooldown if
-// LoadingCompleteEnd never arrives).
+// Keep the earlier PopulateInventoryGrid fallback in case DE renames LoadingCompleteEnd.
 const RELIC_PICKER_PATTERNS: ReadonlyArray<RegExp> = Object.freeze([
   /\bThemedProjectionManager\.lua:\s*LoadingCompleteEnd\b/i,
   /\bProjection[A-Za-z_]*\.lua:\s*LoadingCompleteEnd\b/i,
@@ -61,23 +57,15 @@ const RELIC_PICKER_PATTERNS: ReadonlyArray<RegExp> = Object.freeze([
   /\bProjectionManager\.lua:\s*PopulateInventoryGrid\b/i,
   /\bProjection[A-Za-z_]*\.lua:\s*PopulateInventoryGrid\b/i,
 ]);
-// InitMapping marks returning to gameplay from the relic-selection screen (back, cancel,
-// or relic chosen) because the game re-initialises input bindings after full-screen UI.
-// RELIC_PICKER_CLOSE_MIN_GAP_MS guards against the InitMapping that fires when navigating
-// TO the relic screen.
+// InitMapping fires entering and leaving full-screen UI, so the gap distinguishes exit.
 const RELIC_PICKER_CLOSE_PATTERNS: ReadonlyArray<RegExp> = Object.freeze([
   /\bInitMapping for all devices with bindings\b/i,
 ]);
-// TradingPost.lua emits a line like:
-//   Script [Info]: TradingPost.lua: Initiating Trade With: <username>.
-// We capture the username at the end, stripping a trailing period if present.
+// TradingPost.lua appends punctuation after the counterparty; exclude it from the name.
 const TRADE_PARTNER_PATTERN =
   /TradingPost\.lua.*?[Tt]rade.*?[Ww]ith[: ]+([A-Za-z0-9_\-.]+)\.?\s*$/i;
 
-// An incoming whisper opens a private chat tab, logged as:
-//   ChatRedux::AddTab: Adding tab with channel name: F<User> to index <N>
-// The message text is never logged - only that a conversation opened and from
-// whom. The "F" prefix marks a private/whisper tab; strip it for the username.
+// Private chat tabs prefix the username with F; message text is not logged.
 const CHAT_TAB_MARKER = "ChatRedux::AddTab: Adding tab with channel name: ";
 
 export function parseWhisperUsername(line: string): string | null {
@@ -112,10 +100,7 @@ function isWhisperEcho(playerName: string, now: number): boolean {
 
 /** Debounce before firing the reward-screen overlay after a log pattern match. */
 const TRIGGER_DELAY_MS = 250;
-// Warframe flushes EE.log lazily - the file poll re-delivers lines DBWIN
-// already handled up to ~15s later (observed 15.4s), far past the trigger
-// cooldown. While DBWIN is live, file reward lines only rescue rewards DBWIN
-// missed entirely (no recent dispatch), instead of re-scanning at vote end.
+// Lazy file flushes trail DBWIN beyond the cooldown; only rescue missed dispatches.
 const REWARD_FILE_ECHO_WINDOW_MS = 30_000;
 /** Debounce for relic-picker - gives the in-game UI time to finish rendering. */
 const RELIC_TRIGGER_DELAY_MS = 300;
@@ -125,15 +110,9 @@ const REWARD_TRIGGER_COOLDOWN_MS = 2500;
 const RELIC_PICKER_COOLDOWN_MS = 3000;
 /** Grace period after close before another close can fire - debounces rapid log flushes. */
 const RELIC_PICKER_CLOSE_COOLDOWN_MS = 500;
-// Minimum gap between the last picker PATTERN line and a close being honoured.
-// The inbound InitMapping (navigating TO the relic screen) lands around
-// LoadingCompleteEnd, so measuring from the last pattern line keeps this guard
-// tight; the old 3.5s-from-dispatch ate fast user closes and stranded the
-// overlay until the safety net.
+// Measure the close guard from picker activity so fast valid closes still work.
 const RELIC_PICKER_CLOSE_MIN_GAP_MS = 1500;
-// The mid-mission relic picker pauses the game and renders reward-preview
-// cards, emitting "Pause countdown done" + ProjectionRewardChoice lines - a
-// reward scan there reads the relic's possible-drops panel as a real reward.
+// Suppress reward scans while the relic picker renders reward-preview cards.
 const REWARD_AFTER_PICKER_SUPPRESS_MS = 3000;
 // File polling is a backup path when DBWIN is inactive.
 const POLL_INTERVAL_MS = 500;
@@ -166,10 +145,7 @@ let activeMissionTagCallback: ((tag: string) => void) | null = null;
 
 export { RIVEN_PATTERNS, forceEndRivenSession };
 
-// Mission-info dumps print the fissure tier when a mission loads:
-//   activeMissionTag=VoidT6           (key=value block)
-//   "activeMissionTag" : "VoidT6",    (JSON block)
-// VoidT1-5 map to relic eras; VoidT6 is an omnia fissure (any era).
+// Mission-info dumps use both key-value and JSON shapes; VoidT6 means omnia.
 const ACTIVE_MISSION_TAG_PATTERN = /(?:^|["\s])activeMissionTag["\s]*[=:]\s*"?([A-Za-z0-9_]+)/;
 
 export function parseActiveMissionTag(line: string): string | null {
@@ -384,9 +360,7 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
     rewardScreenCloseCallback(stalenessMs);
   }
 
-  // When DBWIN is active, skip relic picker pattern processing from file-poll lines.
-  // DBWIN delivers lines instantly; the file poll re-delivers the same lines later,
-  // causing phantom re-opens after cooldown expiry.
+  // Skip delayed file echoes while DBWIN is active to prevent phantom reopens.
   const skipRelicFromFilePoll = realtimeSourceActive() && source === "file";
 
   if (!skipRelicFromFilePoll && RELIC_PICKER_PATTERNS.some((pattern) => pattern.test(line))) {
@@ -420,9 +394,7 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
     }
   }
 
-  // Start buffering on the dialog description line.
-  // Stop buffering when a new log-framework prefix appears ([Info]/[Error]/[Warning]).
-  // Single-line dialogs (ending with leftItem=/Menu/Confirm_Item_Ok) are handled immediately.
+  // A new framework prefix seals multiline dialogs; single-line dialogs seal immediately.
   if (line.includes(TRADE_DIALOG_START)) {
     _tradeDialogBuffer = [line];
     _tradeDialogStartAt = Date.now();
@@ -459,9 +431,7 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
   // Arbitration run tracking (internally ignores dbwin-source lines).
   processArbiLine(line, source);
 
-  // InitMapping fires when the game returns to gameplay from any full-screen UI.
-  // Guard against riven session (SendResult during riven belongs to the riven flow)
-  // and against file-poll duplicates when DBWIN is active.
+  // Riven flow and delayed file echoes make InitMapping unsafe as a picker close.
   if (
     !isRivenSessionActive() &&
     !skipRelicFromFilePoll &&
@@ -474,9 +444,7 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
         now - Math.max(lastRelicPickerAt, lastRelicPickerPatternAt) <
         RELIC_PICKER_CLOSE_MIN_GAP_MS
       ) {
-        // Too close to the last picker activity - this InitMapping is from
-        // navigating TO the relic screen, not FROM it. Skip to avoid closing
-        // the overlay immediately after it opens.
+        // Fresh InitMapping belongs to picker entry, not exit.
         log.info("[EELog] Relic picker close skipped - too close to last open trigger");
       } else if (relicPickerCloseCallback) {
         relicPickerSessionOpen = false;
@@ -487,11 +455,7 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
   }
 }
 
-/**
- * Parse the buffered trade confirmation dialog lines into a structured trade.
- * Format:
- *   "You are offering:\n\n<items>\n\nand will receive from <partner> the following:\n\n<items>"
- */
+/** Parse the buffered trade confirmation dialog. */
 export function _parseTradeDialog(lines: string[]): ParsedLogTrade | null {
   const text = lines.join("\n");
 
@@ -736,9 +700,7 @@ export function startWatching(
   }
   pollReadNewBytes();
 
-  // DBWIN (OutputDebugString) instant triggers are a Win32 mechanism; Linux
-  // hears the same stream via Proton's log when the user opts in through
-  // launch options. Other platforms rely on the file poll alone.
+  // Proton can supply the same real-time stream; otherwise the file poll remains active.
   if (process.platform === "win32") {
     startDbwinWorker((line) => handleLine(line, "dbwin"));
   } else if (process.platform === "linux") {

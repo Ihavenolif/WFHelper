@@ -1,17 +1,3 @@
-/**
- * Inventory parsing barrel.
- *
- * Heavy lifting is delegated to sub-modules under `./inventory/`:
- *   - itemClassification  -- type detection, visibility, group inference
- *   - rankExtraction      -- rank/maxRank parsing from entries & fingerprints
- *   - entryNormalization  -- boolean/amount/equip-context extraction, collection flattening
- *   - fullSets            -- full-set item generation from itemDb components
- *   - foundryResources    -- parseFoundry & parseResources
- *
- * This file contains the `parseInventory` orchestrator and re-exports the
- * public API consumed by the rest of the app.
- */
-
 import type {
   InventoryGroup,
   ItemDbEntry,

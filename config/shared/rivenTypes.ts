@@ -1,10 +1,3 @@
-/**
- * Shared riven mod types used by both main-process (services/rivenFingerprint.ts)
- * and renderer (src/types/ipc.ts + preload.ts).
- *
- * Single source of truth - do not duplicate these types elsewhere.
- */
-
 export interface DecodedRivenStat {
   tag: string;
   name: string;
