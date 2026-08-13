@@ -389,15 +389,13 @@ void app.whenReady().then(async () => {
 
   const inventoryDetectStart = Date.now();
   apiHelperRunner.init();
-  const found = inventoryIpc.findInventoryFile();
-  if (found) {
-    ctx.currentInventoryPath = found;
-    inventoryIpc.watchInventoryFile(found);
-    log.info("Auto-detected inventory at:", found);
+  const loadedInventory = inventoryIpc.loadInitialInventory();
+  if (loadedInventory) {
+    log.info("Loaded inventory at:", loadedInventory.path);
 
     // The renderer may finish loading before inventory discovery completes.
     // (local file loads can complete in <100 ms).
-    const data = inventoryIpc.readInventory(found);
+    const data = loadedInventory.data;
     if (data && ctx.mainWindow) {
       const wc = ctx.mainWindow.webContents;
       const sendInventory = () => {

@@ -1,3 +1,4 @@
+import crypto from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -54,10 +55,24 @@ function writeValidInventory(filePath: string, marker: string, mtimeMs: number):
   return filePath;
 }
 
-function writeState(inventoryPath: string): void {
+function writeState(inventoryPath: string, inventorySource = "json"): void {
   fs.writeFileSync(
     path.join(tmpDir, "userData", "inventory-reload-state.json"),
-    JSON.stringify({ hash: "x", reloadAt: 0, inventoryPath }),
+    JSON.stringify({ hash: "x", inventoryPath, inventorySource }),
+  );
+}
+
+function writeAlecaInventory(filePath: string, inventory: unknown): void {
+  const key = Buffer.from([76, 69, 79, 45, 65, 76, 69, 67, 9, 69, 79, 45, 65, 76, 69, 67]);
+  const iv = Buffer.from([49, 50, 70, 71, 66, 51, 54, 45, 76, 69, 51, 45, 113, 61, 57, 0]);
+  const cipher = crypto.createCipheriv("aes-128-cbc", key, iv);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(
+    filePath,
+    Buffer.concat([
+      cipher.update(JSON.stringify({ InventoryJson: JSON.stringify(inventory) }), "utf8"),
+      cipher.final(),
+    ]),
   );
 }
 
@@ -84,7 +99,10 @@ describe("findInventoryFile", () => {
 
   it("prefers a fresher manual import over a stale helper snapshot", async () => {
     const now = Date.now();
-    writeInventoryFile(path.join(tmpDir, "userData", "api-helper", "inventory.json"), now - 24 * HOUR);
+    writeInventoryFile(
+      path.join(tmpDir, "userData", "api-helper", "inventory.json"),
+      now - 24 * HOUR,
+    );
     const manual = writeInventoryFile(path.join(tmpDir, "downloads", "inventory_manual.json"), now);
     writeState(manual);
 
@@ -94,8 +112,14 @@ describe("findInventoryFile", () => {
 
   it("prefers a fresher helper snapshot over an older import", async () => {
     const now = Date.now();
-    const helper = writeInventoryFile(path.join(tmpDir, "userData", "api-helper", "inventory.json"), now);
-    const manual = writeInventoryFile(path.join(tmpDir, "downloads", "inventory_manual.json"), now - 24 * HOUR);
+    const helper = writeInventoryFile(
+      path.join(tmpDir, "userData", "api-helper", "inventory.json"),
+      now,
+    );
+    const manual = writeInventoryFile(
+      path.join(tmpDir, "downloads", "inventory_manual.json"),
+      now - 24 * HOUR,
+    );
     writeState(manual);
 
     const { findInventoryFile } = await loadModule();
@@ -103,7 +127,10 @@ describe("findInventoryFile", () => {
   });
 
   it("uses the imported path when the helper dir is empty", async () => {
-    const manual = writeInventoryFile(path.join(tmpDir, "documents", "inventory_backup.json"), Date.now());
+    const manual = writeInventoryFile(
+      path.join(tmpDir, "documents", "inventory_backup.json"),
+      Date.now(),
+    );
     writeState(manual);
 
     const { findInventoryFile } = await loadModule();
@@ -112,10 +139,30 @@ describe("findInventoryFile", () => {
 
   it("falls back to user folders when the remembered file is gone", async () => {
     writeState(path.join(tmpDir, "documents", "deleted.json"));
-    const downloads = writeInventoryFile(path.join(tmpDir, "downloads", "inventory.json"), Date.now());
+    const downloads = writeInventoryFile(
+      path.join(tmpDir, "downloads", "inventory.json"),
+      Date.now(),
+    );
 
     const { findInventoryFile } = await loadModule();
     expect(findInventoryFile()).toBe(downloads);
+  });
+
+  it("restores a selected AlecaFrame inventory with its decoder", async () => {
+    const alecaPath = path.join(tmpDir, "local", "AlecaFrame", "lastData.dat");
+    writeAlecaInventory(alecaPath, { Suits: [], marker: "aleca" });
+    writeValidInventory(
+      path.join(tmpDir, "userData", "api-helper", "inventory.json"),
+      "helper",
+      Date.now(),
+    );
+    writeState(alecaPath, "aleca");
+
+    const inventoryIpc = await loadModule();
+    expect(inventoryIpc.loadInitialInventory()).toMatchObject({
+      path: alecaPath,
+      data: { marker: "aleca" },
+    });
   });
 
   it("accepts changed helper contents immediately after the startup read", async () => {

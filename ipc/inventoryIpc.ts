@@ -44,6 +44,9 @@ const JSON_ENCODING = "utf-8";
 let _lastInventoryHash: string | null = null;
 let _lastListenerInventoryHash: string | null = null;
 let _trustedInventoryPath: string | null = null;
+type InventorySource = "json" | "aleca";
+let _trustedInventorySource: InventorySource = "json";
+let _activeInventorySource: InventorySource = "json";
 let _loadedInventoryModifiedAt: number | null = null;
 
 interface InventoryReadError {
@@ -59,9 +62,14 @@ const _inventoryStatePath = path.join(app.getPath("userData"), "inventory-reload
 function _loadPersistedState(): void {
   try {
     const raw = fs.readFileSync(_inventoryStatePath, JSON_ENCODING);
-    const data = JSON.parse(raw) as { hash?: string; inventoryPath?: string };
+    const data = JSON.parse(raw) as {
+      hash?: string;
+      inventoryPath?: string;
+      inventorySource?: string;
+    };
     if (typeof data.hash === "string") _lastInventoryHash = data.hash;
     if (typeof data.inventoryPath === "string") _trustedInventoryPath = data.inventoryPath;
+    if (data.inventorySource === "aleca") _trustedInventorySource = "aleca";
   } catch (err) {
     const code = err && typeof err === "object" ? (err as { code?: unknown }).code : null;
     if (code !== "ENOENT") {
@@ -81,6 +89,7 @@ function _persistState(): void {
       JSON.stringify({
         hash: _lastInventoryHash,
         inventoryPath: _trustedInventoryPath,
+        inventorySource: _trustedInventorySource,
       }),
     );
   } catch (err) {
@@ -147,9 +156,10 @@ function newestExistingInventoryPath(paths: string[]): string | null {
   return bestPath;
 }
 
-function rememberInventoryPath(filePath: string): void {
-  if (_trustedInventoryPath === filePath) return;
+function rememberInventoryPath(filePath: string, source: InventorySource): void {
+  if (_trustedInventoryPath === filePath && _trustedInventorySource === source) return;
   _trustedInventoryPath = filePath;
+  _trustedInventorySource = source;
   _persistState();
 }
 
@@ -181,7 +191,9 @@ function findInventoryFile(): string | null {
   // newest wins between helper output and the last import - a stale helper
   // snapshot must not shadow a fresher manually imported file
   const primaryCandidates = collectInventoryCandidates(HELPER_INVENTORY_DIRECTORIES);
-  if (_trustedInventoryPath) primaryCandidates.push(_trustedInventoryPath);
+  if (_trustedInventoryPath && _trustedInventorySource === "json") {
+    primaryCandidates.push(_trustedInventoryPath);
+  }
   const primaryCandidate = newestExistingInventoryPath(primaryCandidates);
   if (primaryCandidate) return primaryCandidate;
 
@@ -266,7 +278,8 @@ function readInventory(filePath: string): unknown {
     ctx.currentInventoryData = data as Record<string, unknown> | null;
     _loadedInventoryModifiedAt = snapshot.modifiedAt;
     _lastReadError = null;
-    rememberInventoryPath(filePath);
+    _activeInventorySource = "json";
+    rememberInventoryPath(filePath, "json");
 
     _notifyListenersOncePerProcessHash(hash, data);
 
@@ -293,6 +306,9 @@ function readAlecaFrameInventory(filePath: string): unknown {
     _loadedInventoryModifiedAt = modifiedAt;
     _lastReadError = null;
     _lastInventoryHash = hash;
+    _activeInventorySource = "aleca";
+    ctx.currentInventoryPath = filePath;
+    rememberInventoryPath(filePath, "aleca");
     _persistState();
     _notifyListenersOncePerProcessHash(hash, data);
     return data;
@@ -333,7 +349,7 @@ function watchInventoryFile(filePath: string): void {
       ctx.currentInventoryData = data as Record<string, unknown> | null;
       _loadedInventoryModifiedAt = snapshot.modifiedAt;
       _lastReadError = null;
-      rememberInventoryPath(filePath);
+      rememberInventoryPath(filePath, "json");
       _notifyListenersOncePerProcessHash(hash, data);
       if (data && ctx.mainWindow) {
         ctx.mainWindow.webContents.send(INVENTORY_UPDATED, data);
@@ -350,21 +366,34 @@ function getLoadedInventoryModifiedAt(): number | null {
   return _loadedInventoryModifiedAt;
 }
 
+function loadInitialInventory(): { path: string; data: unknown } | null {
+  if (_trustedInventorySource === "aleca" && _trustedInventoryPath) {
+    const alecaPath = newestExistingInventoryPath([_trustedInventoryPath]);
+    if (alecaPath) {
+      const data = readAlecaFrameInventory(alecaPath);
+      if (data) return { path: alecaPath, data };
+    }
+  }
+
+  const filePath = findInventoryFile();
+  if (!filePath) return null;
+  ctx.currentInventoryPath = filePath;
+  _activeInventorySource = "json";
+  watchInventoryFile(filePath);
+  const data = readInventory(filePath);
+  return data ? { path: filePath, data } : null;
+}
+
+function readCurrentInventory(): unknown {
+  if (!ctx.currentInventoryPath) return loadInitialInventory()?.data ?? null;
+  return _activeInventorySource === "aleca"
+    ? readAlecaFrameInventory(ctx.currentInventoryPath)
+    : readInventory(ctx.currentInventoryPath);
+}
+
 function register(): void {
   handleAuthorized(INVENTORY_GET, assertMainRendererSender, async () => {
-    if (!ctx.currentInventoryPath) {
-      const discovered = findInventoryFile();
-      if (discovered) {
-        ctx.currentInventoryPath = discovered;
-        watchInventoryFile(discovered);
-      }
-    }
-
-    if (ctx.currentInventoryPath) {
-      return readInventory(ctx.currentInventoryPath);
-    }
-
-    return null;
+    return readCurrentInventory();
   });
 
   handleAuthorized(INVENTORY_OPEN_FILE, assertMainRendererSender, async () => {
@@ -424,6 +453,7 @@ function register(): void {
 export {
   register,
   findInventoryFile,
+  loadInitialInventory,
   watchInventoryFile,
   readInventory,
   getLoadedInventoryModifiedAt,
