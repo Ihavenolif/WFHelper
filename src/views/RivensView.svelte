@@ -36,6 +36,9 @@
 
   const TYPES = ["all", "Rifle", "Shotgun", "Pistol", "Melee", "Archgun", "Kitgun", "Zaw"];
   const TYPE_OPTIONS = TYPES.map((value) => ({ value, label: value === "all" ? "All" : value }));
+  // Letter families: grading emits +/- variants (A+, B-, ...), S and F stand alone.
+  const GRADES = ["all", "S", "A", "B", "C", "F"];
+  const GRADE_OPTIONS = GRADES.map((value) => ({ value, label: value === "all" ? "All" : value }));
   const VIEW_TABS = [
     { key: "unveiled", label: "Unveiled" },
     { key: "veiled", label: "Veiled" },
@@ -72,7 +75,7 @@
       list = list.filter((r) => r.rivenType === typeFilter);
     }
     if (gradeFilter !== "all") {
-      list = list.filter((r) => r.overallGrade === gradeFilter);
+      list = list.filter((r) => r.overallGrade.toUpperCase().startsWith(gradeFilter));
     }
     list = [...list].sort((a, b) =>
       compareSharedFilterSort(filterableRiven(a), filterableRiven(b), $rivenFilters),
@@ -172,6 +175,12 @@
         value={typeFilter}
         options={TYPE_OPTIONS}
         onChange={(value) => (typeFilter = value)}
+      />
+
+      <SegmentedControl
+        value={gradeFilter}
+        options={GRADE_OPTIONS}
+        onChange={(value) => (gradeFilter = value)}
       />
     </div>
 
