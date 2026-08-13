@@ -6,7 +6,7 @@ interface CycleAlerts {
   duviri: boolean;
 }
 
-interface FissureAlert {
+export interface FissureAlert {
   id: string;
   tier: string;
   missionType: string;

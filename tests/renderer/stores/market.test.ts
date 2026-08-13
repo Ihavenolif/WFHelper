@@ -34,6 +34,7 @@ function contract(id: string): WfmContract {
     itemId: null,
     itemUrlName: null,
     weaponUrlName: null,
+    rivenSuffix: null,
     itemThumb: null,
     platinum: 100,
     buyoutPlatinum: null,

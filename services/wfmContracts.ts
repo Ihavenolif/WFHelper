@@ -6,6 +6,12 @@ import { getInGameName } from "./wfmSession";
 import { toNonEmptyString } from "../config/shared/stringValidation";
 import { toFiniteNumber } from "../config/shared/numeric";
 import { formatWfmAssetUrl, titleFromSlug } from "../config/shared/wfm";
+import type {
+  WfmContract,
+  WfmContractAttribute,
+  WfmContractsQuery,
+  WfmContractsResult,
+} from "../config/shared/wfmContracts";
 
 const log = withScope("wfmContracts");
 
@@ -17,42 +23,6 @@ const MAX_LIMIT = 100;
 const SKIPPABLE_HTTP_STATUSES = new Set([301, 302, 303, 400, 404, 405]);
 
 let _resolvedEndpointName: string | null = null;
-
-
-interface NormalisedAttribute {
-  urlName: string;
-  label: string;
-  value: number | string | null;
-  positive: boolean | null;
-}
-
-interface NormalisedContract {
-  id: string;
-  itemName: string;
-  itemId: string | null;
-  itemUrlName: string | null;
-  weaponUrlName: string | null;
-  /** Generated roll name ("visio-critatis") - identifies which riven sold. */
-  rivenSuffix: string | null;
-  itemThumb: string | null;
-  platinum: number;
-  buyoutPlatinum: number | null;
-  startingPlatinum: number | null;
-  quantity: number;
-  visible: boolean;
-  modRank: number | null;
-  rerolls: number | null;
-  masteryLevel: number | null;
-  polarity: string | null;
-  minimalReputation: number | null;
-  isDirectSell: boolean;
-  listedAt: string | null;
-  updatedAt: string | null;
-  note: string | null;
-  stats: NormalisedAttribute[];
-  listingUrl: string;
-  sourceType: string | null;
-}
 
 interface PageInfo {
   page: number;
@@ -70,7 +40,6 @@ interface EndpointCandidate {
   path: string;
 }
 
-
 function firstNonEmpty(...values: unknown[]): string | null {
   for (const value of values) {
     const s = toNonEmptyString(value);
@@ -79,7 +48,7 @@ function firstNonEmpty(...values: unknown[]): string | null {
   return null;
 }
 
-function normalizeAttribute(rawAttribute: unknown): NormalisedAttribute | null {
+function normalizeAttribute(rawAttribute: unknown): WfmContractAttribute | null {
   if (!rawAttribute || typeof rawAttribute !== "object") return null;
   const attr = rawAttribute as Record<string, unknown>;
 
@@ -112,7 +81,7 @@ function toIsoTimestamp(value: unknown): string | null {
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : null;
 }
 
-function normalizeContract(raw: unknown): NormalisedContract | null {
+function normalizeContract(raw: unknown): WfmContract | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
 
@@ -197,7 +166,9 @@ function normalizeContract(raw: unknown): NormalisedContract | null {
     listedAt: toIsoTimestamp(r.created_at ?? r.createdAt),
     updatedAt: toIsoTimestamp(r.updated_at ?? r.updatedAt),
     note: firstNonEmpty(r.note),
-    stats: (attributesRaw.map(normalizeAttribute).filter(Boolean) as NormalisedAttribute[]),
+    stats: attributesRaw
+      .map(normalizeAttribute)
+      .filter((attribute): attribute is WfmContractAttribute => attribute != null),
     listingUrl: `https://warframe.market/auction/${encodeURIComponent(id)}`,
     sourceType: firstNonEmpty(r.type, r.contract_type, r.contractType),
   };
@@ -350,16 +321,10 @@ function isSkippableError(err: unknown): boolean {
   return SKIPPABLE_HTTP_STATUSES.has(status);
 }
 
-
 export async function getMyContracts({
   page = DEFAULT_PAGE,
   limit = DEFAULT_LIMIT,
-}: { page?: number; limit?: number } = {}): Promise<{
-  contracts: NormalisedContract[];
-  page: number;
-  totalPages: number | null;
-  hasMore: boolean;
-}> {
+}: WfmContractsQuery = {}): Promise<WfmContractsResult> {
   if (!getInGameName()) {
     throw new Error("Not logged in to Warframe.market.");
   }
@@ -385,7 +350,9 @@ export async function getMyContracts({
     try {
       const data = await invokeCandidate(candidate);
       const extracted = extractContracts(data);
-      const contracts = extracted.rows.map(normalizeContract).filter((row): row is NormalisedContract => Boolean(row));
+      const contracts = extracted.rows
+        .map(normalizeContract)
+        .filter((row): row is WfmContract => row != null);
 
       _resolvedEndpointName = candidate.name;
       return {
@@ -395,7 +362,11 @@ export async function getMyContracts({
         hasMore: extracted.hasMore,
       };
     } catch (err: unknown) {
-      if (err && typeof err === "object" && (err as Record<string, unknown>).code === "WFM_UNAUTHORIZED") {
+      if (
+        err &&
+        typeof err === "object" &&
+        (err as Record<string, unknown>).code === "WFM_UNAUTHORIZED"
+      ) {
         throw err;
       }
 

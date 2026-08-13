@@ -21,6 +21,7 @@ describe("wfmContracts normalization", () => {
             updated_at: "2026-03-04T10:30:00.000Z",
             item: {
               id: "65f6d1f9f8f87e16d88c7b99",
+              name: "visio-critatis",
               url_name: "riven_mod",
               weapon_url_name: "latron_prime",
               thumb: "items/images/en/thumbs/latron_prime_riven_mod.png",
@@ -62,6 +63,7 @@ describe("wfmContracts normalization", () => {
       itemId: "65f6d1f9f8f87e16d88c7b99",
       itemUrlName: "riven_mod",
       weaponUrlName: "latron_prime",
+      rivenSuffix: "visio-critatis",
       platinum: 451,
       buyoutPlatinum: 800,
       startingPlatinum: 450,

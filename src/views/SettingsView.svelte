@@ -16,7 +16,7 @@
   import { TOGGLEABLE_TABS, tabVisibility } from "../stores/sidebarTabs.js";
   import { startTour } from "../stores/tour.js";
   import { currentView } from "../stores/app.js";
-  import type { OverlaySettings } from "../types/ipc.js";
+  import type { OverlaySettings, OverlayWindowKey } from "../types/ipc.js";
 
   type OverlaySettingsFormInput = Partial<OverlaySettings> & {
     showTradeNotification?: boolean;
@@ -54,7 +54,6 @@
     if (!isError) statusTimer = setTimeout(() => (statusMsg = ""), 2000);
   }
 
-  type OverlayWindowKey = "reward" | "planner" | "rivenLeft" | "rivenRight" | "arbiSummary";
   const OVERLAY_SCALE_ROWS: Array<{ key: OverlayWindowKey; label: string }> = [
     { key: "reward", label: "Relic rewards size" },
     { key: "planner", label: "Relic recommendation size" },

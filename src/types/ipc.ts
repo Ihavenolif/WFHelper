@@ -20,64 +20,14 @@ import type { RelicDatabase } from "./relics.js";
 import type { WorldState } from "./world.js";
 import type { HelperStatus } from "../../config/shared/apiHelperTypes.js";
 import type { DisplayPreference, LinuxDisplayInfo } from "../../config/shared/linuxDisplay.js";
+import type { OverlaySettings, OverlayWindowKey } from "../../config/runtime/overlaySettings.js";
 
 export type { HelperStatus } from "../../config/shared/apiHelperTypes.js";
-
-interface CycleAlerts {
-  earth: boolean;
-  cetus: boolean;
-  vallis: boolean;
-  cambion: boolean;
-  duviri: boolean;
-}
-
-export interface FissureAlert {
-  id: string;
-  tier: string; // tier name or "any"
-  missionType: string; // mission type or "any"
-  steelPath: "any" | "normal" | "steel";
-  planet: string; // planet name or "any"
-}
-
-type OverlayWindowKey = "reward" | "planner" | "rivenLeft" | "rivenRight" | "arbiSummary";
-
-interface OverlaySavedWindowBounds {
-  x: number;
-  y: number;
-  displayId?: string | null;
-}
-
-export interface OverlaySettings {
-  autoTriggerEnabled: boolean;
-  hotkeyEnabled: boolean;
-  hotkey: string;
-  interactionHotkeyEnabled: boolean;
-  interactionHotkey: string;
-  worldNotificationsEnabled: boolean;
-  cycleAlerts: CycleAlerts;
-  cycleAlertMinutesBefore: number;
-  fissureAlerts: FissureAlert[];
-  notificationSoundEnabled: boolean;
-  wfmNotificationsEnabled: boolean;
-  messageNotificationsEnabled: boolean;
-  messageNotificationsWhileFocused: boolean;
-  autoCloseWfmOrders: boolean;
-  tradeRepHotkeyEnabled: boolean;
-  tradeRepHotkey: string;
-  relicRewardsOverlayEnabled: boolean;
-  relicRecommendationOverlayEnabled: boolean;
-  tradeNotificationOverlayEnabled: boolean;
-  rivenOverlayEnabled: boolean;
-  arbiSummaryOverlayEnabled: boolean;
-  arbiTrackingEnabled: boolean;
-  ocrDebugImagesEnabled: boolean;
-  /** Main-window zoom multiplier applied on top of the display-derived base. */
-  uiScale: number;
-  overlayScale: number;
-  overlayWindowScales: Partial<Record<OverlayWindowKey, number>>;
-  overlayWindowBounds: Partial<Record<OverlayWindowKey, OverlaySavedWindowBounds>>;
-  overlayDragHintDismissed: boolean;
-}
+export type {
+  FissureAlert,
+  OverlaySettings,
+  OverlayWindowKey,
+} from "../../config/runtime/overlaySettings.js";
 
 type AppUpdateStatus =
   | "idle"
