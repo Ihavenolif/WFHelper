@@ -68,7 +68,7 @@
       </div>
       <ThemedInput
         type="text"
-        placeholder="Search items..."
+        placeholder="Search items or players..."
         bind:value={tradeSearch}
         className="w-full py-1 px-2.5 text-xs"
         searchFocusTarget
