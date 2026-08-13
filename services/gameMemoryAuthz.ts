@@ -38,13 +38,16 @@ export function parseAuthzAt(view: Buffer, at: number): string | null {
 }
 
 // Tally every well-formed auth string in a buffer into counts.
-export function scanBufferForAuthz(view: Buffer, counts: Map<string, number>): void {
+export function scanBufferForAuthz(view: Buffer, counts: Map<string, number>): number {
   let idx = 0;
+  let markerHits = 0;
   while ((idx = view.indexOf(NEEDLE, idx)) !== -1) {
+    markerHits += 1;
     const authz = parseAuthzAt(view, idx);
     if (authz) counts.set(authz, (counts.get(authz) ?? 0) + 1);
     idx += NEEDLE.length;
   }
+  return markerHits;
 }
 
 // Pick a unique most-frequent match; equal leaders are not safe to use.

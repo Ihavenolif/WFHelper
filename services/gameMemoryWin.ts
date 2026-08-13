@@ -101,8 +101,6 @@ const USER_ADDRESS_CEILING = 0x7fffffff0000n;
 const CHUNK = 4 * 1024 * 1024;
 // Keep auth strings intact across chunk boundaries.
 const OVERLAP = 256;
-// Bound a corrupted or unexpected address-space walk.
-const MAX_SCAN_BYTES = 8n * 1024n * 1024n * 1024n;
 
 interface AuthzResult {
   authz: string | null;
@@ -171,8 +169,8 @@ function readMemory(
   });
 }
 
-export async function readGameAuthzWin(): Promise<AuthzResult> {
-  const api = loadApi();
+export async function readGameAuthzWin(apiOverride?: Win32): Promise<AuthzResult> {
+  const api = apiOverride ?? loadApi();
   if (!api) return { authz: null, reason: "mem-open-noapi" };
 
   const pid = findWarframePid(api);
@@ -189,11 +187,13 @@ export async function readGameAuthzWin(): Promise<AuthzResult> {
   const chunk = Buffer.allocUnsafe(CHUNK);
   const bytesReadBuf = Buffer.alloc(8);
   let scanned = 0n;
+  let markerHits = 0;
+  let readableRegions = 0;
   let iterations = 0;
 
   try {
     let addr = 0n;
-    while (addr < USER_ADDRESS_CEILING && scanned < MAX_SCAN_BYTES) {
+    while (addr < USER_ADDRESS_CEILING) {
       const written = api.VirtualQueryEx(hProc, addr, mbi, MBI_SIZE) as number;
       if (written === 0) break; // end of address space or query failed
 
@@ -205,13 +205,14 @@ export async function readGameAuthzWin(): Promise<AuthzResult> {
       if (regionSize === 0n || nextAddr <= addr) break; // no forward progress
 
       if (isReadableRegion(state, protect)) {
+        readableRegions += 1;
         let off = 0n;
-        while (off < regionSize && scanned < MAX_SCAN_BYTES) {
+        while (off < regionSize) {
           const remaining = regionSize - off;
           const len = remaining < BigInt(CHUNK) ? Number(remaining) : CHUNK;
           const n = await readMemory(api, hProc, base + off, chunk, len, bytesReadBuf);
           if (n > 0) {
-            scanBufferForAuthz(chunk.subarray(0, n), counts);
+            markerHits += scanBufferForAuthz(chunk.subarray(0, n), counts);
             scanned += BigInt(n);
           }
           if (len <= OVERLAP) break;
@@ -226,7 +227,14 @@ export async function readGameAuthzWin(): Promise<AuthzResult> {
     api.CloseHandle(hProc);
   }
 
-  if (counts.size === 0) return { authz: null, reason: "crumbs-not-found" };
+  if (counts.size === 0) {
+    const gib = (Number(scanned) / (1024 * 1024 * 1024)).toFixed(1);
+    log.warn(
+      `No valid auth matches from ${markerHits} marker hits in ${gib} GiB ` +
+        `across ${readableRegions} readable regions`,
+    );
+    return { authz: null, reason: "crumbs-not-found" };
+  }
   const { authz, hits, ambiguous } = bestAuthz(counts);
   if (ambiguous) {
     log.warn(`Multiple auth matches share the highest frequency (${hits}) - refusing all`);

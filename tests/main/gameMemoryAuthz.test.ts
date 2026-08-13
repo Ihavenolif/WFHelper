@@ -76,7 +76,7 @@ describe("scanBufferForAuthz + bestAuthz", () => {
   it("ignores malformed candidates while counting valid ones", () => {
     const buf = Buffer.from(`?accountId=bad&nonce=1 ${VALID}`, "latin1");
     const counts = new Map<string, number>();
-    scanBufferForAuthz(buf, counts);
+    expect(scanBufferForAuthz(buf, counts)).toBe(2);
     expect(counts.size).toBe(1);
     expect(counts.get(VALID)).toBe(1);
   });
