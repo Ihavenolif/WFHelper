@@ -93,9 +93,29 @@ interface CollectedSlot {
 interface LayoutRun {
   rects: SlotRect[];
   collected: CollectedSlot[];
+  nearMisses: (SlotCandidate | null)[];
   slotLimit: number;
   layoutCount: number;
   layoutConfidence: number;
+}
+
+// Just under the fuzzy gate: only a mangled read of the right name lands this
+// high - misaligned-crop matches score far lower and stay rejected.
+const NEAR_MISS_MIN_CONFIDENCE = 0.8;
+
+function collectNearMissSlots(run: LayoutRun, collected: CollectedSlot[]): CollectedSlot[] {
+  const takenNames = new Set(collected.map((entry) => entry.candidate.item.name));
+  const filledSlots = new Set(collected.map((entry) => entry.index));
+  const rescued: CollectedSlot[] = [];
+  for (let index = 0; index < run.slotLimit; index++) {
+    if (filledSlots.has(index)) continue;
+    const nearMiss = run.nearMisses[index];
+    if (!nearMiss || nearMiss.confidence < NEAR_MISS_MIN_CONFIDENCE) continue;
+    if (takenNames.has(nearMiss.item.name)) continue;
+    takenNames.add(nearMiss.item.name);
+    rescued.push({ index, candidate: nearMiss });
+  }
+  return rescued;
 }
 
 function buildLayoutResult(
@@ -360,13 +380,14 @@ export async function scanRewardSlotsFallback(
                 `"${bestRejected.item.name}" (${bestRejected.mode} ${bestRejected.confidence.toFixed(3)})`,
             );
           }
-          return { index: i, candidates: [] as SlotCandidate[], debug };
+          return { index: i, candidates: [] as SlotCandidate[], debug, nearMiss: bestRejected };
         }
         rankedCandidates.sort((a, b) => b.score - a.score || b.confidence - a.confidence);
         return {
           index: i,
           candidates: rankedCandidates,
           debug,
+          nearMiss: null,
         };
       }),
     );
@@ -387,6 +408,9 @@ export async function scanRewardSlotsFallback(
     const run: LayoutRun = {
       rects: layout.slots.slice(0, slotLimit).map((slot) => slot.titleRect),
       collected,
+      nearMisses: slotResults.map((entry) =>
+        entry && entry.candidates.length === 0 ? entry.nearMiss : null,
+      ),
       slotLimit,
       layoutCount: layout.count,
       layoutConfidence: layout.confidence,
@@ -432,14 +456,35 @@ export async function scanRewardSlotsFallback(
 
   // A losing layout may have matched exactly the cards the winner missed
   // (seen on 21:9). Fill the winner's empty slots from those hits.
+  let bestCollected = bestRun ? bestRun.collected : [];
   if (bestResult && bestRun && bestResult.emptySlots > 0 && runs.length > 1) {
     const donors = collectDonorSlots(bestRun, runs);
     if (donors.length > 0) {
-      const merged = [...bestRun.collected, ...donors].sort((a, b) => a.index - b.index);
-      bestResult = buildLayoutResult(bestRun, merged, expectedCount, "slot-merged");
+      bestCollected = [...bestCollected, ...donors].sort((a, b) => a.index - b.index);
+      bestResult = buildLayoutResult(bestRun, bestCollected, expectedCount, "slot-merged");
       log.info(
         `[RewardScanner] Slot merge: +${donors.length} from losing layouts: ` +
           donors.map((entry) => `${entry.index + 1}:${entry.candidate.item.name}`).join(" | "),
+      );
+    }
+  }
+
+  // An empty slot in an otherwise-confident winner takes its own near-gate read:
+  // a name the ranking kept converging on beats a hole (field case: "Sevagoth
+  // Prime Systems Blueprint" fuzzy 0.825, rejected on every retry).
+  if (bestResult && bestRun && bestResult.emptySlots > 0 && bestResult.exactCount >= 1) {
+    const rescued = collectNearMissSlots(bestRun, bestCollected);
+    if (rescued.length > 0) {
+      bestCollected = [...bestCollected, ...rescued].sort((a, b) => a.index - b.index);
+      bestResult = buildLayoutResult(bestRun, bestCollected, expectedCount, "slot-rescued");
+      log.info(
+        `[RewardScanner] Slot rescue: +${rescued.length} near-gate: ` +
+          rescued
+            .map(
+              (e) =>
+                `${e.index + 1}:${e.candidate.item.name} (${e.candidate.confidence.toFixed(3)})`,
+            )
+            .join(" | "),
       );
     }
   }
