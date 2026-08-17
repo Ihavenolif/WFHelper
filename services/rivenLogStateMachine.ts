@@ -78,7 +78,13 @@ let _lastRivenSessionOpenAt = 0;
 // The game writes the rolling-screen marker dozens of times in one burst;
 // log the suppression once per window instead of once per line.
 let _lastSuppressedOpenLogAt = 0;
-const RIVEN_SESSION_OPEN_COOLDOWN_MS = 15_000;
+// An active session absorbs the burst, so this only guards a close racing it.
+const RIVEN_SESSION_OPEN_COOLDOWN_MS = 2_000;
+// Teardown markers trail up to ~2s behind the close they belong to, and a fast
+// reopen puts that tail inside the next session. A genuine close cannot follow
+// the previous one that quickly - reopening plus screen load alone take longer.
+const RIVEN_CLOSE_MARKER_SPACING_MS = 2_000;
+let _lastRivenCloseMarkerAt = 0;
 
 let _lastRivenDioramaAt = 0;
 const RIVEN_DIORAMA_DEDUP_MS = 2_000;
@@ -151,7 +157,7 @@ export function processRivenPatterns(
 
   if (!skipRivenFromFilePoll && RIVEN_PATTERNS.sessionOpen.test(line)) {
     const now = Date.now();
-    if (now - _lastRivenSessionOpenAt >= RIVEN_SESSION_OPEN_COOLDOWN_MS) {
+    if (!_rivenSessionActive && now - _lastRivenSessionOpenAt >= RIVEN_SESSION_OPEN_COOLDOWN_MS) {
       _lastRivenSessionOpenAt = now;
       _rivenSessionActive = true;
       _rivenSessionStartedAt = now;
@@ -204,18 +210,26 @@ export function processRivenPatterns(
     _rivenDioramaReady &&
     (RIVEN_PATTERNS.sessionClose.test(line) || RIVEN_PATTERNS.recycledEffects.test(line))
   ) {
-    log.info("[EELog] Riven session close detected -> dispatching overlay close");
-    _rivenSessionActive = false;
-    _rivenSessionStartedAt = 0;
-    _rivenDioramaReady = false;
-    _rivenPendingDialog = null;
-    _rivenNextDialog = "cycle";
-    _rivenWeaponPathSent = false;
-    if (_rivenSessionIdleTimer) {
-      clearTimeout(_rivenSessionIdleTimer);
-      _rivenSessionIdleTimer = null;
+    // Spacing gate is real-time only - file polls deliver batched, stale timestamps.
+    const now = Date.now();
+    const trailing = dbwinActive && now - _lastRivenCloseMarkerAt < RIVEN_CLOSE_MARKER_SPACING_MS;
+    _lastRivenCloseMarkerAt = now;
+    if (trailing) {
+      log.info("[EELog] Riven close marker ignored - trailing the previous close");
+    } else {
+      log.info("[EELog] Riven session close detected -> dispatching overlay close");
+      _rivenSessionActive = false;
+      _rivenSessionStartedAt = 0;
+      _rivenDioramaReady = false;
+      _rivenPendingDialog = null;
+      _rivenNextDialog = "cycle";
+      _rivenWeaponPathSent = false;
+      if (_rivenSessionIdleTimer) {
+        clearTimeout(_rivenSessionIdleTimer);
+        _rivenSessionIdleTimer = null;
+      }
+      _callbacks.onRivenSessionClose?.();
     }
-    _callbacks.onRivenSessionClose?.();
   }
 
   const hudVisMatch = line.match(RIVEN_PATTERNS.hudVis);
@@ -408,6 +422,9 @@ export function resetRivenState(): void {
   _lastRivenChoiceDialogAt = 0;
   _lastRivenSessionOpenAt = 0;
   _lastSuppressedOpenLogAt = 0;
+  _lastRivenDioramaAt = 0;
+  _lastRivenCloseMarkerAt = 0;
+  _rivenForceEndedAt = 0;
   _lastHudVis = 0;
   _lastHudVisIncreaseAt = 0;
   if (_rivenSessionIdleTimer) {

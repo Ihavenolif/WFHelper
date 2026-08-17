@@ -1226,6 +1226,84 @@ describe("riven session idle timeout", () => {
   });
 });
 
+describe("riven session reopen and close timing", () => {
+  const openLine =
+    "Sys [Info]: Created /Lotus/Interface/OmegaRerollSelection.swf @ 0x12345678 of class OmegaRerollSelectionScreen";
+  const dioramaLine = "Script [Info]: OmegaRerollSelection.lua: Diorama setup complete";
+  const closeLine = "Sys [Info]: NpcManager::ClearAgents() ReadyToCreateAgents = false";
+  const process = (line: string) => processRivenPatterns(line, "dbwin", true);
+
+  afterEach(() => {
+    resetRivenState();
+    vi.useRealTimers();
+  });
+
+  function freshCallbacks() {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-17T12:00:00Z"));
+    resetRivenState();
+    const opens = vi.fn();
+    const closes = vi.fn();
+    setRivenCallbacks({ onRivenSessionOpen: opens, onRivenSessionClose: closes });
+    return { opens, closes };
+  }
+
+  it("absorbs the open-marker burst without reopening", () => {
+    const { opens } = freshCallbacks();
+    process(openLine);
+    process(openLine);
+    process(openLine);
+    expect(opens).toHaveBeenCalledTimes(1);
+  });
+
+  it("opens a fresh session seconds after the previous close", () => {
+    const { opens, closes } = freshCallbacks();
+    process(openLine);
+    process(dioramaLine);
+    vi.advanceTimersByTime(9_000);
+    process(closeLine);
+    expect(closes).toHaveBeenCalledTimes(1);
+
+    // The field repro: reroll again ~3s later used to be eaten by a 15s cooldown.
+    vi.advanceTimersByTime(3_000);
+    process(openLine);
+    expect(opens).toHaveBeenCalledTimes(2);
+  });
+
+  it("closes a session the user leaves after barely a second", () => {
+    const { closes } = freshCallbacks();
+    process(openLine);
+    vi.advanceTimersByTime(650);
+    process(dioramaLine);
+    vi.advanceTimersByTime(650);
+    process(closeLine);
+    expect(closes).toHaveBeenCalledTimes(1);
+  });
+
+  it("ignores teardown stragglers trailing the previous close into a reopen", () => {
+    const { opens, closes } = freshCallbacks();
+    process(openLine);
+    process(dioramaLine);
+    vi.advanceTimersByTime(9_000);
+    process(closeLine);
+
+    vi.advanceTimersByTime(1_000);
+    process(openLine);
+    vi.advanceTimersByTime(650);
+    process(dioramaLine);
+    // The previous close's straggler lands after the fresh diorama is ready.
+    vi.advanceTimersByTime(150);
+    process(closeLine);
+    expect(closes).toHaveBeenCalledTimes(1);
+
+    // The user's real exit sits beyond the trailing window and still closes.
+    vi.advanceTimersByTime(2_100);
+    process(closeLine);
+    expect(closes).toHaveBeenCalledTimes(2);
+    expect(opens).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("looksLikeStaleCardRead", () => {
   // Current card from a real field log: the roll-reveal animation scrambles this
   // text, so a too-early scan reads it back with 2+ values intact.
