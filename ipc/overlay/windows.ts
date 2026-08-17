@@ -70,7 +70,6 @@ type OverlayWindowsControllerOptions = {
   minWindowWidth?: number;
   minWindowHeight?: number;
   hasShadow?: boolean;
-  ignoreMouseEventsForward?: boolean;
   /** When false the window gets a solid background (default: true = transparent). */
   transparent?: boolean;
   /** Background colour used when transparent=false (default: '#060a12'). */
@@ -128,7 +127,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     minWindowWidth = 760,
     minWindowHeight = 160,
     hasShadow,
-    ignoreMouseEventsForward = true,
     transparent = true,
     backgroundColor = "#060a12",
     windowStateKey,
@@ -379,11 +377,9 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     // Re-setting an identical X11 input shape tells the compositor nothing, so the
     // region is dropped first - that is the transition F7 makes by hand.
     if (platform === "linux") overlayWindow.setIgnoreMouseEvents(false);
-    if (ignoreMouseEventsForward) {
-      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-    } else {
-      overlayWindow.setIgnoreMouseEvents(true);
-    }
+    // Never {forward:true}: on Windows it installs a global WH_MOUSE_LL hook
+    // that taxes every mouse event system-wide - it lagged the game's input.
+    overlayWindow.setIgnoreMouseEvents(true);
   }
 
   // X11 never hands input back after click-through: setIgnoreMouseEvents(false)

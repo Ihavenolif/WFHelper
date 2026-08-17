@@ -68,7 +68,6 @@ export const arbiSummaryWindowsController = createOverlayWindowsController({
   transparent: false,
   backgroundColor: "#060a12",
   hasShadow: false,
-  ignoreMouseEventsForward: false,
   windowStateKey: "arbiSummary",
   onWindowBoundsChanged: rememberOverlayWindowBounds,
 });

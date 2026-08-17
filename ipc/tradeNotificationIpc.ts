@@ -250,7 +250,7 @@ function _getOrCreateWindow(): InstanceType<typeof BrowserWindow> {
     }
   });
   win.setAlwaysOnTop(true, "screen-saver");
-  win.setIgnoreMouseEvents(true, { forward: true });
+  win.setIgnoreMouseEvents(true);
   win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 
   win.on("closed", () => {

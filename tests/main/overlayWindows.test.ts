@@ -343,7 +343,7 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     controller.hideOverlayWindow();
 
     expect(contentEvents(win).at(-1)).toEqual([OVERLAY_CONTENT_VISIBLE, false]);
-    expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true });
+    expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(true);
     expect(win.isVisible()).toBe(true);
 
     controller.showOverlayWindowInactive();
@@ -421,7 +421,7 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
 
     win.setIgnoreMouseEvents.mockClear();
     controller.setOverlayInteractiveMode(false);
-    expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true });
+    expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(true);
     expect(win.setFocusable).toHaveBeenLastCalledWith(false);
     expect(win.showInactive).toHaveBeenCalledTimes(1);
   });
@@ -475,7 +475,7 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     controller.markRendererReady(1);
     const stale = windows[0];
     controller.sendOverlayEvent("relic-reward-items", [{ name: "Forma Blueprint" }]);
-    expect(stale.setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true });
+    expect(stale.setIgnoreMouseEvents).toHaveBeenCalledWith(true);
 
     controller.setOverlayInteractiveMode(true);
 
@@ -483,7 +483,7 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     expect(windows).toHaveLength(2);
     const fresh = windows[1];
     // The rebuilt window must never have been click-through - X11 cannot undo it.
-    expect(fresh.setIgnoreMouseEvents).not.toHaveBeenCalledWith(true, { forward: true });
+    expect(fresh.setIgnoreMouseEvents).not.toHaveBeenCalledWith(true);
     expect(fresh.setIgnoreMouseEvents).toHaveBeenCalledWith(false);
     expect(fresh.setBounds).toHaveBeenCalledWith(stale.getBounds(), false);
 
@@ -542,7 +542,7 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     await vi.advanceTimersByTimeAsync(2_000);
 
     // X11 loses the empty input region when it is set before the map.
-    expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true });
+    expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(true);
   });
 
   it("clears the input shape before re-setting it on linux", () => {
@@ -557,7 +557,7 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     controller.setOverlayInteractiveMode(false);
 
     // An identical shape is invisible to the compositor; the clear makes it a change.
-    expect(win.setIgnoreMouseEvents.mock.calls).toEqual([[false], [true, { forward: true }]]);
+    expect(win.setIgnoreMouseEvents.mock.calls).toEqual([[false], [true]]);
   });
 
   it("does not re-assert click-through while interactive", async () => {
@@ -575,7 +575,7 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
 
     await vi.advanceTimersByTimeAsync(2_000);
 
-    expect(fresh.setIgnoreMouseEvents).not.toHaveBeenCalledWith(true, { forward: true });
+    expect(fresh.setIgnoreMouseEvents).not.toHaveBeenCalledWith(true);
   });
 
   it("re-arms a pending auto-hide across the interactive rebuild", async () => {
@@ -623,7 +623,6 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     controller.setOverlayInteractiveMode(false);
 
     expect(windows).toHaveLength(1);
-    expect(windows[0].setIgnoreMouseEvents).not.toHaveBeenCalledWith(true, { forward: true });
     expect(windows[0].setIgnoreMouseEvents).not.toHaveBeenCalledWith(true);
   });
 

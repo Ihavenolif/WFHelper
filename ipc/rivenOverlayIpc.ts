@@ -69,7 +69,6 @@ const rivenWindowBaseOptions = {
   backgroundColor: "#060a12",
   preloadFileName: "preload-riven.js",
   hasShadow: false,
-  ignoreMouseEventsForward: false,
   onWindowRebuilt: (window: InstanceType<typeof BrowserWindow>) => replayRivenEvents(window),
 };
 
