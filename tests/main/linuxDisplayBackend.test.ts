@@ -5,11 +5,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   applyPreference,
-  armWindowPresentationWatchdog,
-  disposeWindowPresentationWatchdog,
+  forgetXWaylandFailure,
   info,
   initialize,
   isNativeWayland,
+  isXServerReachable,
+  rememberXWaylandFailure,
 } from "../../services/linuxDisplayBackend";
 
 const WAYLAND = { XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-1", DISPLAY: ":0" };
@@ -32,12 +33,21 @@ function recalled(): Record<string, unknown> {
   return JSON.parse(fs.readFileSync(path.join(dir, "linux-display.json"), "utf8"));
 }
 
+// The X socket never exists on the test host, so presence is faked per test.
+function setXSocket(present: boolean): void {
+  const real = fs.existsSync;
+  vi.spyOn(fs, "existsSync").mockImplementation((target) =>
+    String(target).startsWith("/tmp/.X11-unix/") ? present : real(target),
+  );
+}
+
 beforeEach(() => {
   dir = fs.mkdtempSync(path.join(os.tmpdir(), "wfh-display-"));
+  setXSocket(true);
 });
 
 afterEach(() => {
-  disposeWindowPresentationWatchdog();
+  vi.restoreAllMocks();
   fs.rmSync(dir, { recursive: true, force: true });
 });
 
@@ -137,14 +147,11 @@ describe("fallback hint", () => {
     expect(info().fallbackHint).toBe(false);
   });
 
-  it("hints again when the post-update retry fails too", async () => {
-    vi.useFakeTimers();
+  it("hints again when the post-update retry fails too", () => {
     remember({ xwaylandFailed: true, failedVersion: "0.9.0", hintShown: true });
     expect(start(WAYLAND)).toBe("x11");
 
-    armWindowPresentationWatchdog(() => false, vi.fn());
-    await vi.advanceTimersByTimeAsync(20_000);
-    vi.useRealTimers();
+    rememberXWaylandFailure();
 
     expect(start(WAYLAND)).toBe("auto");
     expect(info().fallbackHint).toBe(true);
@@ -175,107 +182,58 @@ describe("applyPreference", () => {
   });
 });
 
-describe("window-presentation watchdog", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
+describe("isXServerReachable", () => {
+  it("accepts a local display whose socket exists", () => {
+    setXSocket(true);
+    expect(isXServerReachable(":0")).toBe(true);
+    expect(isXServerReachable(":1.0")).toBe(true);
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it("rejects a local display nobody is serving", () => {
+    setXSocket(false);
+    expect(isXServerReachable(":0")).toBe(false);
   });
 
-  it("gives up and remembers the failure when no window is presented", async () => {
+  it("rejects a missing or malformed display", () => {
+    expect(isXServerReachable(undefined)).toBe(false);
+    expect(isXServerReachable("")).toBe(false);
+    expect(isXServerReachable("nonsense")).toBe(false);
+  });
+
+  it("takes a remote display at its word", () => {
+    setXSocket(false);
+    expect(isXServerReachable("somehost:0")).toBe(true);
+  });
+});
+
+describe("remembered failure", () => {
+  it("records the running version and only that version stays native", () => {
     start(WAYLAND);
-    const onGiveUp = vi.fn();
 
-    armWindowPresentationWatchdog(() => false, onGiveUp);
-    await vi.advanceTimersByTimeAsync(20_000);
+    rememberXWaylandFailure();
 
-    expect(onGiveUp).toHaveBeenCalledTimes(1);
     expect(recalled().xwaylandFailed).toBe(true);
     expect(recalled().failedVersion).toBe("1.0.0");
     expect(start(WAYLAND)).toBe("auto");
     expect(start(WAYLAND, "linux", "1.1.0")).toBe("x11");
   });
 
-  it("stands down once desktop capture sees the window", async () => {
-    start(WAYLAND);
-    const onGiveUp = vi.fn();
+  it("is cleared once a session joins XWayland", () => {
+    remember({ xwaylandFailed: true, failedVersion: "1.0.0" });
+    start(WAYLAND, "linux", "1.1.0");
 
-    armWindowPresentationWatchdog(() => true, onGiveUp);
-    await vi.advanceTimersByTimeAsync(60_000);
+    forgetXWaylandFailure();
 
-    expect(onGiveUp).not.toHaveBeenCalled();
-  });
-
-  it("clears a remembered failure once desktop capture sees the window", async () => {
-    start(WAYLAND);
-    remember({ xwaylandFailed: true });
-
-    armWindowPresentationWatchdog(() => true, vi.fn());
-    await vi.advanceTimersByTimeAsync(0);
-
-    expect(recalled().xwaylandFailed).toBe(false);
+    expect(recalled().xwaylandFailed).toBeUndefined();
     expect(start(WAYLAND)).toBe("x11");
   });
 
-  it("retries transient probe failures before the deadline", async () => {
+  it("keeps a pinned preference when it clears the failure", () => {
+    remember({ xwaylandFailed: true, failedVersion: "1.0.0", preference: "x11" });
     start(WAYLAND);
-    const onGiveUp = vi.fn();
-    const isPresented = vi
-      .fn<() => Promise<boolean>>()
-      .mockRejectedValueOnce(new Error("capture unavailable"))
-      .mockResolvedValue(true);
 
-    armWindowPresentationWatchdog(isPresented, onGiveUp);
-    await vi.advanceTimersByTimeAsync(250);
-    await vi.advanceTimersByTimeAsync(60_000);
+    forgetXWaylandFailure();
 
-    expect(isPresented).toHaveBeenCalledTimes(2);
-    expect(onGiveUp).not.toHaveBeenCalled();
-  });
-
-  it("ignores a stale async probe after disposal", async () => {
-    start(WAYLAND);
-    const onGiveUp = vi.fn();
-    let resolveProbe: ((presented: boolean) => void) | undefined;
-
-    armWindowPresentationWatchdog(
-      () =>
-        new Promise<boolean>((resolve) => {
-          resolveProbe = resolve;
-        }),
-      onGiveUp,
-    );
-    disposeWindowPresentationWatchdog();
-    resolveProbe?.(true);
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(onGiveUp).not.toHaveBeenCalled();
-  });
-
-  it("replaces an existing watchdog when armed again", async () => {
-    start(WAYLAND);
-    const firstGiveUp = vi.fn();
-    const secondGiveUp = vi.fn();
-
-    armWindowPresentationWatchdog(() => false, firstGiveUp);
-    armWindowPresentationWatchdog(() => true, secondGiveUp);
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(firstGiveUp).not.toHaveBeenCalled();
-    expect(secondGiveUp).not.toHaveBeenCalled();
-  });
-
-  it("does not arm for a hand-picked backend", async () => {
-    start({ ...WAYLAND, WFHELPER_FORCE_XWAYLAND: "1" });
-    const onGiveUp = vi.fn();
-    const isPresented = vi.fn(() => false);
-
-    armWindowPresentationWatchdog(isPresented, onGiveUp);
-    await vi.advanceTimersByTimeAsync(60_000);
-
-    expect(isPresented).not.toHaveBeenCalled();
-    expect(onGiveUp).not.toHaveBeenCalled();
+    expect(recalled().preference).toBe("x11");
   });
 });

@@ -1,5 +1,5 @@
 // Wayland cannot stack overlays over the game, so we join Warframe on XWayland.
-// Compositors without a real one never expose our window to desktop capture.
+// The X socket decides reachability; desktop capture false-negatived it.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -10,9 +10,6 @@ import { isDisplayPreference } from "../config/shared/linuxDisplay";
 type BackendChoice = LinuxDisplayInfo["active"];
 
 const STATE_FILE = "linux-display.json";
-// Generous: cold start plus a full item-db build is ~4s on the slowest report.
-const WINDOW_PRESENTATION_TIMEOUT_MS = 20_000;
-const WINDOW_PRESENTATION_POLL_MS = 250;
 
 interface DisplayState {
   xwaylandFailed?: boolean;
@@ -28,9 +25,6 @@ let _waylandSession = false;
 let _pinned = false;
 let _fallbackActive = false;
 let _fallbackHint = false;
-let _pollTimer: ReturnType<typeof setInterval> | null = null;
-let _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
-let _watchdogGeneration = 0;
 
 function statePath(): string {
   return path.join(_userDataDir, STATE_FILE);
@@ -52,6 +46,20 @@ function writeState(state: DisplayState): void {
   }
 }
 
+// DISPLAY can name a server nobody is serving (niri without xwayland-satellite),
+// and its socket only exists while an X server is up.
+export function isXServerReachable(display: string | undefined): boolean {
+  const match = /^[^:]*:(\d+)/.exec(String(display || ""));
+  if (!match) return false;
+  // A remote display has no local socket to check, so take it at its word.
+  if (!String(display).startsWith(":") && !String(display).startsWith("unix:")) return true;
+  try {
+    return fs.existsSync(`/tmp/.X11-unix/X${match[1]}`);
+  } catch {
+    return false;
+  }
+}
+
 /** X11 unless the user opted out, or it already failed to show a window here. */
 export function initialize(
   userDataDir: string,
@@ -59,7 +67,6 @@ export function initialize(
   platform: string,
   appVersion = "",
 ): BackendChoice {
-  disposeWindowPresentationWatchdog();
   _userDataDir = userDataDir;
   _appVersion = appVersion;
   _pinned = false;
@@ -84,7 +91,7 @@ export function initialize(
     _active = "x11";
   } else if (state.preference === "wayland") {
     _pinned = true;
-  } else if (!failed && env.DISPLAY) {
+  } else if (!failed && env.DISPLAY && isXServerReachable(env.DISPLAY)) {
     _active = "x11";
   } else if (failed && env.DISPLAY) {
     _fallbackActive = true;
@@ -122,57 +129,16 @@ export function applyPreference(value: unknown): LinuxDisplayInfo {
   };
 }
 
-function clearWatchdogTimers(): void {
-  if (_pollTimer) clearInterval(_pollTimer);
-  if (_timeoutTimer) clearTimeout(_timeoutTimer);
-  _pollTimer = null;
-  _timeoutTimer = null;
+/** Records this version as XWayland-incapable so the next start goes native. */
+export function rememberXWaylandFailure(): void {
+  const state = readState();
+  // Rebuilt, not spread: a fresh failure drops hintShown so the hint re-fires.
+  writeState({ preference: state.preference, xwaylandFailed: true, failedVersion: _appVersion });
 }
 
-export function disposeWindowPresentationWatchdog(): void {
-  _watchdogGeneration++;
-  clearWatchdogTimers();
-}
-
-/** Fall back unless the X11 window manager exposes a capturable app window. */
-export function armWindowPresentationWatchdog(
-  isWindowPresented: () => boolean | Promise<boolean>,
-  onGiveUp: () => void,
-): void {
-  disposeWindowPresentationWatchdog();
-  if (_pinned || _active !== "x11") return;
-
-  const generation = _watchdogGeneration;
-  let probeInFlight = false;
-
-  const probe = async (): Promise<void> => {
-    if (probeInFlight || generation !== _watchdogGeneration) return;
-    probeInFlight = true;
-    let presented = false;
-    try {
-      presented = await isWindowPresented();
-    } catch {
-      // A transient capture error gets another poll before the deadline.
-    } finally {
-      probeInFlight = false;
-    }
-    if (!presented || generation !== _watchdogGeneration) return;
-
-    disposeWindowPresentationWatchdog();
-    const state = readState();
-    if (state.xwaylandFailed) {
-      writeState({ preference: state.preference, xwaylandFailed: false });
-    }
-  };
-
-  _pollTimer = setInterval(() => void probe(), WINDOW_PRESENTATION_POLL_MS);
-  _timeoutTimer = setTimeout(() => {
-    if (generation !== _watchdogGeneration) return;
-    disposeWindowPresentationWatchdog();
-    const state = readState();
-    // Rebuilt, not spread: a fresh failure drops hintShown so the hint re-fires.
-    writeState({ preference: state.preference, xwaylandFailed: true, failedVersion: _appVersion });
-    onGiveUp();
-  }, WINDOW_PRESENTATION_TIMEOUT_MS);
-  void probe();
+/** Clears a remembered failure once a session proves XWayland works here. */
+export function forgetXWaylandFailure(): void {
+  const state = readState();
+  if (!state.xwaylandFailed) return;
+  writeState({ preference: state.preference });
 }

@@ -1,10 +1,11 @@
 import "./config/runtime/appIdentity";
 
+import { spawn } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { app, BrowserWindow, crashReporter, desktopCapturer, globalShortcut } from "electron";
+import { app, BrowserWindow, crashReporter, globalShortcut } from "electron";
 
 import * as linuxDisplay from "./services/linuxDisplayBackend";
 
@@ -14,8 +15,28 @@ const DISPLAY_BACKEND = linuxDisplay.initialize(
   process.platform,
   app.getVersion(),
 );
+// Ozone reads its platform before this script runs, so appendSwitch alone never
+// joins XWayland; re-exec once with the flag in argv instead.
+const OZONE_X11_ARG = "--ozone-platform=x11";
+// A platform already in argv wins, so it also decides whether we re-exec: adding
+// a second one would leave the real platform up to chromium's argument order.
+const OZONE_PLATFORM_ARG = process.argv.find((arg) => arg.startsWith("--ozone-platform="));
+const JOINED_XWAYLAND = OZONE_PLATFORM_ARG === OZONE_X11_ARG;
 if (DISPLAY_BACKEND === "x11") {
   app.commandLine.appendSwitch("ozone-platform", "x11");
+  if (!OZONE_PLATFORM_ARG) {
+    // app.relaunch() is a no-op this early, and the AppImage mount dies with us.
+    const selfPath = process.env.APPIMAGE || process.execPath;
+    try {
+      spawn(selfPath, [...process.argv.slice(1), OZONE_X11_ARG], {
+        detached: true,
+        stdio: "inherit",
+      }).unref();
+      app.exit(0);
+    } catch {
+      // Starting on the wayland default beats not starting at all.
+    }
+  }
 }
 
 import { withScope } from "./services/logger";
@@ -244,18 +265,6 @@ function createWindow(): void {
   });
 }
 
-async function isMainWindowPresented(window: BrowserWindow): Promise<boolean> {
-  if (window.isDestroyed()) return false;
-  const sourceId = window.getMediaSourceId();
-  const sources = await desktopCapturer.getSources({
-    types: ["window"],
-    thumbnailSize: { width: 64, height: 64 },
-    fetchWindowIcons: false,
-  });
-  const source = sources.find((candidate) => candidate.id === sourceId);
-  return Boolean(source && !source.thumbnail.isEmpty());
-}
-
 void app.whenReady().then(async () => {
   if (!hasSingleInstanceLock) return;
   const startupStartedAt = Date.now();
@@ -387,16 +396,15 @@ void app.whenReady().then(async () => {
   profileStage("window:create", windowStart);
 
   if (DISPLAY_BACKEND === "x11") {
-    const mainWindow = ctx.mainWindow!;
-    log.info("[Display] joined XWayland - waiting for a capturable window");
-    linuxDisplay.armWindowPresentationWatchdog(
-      () => isMainWindowPresented(mainWindow),
-      () => {
-        log.error("[Display] XWayland window was not presented - relaunching on native Wayland");
-        app.relaunch();
-        app.exit(0);
-      },
-    );
+    if (!JOINED_XWAYLAND) {
+      log.error("[Display] XWayland re-exec did not happen - relaunching on native Wayland");
+      linuxDisplay.rememberXWaylandFailure();
+      app.relaunch();
+      app.exit(0);
+    } else {
+      log.info("[Display] joined XWayland");
+      linuxDisplay.forgetXWaylandFailure();
+    }
   } else if (linuxDisplay.info().fallbackActive) {
     log.warn(
       "[Display] native Wayland fallback active - overlays may misbehave; pin XWayland in Settings to retry",
@@ -595,7 +603,6 @@ function stopOverlayHotkeyGate(): void {
 }
 
 app.on("before-quit", () => {
-  linuxDisplay.disposeWindowPresentationWatchdog();
   inventoryIpc.stopInventoryWatcher();
   apiHelperRunner.stopPolling();
   eeLogMonitor.stopWatching();

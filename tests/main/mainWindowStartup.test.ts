@@ -14,6 +14,24 @@ describe("main window startup", () => {
     expect(createWindow).toMatch(/windowShown \|\| mainWindow\.isDestroyed\(\)/);
   });
 
+  it("re-execs with the ozone flag in argv when joining XWayland", () => {
+    expect(source).toMatch(/DISPLAY_BACKEND === "x11"[\s\S]*?if \(!OZONE_PLATFORM_ARG\)/);
+    expect(source).toContain('process.argv.find((arg) => arg.startsWith("--ozone-platform="))');
+    expect(source).toMatch(
+      /spawn\(selfPath, \[\.\.\.process\.argv\.slice\(1\), OZONE_X11_ARG\][\s\S]*?detached: true/,
+    );
+    expect(source).toContain("process.env.APPIMAGE || process.execPath");
+  });
+
+  it("decides XWayland from argv and never from desktop capture", () => {
+    // Capture cannot see X11 windows on a wayland session; it also asks the portal.
+    expect(source).toContain("const JOINED_XWAYLAND = OZONE_PLATFORM_ARG === OZONE_X11_ARG");
+    expect(source).toMatch(
+      /if \(!JOINED_XWAYLAND\) \{[\s\S]*?rememberXWaylandFailure\(\)[\s\S]*?app\.relaunch\(\)/,
+    );
+    expect(source).not.toContain("desktopCapturer");
+  });
+
   it("shows the window anyway when ready-to-show never fires", () => {
     expect(createWindow).toContain('scheduleShow(MAIN_WINDOW_SHOW_DEADLINE_MS, "deadline")');
     expect(createWindow).toMatch(/did-finish-load"[\s\S]*?scheduleShow\(MAIN_WINDOW_SHOW_GRACE_MS/);
