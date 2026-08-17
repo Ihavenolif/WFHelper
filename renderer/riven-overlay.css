@@ -63,12 +63,13 @@ body {
   padding: 10px 14px 8px;
   background: color-mix(in oklab, var(--accent) 8%, transparent);
   border-bottom: 1px solid var(--border);
-  -webkit-app-region: drag;
   flex-shrink: 0;
   gap: 8px;
 }
 
-.is-overlay-interactive #header {
+/* No app-region drag anywhere: passive mode is click-through on every platform,
+   and Linux never refreshes the region, so a stale caption ate every click. */
+#header {
   -webkit-app-region: no-drag;
 }
 

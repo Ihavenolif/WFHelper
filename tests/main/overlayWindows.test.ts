@@ -97,6 +97,7 @@ function createWindowTypeProbe(platform: typeof process.platform) {
     webContents = {
       id: 1,
       on: vi.fn(),
+      once: vi.fn(),
       send: vi.fn(),
       setZoomFactor: vi.fn(),
       isLoadingMainFrame: () => false,
@@ -171,6 +172,7 @@ function createPresentationProbe(options: {
   platform: typeof process.platform;
   nativeWayland: boolean;
   transparent?: boolean;
+  neverClickThrough?: boolean;
 }) {
   const display = {
     id: 1,
@@ -182,6 +184,7 @@ function createPresentationProbe(options: {
     webContents = {
       id: 1,
       on: vi.fn(),
+      once: vi.fn(),
       send: vi.fn(),
       setZoomFactor: vi.fn(),
       isLoadingMainFrame: () => false,
@@ -243,6 +246,7 @@ function createPresentationProbe(options: {
     hardenBrowserWindowNavigation: () => {},
     overlayWindowFile: "D:\\app\\renderer\\overlay.html",
     transparent: options.transparent !== false,
+    neverClickThrough: options.neverClickThrough === true,
     platform: options.platform,
     isNativeWayland: () => options.nativeWayland,
   });
@@ -376,6 +380,172 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true });
     expect(win.setFocusable).toHaveBeenLastCalledWith(false);
     expect(win.showInactive).toHaveBeenCalledTimes(1);
+  });
+
+  it("applies the input flags while hidden so the mode cannot desync", () => {
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    const win = windows[0];
+    controller.hideOverlayWindow();
+    win.setIgnoreMouseEvents.mockClear();
+    win.focus.mockClear();
+
+    controller.setOverlayInteractiveMode(true);
+
+    expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(false);
+    expect(win.setFocusable).toHaveBeenLastCalledWith(true);
+    // Nothing on screen yet, so stacking and focus stay untouched.
+    expect(win.focus).not.toHaveBeenCalled();
+  });
+
+  it("re-asserts the interactive mode when a hidden window is shown again", () => {
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    const win = windows[0];
+    controller.hideOverlayWindow();
+    controller.setOverlayInteractiveMode(true);
+    win.focus.mockClear();
+
+    controller.showOverlayWindowInactive();
+
+    expect(win.focus).toHaveBeenCalledTimes(1);
+  });
+
+  it("rebuilds a click-through window before it goes interactive on linux", () => {
+    const { controller, windows } = createPresentationProbe({
+      platform: "linux",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    const stale = windows[0];
+    controller.sendOverlayEvent("relic-reward-items", [{ name: "Forma Blueprint" }]);
+    expect(stale.setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true });
+
+    controller.setOverlayInteractiveMode(true);
+
+    expect(stale.destroy).toHaveBeenCalledTimes(1);
+    expect(windows).toHaveLength(2);
+    const fresh = windows[1];
+    // The rebuilt window must never have been click-through - X11 cannot undo it.
+    expect(fresh.setIgnoreMouseEvents).not.toHaveBeenCalledWith(true, { forward: true });
+    expect(fresh.setIgnoreMouseEvents).toHaveBeenCalledWith(false);
+    expect(fresh.setBounds).toHaveBeenCalledWith(stale.getBounds(), false);
+
+    controller.markRendererReady(1);
+    expect(fresh.webContents.send).toHaveBeenCalledWith("relic-reward-items", [
+      { name: "Forma Blueprint" },
+    ]);
+  });
+
+  it("re-asserts click-through after the window is actually mapped", async () => {
+    vi.useFakeTimers();
+    const { controller, windows } = createPresentationProbe({
+      platform: "linux",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    const win = windows[0];
+    win.setIgnoreMouseEvents.mockClear();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    // X11 loses the empty input region when it is set before the map.
+    expect(win.setIgnoreMouseEvents).toHaveBeenCalledWith(true, { forward: true });
+  });
+
+  it("clears the input shape before re-setting it on linux", () => {
+    const { controller, windows } = createPresentationProbe({
+      platform: "linux",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    const win = windows[0];
+    win.setIgnoreMouseEvents.mockClear();
+    controller.setOverlayInteractiveMode(false);
+
+    // An identical shape is invisible to the compositor; the clear makes it a change.
+    expect(win.setIgnoreMouseEvents.mock.calls).toEqual([[false], [true, { forward: true }]]);
+  });
+
+  it("does not re-assert click-through while interactive", async () => {
+    vi.useFakeTimers();
+    const { controller, windows } = createPresentationProbe({
+      platform: "linux",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    controller.setOverlayInteractiveMode(true);
+    const fresh = windows[windows.length - 1];
+    fresh.setIgnoreMouseEvents.mockClear();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(fresh.setIgnoreMouseEvents).not.toHaveBeenCalledWith(true, { forward: true });
+  });
+
+  it("re-arms a pending auto-hide across the interactive rebuild", async () => {
+    vi.useFakeTimers();
+    const { controller, windows } = createPresentationProbe({
+      platform: "linux",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    controller.scheduleOverlayAutoHide(3_000);
+    controller.setOverlayInteractiveMode(true);
+    const fresh = windows[windows.length - 1];
+
+    await vi.advanceTimersByTimeAsync(3_500);
+
+    expect(fresh.hide).toHaveBeenCalled();
+  });
+
+  it("keeps interactive mode on the same window off linux", () => {
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+
+    controller.setOverlayInteractiveMode(true);
+
+    expect(windows).toHaveLength(1);
+    expect(windows[0].destroy).not.toHaveBeenCalled();
+  });
+
+  it("never makes a never-click-through window ignore the mouse", () => {
+    const { controller, windows } = createPresentationProbe({
+      platform: "linux",
+      nativeWayland: false,
+      neverClickThrough: true,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    controller.setOverlayInteractiveMode(false);
+
+    expect(windows).toHaveLength(1);
+    expect(windows[0].setIgnoreMouseEvents).not.toHaveBeenCalledWith(true, { forward: true });
+    expect(windows[0].setIgnoreMouseEvents).not.toHaveBeenCalledWith(true);
   });
 
   it("keeps the destroy-recreate re-show workaround off the wayland mode", () => {

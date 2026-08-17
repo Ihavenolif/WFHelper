@@ -7,6 +7,9 @@ import type {
   OverlayWindowKey,
 } from "../../config/runtime/overlaySettings";
 
+// Two passes: one right after the map, one late enough for a slow compositor.
+const CLICK_THROUGH_REASSERT_DELAYS_MS = [250, 1_500];
+
 const OVERLAY_WINDOW_BOUNDS = Object.freeze({
   width: 980,
   height: 140,
@@ -75,6 +78,10 @@ type OverlayWindowsControllerOptions = {
   onWindowBoundsChanged?: (key: OverlayWindowKey, bounds: OverlaySavedWindowBounds) => void;
   /** Persist moves even in passive mode (arbi summary drags without the unlock hotkey). */
   persistBoundsWhenPassive?: boolean;
+  /** Skip click-through entirely for windows that are meant to stay clickable. */
+  neverClickThrough?: boolean;
+  /** Restore content the controller does not send itself after a rebuild. */
+  onWindowRebuilt?: (window: import("electron").BrowserWindow) => void;
   platform?: NodeJS.Platform;
   isNativeWayland?: () => boolean;
 };
@@ -126,6 +133,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     windowStateKey,
     onWindowBoundsChanged,
     persistBoundsWhenPassive = false,
+    neverClickThrough = false,
+    onWindowRebuilt,
     platform = process.platform,
     isNativeWayland = linuxIsNativeWayland,
   } = options;
@@ -137,6 +146,10 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   let rendererReady = false;
   let keepMappedLogged = false;
   let logicalVisible = false;
+  let lastAppliedInteractive: boolean | null = null;
+  let clickThroughApplied = false;
+  let lastAutoHideDelayMs = 0;
+  const lastOverlayEvents = new Map<string, unknown>();
   const pendingOverlayEvents: Array<{ channel: string; payload?: unknown }> = [];
 
   const readOverlayWindow =
@@ -362,11 +375,62 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   }
 
   function applyClickThrough(overlayWindow: import("electron").BrowserWindow): void {
+    if (neverClickThrough) return;
+    clickThroughApplied = true;
+    // Re-setting an identical X11 input shape tells the compositor nothing, so the
+    // region is dropped first - that is the transition F7 makes by hand.
+    if (platform === "linux") overlayWindow.setIgnoreMouseEvents(false);
     if (ignoreMouseEventsForward) {
       overlayWindow.setIgnoreMouseEvents(true, { forward: true });
     } else {
       overlayWindow.setIgnoreMouseEvents(true);
     }
+  }
+
+  // X11 never hands input back after click-through: setIgnoreMouseEvents(false)
+  // leaves the empty input shape, so the window must be rebuilt to take clicks.
+  function needsRebuildForInteractive(): boolean {
+    return platform === "linux" && clickThroughApplied && !isKeepMappedActive();
+  }
+
+  function rebuildForInteractive(): void {
+    const staleWindow = readOverlayWindow();
+    if (!staleWindow || staleWindow.isDestroyed()) return;
+
+    const replay = [...lastOverlayEvents];
+    const bounds = staleWindow.getBounds();
+    // Destroying clears the auto-hide timer, so a pending one is re-armed below
+    // and the overlay cannot end up staying on screen forever.
+    const autoHideWasPending = overlayAutoHideTimer !== null;
+    log.warn(`[OverlayWindow] rebuilding ${windowLabel} for interactive mode`);
+    staleWindow.destroy();
+
+    createOverlayWindow({ show: true });
+    const freshWindow = readOverlayWindow();
+    if (!freshWindow || freshWindow.isDestroyed()) return;
+    suppressMoveSave = true;
+    freshWindow.setBounds(bounds, false);
+    setTimeout(() => {
+      suppressMoveSave = false;
+    }, 0);
+    for (const [channel, payload] of replay) sendOverlayEvent(channel, payload);
+    if (autoHideWasPending) scheduleOverlayAutoHide(lastAutoHideDelayMs);
+    onWindowRebuilt?.(freshWindow);
+  }
+
+  // Click-through set in the same breath as the first show lands before X maps
+  // the window and is lost, so passive mode is re-asserted once it is up.
+  function scheduleClickThroughReassert(overlayWindow: import("electron").BrowserWindow): void {
+    let reassertLogged = false;
+    const reassert = (): void => {
+      if (overlayWindow.isDestroyed() || readInteractiveMode()) return;
+      applyClickThrough(overlayWindow);
+      if (reassertLogged) return;
+      reassertLogged = true;
+      log.info?.(`[OverlayWindow] ${windowLabel} click-through re-asserted after map`);
+    };
+    overlayWindow.webContents.once("did-finish-load", reassert);
+    for (const delay of CLICK_THROUGH_REASSERT_DELAYS_MS) setTimeout(reassert, delay);
   }
 
   function showKeepMapped(overlayWindow: import("electron").BrowserWindow): void {
@@ -466,7 +530,10 @@ export function createOverlayWindowsController(options: OverlayWindowsController
 
     const createdWindow = new BrowserWindow({
       // Toolbar windows avoid Linux focus-on-map while still allowing explicit focus.
-      ...(platform === "linux" ? { type: "toolbar" } : {}),
+      // WFHELPER_NO_TOOLBAR_TYPE=1 drops it when a compositor eats overlay clicks.
+      ...(platform === "linux" && process.env.WFHELPER_NO_TOOLBAR_TYPE !== "1"
+        ? { type: "toolbar" }
+        : {}),
       width: initialBounds.width,
       height: initialBounds.height,
       x: initialBounds.x,
@@ -492,6 +559,9 @@ export function createOverlayWindowsController(options: OverlayWindowsController
 
     rendererReady = false;
     logicalVisible = false;
+    lastAppliedInteractive = null;
+    clickThroughApplied = false;
+    lastOverlayEvents.clear();
     pendingOverlayEvents.length = 0;
     writeOverlayWindow(createdWindow);
     attachRendererDiagnostics(createdWindow);
@@ -516,6 +586,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
         sendOverlayEvent(OVERLAY_CONTENT_VISIBLE, true);
       }
       setOverlayInteractiveMode(readInteractiveMode());
+      scheduleClickThroughReassert(createdWindow);
     }
     createdWindow.on("closed", () => {
       clearOverlayAutoHideTimer();
@@ -541,6 +612,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     clearOverlayAutoHideTimer();
 
     const delay = Math.max(250, Math.floor(Number(delayMs) || 0));
+    lastAutoHideDelayMs = delay;
     const overlayWindow = readOverlayWindow();
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
 
@@ -577,12 +649,19 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     if (isKeepMappedActive()) {
       showKeepMapped(overlayWindow);
-      return;
+    } else {
+      overlayWindow.showInactive();
     }
-    overlayWindow.showInactive();
+    // A window shown after a mode change carries the old input state; re-assert it.
+    setOverlayInteractiveMode(readInteractiveMode());
   }
 
   function sendOverlayEvent(channel: string, payload?: unknown): void {
+    // Remembered in send order so a rebuilt window can be brought back to the
+    // same content; re-inserting keeps the newest payload last.
+    lastOverlayEvents.delete(channel);
+    lastOverlayEvents.set(channel, payload);
+
     const targetWindow = readOverlayWindow();
     if (!targetWindow || targetWindow.isDestroyed()) return;
     const sendNow = () => {
@@ -624,24 +703,43 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     const overlayWindow = readOverlayWindow();
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
 
-    if (!isOverlayWindowVisible()) return;
+    const interactive = readInteractiveMode();
+    const visible = isOverlayWindowVisible();
 
-    if (readInteractiveMode()) {
+    if (interactive && visible && needsRebuildForInteractive()) {
+      // The rebuilt window is created interactive, so it applies the mode itself.
+      rebuildForInteractive();
+      return;
+    }
+
+    // Input flags apply even while hidden. Skipping them desynced the window from
+    // the mode, so a hotkey press during a scan left the overlay click-through.
+    if (interactive) {
       overlayWindow.setIgnoreMouseEvents(false);
       overlayWindow.setFocusable(true);
-      keepOverlayAboveGame(overlayWindow);
-      overlayWindow.moveTop();
-      overlayWindow.focus();
     } else {
       applyClickThrough(overlayWindow);
-      overlayWindow.blur();
+      if (visible) overlayWindow.blur();
       overlayWindow.setFocusable(false);
-      keepOverlayAboveGame(overlayWindow);
-      overlayWindow.moveTop();
+    }
+
+    if (lastAppliedInteractive !== interactive) {
+      lastAppliedInteractive = interactive;
+      log.info?.(
+        `[OverlayWindow] ${windowLabel} mode=${interactive ? "interactive" : "passive"} visible=${visible}`,
+      );
+    }
+
+    // Stacking and focus only mean something for a window that is on screen.
+    if (!visible) return;
+
+    keepOverlayAboveGame(overlayWindow);
+    overlayWindow.moveTop();
+    if (interactive) {
+      overlayWindow.focus();
+    } else if (!isKeepMappedActive()) {
       // Keep-mapped: the window never unmapped, so there is nothing to re-show.
-      if (!isKeepMappedActive()) {
-        overlayWindow.showInactive();
-      }
+      overlayWindow.showInactive();
     }
   }
 

@@ -56,6 +56,14 @@ if (!isTest && !loggerState.__wfhelperLoggerInitialized) {
 
 const timers = new Map<string, number>();
 
+export function getLogFilePath(): string | null {
+  try {
+    return electronLog.transports.file.getFile()?.path || null;
+  } catch {
+    return null;
+  }
+}
+
 export function getLogDirectory(): string | null {
   try {
     const filePath = electronLog.transports.file.getFile()?.path;

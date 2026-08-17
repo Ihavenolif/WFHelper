@@ -52,6 +52,8 @@ export const arbiSummaryWindowsController = createOverlayWindowsController({
   setOverlayInteractiveModeState: () => {},
   // right-drag works without the unlock hotkey here, so save moves despite passive mode
   persistBoundsWhenPassive: true,
+  // Click-through is never wanted here, and on X11 it cannot be undone.
+  neverClickThrough: true,
   log,
   hardenBrowserWindowNavigation,
   overlayWindowFile: ARBI_SUMMARY_WINDOW_FILE,

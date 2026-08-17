@@ -46,7 +46,16 @@ export function createScanGeneration() {
   };
 }
 
+// A rebuilt riven window starts blank, so every session event is mirrored to the
+// owner to be replayed into the new window.
+let eventRecorder: ((channel: string, args: unknown[]) => void) | null = null;
+
+export function setEventRecorder(recorder: (channel: string, args: unknown[]) => void): void {
+  eventRecorder = recorder;
+}
+
 function sendToWindows(wins: WindowRef[], channel: string, ...args: unknown[]): void {
+  eventRecorder?.(channel, args);
   for (const win of wins) {
     if (!win || win.isDestroyed()) continue;
     win.webContents.send(channel, ...args);

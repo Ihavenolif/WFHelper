@@ -39,7 +39,7 @@ if (DISPLAY_BACKEND === "x11") {
   }
 }
 
-import { withScope } from "./services/logger";
+import { getLogFilePath, withScope } from "./services/logger";
 import { MAIN_WINDOW_CSP, PERMISSIONS_POLICY } from "./config/runtime/security";
 import * as windowSecurity from "./services/windowSecurity";
 
@@ -277,6 +277,8 @@ void app.whenReady().then(async () => {
       (process.env.WFHELPER_USER_DATA ? " (WFHELPER_USER_DATA override)" : ""),
   );
   log.info(`[Startup] crashDumps: ${app.getPath("crashDumps")}`);
+  // Printed so a support request can name the exact file instead of guessing.
+  log.info(`[Startup] logFile: ${getLogFilePath() || "unknown"}`);
   if (process.platform === "linux") {
     log.info(`[Startup] display=${DISPLAY_BACKEND} gpu=${GPU_ACCELERATION_ENABLED ? "on" : "off"}`);
   }

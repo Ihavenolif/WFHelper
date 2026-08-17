@@ -239,9 +239,8 @@ function isWarframeProcessRunningLinux(): boolean {
   return false;
 }
 
-// xwininfo -root -tree prints one line per window:
-//   0x1400003 "Warframe": ("warframe.x64.exe" "Wine")  1920x1080+0+0  +1920+0
-// The trailing +x+y is the absolute position, which is what maps to a display.
+// Matches `0xID "name": ("res" "class")  WxH+rx+ry  +absX+absY` from xwininfo
+// -root -tree; the trailing +absX+absY is what maps the window to a display.
 const XWININFO_WINDOW_RE =
   /^\s*0x[0-9a-f]+\s+("[^"]*"|\(has no name\)):\s+\(([^)]*)\)\s+(\d+)x(\d+)\+-?\d+\+-?\d+\s+\+(-?\d+)\+(-?\d+)/i;
 const MIN_GAME_WINDOW_EDGE_PX = 200;
@@ -320,7 +319,7 @@ async function getWarframeWindowBoundsLinux(): Promise<WindowBounds | null> {
 async function collectStatusLinux(): Promise<WarframeStatus> {
   const processRunning = isWarframeProcessRunningLinux();
   // Warframe is an XWayland client under Proton, so its X geometry is readable
-  // on both session types; focus itself still has no portable query.
+  // on both session types; focus itself has no portable query.
   const focusedWindowBounds = processRunning ? await getWarframeWindowBoundsLinux() : null;
   return {
     isOpen: processRunning,

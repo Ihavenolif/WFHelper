@@ -199,10 +199,7 @@ function childrenOf(x11: X11Bindings, display: unknown, window: number): number[
   }
 }
 
-/**
- * Largest viewable window whose title matches, in absolute screen coordinates.
- * Returns null when libX11, the display, or a match is unavailable.
- */
+/** Largest matching window in absolute screen coordinates, null when unavailable. */
 export function findWindowBoundsByTitle(
   titlePattern: RegExp,
   minEdgePx = 200,

@@ -35,6 +35,29 @@
       if (isInteractive()) event.preventDefault();
     });
 
+    // Main logs overlay console warnings; one line per event kind per mode change.
+    // No line at all means the window never received the input.
+    const logged = { mousemove: null, mousedown: null };
+
+    function logFirstInput(kind) {
+      const interactive = isInteractive();
+      if (logged[kind] === interactive) return;
+      logged[kind] = interactive;
+      console.warn(`[Overlay] ${kind} reached the dom interactive=${interactive}`);
+    }
+
+    // A content change fires a synthetic move at the resting cursor, which says
+    // nothing about routing; only a move with a delta is real pointer input.
+    document.addEventListener(
+      "mousemove",
+      (event) => {
+        if (!event.movementX && !event.movementY) return;
+        logFirstInput("mousemove");
+      },
+      true,
+    );
+    document.addEventListener("mousedown", () => logFirstInput("mousedown"), true);
+
     document.addEventListener("mousedown", (event) => {
       if (!isInteractive()) return;
       if (event.button !== 0 && event.button !== 2) return;

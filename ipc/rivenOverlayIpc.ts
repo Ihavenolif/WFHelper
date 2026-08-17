@@ -70,6 +70,7 @@ const rivenWindowBaseOptions = {
   preloadFileName: "preload-riven.js",
   hasShadow: false,
   ignoreMouseEventsForward: false,
+  onWindowRebuilt: (window: InstanceType<typeof BrowserWindow>) => replayRivenEvents(window),
 };
 
 const rivenLeftWindowsController = createOverlayWindowsController({
@@ -105,6 +106,31 @@ const rivenRightWindowsController = createOverlayWindowsController({
   windowStateKey: "rivenRight",
   onWindowBoundsChanged: rememberOverlayWindowBounds,
 });
+
+// Riven panels are painted from live events, so a window rebuilt mid-session
+// starts blank; every event is remembered and replayed into the new window.
+const rivenLastEvents = new Map<string, unknown[]>();
+
+function recordRivenEvent(channel: string, args: unknown[]): void {
+  rivenLastEvents.delete(channel);
+  rivenLastEvents.set(channel, args);
+}
+
+rivenSession.setEventRecorder(recordRivenEvent);
+
+function sendToRivenWindows(channel: string, ...args: unknown[]): void {
+  recordRivenEvent(channel, args);
+  forEachRivenWindow((win) => win.webContents.send(channel, ...args));
+}
+
+function replayRivenEvents(window: InstanceType<typeof BrowserWindow>): void {
+  // Read the map at load time, not now, so events recorded during the rebuild
+  // (the interaction mode push) are included instead of lost on a raw send.
+  window.webContents.once("did-finish-load", () => {
+    if (window.isDestroyed()) return;
+    for (const [channel, args] of rivenLastEvents) window.webContents.send(channel, ...args);
+  });
+}
 
 function getRivenWindows(): (InstanceType<typeof BrowserWindow> | null)[] {
   return [ctx.rivenOverlayLeftWindow, ctx.rivenOverlayRightWindow];
@@ -151,9 +177,7 @@ function toggleRivenInteractiveMode(): void {
   _rivenInteractive = !_rivenInteractive;
   rivenLeftWindowsController.setOverlayInteractiveMode(_rivenInteractive);
   rivenRightWindowsController.setOverlayInteractiveMode(_rivenInteractive);
-  forEachRivenWindow((win) => {
-    win.webContents.send(OVERLAY_INTERACTION_MODE, { interactive: _rivenInteractive });
-  });
+  sendToRivenWindows(OVERLAY_INTERACTION_MODE, { interactive: _rivenInteractive });
 }
 
 export function isRivenInteractiveMode(): boolean {
@@ -211,6 +235,7 @@ function createRivenOverlayWindows(options: { show?: boolean } = {}): void {
   if (existRight && !existRight.isDestroyed()) existRight.destroy();
 
   _rivenInteractive = false;
+  rivenLastEvents.clear();
 
   createRivenWindow("left", options);
   createRivenWindow("right", options);
@@ -294,11 +319,7 @@ function scoreRivenStatSimilarity(
 
 function sendGradedInitialStats(): void {
   const graded = tryGradeStats(_rivenInitialStats);
-  if (graded) {
-    forEachRivenWindow((win) => {
-      if (!win.isDestroyed()) win.webContents.send(RIVEN_GRADING_INITIAL, graded);
-    });
-  }
+  if (graded) sendToRivenWindows(RIVEN_GRADING_INITIAL, graded);
 }
 
 function sendWeaponEnrichment(): void {
@@ -310,11 +331,7 @@ function sendWeaponEnrichment(): void {
     const category = rivenDataSvc.getWeaponCategory(_rivenWeaponName);
     const isMelee = category === "Melee" || category === "SpaceMelee";
     const weaponInfo = rivenBestAttributes.getBestAttributes(_rivenWeaponName, isMelee);
-    if (weaponInfo) {
-      forEachRivenWindow((win) => {
-        if (!win.isDestroyed()) win.webContents.send(RIVEN_BEST_ATTRIBUTES, weaponInfo);
-      });
-    }
+    if (weaponInfo) sendToRivenWindows(RIVEN_BEST_ATTRIBUTES, weaponInfo);
   });
 
   // WFM cannot apply the overlay's local similarity ranking.
@@ -322,11 +339,7 @@ function sendWeaponEnrichment(): void {
   wfmRivenSearch
     .searchSimilarRivens(slug, { limit: 30 })
     .then((listings) => {
-      if (listings.length > 0) {
-        forEachRivenWindow((win) => {
-          if (!win.isDestroyed()) win.webContents.send(RIVEN_SIMILAR_LISTINGS, listings);
-        });
-      }
+      if (listings.length > 0) sendToRivenWindows(RIVEN_SIMILAR_LISTINGS, listings);
     })
     .catch((err) => {
       log.warn("[WfmRivenSearch] search failed:", String(err));
@@ -348,9 +361,7 @@ function clearRivenScanTimers(): void {
 function applyDetectedWeapon(detected: string, source: string): void {
   log.info(`[RivenScan] weapon detected from ${source}: "${detected}"`);
   _rivenWeaponName = detected;
-  forEachRivenWindow((win) => {
-    if (!win.isDestroyed()) win.webContents.send(RIVEN_WEAPON_UPDATE, detected);
-  });
+  sendToRivenWindows(RIVEN_WEAPON_UPDATE, detected);
   sendWeaponEnrichment();
   // Grading for the already-displayed initial stats was skipped while the
   // weapon was unknown - deliver it now.
@@ -470,14 +481,7 @@ function triggerRollScan(delayMs = ROLL_SCAN_DELAY_MS): void {
       const leftGraded = tryGradeStats(leftStats);
       const rightGraded = tryGradeStats(rightStats);
       if (leftGraded || rightGraded) {
-        forEachRivenWindow((win) => {
-          if (!win.isDestroyed()) {
-            win.webContents.send(RIVEN_GRADING_ROLL, {
-              left: leftGraded,
-              right: rightGraded,
-            });
-          }
-        });
+        sendToRivenWindows(RIVEN_GRADING_ROLL, { left: leftGraded, right: rightGraded });
       }
     } catch (err) {
       log.warn("[RivenScan] roll scan failed:", String(err));
