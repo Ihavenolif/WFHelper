@@ -104,6 +104,10 @@ process.on("unhandledRejection", (reason: unknown) => {
   log.error("[Main] unhandledRejection:", error);
 });
 
+// Grace after the renderer loads, then an absolute cap, before showing anyway.
+const MAIN_WINDOW_SHOW_GRACE_MS = 2_000;
+const MAIN_WINDOW_SHOW_DEADLINE_MS = 15_000;
+
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 if (!hasSingleInstanceLock) {
   app.quit();
@@ -143,12 +147,32 @@ function createWindow(): void {
   });
 
   const mainWindow = ctx.mainWindow;
-  mainWindow.once("ready-to-show", () => {
-    if (!mainWindow.isDestroyed()) mainWindow.show();
+  // ready-to-show can silently never fire on Linux, leaving the window hidden
+  // forever, so first load and a hard deadline show it too.
+  let mainWindowShowTimer: ReturnType<typeof setTimeout> | null = null;
+  let windowShown = false;
+  const showMainWindow = (via: string): void => {
+    if (windowShown || mainWindow.isDestroyed()) return;
+    windowShown = true;
+    if (mainWindowShowTimer) clearTimeout(mainWindowShowTimer);
+    mainWindowShowTimer = null;
+    if (via !== "ready-to-show") log.warn(`[Main] window shown via ${via} fallback`);
+    mainWindow.show();
+  };
+  const scheduleShow = (delayMs: number, via: string): void => {
+    if (windowShown) return;
+    if (mainWindowShowTimer) clearTimeout(mainWindowShowTimer);
+    mainWindowShowTimer = setTimeout(() => showMainWindow(via), delayMs);
+  };
+
+  scheduleShow(MAIN_WINDOW_SHOW_DEADLINE_MS, "deadline");
+  mainWindow.once("ready-to-show", () => showMainWindow("ready-to-show"));
+  mainWindow.webContents.once("did-finish-load", () => {
+    scheduleShow(MAIN_WINDOW_SHOW_GRACE_MS, "did-finish-load");
   });
   void mainWindow.loadFile(MAIN_WINDOW_ENTRY_FILE).catch((error: unknown) => {
     log.error("[Main] Failed to load the renderer:", error);
-    if (!mainWindow.isDestroyed()) mainWindow.show();
+    showMainWindow("load-error");
   });
 
   // Zoom resets on navigation, so re-apply on load; on move, to re-fit per display.
@@ -205,6 +229,8 @@ function createWindow(): void {
   }
 
   ctx.mainWindow.on("closed", () => {
+    if (mainWindowShowTimer) clearTimeout(mainWindowShowTimer);
+    mainWindowShowTimer = null;
     ctx.mainWindow = null;
     if (ctx.overlayWindow && !ctx.overlayWindow.isDestroyed()) ctx.overlayWindow.destroy();
     if (ctx.rivenOverlayLeftWindow && !ctx.rivenOverlayLeftWindow.isDestroyed())
