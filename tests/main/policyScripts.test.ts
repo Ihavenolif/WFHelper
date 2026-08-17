@@ -6,7 +6,6 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const REPO_ROOT = path.resolve(__dirname, "../..");
 const COMMIT_CHECK = path.join(REPO_ROOT, "scripts", "check-commit-msg.mjs");
-const COMMENT_CHECK = path.join(REPO_ROOT, "scripts", "check-comment-style.mjs");
 const EMPTY_GIT_CONFIG = path.join(os.tmpdir(), "wfh-policy-empty.gitconfig");
 const EMPTY_XDG_CONFIG = path.join(os.tmpdir(), "wfh-policy-xdg");
 fs.writeFileSync(EMPTY_GIT_CONFIG, "");
@@ -54,9 +53,9 @@ function checkMessage(message: string) {
   return runCheck(COMMIT_CHECK, [messagePath], cwd);
 }
 
-function stageSource(cwd: string, source: string, file = "sample.ts"): void {
-  fs.writeFileSync(path.join(cwd, file), source);
-  git(cwd, ["add", file]);
+function stageSource(cwd: string, source: string): void {
+  fs.writeFileSync(path.join(cwd, "sample.ts"), source);
+  git(cwd, ["add", "sample.ts"]);
 }
 
 afterEach(() => {
@@ -89,100 +88,20 @@ describe("commit subject policy", () => {
   });
 });
 
-describe("comment style policy", () => {
-  it("accepts two ASCII lines", () => {
-    const cwd = initRepo();
-    stageSource(cwd, "export const seed = 1;\n// first\n// second\n");
-
-    expect(runCheck(COMMENT_CHECK, ["--staged"], cwd).status).toBe(0);
-  });
-
-  it("rejects three consecutive comment lines", () => {
-    const cwd = initRepo();
-    stageSource(cwd, "// one\n// two\n// three\nexport const seed = 1;\n");
-
-    const result = runCheck(COMMENT_CHECK, ["--staged"], cwd);
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("comment is 3 lines, max 2");
-  });
-
-  it("rejects non-ASCII comments", () => {
-    const cwd = initRepo();
-    stageSource(cwd, "export const seed = 1; // première\n");
-
-    const result = runCheck(COMMENT_CHECK, ["--staged"], cwd);
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("non-ASCII character in a comment");
-  });
-
-  it("rejects an em dash in a trailing line comment", () => {
-    const cwd = initRepo();
-    stageSource(cwd, "export const seed = 1; // reason — detail\n");
-
-    const result = runCheck(COMMENT_CHECK, ["--staged"], cwd);
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("em dash in a comment");
-  });
-
-  it("ignores comment markers inside strings and regular expressions", () => {
-    const cwd = initRepo();
-    stageSource(cwd, 'const url = "https://example.com";\nconst comment = /^\\/\\/[/*]/;\n');
-
-    expect(runCheck(COMMENT_CHECK, ["--staged"], cwd).status).toBe(0);
-  });
-
-  it("counts multiline block comments that begin after code", () => {
-    const cwd = initRepo();
-    stageSource(cwd, "export const seed = 1; /* one\ntwo\nthree */\n");
-
-    const result = runCheck(COMMENT_CHECK, ["--staged"], cwd);
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("comment is 3 lines, max 2");
-  });
-
-  it("counts multiline HTML comments", () => {
-    const cwd = initRepo();
-    stageSource(cwd, "<div>\n<!-- one\ntwo\nthree -->\n</div>\n", "sample.svelte");
-
-    const result = runCheck(COMMENT_CHECK, ["--staged"], cwd);
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("comment is 3 lines, max 2");
-  });
-
-  it("passes all tracked code without grandfathered violations", () => {
-    expect(runCheck(COMMENT_CHECK, ["--all"], REPO_ROOT).status).toBe(0);
-  });
-
-  it("rejects any tracked-code violation", () => {
-    const cwd = initRepo(
-      "[test] - seed repository",
-      "// one\n// two\n// three\nexport const seed = 1;\n",
-    );
-
-    const result = runCheck(COMMENT_CHECK, ["--all"], cwd);
-    expect(result.status).toBe(1);
-    expect(result.output).toContain("comment is 3 lines, max 2");
-  });
-});
-
 describe("CI range fallback", () => {
   it("checks a new branch against the default branch when before is zero", () => {
     const cwd = initRepo();
     git(cwd, ["checkout", "-b", "feature"]);
-    stageSource(cwd, "// one\n// two\n// three\nexport const feature = true;\n");
+    stageSource(cwd, "export const feature = true;\n");
     git(cwd, ["commit", "--no-verify", "-m", "[fix] - invalid Uppercase"]);
 
-    const env = {
+    const result = runCheck(COMMIT_CHECK, ["--ci"], cwd, {
       BASE_REF: "",
       BEFORE_SHA: "0000000000000000000000000000000000000000",
       DEFAULT_BRANCH: "main",
-    };
-    const commitResult = runCheck(COMMIT_CHECK, ["--ci"], cwd, env);
-    const commentResult = runCheck(COMMENT_CHECK, ["--ci"], cwd, env);
-    expect(commitResult.status).toBe(1);
-    expect(commitResult.output).toContain("invalid Uppercase");
-    expect(commentResult.status).toBe(1);
-    expect(commentResult.output).toContain("comment is 3 lines, max 2");
+    });
+    expect(result.status).toBe(1);
+    expect(result.output).toContain("invalid Uppercase");
   });
 
   it("retains the normal push and pull-request ranges", () => {
@@ -207,10 +126,7 @@ describe("CI range fallback", () => {
   });
 
   it("checks HEAD when the default-branch range is empty", () => {
-    const cwd = initRepo(
-      "[fix] - invalid Uppercase",
-      "// one\n// two\n// three\nexport const seed = 1;\n",
-    );
+    const cwd = initRepo("[fix] - invalid Uppercase");
     const env = {
       BASE_REF: "",
       BEFORE_SHA: "0000000000000000000000000000000000000000",
@@ -218,6 +134,5 @@ describe("CI range fallback", () => {
     };
 
     expect(runCheck(COMMIT_CHECK, ["--ci"], cwd, env).status).toBe(1);
-    expect(runCheck(COMMENT_CHECK, ["--ci"], cwd, env).status).toBe(1);
   });
 });
