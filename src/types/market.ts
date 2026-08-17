@@ -112,5 +112,6 @@ export interface OrderModalState {
     item?: WfmLookupItem | null;
     orderType?: OrderType;
     modRank?: number | null;
+    maxRank?: number | null;
   };
 }

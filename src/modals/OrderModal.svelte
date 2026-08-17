@@ -85,7 +85,11 @@
         typeof draft?.modRank === "number" && Number.isFinite(draft.modRank)
           ? Math.max(0, Math.floor(draft.modRank))
           : 0;
-      showRankField = typeof draft?.modRank === "number" && Number.isFinite(draft.modRank);
+      // WFM rejects rank-less orders on rank-capable items, so a draft that
+      // knows the item's maxRank always gets the field, not only "maxed" posts.
+      showRankField =
+        (typeof draft?.modRank === "number" && Number.isFinite(draft.modRank)) ||
+        (typeof draft?.maxRank === "number" && draft.maxRank > 0);
 
       if (draftItem && typeof draftItem.id === "string" && draftItem.id.trim()) {
         itemSelected = {
@@ -94,6 +98,7 @@
           url_name: draftItem.url_name,
           thumb: draftItem.thumb || draftItem.icon || null,
           icon: draftItem.icon || null,
+          maxRank: typeof draft?.maxRank === "number" ? draft.maxRank : null,
         };
       }
     }

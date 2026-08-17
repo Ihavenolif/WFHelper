@@ -367,6 +367,7 @@
         item: lookup,
         orderType,
         modRank: requestRank,
+        maxRank: isRankedListingItem ? itemMaxRankValue : null,
       },
     });
   }

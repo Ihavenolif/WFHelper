@@ -454,6 +454,7 @@
         item: lookup,
         orderType,
         modRank: rankFilter === "maxed" && effectiveMaxRank > 0 ? effectiveMaxRank : null,
+        maxRank: effectiveMaxRank > 0 ? effectiveMaxRank : null,
       },
     });
   }
