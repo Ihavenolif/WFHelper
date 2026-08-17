@@ -152,7 +152,8 @@ export async function syncGameRunning(isOpen: boolean): Promise<void> {
   if (!wfmSession.getToken()) return;
 
   if (isOpen && _autoEnabled && !_autoActive) {
-    _preAutoStatus = _status;
+    // An "ingame" here is a stale echo of a previous run's push, not a restore target.
+    _preAutoStatus = _status === "ingame" ? null : _status;
     _autoActive = true;
     log.info("[WFMPresence] Warframe running - setting status to ingame");
     if (!(await _push("ingame", true))) _autoActive = false;

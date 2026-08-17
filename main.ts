@@ -31,11 +31,14 @@ if (DISPLAY_BACKEND === "x11") {
     // app.relaunch() is a no-op this early, and the AppImage mount dies with us.
     const selfPath = process.env.APPIMAGE || process.execPath;
     try {
-      spawn(selfPath, [...process.argv.slice(1), OZONE_X11_ARG], {
-        detached: true,
-        stdio: "inherit",
-      }).unref();
-      app.exit(0);
+      // spawn reports a bad path asynchronously, after exit - so probe it first.
+      if (fs.existsSync(selfPath)) {
+        spawn(selfPath, [...process.argv.slice(1), OZONE_X11_ARG], {
+          detached: true,
+          stdio: "inherit",
+        }).unref();
+        app.exit(0);
+      }
     } catch {
       // Starting on the wayland default beats not starting at all.
     }

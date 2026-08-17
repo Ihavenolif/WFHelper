@@ -495,6 +495,7 @@ export function onRivenSessionClose(): void {
   _rivenInteractive = false;
   rivenSession.endSession(getRivenWindows());
   hideRivenWindows();
+  rivenLastEvents.clear();
 }
 
 export function onRivenChatView(): void {
@@ -675,6 +676,7 @@ export function register(): void {
     _rivenNewRollStats = [];
     rivenSession.endSession(getRivenWindows());
     hideRivenWindows();
+    rivenLastEvents.clear();
   });
 
   onAuthorized(

@@ -170,6 +170,17 @@ describe("wfmPresence auto in-game", () => {
     expect(setStatus).toHaveBeenLastCalledWith("invisible", null);
   });
 
+  it("does not restore the stale ingame a previous run left behind", async () => {
+    const presence = await freshPresence();
+    presence.setOptions({ autoIngameEnabled: true, holdMinutes: 0 });
+    // A crashed run's auto push never expires, so the profile still says ingame.
+    presence.applyServerStatus({ status: "ingame" });
+
+    await presence.syncGameRunning(true);
+    await presence.syncGameRunning(false);
+    expect(setStatus).toHaveBeenLastCalledWith("invisible", null);
+  });
+
   it("does nothing while logged out", async () => {
     const presence = await freshPresence();
     getToken.mockReturnValue(null);

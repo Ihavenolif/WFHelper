@@ -636,6 +636,9 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     if (keepMapped.hide(overlayWindow, setKeepMappedContentVisible)) {
       applyClickThrough(overlayWindow);
+      // Still mapped, so an interactive window would keep the game's focus.
+      overlayWindow.blur();
+      overlayWindow.setFocusable(false);
       return;
     }
     overlayWindow.hide();

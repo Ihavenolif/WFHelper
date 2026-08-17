@@ -226,7 +226,9 @@ for (const comment of inline) {
 if (problems.length > 0) {
   console.error("\ncomment style problems:\n");
   for (const problem of problems) console.error(`  ${problem}`);
-  console.error("\nrules: max 2 lines per comment; ASCII only; no banners or step numbering\n");
+  console.error(
+    `\nrules: max ${MAX_RUN_LINES} lines per comment; ASCII only; no banners or step numbering\n`,
+  );
   process.exit(1);
 }
 

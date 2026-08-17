@@ -387,6 +387,24 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     expect(controller.isOverlayWindowVisible()).toBe(false);
   });
 
+  it("hiding an interactive window hands focus back", () => {
+    const { controller, windows } = createPresentationProbe({
+      platform: "linux",
+      nativeWayland: true,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    const win = windows[0];
+    controller.setOverlayInteractiveMode(true);
+    win.blur.mockClear();
+
+    controller.hideOverlayWindow();
+
+    expect(win.blur).toHaveBeenCalledTimes(1);
+    expect(win.setFocusable).toHaveBeenLastCalledWith(false);
+  });
+
   it("interactive mode focuses in and returns to click-through without re-mapping", () => {
     const { controller, windows } = createPresentationProbe({
       platform: "linux",
