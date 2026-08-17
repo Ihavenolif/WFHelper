@@ -7,6 +7,7 @@ import {
   marketOrders,
   marketSelected,
   marketSession,
+  marketViewState,
   mutateMarketSelected,
   setMarketViewState,
 } from "../stores/market.js";
@@ -170,4 +171,24 @@ export function refreshMarketOrders(
 
 export function invalidateMarketOrdersRefresh(): void {
   controller.invalidate();
+}
+
+const ORDERS_FRESH_MS = 30_000;
+
+/** For views that only read order badges (inventory "Order placed"): resolve the
+ * session if the Market tab never did, then fetch orders unless fresh. */
+export async function ensureMarketOrdersLoaded(): Promise<void> {
+  if (!get(marketSession).loggedIn) {
+    try {
+      const session = await invoke("wfmGetSession");
+      if (!session.loggedIn) return;
+      marketSession.set(session);
+    } catch {
+      return;
+    }
+  }
+  const orders = get(marketOrders);
+  const hasOrders = orders.sell.length + orders.buy.length > 0;
+  const stale = Date.now() - get(marketViewState).ordersLastFetch > ORDERS_FRESH_MS;
+  if (!hasOrders || stale) await controller.refresh({ background: true });
 }
