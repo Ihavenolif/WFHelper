@@ -207,6 +207,20 @@
   $: statusHoldMinutes = $overlaySettings.wfmStatusHoldMinutes ?? 0;
   $: holdRemaining = formatHoldRemaining($marketViewState.statusExpiresAt, holdNow);
   $: holdIdle = !$marketViewState.status || $marketViewState.status === "invisible";
+  // Only tick while there is a deadline to count down; a hold of "Always" would
+  // otherwise re-run this view's reactive statements once a second for nothing.
+  $: syncHoldTicker($marketViewState.statusExpiresAt !== null);
+
+  function syncHoldTicker(needed: boolean): void {
+    if (needed === !!holdTicker) return;
+    if (!needed) {
+      if (holdTicker) clearInterval(holdTicker);
+      holdTicker = null;
+      return;
+    }
+    holdNow = Date.now();
+    holdTicker = setInterval(() => (holdNow = Date.now()), 1000);
+  }
 
   function holdLabel(minutes: number): string {
     if (!minutes) return "Always";
@@ -244,7 +258,6 @@
         (loaded) => loaded && applyOverlaySettingsResponse(loaded),
       );
     }
-    holdTicker = setInterval(() => (holdNow = Date.now()), 1000);
     window.addEventListener("focus", backgroundRefresh);
     pollTimer = setInterval(backgroundRefresh, ORDERS_POLL_MS);
     await loadView();
@@ -257,7 +270,7 @@
     unsubscribeWfmNotification?.();
     window.removeEventListener("focus", backgroundRefresh);
     if (pollTimer) clearInterval(pollTimer);
-    if (holdTicker) clearInterval(holdTicker);
+    syncHoldTicker(false);
   });
 
   function backgroundRefresh(): void {
