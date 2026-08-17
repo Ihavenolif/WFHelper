@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
 
 import { OVERLAY_CONTENT_VISIBLE } from "../../config/shared/ipcChannels";
 
@@ -257,6 +257,13 @@ function createPresentationProbe(options: {
   return { controller, windows, ctx, contentEvents };
 }
 
+/** Fire a window event the controller subscribed to; the fake only records them. */
+function fireWindowEvent(win: { on: Mock }, event: string): void {
+  for (const [name, handler] of win.on.mock.calls) {
+    if (name === event) (handler as () => void)();
+  }
+}
+
 describe("keep-mapped presentation mode (native Wayland)", () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -466,6 +473,41 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     expect(fresh.webContents.send).toHaveBeenCalledWith("relic-reward-items", [
       { name: "Forma Blueprint" },
     ]);
+  });
+
+  // destroy() emitting "closed" a tick late would otherwise land after the
+  // replacement is registered and tear it down: window on screen, handle null,
+  // auto-hide cancelled, nothing left able to close it.
+  it("ignores a late closed event from the window the rebuild replaced", () => {
+    const { controller, windows, ctx } = createPresentationProbe({
+      platform: "linux",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    const stale = windows[0];
+    controller.setOverlayInteractiveMode(true);
+    const fresh = windows[1];
+    expect(ctx.overlayWindow).toBe(fresh);
+
+    fireWindowEvent(stale, "closed");
+
+    expect(ctx.overlayWindow).toBe(fresh);
+    expect(controller.isOverlayWindowVisible()).toBe(true);
+  });
+
+  it("still resets the controller when the live window closes", () => {
+    const { controller, windows, ctx } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    expect(ctx.overlayWindow).toBe(windows[0]);
+
+    fireWindowEvent(windows[0], "closed");
+
+    expect(ctx.overlayWindow).toBeNull();
   });
 
   it("re-asserts click-through after the window is actually mapped", async () => {

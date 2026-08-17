@@ -10,7 +10,7 @@ import {
   TRADE_NOTIFICATION_REP_RESULT,
   OVERLAY_CONTENT_VISIBLE,
 } from "../config/shared/ipcChannels";
-import { isNativeWayland } from "../services/linuxDisplayBackend";
+import { createKeepMappedMode } from "./overlay/keepMapped";
 import { resolveRepOffer } from "../config/shared/tradeMatch";
 import type {
   TradeMatchPayload,
@@ -58,23 +58,17 @@ export interface TradeRepResultPayload {
 let _hideTimer: ReturnType<typeof setTimeout> | null = null;
 let _rendererReady = false;
 let _notificationRevision = 0;
-let _keepMappedLogged = false;
+// The toast is transparent and always click-through, so it can use the same
+// blank-the-DOM hide the overlay controllers use on native Wayland.
+const _keepMapped = createKeepMappedMode({ label: "TradeNotification", transparent: true, log });
 
-// Native-Wayland maps activate the window; the toast is transparent and always
-// click-through, so "hide" = blank DOM and the window stays mapped after the first show.
-function _keepMappedActive(): boolean {
-  return process.platform === "linux" && isNativeWayland();
+function _setContentVisible(win: InstanceType<typeof BrowserWindow>): (visible: boolean) => void {
+  return (visible) => win.webContents.send(OVERLAY_CONTENT_VISIBLE, visible);
 }
 
 function _presentWindow(win: InstanceType<typeof BrowserWindow>): void {
-  if (_keepMappedActive()) {
-    if (!_keepMappedLogged) {
-      _keepMappedLogged = true;
-      log.info("[TradeNotification] keep-mapped mode active (native Wayland)");
-    }
-    win.webContents.send(OVERLAY_CONTENT_VISIBLE, true);
-    if (!win.isVisible()) win.showInactive();
-    win.moveTop();
+  if (_keepMapped.isActive()) {
+    _keepMapped.present(win, _setContentVisible(win));
     return;
   }
   win.showInactive();
@@ -82,10 +76,7 @@ function _presentWindow(win: InstanceType<typeof BrowserWindow>): void {
 }
 
 function _hideWindow(win: InstanceType<typeof BrowserWindow>): void {
-  if (_keepMappedActive() && win.isVisible()) {
-    win.webContents.send(OVERLAY_CONTENT_VISIBLE, false);
-    return;
-  }
+  if (_keepMapped.hide(win, _setContentVisible(win))) return;
   win.hide();
 }
 

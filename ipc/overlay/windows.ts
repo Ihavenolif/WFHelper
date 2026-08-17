@@ -2,6 +2,7 @@ import path from "node:path";
 import { clampNumber } from "../../config/shared/numeric";
 import { OVERLAY_CONTENT_VISIBLE } from "../../config/shared/ipcChannels";
 import { isNativeWayland as linuxIsNativeWayland } from "../../services/linuxDisplayBackend";
+import { createKeepMappedMode } from "./keepMapped";
 import type {
   OverlaySavedWindowBounds,
   OverlayWindowKey,
@@ -144,13 +145,19 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   let suppressMoveSave = false;
   let moveSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let rendererReady = false;
-  let keepMappedLogged = false;
   let logicalVisible = false;
   let lastAppliedInteractive: boolean | null = null;
   let clickThroughApplied = false;
   let lastAutoHideDelayMs = 0;
   const lastOverlayEvents = new Map<string, unknown>();
   const pendingOverlayEvents: Array<{ channel: string; payload?: unknown }> = [];
+  const keepMapped = createKeepMappedMode({
+    label: `OverlayWindow ${windowLabel}`,
+    transparent,
+    platform,
+    isNativeWayland,
+    log,
+  });
 
   const readOverlayWindow =
     getOverlayWindow ||
@@ -362,16 +369,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     overlayWindow.setAlwaysOnTop(true, "screen-saver");
   }
 
-  // Native-Wayland maps always activate, so a mapped overlay stays mapped forever;
-  // "hidden" = blank DOM + click-through. Transparent-only: a blank opaque window shows a box.
   function isKeepMappedActive(): boolean {
-    return platform === "linux" && transparent && isNativeWayland();
-  }
-
-  function logKeepMappedOnce(): void {
-    if (keepMappedLogged) return;
-    keepMappedLogged = true;
-    log.info?.(`[OverlayWindow] ${windowLabel} keep-mapped mode active (native Wayland)`);
+    return keepMapped.isActive();
   }
 
   function applyClickThrough(overlayWindow: import("electron").BrowserWindow): void {
@@ -433,15 +432,13 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     for (const delay of CLICK_THROUGH_REASSERT_DELAYS_MS) setTimeout(reassert, delay);
   }
 
+  function setKeepMappedContentVisible(visible: boolean): void {
+    logicalVisible = visible;
+    sendOverlayEvent(OVERLAY_CONTENT_VISIBLE, visible);
+  }
+
   function showKeepMapped(overlayWindow: import("electron").BrowserWindow): void {
-    logKeepMappedOnce();
-    logicalVisible = true;
-    sendOverlayEvent(OVERLAY_CONTENT_VISIBLE, true);
-    if (!overlayWindow.isVisible()) {
-      // One-time map (one focus blip); every later "show" is content + z-order only.
-      overlayWindow.showInactive();
-    }
-    overlayWindow.moveTop();
+    keepMapped.present(overlayWindow, setKeepMappedContentVisible);
     keepOverlayAboveGame(overlayWindow);
   }
 
@@ -577,23 +574,22 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     // z-order calls un-hide a hidden window on Windows - only touch it when showing
     if (shouldShow) {
       // showInactive() FIRST. moveTop() un-hides a hidden window on Windows, so
-      // calling it here made moveTop the thing that revealed the overlay - which
-      // shows it WITHOUT the inactive part and hands it the foreground, pulling
-      // the game out of focus on every riven open. The existing-window path
-      // above already orders these correctly; this one never did.
+      // calling it here made moveTop the thing that revealed the overlay: shown
+      // WITHOUT the inactive part, taking the foreground and pulling the game out
+      // of focus on every riven open. The existing-window path above got it right.
       createdWindow.showInactive();
       keepOverlayAboveGame(createdWindow);
       createdWindow.moveTop();
       keepOverlayAboveGame(createdWindow);
-      if (isKeepMappedActive()) {
-        logKeepMappedOnce();
-        logicalVisible = true;
-        sendOverlayEvent(OVERLAY_CONTENT_VISIBLE, true);
-      }
+      if (isKeepMappedActive()) keepMapped.present(createdWindow, setKeepMappedContentVisible);
       setOverlayInteractiveMode(readInteractiveMode());
       scheduleClickThroughReassert(createdWindow);
     }
     createdWindow.on("closed", () => {
+      // The interactive rebuild destroys and recreates within one tick. If this
+      // event lands late it would tear down the replacement, so only the window
+      // still registered gets to reset the controller.
+      if (readOverlayWindow() !== createdWindow) return;
       clearOverlayAutoHideTimer();
       if (moveSaveTimer) {
         clearTimeout(moveSaveTimer);
@@ -640,9 +636,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   function hideOverlayWindow(): void {
     const overlayWindow = readOverlayWindow();
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
-    if (isKeepMappedActive() && overlayWindow.isVisible()) {
-      logicalVisible = false;
-      sendOverlayEvent(OVERLAY_CONTENT_VISIBLE, false);
+    if (keepMapped.hide(overlayWindow, setKeepMappedContentVisible)) {
       applyClickThrough(overlayWindow);
       return;
     }
