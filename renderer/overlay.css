@@ -134,6 +134,11 @@ body {
   padding: 8px 10px 6px;
 }
 
+/* Planner scrolls; keep the close X clear of its scrollbar. */
+.planner-mode #header {
+  right: 14px;
+}
+
 #planner-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -142,6 +147,19 @@ body {
   overflow-y: auto;
   flex: 1 1 auto;
   min-height: 0;
+}
+
+#planner-grid::-webkit-scrollbar {
+  width: 6px;
+}
+
+#planner-grid::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.35);
+  border-radius: 3px;
+}
+
+#planner-grid::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.55);
 }
 
 #planner-grid.is-hidden {

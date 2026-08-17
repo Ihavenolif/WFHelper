@@ -297,6 +297,7 @@ function resetPlannerRows() {
 }
 
 function showRewardModeScanning() {
+  document.body.classList.remove("planner-mode");
   rewardGeneration += 1;
   setScanningText("Reading reward screen...");
   showScanning();
@@ -360,6 +361,7 @@ function markOverlayMoved() {
 }
 
 function showPlannerModeScanning() {
+  document.body.classList.add("planner-mode");
   rewardGeneration += 1;
   setScanningText("Detecting relic era and ranking owned relics...");
   showScanning();
