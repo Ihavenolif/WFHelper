@@ -48,13 +48,34 @@
     return state;
   };
 
-  window.__grabFrame = async function () {
+  // Raw pixels rather than a PNG data URL, and each step is timed: a slow grab
+  // is the main unknown on Linux, and main logs this split when one shows up.
+  window.__grabFrame = function () {
     if (state !== "live" || !video.videoWidth || !video.videoHeight) return null;
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
     if (!ctx) return null;
+
+    const started = performance.now();
     ctx.drawImage(video, 0, 0);
-    return canvas.toDataURL("image/png");
+    const drawn = performance.now();
+    const frame = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const read = performance.now();
+
+    // NativeImage bitmaps are BGRA and canvas hands back RGBA; swap in place.
+    const words = new Uint32Array(frame.data.buffer);
+    for (let i = 0; i < words.length; i++) {
+      const px = words[i];
+      words[i] = (px & 0xff00ff00) | ((px & 0xff) << 16) | ((px >>> 16) & 0xff);
+    }
+    return {
+      width: canvas.width,
+      height: canvas.height,
+      pixels: frame.data,
+      drawMs: Math.round(drawn - started),
+      readMs: Math.round(read - drawn),
+      swapMs: Math.round(performance.now() - read),
+    };
   };
 })();

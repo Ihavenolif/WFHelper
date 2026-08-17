@@ -14,6 +14,8 @@ const DECLINE_COOLDOWN_MS = 60_000;
 // The portal picker is interactive; give the user time to answer.
 const STREAM_START_TIMEOUT_MS = 120_000;
 const GRAB_TIMEOUT_MS = 5_000;
+// Windows GDI does this in ~30ms; anything past this is worth a line.
+const SLOW_GRAB_LOG_MS = 250;
 
 let _win: BrowserWindowType | null = null;
 let _starting: Promise<boolean> | null = null;
@@ -154,18 +156,60 @@ async function _ensureStream(): Promise<boolean> {
   return _starting;
 }
 
+interface RawFrame {
+  width: number;
+  height: number;
+  pixels: Uint8ClampedArray;
+  drawMs?: number;
+  readMs?: number;
+  swapMs?: number;
+}
+
+function isUsableFrame(frame: RawFrame | null): frame is RawFrame {
+  if (!frame || typeof frame !== "object") return false;
+  const { width, height, pixels } = frame;
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    return false;
+  }
+  return !!pixels && pixels.byteLength === width * height * 4;
+}
+
 export async function captureLinuxStreamFrame(): Promise<NativeImage | null> {
+  const startedAt = _now();
   const live = await _ensureStream();
   if (!live || !_win || _win.isDestroyed()) return null;
 
-  const grab = _exec<string | null>(_win, "window.__grabFrame && window.__grabFrame()");
+  const streamReadyAt = _now();
+  const grab = _exec<RawFrame | null>(_win, "window.__grabFrame && window.__grabFrame()");
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), GRAB_TIMEOUT_MS));
-  const dataUrl = await Promise.race([grab, timeout]);
-  if (!dataUrl || typeof dataUrl !== "string") return null;
+  const frame = await Promise.race([grab, timeout]);
+  const grabbedAt = _now();
+  if (!isUsableFrame(frame)) return null;
+
+  // Named only when it hurts, so a healthy session stays quiet. Splits the cost
+  // into stream wait, renderer work, and the transfer of the pixels themselves.
+  if (grabbedAt - startedAt >= SLOW_GRAB_LOG_MS) {
+    const renderer = (frame.drawMs ?? 0) + (frame.readMs ?? 0) + (frame.swapMs ?? 0);
+    log.info(
+      `[LinuxCapture] slow grab ${grabbedAt - startedAt}ms ${frame.width}x${frame.height}: ` +
+        `stream=${streamReadyAt - startedAt}ms renderer=${renderer}ms ` +
+        `(draw=${frame.drawMs} read=${frame.readMs} swap=${frame.swapMs}) ` +
+        `transfer=${grabbedAt - streamReadyAt - renderer}ms`,
+    );
+  }
 
   try {
     const { nativeImage } = await import("electron");
-    const img = nativeImage.createFromDataURL(dataUrl);
+    // View, not copy - createFromBitmap takes its own copy of the pixels.
+    const bitmap = Buffer.from(
+      frame.pixels.buffer,
+      frame.pixels.byteOffset,
+      frame.pixels.byteLength,
+    );
+    const img = nativeImage.createFromBitmap(bitmap, {
+      width: frame.width,
+      height: frame.height,
+    });
     if (!img || img.isEmpty()) return null;
     return img;
   } catch (err) {
@@ -180,4 +224,4 @@ export function disposeLinuxStreamCapture(): void {
   _win = null;
 }
 
-export const __test__ = { pickCaptureSource };
+export const __test__ = { pickCaptureSource, isUsableFrame };
