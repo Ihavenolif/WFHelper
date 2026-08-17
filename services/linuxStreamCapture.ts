@@ -11,6 +11,9 @@ const log = withScope("linuxStreamCapture");
 
 // After a decline, don't re-prompt on every scan retry.
 const DECLINE_COOLDOWN_MS = 60_000;
+// A failed source lookup is a hiccup, not a refusal. vex lost a full minute of
+// scanning to one "Failed to get sources." - there is no prompt to spare here.
+const SOURCE_ERROR_COOLDOWN_MS = 5_000;
 // The portal picker is interactive; give the user time to answer.
 const STREAM_START_TIMEOUT_MS = 120_000;
 const GRAB_TIMEOUT_MS = 5_000;
@@ -20,7 +23,8 @@ const SLOW_GRAB_LOG_MS = 250;
 let _win: BrowserWindowType | null = null;
 let _starting: Promise<boolean> | null = null;
 let _handlerInstalled = false;
-let _declinedAt = 0;
+let _cooldownUntil = 0;
+let _sourceLookupFailed = false;
 
 function _now(): number {
   return Date.now();
@@ -47,13 +51,17 @@ async function _installDisplayMediaHandler(win: BrowserWindowType): Promise<void
         .then((sources) => {
           const source = pickCaptureSource(sources);
           if (!source) {
+            _sourceLookupFailed = true;
+            log.warn("[LinuxCapture] no capture source offered by the compositor");
             callback({} as never);
             return;
           }
+          _sourceLookupFailed = false;
           log.info("[LinuxCapture] capturing source:", source.name || source.id);
           callback({ video: source });
         })
         .catch((err) => {
+          _sourceLookupFailed = true;
           log.warn("[LinuxCapture] getSources failed:", normalizeErrorMessage(err));
           callback({} as never);
         });
@@ -130,18 +138,21 @@ async function _ensureStream(): Promise<boolean> {
     _win = null;
   }
 
-  if (_now() - _declinedAt < DECLINE_COOLDOWN_MS) return false;
+  if (_now() < _cooldownUntil) return false;
 
   if (!_starting) {
     _starting = (async () => {
+      _sourceLookupFailed = false;
       const win = await _createWindow();
       if (!win) return false;
       _win = win;
       const live = await _waitForLiveStream(win);
       if (!live) {
-        _declinedAt = _now();
+        const cooldownMs = _sourceLookupFailed ? SOURCE_ERROR_COOLDOWN_MS : DECLINE_COOLDOWN_MS;
+        _cooldownUntil = _now() + cooldownMs;
+        const reason = _sourceLookupFailed ? "no capture source" : "portal declined/failed";
         log.warn(
-          `[LinuxCapture] stream not acquired (portal declined/failed) - cooling down ${Math.round(DECLINE_COOLDOWN_MS / 1000)}s`,
+          `[LinuxCapture] stream not acquired (${reason}) - cooling down ${Math.round(cooldownMs / 1000)}s`,
         );
         win.destroy();
         _win = null;

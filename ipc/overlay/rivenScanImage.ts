@@ -132,6 +132,9 @@ const RIVEN_READY_TIMEOUTS_MS = Object.freeze({
 // accepting transient animation frames.
 const RIVEN_READY_POLL_MS = 40;
 const RIVEN_READY_REQUIRED_HITS = 3;
+// When the capture backend is down, polling it for the rest of the budget only
+// delays the empty result the caller gets anyway - vex's log burnt 45 samples.
+const RIVEN_READY_MAX_NULL_CAPTURES = 3;
 const RIVEN_READY_SCORE_THRESHOLD = 0.2;
 let _rivenScanAborted = false;
 
@@ -336,6 +339,7 @@ export async function waitForRivenUiReady(
   const startedAt = Date.now();
   let attempts = 0;
   let consecutiveHits = 0;
+  let nullCaptures = 0;
   let bestScore = 0;
   let bestScreenshot: CaptureResult | null = null;
   let bestFrameHash = "";
@@ -351,9 +355,12 @@ export async function waitForRivenUiReady(
     const screenshot = await captureScreenFast(preferredDisplayId);
     if (!screenshot?.image) {
       consecutiveHits = 0;
+      nullCaptures += 1;
+      if (nullCaptures >= RIVEN_READY_MAX_NULL_CAPTURES) break;
       await sleep(RIVEN_READY_POLL_MS);
       continue;
     }
+    nullCaptures = 0;
     lastScreenshot = screenshot;
 
     let roughCrop: NativeImage;
