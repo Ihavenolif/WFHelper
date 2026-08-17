@@ -9,12 +9,22 @@ const mocks = vi.hoisted(() => ({
   captureGdi: vi.fn(),
   getGameWindowClientRect: vi.fn(),
   captureLinuxStreamFrame: vi.fn(),
+  getWarframeWindowBoundsLinux: vi.fn(),
+  getDisplayMatching: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
   desktopCapturer: { getSources: mocks.getSources },
-  screen: { getAllDisplays: mocks.getAllDisplays, getPrimaryDisplay: mocks.getPrimaryDisplay },
+  screen: {
+    getAllDisplays: mocks.getAllDisplays,
+    getPrimaryDisplay: mocks.getPrimaryDisplay,
+    getDisplayMatching: mocks.getDisplayMatching,
+  },
   nativeImage: { createFromBitmap: mocks.createFromBitmap },
+}));
+
+vi.mock("../../services/warframeStatus", () => ({
+  getWarframeWindowBoundsLinux: mocks.getWarframeWindowBoundsLinux,
 }));
 
 vi.mock("../../services/dxgiCapture", () => ({
@@ -27,7 +37,7 @@ vi.mock("../../services/linuxStreamCapture", () => ({
   disposeLinuxStreamCapture: vi.fn(),
 }));
 
-import { captureScreenFast } from "../../services/screenCapture";
+import { __test__, captureScreenFast } from "../../services/screenCapture";
 
 function makeFakeNativeImage(
   width: number,
@@ -68,7 +78,9 @@ function setPlatform(value: string): void {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  __test__.resetGameWindowCacheForTest();
   mocks.getAllDisplays.mockReturnValue([]);
+  mocks.getWarframeWindowBoundsLinux.mockResolvedValue(null);
 });
 
 afterEach(() => {
@@ -112,6 +124,41 @@ describe("captureScreenFast on linux (persistent stream)", () => {
     );
     const result = await captureScreenFast(null);
     expect(result!.image.getSize()).toEqual({ width: 360, height: 270 });
+  });
+
+  it("leaves the frame alone when Warframe fills it, dark art and all", async () => {
+    setPlatform("linux");
+    // Same bars the heuristic would have trimmed - X says they are game content.
+    mocks.captureLinuxStreamFrame.mockResolvedValue(
+      makeFakeNativeImage(480, 270, (x) => (x < 60 || x >= 420 ? BLACK : BRIGHT)),
+    );
+    mocks.getWarframeWindowBoundsLinux.mockResolvedValue({
+      x: 0,
+      y: 0,
+      width: 480,
+      height: 270,
+    });
+
+    const result = await captureScreenFast(null);
+
+    expect(result!.image.getSize()).toEqual({ width: 480, height: 270 });
+  });
+
+  it("crops a windowed game to its window rect through the display scale", async () => {
+    setPlatform("linux");
+    mocks.captureLinuxStreamFrame.mockResolvedValue(makeFakeNativeImage(480, 270, () => BRIGHT));
+    // Frame is a half-scale grab of a 960x540 display.
+    mocks.getWarframeWindowBoundsLinux.mockResolvedValue({
+      x: 80,
+      y: 20,
+      width: 800,
+      height: 500,
+    });
+    mocks.getDisplayMatching.mockReturnValue({ bounds: { x: 0, y: 0, width: 960, height: 540 } });
+
+    const result = await captureScreenFast(null);
+
+    expect(result!.image.getSize()).toEqual({ width: 400, height: 250 });
   });
 
   it("returns null without re-prompting when the stream is unavailable", async () => {

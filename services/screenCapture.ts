@@ -4,10 +4,21 @@ import type { NativeImage } from "electron";
 import { withScope } from "./logger";
 import { captureGdi, getGameWindowClientRect } from "./dxgiCapture";
 import { captureLinuxStreamFrame } from "./linuxStreamCapture";
+import { getWarframeWindowBoundsLinux } from "./warframeStatus";
 import { detectGameContentRect } from "./rewardScannerImage";
 import { normalizeErrorMessage } from "../config/shared/errors";
 
 const log = withScope("screenCapture");
+
+// The window rect is re-read per capture; a riven session scans in bursts, so a
+// short cache keeps the tree walk off the hot path without missing a move.
+const GAME_WINDOW_CACHE_TTL_MS = 750;
+// A frame covering more than one display has no single scale to map through.
+const SCALE_MISMATCH_TOLERANCE = 0.02;
+const EDGE_SLACK_PX = 2;
+// Anything smaller than this is a bad read, not a game window.
+const MIN_CONTENT_WIDTH_PX = 320;
+const MIN_CONTENT_HEIGHT_PX = 240;
 
 export interface CaptureResult {
   image: NativeImage;
@@ -41,8 +52,9 @@ async function captureWin32Gdi(preferredDisplayId?: string | null): Promise<Capt
       const y = Math.max(0, oy);
       const width = Math.min(gdiResult.width, ox + gameRect.width) - x;
       const height = Math.min(gdiResult.height, oy + gameRect.height) - y;
-      const isSubRegion = width < gdiResult.width - 2 || height < gdiResult.height - 2;
-      if (isSubRegion && width >= 320 && height >= 240) {
+      const isSubRegion =
+        width < gdiResult.width - EDGE_SLACK_PX || height < gdiResult.height - EDGE_SLACK_PX;
+      if (isSubRegion && width >= MIN_CONTENT_WIDTH_PX && height >= MIN_CONTENT_HEIGHT_PX) {
         img = img.crop({ x, y, width, height });
         log.info(
           `[ScreenCapture] cropped to Warframe client rect ${width}x${height} at (${x},${y})`,
@@ -67,8 +79,13 @@ function trimToGameContent(img: NativeImage): NativeImage {
   try {
     const size = img.getSize();
     const content = detectGameContentRect(img);
-    const isSubRegion = content.width < size.width - 2 || content.height < size.height - 2;
-    if (isSubRegion && content.width >= 320 && content.height >= 240) {
+    const isSubRegion =
+      content.width < size.width - EDGE_SLACK_PX || content.height < size.height - EDGE_SLACK_PX;
+    if (
+      isSubRegion &&
+      content.width >= MIN_CONTENT_WIDTH_PX &&
+      content.height >= MIN_CONTENT_HEIGHT_PX
+    ) {
       log.info(
         `[ScreenCapture] trimmed letterbox to ${content.width}x${content.height} at (${content.x},${content.y})`,
       );
@@ -78,6 +95,84 @@ function trimToGameContent(img: NativeImage): NativeImage {
     log.warn("[ScreenCapture] content trim skipped:", normalizeErrorMessage(err));
   }
   return img;
+}
+
+type GameWindowRect = Awaited<ReturnType<typeof getWarframeWindowBoundsLinux>>;
+
+let cachedGameWindow: GameWindowRect = null;
+let cachedGameWindowAt = 0;
+let lastLinuxCropLog = "";
+
+async function readGameWindowCached(): Promise<GameWindowRect> {
+  const now = Date.now();
+  if (now - cachedGameWindowAt < GAME_WINDOW_CACHE_TTL_MS) return cachedGameWindow;
+  cachedGameWindow = await getWarframeWindowBoundsLinux();
+  cachedGameWindowAt = now;
+  return cachedGameWindow;
+}
+
+function resetGameWindowCacheForTest(): void {
+  cachedGameWindow = null;
+  cachedGameWindowAt = 0;
+  lastLinuxCropLog = "";
+}
+
+function noteLinuxCrop(message: string): void {
+  if (lastLinuxCropLog === message) return;
+  lastLinuxCropLog = message;
+  log.info(`[ScreenCapture] ${message}`);
+}
+
+// Linux twin of the Win32 client-rect crop. The letterbox heuristic reads dark
+// game art as bars, so ask X where the window actually is before guessing.
+async function cropToLinuxGameWindow(img: NativeImage): Promise<NativeImage | null> {
+  const bounds = await readGameWindowCached();
+  if (!bounds) return null;
+
+  const size = img.getSize();
+  // The portal usually hands back the game's own window - the frame IS the crop.
+  if (
+    Math.abs(size.width - bounds.width) <= EDGE_SLACK_PX &&
+    Math.abs(size.height - bounds.height) <= EDGE_SLACK_PX
+  ) {
+    noteLinuxCrop(`frame is the Warframe window ${size.width}x${size.height} - no crop`);
+    return img;
+  }
+
+  const { screen } = await import("electron");
+  const area = screen.getDisplayMatching(bounds)?.bounds;
+  if (!area?.width || !area.height) return null;
+  const scaleX = size.width / area.width;
+  const scaleY = size.height / area.height;
+  if (Math.abs(scaleX - scaleY) > SCALE_MISMATCH_TOLERANCE) return null;
+
+  const x = Math.max(0, Math.round((bounds.x - area.x) * scaleX));
+  const y = Math.max(0, Math.round((bounds.y - area.y) * scaleY));
+  const width = Math.min(size.width - x, Math.round(bounds.width * scaleX));
+  const height = Math.min(size.height - y, Math.round(bounds.height * scaleY));
+  if (width < MIN_CONTENT_WIDTH_PX || height < MIN_CONTENT_HEIGHT_PX) return null;
+
+  if (width >= size.width - EDGE_SLACK_PX && height >= size.height - EDGE_SLACK_PX) {
+    noteLinuxCrop(`Warframe fills the frame ${size.width}x${size.height} - no crop`);
+    return img;
+  }
+  noteLinuxCrop(`cropped to Warframe window ${width}x${height} at (${x},${y})`);
+  return img.crop({ x, y, width, height });
+}
+
+// X first, bar-detection only when X cannot answer (no libX11, no xwininfo).
+async function cropToGameContent(img: NativeImage): Promise<NativeImage> {
+  if (process.platform === "linux") {
+    try {
+      const cropped = await cropToLinuxGameWindow(img);
+      if (cropped) return cropped;
+      // Said out loud: a silent fallback reads exactly like a clean pass in a log.
+      noteLinuxCrop("no Warframe window rect from X - falling back to bar detection");
+    } catch (err) {
+      log.warn("[ScreenCapture] window-rect crop skipped:", normalizeErrorMessage(err));
+    }
+  }
+  return trimToGameContent(img);
 }
 
 async function captureDesktopCapturer(
@@ -100,7 +195,7 @@ async function captureDesktopCapturer(
     const source = sources.find((s) => s.display_id === String(target.id)) || sources[0];
     if (!source || source.thumbnail.isEmpty()) return null;
     return {
-      image: trimToGameContent(source.thumbnail),
+      image: await cropToGameContent(source.thumbnail),
       sourceType: "screen",
       sourceName: source.name || "desktopCapturer",
       sourceId: source.id,
@@ -118,7 +213,7 @@ async function captureLinuxStream(): Promise<CaptureResult | null> {
     const frame = await captureLinuxStreamFrame();
     if (!frame) return null;
     return {
-      image: trimToGameContent(frame),
+      image: await cropToGameContent(frame),
       sourceType: "screen",
       sourceName: "getDisplayMedia stream",
       sourceId: "linux-stream",
@@ -148,6 +243,8 @@ export async function captureScreenFast(
     return null;
   }
 }
+
+export const __test__ = { resetGameWindowCacheForTest };
 
 export async function captureSourceMeta(options: CaptureOptions = {}): Promise<{
   sourceType: string | null;

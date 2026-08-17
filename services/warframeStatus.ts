@@ -284,7 +284,7 @@ function noteGeometrySource(source: string, bounds: WindowBounds): WindowBounds 
   return bounds;
 }
 
-async function getWarframeWindowBoundsLinux(): Promise<WindowBounds | null> {
+export async function getWarframeWindowBoundsLinux(): Promise<WindowBounds | null> {
   if (!process.env.DISPLAY) return null;
 
   // libX11 needs nothing installed; xwininfo is the fallback because it also
