@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { withScope } from "./logger";
+import { findWindowBoundsByTitle } from "./x11WindowQuery";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { WARFRAME_STATUS_CACHE_TTL_MS } from "../config/runtime/cacheConfig";
 
@@ -238,16 +239,96 @@ function isWarframeProcessRunningLinux(): boolean {
   return false;
 }
 
-function collectStatusLinux(): WarframeStatus {
+// xwininfo -root -tree prints one line per window:
+//   0x1400003 "Warframe": ("warframe.x64.exe" "Wine")  1920x1080+0+0  +1920+0
+// The trailing +x+y is the absolute position, which is what maps to a display.
+const XWININFO_WINDOW_RE =
+  /^\s*0x[0-9a-f]+\s+("[^"]*"|\(has no name\)):\s+\(([^)]*)\)\s+(\d+)x(\d+)\+-?\d+\+-?\d+\s+\+(-?\d+)\+(-?\d+)/i;
+const MIN_GAME_WINDOW_EDGE_PX = 200;
+const LINUX_WINDOW_PROBE_TIMEOUT_MS = 1_500;
+
+/** Largest Warframe-looking window in an `xwininfo -root -tree` dump. */
+export function parseWarframeWindowBounds(treeOutput: string): WindowBounds | null {
+  let best: WindowBounds | null = null;
+
+  for (const line of String(treeOutput || "").split("\n")) {
+    const match = XWININFO_WINDOW_RE.exec(line);
+    if (!match) continue;
+    if (!/warframe/i.test(`${match[1]} ${match[2]}`)) continue;
+
+    const bounds = {
+      x: Number(match[5]),
+      y: Number(match[6]),
+      width: Number(match[3]),
+      height: Number(match[4]),
+    };
+    // Wine also maps tiny helper windows; the game is the biggest one.
+    if (bounds.width < MIN_GAME_WINDOW_EDGE_PX || bounds.height < MIN_GAME_WINDOW_EDGE_PX) continue;
+    if (!best || bounds.width * bounds.height > best.width * best.height) best = bounds;
+  }
+
+  return best;
+}
+
+let _linuxWindowProbeUnavailable = false;
+let _loggedGeometrySource: string | null = null;
+const WARFRAME_WINDOW_TITLE_RE = /warframe/i;
+
+// Named once per source so a support log says where the placement came from.
+function noteGeometrySource(source: string, bounds: WindowBounds): WindowBounds {
+  if (_loggedGeometrySource !== source) {
+    _loggedGeometrySource = source;
+    log.info(
+      `[WarframeStatus] game window via ${source}: ${bounds.width}x${bounds.height}+${bounds.x}+${bounds.y}`,
+    );
+  }
+  return bounds;
+}
+
+async function getWarframeWindowBoundsLinux(): Promise<WindowBounds | null> {
+  if (!process.env.DISPLAY) return null;
+
+  // libX11 needs nothing installed; xwininfo is the fallback because it also
+  // matches WM_CLASS, which helps if the title is localised or empty.
+  const native = findWindowBoundsByTitle(WARFRAME_WINDOW_TITLE_RE, MIN_GAME_WINDOW_EDGE_PX);
+  if (native) return noteGeometrySource("libX11", native);
+  if (_linuxWindowProbeUnavailable) return null;
+
+  try {
+    const { execFile } = require("node:child_process") as typeof import("node:child_process");
+    const stdout = await new Promise<string>((resolve, reject) => {
+      execFile(
+        "xwininfo",
+        ["-root", "-tree"],
+        { timeout: LINUX_WINDOW_PROBE_TIMEOUT_MS, maxBuffer: 8_000_000 },
+        (err, out) => (err ? reject(err) : resolve(out)),
+      );
+    });
+    const parsed = parseWarframeWindowBounds(stdout);
+    return parsed ? noteGeometrySource("xwininfo", parsed) : null;
+  } catch (err) {
+    // No xwininfo (x11-utils) or no X server - overlays fall back to cursor placement.
+    _linuxWindowProbeUnavailable = true;
+    log.warn(
+      "[WarframeStatus] xwininfo probe unavailable, overlays use cursor placement:",
+      normalizeErrorMessage(err),
+    );
+    return null;
+  }
+}
+
+async function collectStatusLinux(): Promise<WarframeStatus> {
   const processRunning = isWarframeProcessRunningLinux();
-  // Treat a running game as focused because X11 and Wayland lack one portable query.
+  // Warframe is an XWayland client under Proton, so its X geometry is readable
+  // on both session types; focus itself still has no portable query.
+  const focusedWindowBounds = processRunning ? await getWarframeWindowBoundsLinux() : null;
   return {
     isOpen: processRunning,
     isFocused: processRunning,
     processRunning,
     focusedProcessName: null,
-    focusedWindowBounds: null,
-    focusedDisplayId: null,
+    focusedWindowBounds,
+    focusedDisplayId: getDisplayIdForBounds(focusedWindowBounds),
     checkedAt: Date.now(),
   };
 }
