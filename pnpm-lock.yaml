@@ -49,8 +49,8 @@ importers:
         specifier: ^0.35.3
         version: 0.35.3(@types/node@26.1.2)
       warframe-public-export-plus:
-        specifier: ^0.6.2
-        version: 0.6.2
+        specifier: ^0.6.8
+        version: 0.6.8
       ws:
         specifier: ^8.21.0
         version: 8.21.0
@@ -3094,8 +3094,8 @@ packages:
     resolution: {integrity: sha512-3hu+tD8YzSLGuFYtPRb48vdhKMi0KQV5sn+uWr8+7dMEq/2G/dtLrdDinkLjqq5TIbIBjYJ4Ax/n3YiaW7QM8A==}
     engines: {node: 20 || >=22}
 
-  warframe-public-export-plus@0.6.2:
-    resolution: {integrity: sha512-eyfJJ4H9dtN03vGTvHwDBJh5Gr6lC/OCN7K8GdSjT0MlyuwwglyYw8gvQU9lwkS3kNY2eClhG86Xe3Y625KbYg==}
+  warframe-public-export-plus@0.6.8:
+    resolution: {integrity: sha512-5f6Yeplc9eXm7WhBHuFhA+HTimeZ7AncQvfVE1lGRMua2SUtPMkyGCA02kaxKdrsCq+GWJYCblMCmulCbndkpQ==}
 
   warframe-worldstate-data@3.7.1:
     resolution: {integrity: sha512-Jz65/kbChucG+WpPolEhSVGr4US9s1EgrInADYG++B/daEND0wo1Q9YCaZIcXim+0OIuszPH/uQpONsqyqUk3Q==}
@@ -5962,7 +5962,7 @@ snapshots:
 
   walk-up-path@4.0.0: {}
 
-  warframe-public-export-plus@0.6.2: {}
+  warframe-public-export-plus@0.6.8: {}
 
   warframe-worldstate-data@3.7.1: {}
 
