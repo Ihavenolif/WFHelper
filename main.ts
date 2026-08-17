@@ -421,6 +421,7 @@ void app.whenReady().then(async () => {
 
   const eeLogStart = Date.now();
   const eeLogPath = eeLogMonitor.startWatching({
+    onLoginComplete: () => apiHelperRunner.runAfterGameLogin(),
     onRewardTrigger: (stalenessMs) => overlayIpc.onRelicRewardTrigger("eelog", stalenessMs),
     onRewardUiReady: () => overlayIpc.notifyRewardUiReady(),
     onRewardScreenClose: (stalenessMs) => overlayIpc.notifyRewardScreenClosed(stalenessMs),

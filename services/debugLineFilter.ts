@@ -19,6 +19,7 @@ const FILTER_SUBSTRINGS_LOWER = [
   "you are offering",          // trade dialog buffering start
   "the trade was successful",  // trade dialog success
   "chatredux::addtab",         // incoming whisper opens a private chat tab
+  "mainmenu::logindone",       // inventory refresh after login
 ] as const;
 
 // Match eeLogMonitor's picker cooldown because the game repeats these lines.

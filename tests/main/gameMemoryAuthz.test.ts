@@ -1,6 +1,11 @@
 import { describe, it, expect } from "vitest";
 
-import { parseAuthzAt, scanBufferForAuthz, bestAuthz } from "../../services/gameMemoryAuthz";
+import {
+  bestAuthz,
+  createAuthzScanDiagnostics,
+  parseAuthzAt,
+  scanBufferForAuthz,
+} from "../../services/gameMemoryAuthz";
 
 const ACC = "0123456789abcdef01234567"; // 24 hex
 const VALID = `?accountId=${ACC}&nonce=1712345678901`;
@@ -14,6 +19,17 @@ describe("parseAuthzAt", () => {
 
   it("stops the nonce at the first non-digit", () => {
     const buf = Buffer.from(`?accountId=${ACC}&nonce=42&extra=x`, "latin1");
+    expect(parseAuthzAt(buf, 0)).toBe(`?accountId=${ACC}&nonce=42`);
+  });
+
+  it("accepts accountId after another query parameter", () => {
+    const buf = Buffer.from(`?platform=pc&accountId=${ACC}&nonce=42`, "latin1");
+    expect(parseAuthzAt(buf, buf.indexOf("&accountId="))).toBe(`?accountId=${ACC}&nonce=42`);
+  });
+
+  it("normalizes uppercase account ids", () => {
+    const uppercase = ACC.toUpperCase();
+    const buf = Buffer.from(`?accountId=${uppercase}&nonce=42`, "latin1");
     expect(parseAuthzAt(buf, 0)).toBe(`?accountId=${ACC}&nonce=42`);
   });
 
@@ -79,6 +95,31 @@ describe("scanBufferForAuthz + bestAuthz", () => {
     expect(scanBufferForAuthz(buf, counts)).toBe(2);
     expect(counts.size).toBe(1);
     expect(counts.get(VALID)).toBe(1);
+  });
+
+  it("reports rejection reasons without candidate contents", () => {
+    const invalidId = "z".repeat(24);
+    const tooLong = "1".repeat(25);
+    const buf = Buffer.from(
+      [
+        `?accountId=${invalidId}&nonce=1`,
+        `?accountId=${ACC}?nonce=1`,
+        `?accountId=${ACC}&nonce=x`,
+        `?accountId=${ACC}&nonce=${tooLong}`,
+        `?accountId=${ACC}&nonce=`,
+      ].join(" "),
+      "latin1",
+    );
+    const diagnostics = createAuthzScanDiagnostics();
+
+    expect(scanBufferForAuthz(buf, new Map(), diagnostics)).toBe(5);
+    expect(diagnostics).toEqual({
+      truncated: 1,
+      invalidAccountId: 1,
+      missingNonce: 1,
+      emptyNonce: 1,
+      nonceTooLong: 1,
+    });
   });
 
   it("bestAuthz returns null on an empty tally", () => {

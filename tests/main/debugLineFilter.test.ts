@@ -5,6 +5,7 @@ const RELIC_LINE = "Script [Info]: ThemedProjectionManager.lua: LoadingCompleteE
 const RELIC_FALLBACK = "Script [Info]: ThemedProjectionManager.lua: PopulateInventoryGrid";
 const CHAT_LINE = "Sys [Info]: ChatRedux::AddTab: Adding tab with channel name: FUser to index 3";
 const REWARD_LINE = "Sys [Info]: Pause countdown done";
+const LOGIN_LINE = "Script [Info]: ThemedMainMenu.lua: MainMenu::LoginDone result=true";
 
 describe("DebugLineGate", () => {
   it("drops lines that match no trigger substring", () => {
@@ -44,6 +45,11 @@ describe("DebugLineGate", () => {
     expect(
       gate.wants("Script [Info]: ProjectionRewardChoice.lua: Missing icon data!", 0),
     ).toBe(true);
+  });
+
+  it("forwards completed login lines", () => {
+    const gate = new DebugLineGate();
+    expect(gate.wants(LOGIN_LINE, 0)).toBe(true);
   });
 
   it("forwards only weapon resource loads inside a riven view window", () => {

@@ -5,7 +5,7 @@ import { withScope } from "./logger";
 
 const log = withScope("gameMemory");
 
-const NEEDLE = Buffer.from("?accountId=");
+const ACCOUNT_ID_MARKERS = [Buffer.from("?accountId="), Buffer.from("&accountId=")] as const;
 const CHUNK = 16 * 1024 * 1024;
 // An auth string is <70 bytes; overlap chunks so a match can't split across them.
 const OVERLAP = 256;
@@ -13,14 +13,42 @@ const ACCOUNT_ID_LEN = 24; // DE account ids are 24-hex Mongo ObjectIds
 const NONCE_SEP = "&nonce=";
 const MAX_NONCE_DIGITS = 24;
 
-// Parse the auth string starting at a "?accountId=" hit, or null if malformed.
-export function parseAuthzAt(view: Buffer, at: number): string | null {
-  const idStart = at + NEEDLE.length;
+interface AuthzScanDiagnostics {
+  truncated: number;
+  invalidAccountId: number;
+  missingNonce: number;
+  emptyNonce: number;
+  nonceTooLong: number;
+}
+
+type AuthzParseResult =
+  | { authz: string; rejection: null }
+  | { authz: null; rejection: keyof AuthzScanDiagnostics };
+
+export function createAuthzScanDiagnostics(): AuthzScanDiagnostics {
+  return {
+    truncated: 0,
+    invalidAccountId: 0,
+    missingNonce: 0,
+    emptyNonce: 0,
+    nonceTooLong: 0,
+  };
+}
+
+function parseAuthzCandidate(view: Buffer, at: number, markerLength: number): AuthzParseResult {
+  const idStart = at + markerLength;
   const idEnd = idStart + ACCOUNT_ID_LEN;
-  if (idEnd + NONCE_SEP.length >= view.length) return null;
+  if (idEnd > view.length) return { authz: null, rejection: "truncated" };
   const accountId = view.toString("latin1", idStart, idEnd);
-  if (!/^[0-9a-f]{24}$/.test(accountId)) return null;
-  if (view.toString("latin1", idEnd, idEnd + NONCE_SEP.length) !== NONCE_SEP) return null;
+  if (!/^[0-9a-f]{24}$/i.test(accountId)) {
+    return { authz: null, rejection: "invalidAccountId" };
+  }
+  if (idEnd + NONCE_SEP.length > view.length) {
+    return { authz: null, rejection: "truncated" };
+  }
+  if (view.toString("latin1", idEnd, idEnd + NONCE_SEP.length) !== NONCE_SEP) {
+    return { authz: null, rejection: "missingNonce" };
+  }
   let p = idEnd + NONCE_SEP.length;
   let nonce = "";
   while (p < view.length && nonce.length < MAX_NONCE_DIGITS) {
@@ -29,20 +57,43 @@ export function parseAuthzAt(view: Buffer, at: number): string | null {
     nonce += String.fromCharCode(c);
     p++;
   }
-  if (nonce.length === 0) return null;
-  if (p < view.length && view[p] >= 0x30 && view[p] <= 0x39) return null;
-  return `?accountId=${accountId}&nonce=${nonce}`;
+  if (nonce.length === 0) {
+    return { authz: null, rejection: p === view.length ? "truncated" : "emptyNonce" };
+  }
+  if (p < view.length && view[p] >= 0x30 && view[p] <= 0x39) {
+    return { authz: null, rejection: "nonceTooLong" };
+  }
+  return { authz: `?accountId=${accountId.toLowerCase()}&nonce=${nonce}`, rejection: null };
 }
 
-// Tally every well-formed auth string in a buffer into counts.
-export function scanBufferForAuthz(view: Buffer, counts: Map<string, number>): number {
-  let idx = 0;
+export function parseAuthzAt(
+  view: Buffer,
+  at: number,
+  diagnostics?: AuthzScanDiagnostics,
+): string | null {
+  const marker = ACCOUNT_ID_MARKERS.find((candidate) =>
+    view.subarray(at, at + candidate.length).equals(candidate),
+  );
+  if (!marker) return null;
+  const result = parseAuthzCandidate(view, at, marker.length);
+  if (result.rejection && diagnostics) diagnostics[result.rejection] += 1;
+  return result.authz;
+}
+
+export function scanBufferForAuthz(
+  view: Buffer,
+  counts: Map<string, number>,
+  diagnostics?: AuthzScanDiagnostics,
+): number {
   let markerHits = 0;
-  while ((idx = view.indexOf(NEEDLE, idx)) !== -1) {
-    markerHits += 1;
-    const authz = parseAuthzAt(view, idx);
-    if (authz) counts.set(authz, (counts.get(authz) ?? 0) + 1);
-    idx += NEEDLE.length;
+  for (const marker of ACCOUNT_ID_MARKERS) {
+    let idx = 0;
+    while ((idx = view.indexOf(marker, idx)) !== -1) {
+      markerHits += 1;
+      const authz = parseAuthzAt(view, idx, diagnostics);
+      if (authz !== null) counts.set(authz, (counts.get(authz) ?? 0) + 1);
+      idx += marker.length;
+    }
   }
   return markerHits;
 }

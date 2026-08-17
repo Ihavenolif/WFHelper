@@ -1,5 +1,5 @@
 // Compatibility scan for PCs where Sainan's helper rejects a valid singleton.
-import { scanBufferForAuthz, bestAuthz } from "./gameMemoryAuthz";
+import { bestAuthz, createAuthzScanDiagnostics, scanBufferForAuthz } from "./gameMemoryAuthz";
 import { withScope } from "./logger";
 
 const log = withScope("gameMemoryWin");
@@ -124,17 +124,18 @@ function exePathOfPid(api: Win32, pid: number): string | null {
   return _exeNameBuf.subarray(0, chars * 2).toString("utf16le");
 }
 
-function findWarframePid(api: Win32): number | null {
+function findWarframePids(api: Win32): number[] {
   _pidsUsedBuf.fill(0);
-  if ((api.EnumProcesses(_pidsBuf, _pidsBuf.length, _pidsUsedBuf) as number) === 0) return null;
+  if ((api.EnumProcesses(_pidsBuf, _pidsBuf.length, _pidsUsedBuf) as number) === 0) return [];
   const count = _pidsUsedBuf.readUInt32LE(0) >>> 2;
+  const matches: number[] = [];
   for (let i = 0; i < count; i++) {
     const pid = _pidsBuf.readUInt32LE(i * 4);
     if (pid === 0) continue;
     const p = exePathOfPid(api, pid);
-    if (p && p.toLowerCase().endsWith("\\warframe.x64.exe")) return pid;
+    if (p && p.toLowerCase().endsWith("\\warframe.x64.exe")) matches.push(pid);
   }
-  return null;
+  return matches;
 }
 
 function isReadableRegion(state: number, protect: number): boolean {
@@ -144,7 +145,11 @@ function isReadableRegion(state: number, protect: number): boolean {
   return true;
 }
 
-// Avoid blocking Electron while scanning large readable regions.
+interface MemoryReadResult {
+  bytesRead: number;
+  failed: boolean;
+}
+
 function readMemory(
   api: Win32,
   hProc: unknown,
@@ -152,7 +157,7 @@ function readMemory(
   out: Buffer,
   len: number,
   bytesReadBuf: Buffer,
-): Promise<number> {
+): Promise<MemoryReadResult> {
   return new Promise((resolve) => {
     bytesReadBuf.fill(0);
     api.ReadProcessMemory.async(
@@ -162,8 +167,9 @@ function readMemory(
       len,
       bytesReadBuf,
       (err: Error | null, ok: number) => {
-        if (err || ok === 0) return resolve(0);
-        resolve(Number(bytesReadBuf.readBigUInt64LE(0)));
+        const reported = Number(bytesReadBuf.readBigUInt64LE(0));
+        const bytesRead = Number.isSafeInteger(reported) ? Math.min(reported, len, out.length) : 0;
+        resolve({ bytesRead, failed: Boolean(err) || ok === 0 });
       },
     );
   });
@@ -173,16 +179,11 @@ export async function readGameAuthzWin(apiOverride?: Win32): Promise<AuthzResult
   const api = apiOverride ?? loadApi();
   if (!api) return { authz: null, reason: "mem-open-noapi" };
 
-  const pid = findWarframePid(api);
-  if (!pid) return { authz: null, reason: "process-not-found" };
-
-  const hProc = api.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, pid) as unknown;
-  if (!hProc) {
-    const gle = api.GetLastError() as number;
-    return { authz: null, reason: `mem-open-${gle}` };
-  }
+  const pids = findWarframePids(api);
+  if (pids.length === 0) return { authz: null, reason: "process-not-found" };
 
   const counts = new Map<string, number>();
+  const diagnostics = createAuthzScanDiagnostics();
   const mbi = Buffer.alloc(MBI_SIZE);
   const chunk = Buffer.allocUnsafe(CHUNK);
   const bytesReadBuf = Buffer.alloc(8);
@@ -190,48 +191,71 @@ export async function readGameAuthzWin(apiOverride?: Win32): Promise<AuthzResult
   let markerHits = 0;
   let readableRegions = 0;
   let iterations = 0;
+  let openedProcesses = 0;
+  let firstOpenError: number | null = null;
+  let failedReads = 0;
+  let partialReads = 0;
 
-  try {
-    let addr = 0n;
-    while (addr < USER_ADDRESS_CEILING) {
-      const written = api.VirtualQueryEx(hProc, addr, mbi, MBI_SIZE) as number;
-      if (written === 0) break; // end of address space or query failed
-
-      const base = mbi.readBigUInt64LE(0);
-      const regionSize = mbi.readBigUInt64LE(24);
-      const state = mbi.readUInt32LE(32);
-      const protect = mbi.readUInt32LE(36);
-      const nextAddr = base + regionSize;
-      if (regionSize === 0n || nextAddr <= addr) break; // no forward progress
-
-      if (isReadableRegion(state, protect)) {
-        readableRegions += 1;
-        let off = 0n;
-        while (off < regionSize) {
-          const remaining = regionSize - off;
-          const len = remaining < BigInt(CHUNK) ? Number(remaining) : CHUNK;
-          const n = await readMemory(api, hProc, base + off, chunk, len, bytesReadBuf);
-          if (n > 0) {
-            markerHits += scanBufferForAuthz(chunk.subarray(0, n), counts);
-            scanned += BigInt(n);
-          }
-          if (len <= OVERLAP) break;
-          off += BigInt(len - OVERLAP);
-          // Yield to the event loop periodically so the UI stays responsive.
-          if (++iterations % 16 === 0) await new Promise((r) => setImmediate(r));
-        }
-      }
-      addr = nextAddr;
+  for (const pid of pids) {
+    const hProc = api.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, 0, pid) as unknown;
+    if (!hProc) {
+      firstOpenError ??= api.GetLastError() as number;
+      continue;
     }
-  } finally {
-    api.CloseHandle(hProc);
+    openedProcesses += 1;
+
+    try {
+      let addr = 0n;
+      while (addr < USER_ADDRESS_CEILING) {
+        const written = api.VirtualQueryEx(hProc, addr, mbi, MBI_SIZE) as number;
+        if (written === 0) break;
+
+        const base = mbi.readBigUInt64LE(0);
+        const regionSize = mbi.readBigUInt64LE(24);
+        const state = mbi.readUInt32LE(32);
+        const protect = mbi.readUInt32LE(36);
+        const nextAddr = base + regionSize;
+        if (regionSize === 0n || nextAddr <= addr) break;
+
+        if (isReadableRegion(state, protect)) {
+          readableRegions += 1;
+          let off = 0n;
+          while (off < regionSize) {
+            const remaining = regionSize - off;
+            const len = remaining < BigInt(CHUNK) ? Number(remaining) : CHUNK;
+            const read = await readMemory(api, hProc, base + off, chunk, len, bytesReadBuf);
+            if (read.failed) {
+              if (read.bytesRead > 0) partialReads += 1;
+              else failedReads += 1;
+            }
+            if (read.bytesRead > 0) {
+              markerHits += scanBufferForAuthz(
+                chunk.subarray(0, read.bytesRead),
+                counts,
+                diagnostics,
+              );
+              scanned += BigInt(read.bytesRead);
+            }
+            if (len <= OVERLAP) break;
+            off += BigInt(len - OVERLAP);
+            if (++iterations % 16 === 0) await new Promise((r) => setImmediate(r));
+          }
+        }
+        addr = nextAddr;
+      }
+    } finally {
+      api.CloseHandle(hProc);
+    }
   }
+
+  if (openedProcesses === 0) return { authz: null, reason: `mem-open-${firstOpenError ?? 0}` };
 
   if (counts.size === 0) {
     const gib = (Number(scanned) / (1024 * 1024 * 1024)).toFixed(1);
     log.warn(
-      `No valid auth matches from ${markerHits} marker hits in ${gib} GiB ` +
-        `across ${readableRegions} readable regions`,
+      `No valid auth matches: markers=${markerHits}, processes=${openedProcesses}/${pids.length}, ` +
+        `scanned=${gib} GiB, regions=${readableRegions}, failedReads=${failedReads}, ` +
+        `partialReads=${partialReads}, rejects=${JSON.stringify(diagnostics)}`,
     );
     return { authz: null, reason: "crumbs-not-found" };
   }

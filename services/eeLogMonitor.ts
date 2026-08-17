@@ -29,6 +29,8 @@ import type { TradeType, TradeDirection } from "../config/shared/statsTypes";
 import { stripPlatformGlyphs, isLogFrameworkLine, stripDialogArgTail } from "./tradeLogSanitize";
 
 const log = withScope("eeLogMonitor");
+const LOGIN_COMPLETE_PATTERN = /\bMainMenu::LoginDone result=true\b/;
+const LOGIN_COMPLETE_DEDUP_MS = 30_000;
 
 // Both real-time sources share the "dbwin" line tag, so file-poll echo dedup
 // behaves identically whether lines arrive via DBWIN or the Proton log tail.
@@ -142,8 +144,14 @@ let tradePartnerCallback: ((username: string) => void) | null = null;
 let tradeConfirmedCallback: ((trade: ParsedLogTrade) => void) | null = null;
 let messageCallback: ((playerName: string) => void) | null = null;
 let activeMissionTagCallback: ((tag: string) => void) | null = null;
+let loginCompleteCallback: (() => void) | null = null;
+let lastLoginCompleteAt = 0;
 
 export { RIVEN_PATTERNS, forceEndRivenSession };
+
+export function isLoginCompleteLine(line: string): boolean {
+  return LOGIN_COMPLETE_PATTERN.test(line);
+}
 
 // Mission-info dumps use both key-value and JSON shapes; VoidT6 means omnia.
 const ACTIVE_MISSION_TAG_PATTERN = /(?:^|["\s])activeMissionTag["\s]*[=:]\s*"?([A-Za-z0-9_]+)/;
@@ -238,6 +246,7 @@ function pollReadNewBytes(): void {
           closePollFd();
           lastSize = 0;
           lineRemainder = "";
+          lastLoginCompleteAt = 0;
           uptimeTracker.reset();
           notifyEeLogReset();
         }
@@ -339,6 +348,14 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
   // DBWIN lines are real-time; file lines can trail the event by the engine's
   // lazy flush (10s+ at quiet moments) - measure it from the uptime prefix.
   const stalenessMs = source === "file" ? uptimeTracker.observe(line, Date.now()) : 0;
+
+  if (loginCompleteCallback && isLoginCompleteLine(line)) {
+    const now = Date.now();
+    if (now - lastLoginCompleteAt >= LOGIN_COMPLETE_DEDUP_MS) {
+      lastLoginCompleteAt = now;
+      loginCompleteCallback();
+    }
+  }
 
   if (REWARD_TRIGGER_PATTERNS.some((pattern) => pattern.test(line))) {
     const isFlushEcho =
@@ -546,6 +563,7 @@ function consumeChunk(chunk: string): void {
 }
 
 interface EeLogHandlers {
+  onLoginComplete?: (() => void) | null;
   onRewardTrigger?: ((stalenessMs: number) => void) | null;
   onRewardUiReady?: (() => void) | null;
   onRewardScreenClose?: ((stalenessMs: number) => void) | null;
@@ -571,6 +589,7 @@ type NormalizedEeLogHandlers = {
 };
 
 const NULL_EE_LOG_HANDLERS: NormalizedEeLogHandlers = {
+  onLoginComplete: null,
   onRewardTrigger: null,
   onRewardUiReady: null,
   onRewardScreenClose: null,
@@ -608,6 +627,7 @@ function normalizeHandlers(
   }
 
   return {
+    onLoginComplete: asFunction(handlers.onLoginComplete),
     onRewardTrigger: asFunction(handlers.onRewardTrigger),
     onRewardUiReady: asFunction(handlers.onRewardUiReady),
     onRewardScreenClose: asFunction(handlers.onRewardScreenClose),
@@ -643,6 +663,8 @@ export function startWatching(
   }
 
   const normalized = normalizeHandlers(handlers);
+  loginCompleteCallback = normalized.onLoginComplete;
+  lastLoginCompleteAt = 0;
   rewardCallback = normalized.onRewardTrigger;
   rewardUiReadyCallback = normalized.onRewardUiReady;
   rewardScreenCloseCallback = normalized.onRewardScreenClose;
@@ -691,6 +713,7 @@ export function startWatching(
     closePollFd();
     lastSize = 0;
     lineRemainder = "";
+    lastLoginCompleteAt = 0;
     notifyEeLogReset();
   });
 
@@ -725,6 +748,8 @@ export function stopWatching(): void {
   }
 
   rewardCallback = null;
+  loginCompleteCallback = null;
+  lastLoginCompleteAt = 0;
   rewardUiReadyCallback = null;
   rewardScreenCloseCallback = null;
   relicPickerCallback = null;

@@ -4,57 +4,80 @@ import { readGameAuthzWin } from "../../services/gameMemoryWin";
 
 const ACCOUNT_ID = "0123456789abcdef01234567";
 const AUTHZ = `?accountId=${ACCOUNT_ID}&nonce=1712345678901`;
-const REGION_SIZE = 128n;
+
+interface FakeRegion {
+  base: bigint;
+  size: bigint;
+  contents?: string;
+  failed?: boolean;
+  reportedBytes?: bigint;
+}
+
+interface FakeProcess {
+  pid: number;
+  imagePath?: string;
+  regions: FakeRegion[];
+}
 
 function nativeFn(implementation: (...args: unknown[]) => unknown) {
   return Object.assign(vi.fn(implementation), { async: vi.fn() });
 }
 
-describe("Windows game-memory scan", () => {
-  it("continues to a valid singleton beyond the former aggregate byte limit", async () => {
-    const openProcess = nativeFn((access: unknown) => (access === 0x1000 ? 1 : 2));
-    const closeHandle = nativeFn(() => 1);
-    const getLastError = nativeFn(() => 0);
-    const enumProcesses = nativeFn((pids: unknown, _size: unknown, used: unknown) => {
-      (pids as Buffer).writeUInt32LE(42, 0);
-      (used as Buffer).writeUInt32LE(4, 0);
+function createWin32Fake(processes: FakeProcess[]) {
+  const byPid = new Map(processes.map((process) => [process.pid, process]));
+  const openProcess = nativeFn((access: unknown, _inherit: unknown, pidValue: unknown) => {
+    const pid = pidValue as number;
+    if (!byPid.has(pid)) return 0;
+    return pid * 10 + (access === 0x1000 ? 1 : 2);
+  });
+  const closeHandle = nativeFn(() => 1);
+  const getLastError = nativeFn(() => 0);
+  const enumProcesses = nativeFn((pids: unknown, _size: unknown, used: unknown) => {
+    for (const [index, process] of processes.entries()) {
+      (pids as Buffer).writeUInt32LE(process.pid, index * 4);
+    }
+    (used as Buffer).writeUInt32LE(processes.length * 4, 0);
+    return 1;
+  });
+  const queryImageName = nativeFn(
+    (handleValue: unknown, _flags: unknown, output: unknown, size: unknown) => {
+      const process = byPid.get(Math.floor((handleValue as number) / 10));
+      if (!process) return 0;
+      const imagePath = process.imagePath ?? "C:\\Games\\Warframe.x64.exe";
+      Buffer.from(imagePath, "utf16le").copy(output as Buffer);
+      (size as Buffer).writeUInt32LE(imagePath.length, 0);
       return 1;
-    });
-    const queryImageName = nativeFn(
-      (_handle: unknown, _flags: unknown, output: unknown, size: unknown) => {
-        const imagePath = "C:\\Games\\Warframe.x64.exe";
-        Buffer.from(imagePath, "utf16le").copy(output as Buffer);
-        (size as Buffer).writeUInt32LE(imagePath.length, 0);
-        return 1;
-      },
-    );
-    const virtualQuery = nativeFn(
-      (_handle: unknown, address: unknown, output: unknown, _size: unknown) => {
-        const base = address as bigint;
-        if (base !== 0n && base !== REGION_SIZE) return 0;
-        const mbi = output as Buffer;
-        mbi.fill(0);
-        mbi.writeBigUInt64LE(base, 0);
-        mbi.writeBigUInt64LE(REGION_SIZE, 24);
-        mbi.writeUInt32LE(0x1000, 32);
-        mbi.writeUInt32LE(0x04, 36);
-        return 48;
-      },
-    );
-    const readMemory = nativeFn(() => 0);
-    readMemory.async.mockImplementation((...args: unknown[]) => {
-      const address = args[1] as bigint;
-      const output = args[2] as Buffer;
-      const bytesRead = args[4] as Buffer;
-      const callback = args[5] as (error: Error | null, ok: number) => void;
-      output.fill(0);
-      if (address === REGION_SIZE) output.write(AUTHZ, 0, "latin1");
-      const reported = address === 0n ? 9n * 1024n * 1024n * 1024n : REGION_SIZE;
-      bytesRead.writeBigUInt64LE(reported, 0);
-      callback(null, 1);
-    });
+    },
+  );
+  const virtualQuery = nativeFn(
+    (handleValue: unknown, addressValue: unknown, output: unknown, _size: unknown) => {
+      const process = byPid.get(Math.floor((handleValue as number) / 10));
+      const region = process?.regions.find(({ base }) => base === (addressValue as bigint));
+      if (!region) return 0;
+      const mbi = output as Buffer;
+      mbi.fill(0);
+      mbi.writeBigUInt64LE(region.base, 0);
+      mbi.writeBigUInt64LE(region.size, 24);
+      mbi.writeUInt32LE(0x1000, 32);
+      mbi.writeUInt32LE(0x04, 36);
+      return 48;
+    },
+  );
+  const readMemory = nativeFn(() => 0);
+  readMemory.async.mockImplementation((...args: unknown[]) => {
+    const process = byPid.get(Math.floor((args[0] as number) / 10));
+    const region = process?.regions.find(({ base }) => base === (args[1] as bigint));
+    const output = args[2] as Buffer;
+    const bytesRead = args[4] as Buffer;
+    const callback = args[5] as (error: Error | null, ok: number) => void;
+    output.fill(0);
+    if (region?.contents) output.write(region.contents, 0, "latin1");
+    bytesRead.writeBigUInt64LE(region?.reportedBytes ?? region?.size ?? 0n, 0);
+    callback(region?.failed ? new Error("partial copy") : null, region?.failed ? 0 : 1);
+  });
 
-    const result = await readGameAuthzWin({
+  return {
+    api: {
       OpenProcess: openProcess,
       CloseHandle: closeHandle,
       GetLastError: getLastError,
@@ -62,9 +85,50 @@ describe("Windows game-memory scan", () => {
       ReadProcessMemory: readMemory,
       EnumProcesses: enumProcesses,
       QueryFullProcessImageNameW: queryImageName,
-    } as never);
+    },
+    readMemory,
+  };
+}
 
-    expect(result).toEqual({ authz: AUTHZ, reason: "ok-1x" });
+describe("Windows game-memory scan", () => {
+  it("continues to a singleton after an oversized read report", async () => {
+    const { api, readMemory } = createWin32Fake([
+      {
+        pid: 42,
+        regions: [
+          { base: 0n, size: 128n, reportedBytes: 9n * 1024n * 1024n * 1024n },
+          { base: 128n, size: 128n, contents: AUTHZ },
+        ],
+      },
+    ]);
+
+    await expect(readGameAuthzWin(api as never)).resolves.toEqual({
+      authz: AUTHZ,
+      reason: "ok-1x",
+    });
     expect(readMemory.async).toHaveBeenCalledTimes(2);
+  });
+
+  it("uses bytes returned with a partial-copy failure", async () => {
+    const { api } = createWin32Fake([
+      { pid: 42, regions: [{ base: 0n, size: 128n, contents: AUTHZ, failed: true }] },
+    ]);
+
+    await expect(readGameAuthzWin(api as never)).resolves.toEqual({
+      authz: AUTHZ,
+      reason: "ok-1x",
+    });
+  });
+
+  it("scans every matching Warframe process", async () => {
+    const { api } = createWin32Fake([
+      { pid: 41, regions: [{ base: 0n, size: 128n, contents: "?accountId=invalid" }] },
+      { pid: 42, regions: [{ base: 0n, size: 128n, contents: AUTHZ }] },
+    ]);
+
+    await expect(readGameAuthzWin(api as never)).resolves.toEqual({
+      authz: AUTHZ,
+      reason: "ok-1x",
+    });
   });
 });

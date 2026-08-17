@@ -14,6 +14,7 @@ import {
   fileContainsMarker,
   helperFailureReason,
   nextHelperPollDelayMs,
+  shouldRetryAfterGameLogin,
   shouldUseWindowsNativeFallback,
 } from "../../services/apiHelperRunner";
 
@@ -56,6 +57,23 @@ describe("nextHelperPollDelayMs", () => {
 
   it("never retries slower than the configured interval", () => {
     expect(nextHelperPollDelayMs(false, "not-logged-in", 30_000)).toBe(30_000);
+  });
+});
+
+describe("shouldRetryAfterGameLogin", () => {
+  it("retries only failures that a completed login can resolve", () => {
+    expect(shouldRetryAfterGameLogin(false, null, null)).toBe(true);
+    expect(shouldRetryAfterGameLogin(false, false, "game-not-running")).toBe(true);
+    expect(shouldRetryAfterGameLogin(false, false, "not-logged-in")).toBe(true);
+    expect(shouldRetryAfterGameLogin(false, false, "token-not-found")).toBe(true);
+    expect(shouldRetryAfterGameLogin(false, false, "api-failed")).toBe(false);
+    expect(shouldRetryAfterGameLogin(false, false, "access-denied")).toBe(false);
+    expect(shouldRetryAfterGameLogin(false, true, null)).toBe(false);
+  });
+
+  it("queues behind an in-flight poll and rechecks its result", () => {
+    expect(shouldRetryAfterGameLogin(true, true, null)).toBe(true);
+    expect(shouldRetryAfterGameLogin(false, true, null)).toBe(false);
   });
 });
 

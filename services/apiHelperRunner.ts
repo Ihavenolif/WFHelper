@@ -80,12 +80,14 @@ function isPinnedHash(hash: string): boolean {
 
 let _pollTimer: ReturnType<typeof setTimeout> | null = null;
 let _startupTimer: ReturnType<typeof setTimeout> | null = null;
+let _loginRetryTimer: ReturnType<typeof setTimeout> | null = null;
 let _pollingActive = false;
 let _running = false;
 let _lastRunAt: number | null = null;
 let _lastRunOk: boolean | null = null;
 let _lastRunReason: HelperRunReason | null = null;
 let _exePath: string | null = null;
+let _runAndNotify: (() => void) | null = null;
 
 function settleRun(ok: boolean, reason: HelperRunReason | null = null): boolean {
   _running = false;
@@ -115,6 +117,22 @@ export function nextHelperPollDelayMs(
     return Math.min(LOCAL_FAILURE_RETRY_MS, intervalMs);
   }
   return intervalMs;
+}
+
+export function shouldRetryAfterGameLogin(
+  running: boolean,
+  lastRunOk: boolean | null,
+  reason: HelperRunReason | null,
+): boolean {
+  if (running) return true;
+  if (lastRunOk === true) return false;
+  return (
+    reason === null ||
+    reason === "game-not-running" ||
+    reason === "not-logged-in" ||
+    reason === "token-not-found" ||
+    reason === "error"
+  );
 }
 
 /** EE.log logs "Logging in as <name>" once the session is authenticated
@@ -555,6 +573,7 @@ export function startPolling(
       scheduleNext();
     });
   };
+  _runAndNotify = runAndNotify;
 
   if (initialDelay === 0) {
     runAndNotify();
@@ -574,8 +593,40 @@ export function startPolling(
   }
 }
 
+export function runAfterGameLogin(): void {
+  if (
+    !_pollingActive ||
+    _loginRetryTimer ||
+    !shouldRetryAfterGameLogin(_running, _lastRunOk, _lastRunReason)
+  ) {
+    return;
+  }
+
+  const retry = () => {
+    _loginRetryTimer = null;
+    if (!_pollingActive || !shouldRetryAfterGameLogin(_running, _lastRunOk, _lastRunReason)) return;
+    if (_running) {
+      _loginRetryTimer = setTimeout(retry, 250);
+      return;
+    }
+    if (_startupTimer) {
+      clearTimeout(_startupTimer);
+      _startupTimer = null;
+    }
+    if (_pollTimer) {
+      clearTimeout(_pollTimer);
+      _pollTimer = null;
+    }
+    log.info("Warframe login completed - retrying inventory helper");
+    _runAndNotify?.();
+  };
+
+  _loginRetryTimer = setTimeout(retry, 250);
+}
+
 export function stopPolling(): void {
   _pollingActive = false;
+  _runAndNotify = null;
   if (_startupTimer) {
     clearTimeout(_startupTimer);
     _startupTimer = null;
@@ -583,6 +634,10 @@ export function stopPolling(): void {
   if (_pollTimer) {
     clearTimeout(_pollTimer);
     _pollTimer = null;
+  }
+  if (_loginRetryTimer) {
+    clearTimeout(_loginRetryTimer);
+    _loginRetryTimer = null;
   }
 }
 
