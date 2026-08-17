@@ -69,6 +69,15 @@ function parseAuthzCandidate(view: Buffer, at: number, markerLength: number): Au
   return { authz: `?accountId=${accountId.toLowerCase()}&nonce=${nonce}`, rejection: null };
 }
 
+function tally(
+  result: AuthzParseResult,
+  diagnostics: AuthzScanDiagnostics | undefined,
+): string | null {
+  if (result.rejection && diagnostics) diagnostics[result.rejection] += 1;
+  return result.authz;
+}
+
+/** Parse the auth string at a marker hit, or null when the offset is not one. */
 export function parseAuthzAt(
   view: Buffer,
   at: number,
@@ -78,9 +87,7 @@ export function parseAuthzAt(
     view.subarray(at, at + candidate.length).equals(candidate),
   );
   if (!marker) return null;
-  const result = parseAuthzCandidate(view, at, marker.length);
-  if (result.rejection && diagnostics) diagnostics[result.rejection] += 1;
-  return result.authz;
+  return tally(parseAuthzCandidate(view, at, marker.length), diagnostics);
 }
 
 export function scanBufferForAuthz(
@@ -93,7 +100,9 @@ export function scanBufferForAuthz(
     let idx = 0;
     while ((idx = view.indexOf(marker, idx)) !== -1) {
       markerHits += 1;
-      const authz = parseAuthzAt(view, idx, diagnostics);
+      // parseAuthzAt re-derives the marker; the loop already knows it, and this
+      // runs once per hit across every readable page of a multi-GB process.
+      const authz = tally(parseAuthzCandidate(view, idx, marker.length), diagnostics);
       if (authz !== null) counts.set(authz, (counts.get(authz) ?? 0) + 1);
       idx += marker.length;
     }
@@ -186,8 +195,10 @@ export async function readGameAuthz(): Promise<AuthzResult> {
   }
 
   const counts = new Map<string, number>();
+  const diagnostics = createAuthzScanDiagnostics();
   const buf = Buffer.allocUnsafe(CHUNK);
   let chunkNo = 0;
+  let markerHits = 0;
   let regions = 0;
   let bytes = 0;
 
@@ -206,7 +217,7 @@ export async function readGameAuthz(): Promise<AuthzResult> {
         }
         if (!n) continue;
         bytes += n;
-        scanBufferForAuthz(buf.subarray(0, n), counts);
+        markerHits += scanBufferForAuthz(buf.subarray(0, n), counts, diagnostics);
         if (++chunkNo % 8 === 0) await new Promise((r) => setImmediate(r));
       }
     }
@@ -225,7 +236,12 @@ export async function readGameAuthz(): Promise<AuthzResult> {
 
   const scanned = `${regions} regions, ${Math.round(bytes / (1024 * 1024))} MB`;
   if (counts.size === 0) {
-    log.warn(`No auth crumbs found (scanned ${scanned})`);
+    // Same breakdown the Windows scan reports: markers with no usable string
+    // means the shape changed, no markers at all means we looked in the wrong place.
+    log.warn(
+      `No auth crumbs found: markers=${markerHits}, scanned=${scanned}, ` +
+        `rejects=${JSON.stringify(diagnostics)}`,
+    );
     return { authz: null, reason: "crumbs-not-found" };
   }
   const { authz, hits, ambiguous } = bestAuthz(counts);

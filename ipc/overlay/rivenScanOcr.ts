@@ -61,9 +61,17 @@ function logScanTiming(label: string, t: RivenScanTiming): void {
 }
 
 // OCR text cannot reveal crop alignment, so the crop is kept alongside it.
-const DEBUG_DUMP_KEEP = 10;
+// Rotated per outcome: a rolling session's successful scans used to push the
+// empty ones - the only crops worth having - out of a shared window of 10.
+const DEBUG_DUMP_KEEP = Object.freeze({ empty: 10, ok: 4 });
+type ScanDumpOutcome = keyof typeof DEBUG_DUMP_KEEP;
 
-function dumpScanCrops(label: string, cardCrop: NativeImage, statCrop: NativeImage): void {
+function dumpScanCrops(
+  label: string,
+  outcome: ScanDumpOutcome,
+  cardCrop: NativeImage,
+  statCrop: NativeImage,
+): void {
   if (!areOcrDebugDumpsEnabled()) return;
   try {
     const { app } = require("electron") as typeof import("electron");
@@ -73,19 +81,22 @@ function dumpScanCrops(label: string, cardCrop: NativeImage, statCrop: NativeIma
     fs.mkdirSync(dir, { recursive: true });
 
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    fs.writeFileSync(path.join(dir, `${stamp}-${label}-card.png`), cardCrop.toPNG());
-    fs.writeFileSync(path.join(dir, `${stamp}-${label}-stats.png`), statCrop.toPNG());
+    fs.writeFileSync(path.join(dir, `${stamp}-${outcome}-${label}-card.png`), cardCrop.toPNG());
+    fs.writeFileSync(path.join(dir, `${stamp}-${outcome}-${label}-stats.png`), statCrop.toPNG());
 
+    // The stamp always ends in "Z", so this anchors on the outcome field rather
+    // than matching a label that happens to contain the same word.
+    const bucket = `Z-${outcome}-`;
     const files = fs
       .readdirSync(dir)
-      .filter((f) => f.endsWith(".png"))
+      .filter((f) => f.endsWith(".png") && f.includes(bucket))
       .sort();
-    for (const f of files.slice(0, Math.max(0, files.length - DEBUG_DUMP_KEEP))) {
+    for (const f of files.slice(0, Math.max(0, files.length - DEBUG_DUMP_KEEP[outcome]))) {
       fs.unlinkSync(path.join(dir, f));
     }
-    log.info(`[RivenScan] ${label}: saved failed-scan crops to ${dir}`);
+    log.info(`[RivenScan] ${label}: saved ${outcome} scan crops to ${dir}`);
   } catch (err) {
-    log.warn("[RivenScan] failed-scan crop dump failed:", String(err));
+    log.warn("[RivenScan] scan crop dump failed:", String(err));
   }
 }
 
@@ -215,7 +226,7 @@ export async function recognizeRivenCardStats(
 
   // Every scan, not only empty ones: a confident read of a badly cropped card
   // looks perfect in the log, so the image is the only evidence that settles it.
-  dumpScanCrops(label, cardCrop, statCrop);
+  dumpScanCrops(label, bestStats.length === 0 ? "empty" : "ok", cardCrop, statCrop);
 
   return { text: bestText, titleText: "", footerText: "", stats: bestStats };
 }
