@@ -297,7 +297,9 @@ body {
   border: 2px solid color-mix(in oklab, var(--accent) 22%, transparent);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 0.85s linear infinite;
+  /* steps(): ~9 repaints/s instead of every frame - "Waiting for roll" keeps
+     this spinner up for minutes over a software-rendered window. */
+  animation: spin 0.85s steps(8) infinite;
   flex-shrink: 0;
 }
 
