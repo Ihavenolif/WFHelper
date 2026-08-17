@@ -1280,6 +1280,19 @@ describe("riven session reopen and close timing", () => {
     expect(closes).toHaveBeenCalledTimes(1);
   });
 
+  it("reopens right after a fast close without a lingering cooldown", () => {
+    const { opens } = freshCallbacks();
+    process(openLine);
+    vi.advanceTimersByTime(650);
+    process(dioramaLine);
+    vi.advanceTimersByTime(650);
+    process(closeLine);
+    // 1.5s after the previous open - the old open cooldown ate this.
+    vi.advanceTimersByTime(200);
+    process(openLine);
+    expect(opens).toHaveBeenCalledTimes(2);
+  });
+
   it("ignores teardown stragglers trailing the previous close into a reopen", () => {
     const { opens, closes } = freshCallbacks();
     process(openLine);

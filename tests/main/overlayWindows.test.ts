@@ -675,8 +675,8 @@ describe("show raise reassert", () => {
     vi.useRealTimers();
   });
 
-  // Field case: a re-shown planner landed behind the game and nothing rescued
-  // it - the z-order poll deliberately skips windows already always-on-top.
+  // A re-shown planner landed behind the game and nothing rescued it - the
+  // z-order poll deliberately skips windows already always-on-top.
   it("re-raises a re-shown window after the map settles", async () => {
     vi.useFakeTimers();
     const { controller, windows } = createPresentationProbe({
@@ -724,7 +724,6 @@ describe("pinDragSize", () => {
     const second = pinDragSize(first, { width: 489, height: 343 }, 1_016);
     expect(second).toMatchObject({ width: 490, height: 344 });
 
-    // A long drag stays pinned because each tick refreshes the pin.
     const third = pinDragSize(second, { width: 480, height: 336 }, 1_400);
     expect(third).toMatchObject({ width: 490, height: 344 });
   });

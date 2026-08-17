@@ -86,8 +86,7 @@ type OverlayWindowsControllerOptions = {
   isNativeWayland?: () => boolean;
 };
 
-// getBounds -> setBounds round-trips resize windows on fractionally scaled
-// displays, so a drag pins the size of its first tick for all later ones.
+// getBounds -> setBounds round-trips resize windows on fractionally scaled displays.
 const DRAG_SIZE_PIN_MS = 500;
 
 export function pinDragSize(
@@ -427,8 +426,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   }
 
   // Raising in the same breath as a re-show can lose the race against the map,
-  // and the z-order poll no longer rescues that (its every-tick moveTop stole
-  // focus). Two one-shot re-raises replace the poll's accidental safety net.
+  // and the z-order poll no longer rescues a buried window.
   function scheduleRaiseReassert(overlayWindow: import("electron").BrowserWindow): void {
     for (const delay of CLICK_THROUGH_REASSERT_DELAYS_MS) {
       setTimeout(() => {
@@ -660,7 +658,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
     if (keepMapped.hide(overlayWindow, setKeepMappedContentVisible)) {
       applyClickThrough(overlayWindow);
-      // Still mapped, so an interactive window would keep the game's focus.
+      // Still mapped, so an interactive window would hold focus away from the game.
       overlayWindow.blur();
       overlayWindow.setFocusable(false);
       return;

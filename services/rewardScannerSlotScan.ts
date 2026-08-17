@@ -99,9 +99,16 @@ interface LayoutRun {
   layoutConfidence: number;
 }
 
-// Just under the fuzzy gate: only a mangled read of the right name lands this
-// high - misaligned-crop matches score far lower and stay rejected.
-const NEAR_MISS_MIN_CONFIDENCE = 0.8;
+// Margin below the candidate's own tier gate, so substring/exact rescues stay
+// as strict relative to their tier as fuzzy ones.
+const NEAR_MISS_RESCUE_MARGIN = 0.06;
+
+function isNearMissCandidate(candidate: SlotCandidate): boolean {
+  return isUsableSlotCandidate({
+    ...candidate,
+    confidence: candidate.confidence + NEAR_MISS_RESCUE_MARGIN,
+  });
+}
 
 function collectNearMissSlots(run: LayoutRun, collected: CollectedSlot[]): CollectedSlot[] {
   const takenNames = new Set(collected.map((entry) => entry.candidate.item.name));
@@ -110,7 +117,7 @@ function collectNearMissSlots(run: LayoutRun, collected: CollectedSlot[]): Colle
   for (let index = 0; index < run.slotLimit; index++) {
     if (filledSlots.has(index)) continue;
     const nearMiss = run.nearMisses[index];
-    if (!nearMiss || nearMiss.confidence < NEAR_MISS_MIN_CONFIDENCE) continue;
+    if (!nearMiss || !isNearMissCandidate(nearMiss)) continue;
     if (takenNames.has(nearMiss.item.name)) continue;
     takenNames.add(nearMiss.item.name);
     rescued.push({ index, candidate: nearMiss });
@@ -359,7 +366,7 @@ export async function scanRewardSlotsFallback(
             };
             if (isUsableSlotCandidate(slotCandidate)) {
               rankedCandidates.push(slotCandidate);
-            } else if (!bestRejected || slotCandidate.score > bestRejected.score) {
+            } else if (!bestRejected || slotCandidate.confidence > bestRejected.confidence) {
               bestRejected = slotCandidate;
             }
           }
@@ -469,9 +476,7 @@ export async function scanRewardSlotsFallback(
     }
   }
 
-  // An empty slot in an otherwise-confident winner takes its own near-gate read:
-  // a name the ranking kept converging on beats a hole (field case: "Sevagoth
-  // Prime Systems Blueprint" fuzzy 0.825, rejected on every retry).
+  // A near-gate read beats a hole; the duplicate guard keeps wrong names out.
   if (bestResult && bestRun && bestResult.emptySlots > 0 && bestResult.exactCount >= 1) {
     const rescued = collectNearMissSlots(bestRun, bestCollected);
     if (rescued.length > 0) {

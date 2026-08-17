@@ -112,9 +112,8 @@ const REWARD_TRIGGER_COOLDOWN_MS = 2500;
 const RELIC_PICKER_COOLDOWN_MS = 3000;
 /** Grace period after close before another close can fire - debounces rapid log flushes. */
 const RELIC_PICKER_CLOSE_COOLDOWN_MS = 500;
-// Entry InitMapping trails the open dispatch only briefly. Anchored on the open
-// alone - pattern repeats re-armed the old guard and ate genuine fast back-outs.
-const RELIC_PICKER_CLOSE_MIN_GAP_MS = 800;
+// Entry InitMapping trails the open dispatch only briefly.
+const RELIC_PICKER_ENTRY_WINDOW_MS = 800;
 
 /** InitMapping also fires on picker entry; skip it once per session, near open. */
 export function isPickerEntryMapping(
@@ -122,7 +121,7 @@ export function isPickerEntryMapping(
   lastOpenAt: number,
   entrySkipUsed: boolean,
 ): boolean {
-  return !entrySkipUsed && now - lastOpenAt < RELIC_PICKER_CLOSE_MIN_GAP_MS;
+  return !entrySkipUsed && now - lastOpenAt < RELIC_PICKER_ENTRY_WINDOW_MS;
 }
 // Suppress reward scans while the relic picker renders reward-preview cards.
 const REWARD_AFTER_PICKER_SUPPRESS_MS = 3000;
@@ -468,12 +467,11 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
   ) {
     const now = Date.now();
     if (relicPickerSessionOpen && now - lastRelicPickerCloseAt >= RELIC_PICKER_CLOSE_COOLDOWN_MS) {
-      lastRelicPickerCloseAt = now;
       if (isPickerEntryMapping(now, lastRelicPickerAt, relicPickerEntrySkipUsed)) {
-        // One skip per session, so the real close can never be swallowed.
         relicPickerEntrySkipUsed = true;
         log.info("[EELog] Relic picker close skipped - entry InitMapping");
       } else if (relicPickerCloseCallback) {
+        lastRelicPickerCloseAt = now;
         relicPickerSessionOpen = false;
         log.info("[EELog] Relic picker close detected -> dispatching overlay close");
         relicPickerCloseCallback();

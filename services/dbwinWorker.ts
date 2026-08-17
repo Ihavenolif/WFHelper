@@ -230,7 +230,7 @@ function runDbwinLoop(): void {
       let buf: Buffer | null = null;
       if (waitResult === WAIT_OBJECT_0) {
         // OutputDebugString() in the game thread blocks until BUFFER_READY -
-        // NOTHING may run before this ack but the one copy out of the buffer.
+        // nothing may run before this ack but the one copy out of the buffer.
         const bytes = koffi.decode(pBuf, uint8ArrayType) as Uint8Array;
         SetEvent(hReady);
         buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
@@ -276,9 +276,10 @@ function runDbwinLoop(): void {
 
 function run(): void {
   // The game's logger blocks until this thread acks each line - jump the queue.
-  SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
+  if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST)) {
+    parentPort?.postMessage({ type: "error", message: "SetThreadPriority failed" });
+  }
 
-  // Keep DBWIN absent until Warframe starts, then enter the message loop.
   while (Atomics.load(stopFlag, 0) === 0) {
     while (Atomics.load(stopFlag, 0) === 0) {
       if (isWarframeRunning()) break;

@@ -81,10 +81,10 @@ let _lastSuppressedOpenLogAt = 0;
 // An active session absorbs the burst, so this only guards a close racing it.
 const RIVEN_SESSION_OPEN_COOLDOWN_MS = 2_000;
 // Teardown markers trail up to ~2s behind the close they belong to, and a fast
-// reopen puts that tail inside the next session. A genuine close cannot follow
-// the previous one that quickly - reopening plus screen load alone take longer.
+// reopen puts that tail inside the next session.
 const RIVEN_CLOSE_MARKER_SPACING_MS = 2_000;
 let _lastRivenCloseMarkerAt = 0;
+let _lastRivenCloseDispatchAt = 0;
 
 let _lastRivenDioramaAt = 0;
 const RIVEN_DIORAMA_DEDUP_MS = 2_000;
@@ -105,16 +105,27 @@ let _lastHudVis = 0;
 let _lastHudVisIncreaseAt = 0;
 const CHAT_RIVEN_POPULATE_WINDOW_MS = 2_000;
 
+function endRivenSessionState(): void {
+  _rivenSessionActive = false;
+  _rivenSessionStartedAt = 0;
+  _rivenDioramaReady = false;
+  _rivenPendingDialog = null;
+  _rivenNextDialog = "cycle";
+  _rivenWeaponPathSent = false;
+  // A closed session must not leak its cooldowns into the next open.
+  _lastRivenSessionOpenAt = 0;
+  _lastRivenDioramaAt = 0;
+  if (_rivenSessionIdleTimer) {
+    clearTimeout(_rivenSessionIdleTimer);
+    _rivenSessionIdleTimer = null;
+  }
+}
+
 function resetRivenIdleTimer(): void {
   if (_rivenSessionIdleTimer) clearTimeout(_rivenSessionIdleTimer);
   _rivenSessionIdleTimer = setTimeout(() => {
     _rivenSessionIdleTimer = null;
-    _rivenPendingDialog = null;
-    _rivenNextDialog = "cycle";
-    _rivenSessionActive = false;
-    _rivenSessionStartedAt = 0;
-    _rivenDioramaReady = false;
-    _rivenWeaponPathSent = false;
+    endRivenSessionState();
     // Backstop for a missed close marker - close the overlay too, not just state.
     log.info("[EELog] Riven session idle timeout -> dispatching overlay close");
     _callbacks.onRivenSessionClose?.();
@@ -129,16 +140,7 @@ function forceEndRivenSessionIfExpired(): boolean {
   log.info(
     `[EELog] Riven session exceeded ${RIVEN_SESSION_MAX_MS / 60_000}min cap - force closing`,
   );
-  _rivenSessionActive = false;
-  _rivenSessionStartedAt = 0;
-  _rivenDioramaReady = false;
-  _rivenPendingDialog = null;
-  _rivenNextDialog = "cycle";
-  _rivenWeaponPathSent = false;
-  if (_rivenSessionIdleTimer) {
-    clearTimeout(_rivenSessionIdleTimer);
-    _rivenSessionIdleTimer = null;
-  }
+  endRivenSessionState();
   _rivenForceEndedAt = Date.now();
   _callbacks.onRivenSessionClose?.();
   return true;
@@ -211,23 +213,19 @@ export function processRivenPatterns(
     (RIVEN_PATTERNS.sessionClose.test(line) || RIVEN_PATTERNS.recycledEffects.test(line))
   ) {
     // Spacing gate is real-time only - file polls deliver batched, stale timestamps.
+    // The chain cap stops sub-2s marker streams from starving the close forever.
     const now = Date.now();
-    const trailing = dbwinActive && now - _lastRivenCloseMarkerAt < RIVEN_CLOSE_MARKER_SPACING_MS;
+    const trailing =
+      dbwinActive &&
+      now - _lastRivenCloseMarkerAt < RIVEN_CLOSE_MARKER_SPACING_MS &&
+      now - _lastRivenCloseDispatchAt < 2 * RIVEN_CLOSE_MARKER_SPACING_MS;
     _lastRivenCloseMarkerAt = now;
     if (trailing) {
       log.info("[EELog] Riven close marker ignored - trailing the previous close");
     } else {
       log.info("[EELog] Riven session close detected -> dispatching overlay close");
-      _rivenSessionActive = false;
-      _rivenSessionStartedAt = 0;
-      _rivenDioramaReady = false;
-      _rivenPendingDialog = null;
-      _rivenNextDialog = "cycle";
-      _rivenWeaponPathSent = false;
-      if (_rivenSessionIdleTimer) {
-        clearTimeout(_rivenSessionIdleTimer);
-        _rivenSessionIdleTimer = null;
-      }
+      _lastRivenCloseDispatchAt = now;
+      endRivenSessionState();
       _callbacks.onRivenSessionClose?.();
     }
   }
@@ -424,6 +422,7 @@ export function resetRivenState(): void {
   _lastSuppressedOpenLogAt = 0;
   _lastRivenDioramaAt = 0;
   _lastRivenCloseMarkerAt = 0;
+  _lastRivenCloseDispatchAt = 0;
   _rivenForceEndedAt = 0;
   _lastHudVis = 0;
   _lastHudVisIncreaseAt = 0;
