@@ -7,7 +7,11 @@ import { execFileSync } from "node:child_process";
 import { resolveRange } from "./commit-range.mjs";
 
 const EMPTY_TREE = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
-const MAX_RUN_LINES = 2;
+// Enough room to explain a real "why" - a hardware quirk, a vendor bug, the
+// reason an obvious approach was rejected. Past this it wants to be a doc.
+// Advisory only: this runs from `pnpm run check:comments`, never a hook or CI,
+// so it never blocks a contributor who has more to say.
+const MAX_RUN_LINES = 4;
 const CODE_FILE_RE = /\.(ts|js|mjs|cjs|svelte|css)$/;
 const EXCLUDED_FILES = new Set(["backend/worker/worker-configuration.d.ts"]);
 const DIRECTIVE_RE = /^\/[/*]\s*(eslint|@ts-|prettier-ignore|global\b|c8 |v8 |istanbul|knip)/;
