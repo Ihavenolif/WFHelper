@@ -10,7 +10,7 @@ import {
 } from "./ipcSecurity";
 import { createOverlayScanController } from "./overlay/scan";
 import { createRelicSelectionController } from "./overlay/relicSelection";
-import { registerZOrderSubscriber } from "./overlay/zOrder";
+import { applyOverlayZOrder, registerZOrderSubscriber } from "./overlay/zOrder";
 import {
   createOverlayWindowBoundsChangeHandler,
   createOverlayWindowsController,
@@ -114,16 +114,7 @@ function syncOverlayWindowZOrder(
   warframeFocused: boolean,
 ): void {
   if (!win || win.isDestroyed() || !controller.isOverlayWindowVisible()) return;
-
-  if (warframeFocused) {
-    win.setSkipTaskbar(true);
-    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    win.setAlwaysOnTop(true, "screen-saver");
-    win.moveTop();
-  } else if (win.isAlwaysOnTop()) {
-    win.setAlwaysOnTop(false);
-    win.setVisibleOnAllWorkspaces(false);
-  }
+  applyOverlayZOrder(win, warframeFocused);
 }
 
 registerZOrderSubscriber({

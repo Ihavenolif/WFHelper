@@ -6,7 +6,7 @@ import {
   createOverlayWindowBoundsChangeHandler,
   createOverlayWindowsController,
 } from "./overlay/windows";
-import { registerZOrderSubscriber } from "./overlay/zOrder";
+import { applyOverlayZOrder, registerZOrderSubscriber } from "./overlay/zOrder";
 import * as rivenSession from "./overlay/rivenSession";
 import * as rivenScan from "./overlay/rivenScan";
 import { looksLikeStaleCardRead } from "./overlay/rivenScanText";
@@ -161,15 +161,7 @@ function syncRivenWindowZOrder(warframeFocused: boolean): void {
   for (const { win, controller } of rivenWindowEntries()) {
     if (!win || win.isDestroyed()) continue;
     if (!controller.isOverlayWindowVisible()) continue;
-    if (warframeFocused) {
-      win.setSkipTaskbar(true);
-      win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-      win.setAlwaysOnTop(true, "screen-saver");
-      win.moveTop();
-    } else if (win.isAlwaysOnTop()) {
-      win.setAlwaysOnTop(false);
-      win.setVisibleOnAllWorkspaces(false);
-    }
+    applyOverlayZOrder(win, warframeFocused);
   }
 }
 

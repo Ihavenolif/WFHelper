@@ -280,6 +280,25 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     }
   });
 
+  it("shows a new window before raising it", () => {
+    // moveTop() un-hides a hidden window on Windows, so raising first made
+    // moveTop the call that revealed the overlay - without the inactive part,
+    // which handed it the foreground and unfocused the game on every open.
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    const win = windows[0];
+
+    expect(win.showInactive).toHaveBeenCalled();
+    expect(win.moveTop).toHaveBeenCalled();
+    expect(win.showInactive.mock.invocationCallOrder[0]).toBeLessThan(
+      win.moveTop.mock.invocationCallOrder[0],
+    );
+  });
+
   it("never unmaps or re-maps after the first show", () => {
     const { controller, windows } = createPresentationProbe({
       platform: "linux",

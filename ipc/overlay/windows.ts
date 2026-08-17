@@ -576,9 +576,14 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     positionOverlayWindow(lastOverlayAnchorMeta);
     // z-order calls un-hide a hidden window on Windows - only touch it when showing
     if (shouldShow) {
+      // showInactive() FIRST. moveTop() un-hides a hidden window on Windows, so
+      // calling it here made moveTop the thing that revealed the overlay - which
+      // shows it WITHOUT the inactive part and hands it the foreground, pulling
+      // the game out of focus on every riven open. The existing-window path
+      // above already orders these correctly; this one never did.
+      createdWindow.showInactive();
       keepOverlayAboveGame(createdWindow);
       createdWindow.moveTop();
-      createdWindow.showInactive();
       keepOverlayAboveGame(createdWindow);
       if (isKeepMappedActive()) {
         logKeepMappedOnce();
