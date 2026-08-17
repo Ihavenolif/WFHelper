@@ -42,17 +42,19 @@
 
   $: selectedRun = selectedRunId ? ($arbiRuns.find((r) => r.id === selectedRunId) ?? null) : null;
 
-  $: allTags = Array.from(new Set($arbiRuns.flatMap((r) => r.tags ?? []))).sort((a, b) =>
-    a.localeCompare(b),
-  );
+  // Tags match case-insensitively: "sobek run a" and "Sobek run a" are one tag.
+  const tagKey = (tag: string) => tag.toLocaleLowerCase();
+  $: allTags = [
+    ...new Map($arbiRuns.flatMap((r) => r.tags ?? []).map((t) => [tagKey(t), t])).values(),
+  ].sort((a, b) => a.localeCompare(b));
   // The selected tag can vanish (last run deleted/retagged) - don't strand the list.
-  $: if (filterTag && !allTags.includes(filterTag)) filterTag = "";
+  $: if (filterTag && !allTags.some((t) => tagKey(t) === tagKey(filterTag))) filterTag = "";
   $: filteredRuns = $arbiRuns.filter((run) => {
     if (filterType !== "all" && run.missionType !== filterType) return false;
     if (filterMinVitus != null && (run.vitusActual == null || run.vitusActual < filterMinVitus)) {
       return false;
     }
-    if (filterTag && !(run.tags ?? []).includes(filterTag)) return false;
+    if (filterTag && !(run.tags ?? []).some((t) => tagKey(t) === tagKey(filterTag))) return false;
     if (filterMinRotations != null && run.rotations < filterMinRotations) return false;
     if (filterMinDurationMin != null && run.durationSec < filterMinDurationMin * 60) return false;
     if (filterSource !== "all" && run.source !== filterSource) return false;
