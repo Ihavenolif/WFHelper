@@ -43,6 +43,9 @@ const SYNC_CONSUMABLES =
   /SyncAutoPopulatedConsumables for mission (MT_[A-Z_]+) with location (\S+)/;
 const STATE_STARTED = /Game \[Info\]: OnStateStarted, mission type=(MT_[A-Z_]+)/;
 
+// Every squad member logs one of these while loading into the mission.
+const LOADOUT_LOADED = /Game \[Info\]: (.+?) loadout loader finished/;
+
 // Confirmed abort and EOM inventory commit are reliable run ends.
 // EndOfMatch initialization repeats mid-mission and is unsafe here.
 const ABORT_CONFIRMED = /TopMenu\.lua: Abort:/;
@@ -94,6 +97,8 @@ export interface ArbiParsedRun {
   totalEnemies: number;
   /** False for client-side runs, whose logs carry no AI data to analyze. */
   hostTelemetry: boolean;
+  /** Squad member names in load order, the local player included. */
+  players: string[];
   stats: ArbiRunStats | null;
 }
 
@@ -138,6 +143,7 @@ interface RunState {
   eventCount: number;
   /** Saw an AI spawn line. Only the host logs those, so false means client-side. */
   hostTelemetry: boolean;
+  players: string[];
   rotations: number;
   lastRewardSec: number;
   rewardTimestamps: number[];
@@ -223,6 +229,7 @@ export function createArbiParser(): ArbiParser {
       lastActivitySec: gameTimeSec,
       eventCount: 0,
       hostTelemetry: false,
+      players: [],
       rotations: 0,
       lastRewardSec: 0,
       rewardTimestamps: [],
@@ -290,6 +297,12 @@ export function createArbiParser(): ArbiParser {
     if (EOM_COMMIT.test(line)) {
       if (ts > 0) run.runEndSec = ts;
       return { type: "run-end", reason: "mission-end" };
+    }
+
+    const loadout = line.match(LOADOUT_LOADED);
+    if (loadout) {
+      const player = loadout[1].trim();
+      if (player && !run.players.includes(player)) run.players.push(player);
     }
 
     const sync = line.match(SYNC_CONSUMABLES);
@@ -581,6 +594,7 @@ export function createArbiParser(): ArbiParser {
       drones,
       totalEnemies,
       hostTelemetry: r.hostTelemetry,
+      players: r.players,
       stats,
     };
   }

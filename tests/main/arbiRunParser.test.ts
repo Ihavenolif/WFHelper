@@ -57,6 +57,21 @@ describe("arbi run detection", () => {
     expect(mirror?.type === "run-start" && mirror.missionType).toBe("defense");
   });
 
+  it("collects squad member names, deduped, only while a run is active", () => {
+    const loadoutLine = (ts: number, name: string) =>
+      `${ts.toFixed(3)} Game [Info]: ${name} loadout loader finished.`;
+    const result = runParser([
+      loadoutLine(15, "OrbiterBoot"),
+      missionLine(100, "Arbitration: Casta Defense (Ceres)"),
+      loadoutLine(105, "HostPlayer"),
+      loadoutLine(112, "ClientOne"),
+      loadoutLine(300, "HostPlayer"),
+      rewardLine(400),
+      rewardLine(700),
+    ]);
+    expect(result?.players).toEqual(["HostPlayer", "ClientOne"]);
+  });
+
   it("classifies unknown modes as other with null stats", () => {
     const result = runParser([
       missionLine(100, "Arbitration: Olympus (Mars)"),

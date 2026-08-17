@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import { toBlob } from "html-to-image";
 
   import { tr } from "../../lib/i18n.js";
@@ -23,6 +24,8 @@
   let captureEl: HTMLElement | null = null;
   let copyState: "idle" | "busy" | "done" = "idle";
   let saveBusy = false;
+  // The exported image gets a title header the on-screen view already shows above.
+  let capturing = false;
 
   $: stats = run.stats;
 
@@ -93,6 +96,8 @@
 
   async function captureImage(): Promise<Blob | null> {
     if (!captureEl) return null;
+    capturing = true;
+    await tick();
     // Await fonts so the snapshot doesn't reflow to fallback metrics.
     await document.fonts.ready;
     const bg = getComputedStyle(document.body).backgroundColor || "#101418";
@@ -101,6 +106,7 @@
       return await toBlob(captureEl, { backgroundColor: bg, pixelRatio: 2 });
     } finally {
       for (const [name] of CAPTURE_SURFACE_VARS) captureEl.style.removeProperty(name);
+      capturing = false;
     }
   }
 
@@ -185,6 +191,7 @@
         <span class="text-xs text-text-muted">
           {formatRunDate(run.startedAt)} · {typeLabel} · {endReasonLabel}
           {#if run.source === "imported"}· {$tr("arbi.source.imported")}{/if}
+          {#if (run.players ?? []).length > 0}· {(run.players ?? []).join(", ")}{/if}
         </span>
       </div>
     </div>
@@ -233,6 +240,18 @@
   </div>
 
   <div bind:this={captureEl} class="flex flex-col gap-4">
+    {#if capturing}
+      <div class="flex flex-col gap-0.5 px-1">
+        <span class="text-lg font-bold leading-tight text-text-primary">
+          {run.node} · {typeLabel}
+        </span>
+        <span class="text-xs text-text-muted">
+          {formatRunDate(run.startedAt)}{(run.players ?? []).length > 0
+            ? ` · ${(run.players ?? []).join(", ")}`
+            : ""}
+        </span>
+      </div>
+    {/if}
     <SummaryStrip items={kpiItems} variant="grid" />
 
     {#if stats}

@@ -68,6 +68,8 @@ export interface ArbiRunRecord {
   stats: ArbiRunStats | null;
   /** User labels for grouping/filtering (e.g. "boar run"); absent on old records. */
   tags?: string[];
+  /** Squad member names in load order; absent on old records. */
+  players?: string[];
 }
 
 /** Max tags per run, and max characters per tag - enforced on every write. */

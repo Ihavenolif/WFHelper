@@ -173,6 +173,7 @@ function _buildRecord(
     endReason,
     source: "live",
     stats: parsed.stats,
+    players: parsed.players,
   };
 }
 
