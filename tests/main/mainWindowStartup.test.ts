@@ -27,9 +27,15 @@ describe("main window startup", () => {
     // Capture cannot see X11 windows on a wayland session; it also asks the portal.
     expect(source).toContain("const JOINED_XWAYLAND = OZONE_PLATFORM_ARG === OZONE_X11_ARG");
     expect(source).toMatch(
-      /if \(!JOINED_XWAYLAND\) \{[\s\S]*?rememberXWaylandFailure\(\)[\s\S]*?app\.relaunch\(\)/,
+      /if \(XWAYLAND_REEXEC_FAILED\) \{[\s\S]*?rememberXWaylandFailure\(\)[\s\S]*?app\.relaunch\(\)/,
     );
     expect(source).not.toContain("desktopCapturer");
+  });
+
+  it("blames only a re-exec that should have happened, not a hand-pinned platform", () => {
+    expect(source).toContain(
+      'const XWAYLAND_REEXEC_FAILED = DISPLAY_BACKEND === "x11" && OZONE_PLATFORM_ARG === undefined',
+    );
   });
 
   it("shows the window anyway when ready-to-show never fires", () => {

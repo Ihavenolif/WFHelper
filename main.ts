@@ -22,6 +22,9 @@ const OZONE_X11_ARG = "--ozone-platform=x11";
 // a second one would leave the real platform up to chromium's argument order.
 const OZONE_PLATFORM_ARG = process.argv.find((arg) => arg.startsWith("--ozone-platform="));
 const JOINED_XWAYLAND = OZONE_PLATFORM_ARG === OZONE_X11_ARG;
+// Only a re-exec that should have happened and did not is a failure. A platform
+// the caller pinned by hand is their choice, not this machine refusing XWayland.
+const XWAYLAND_REEXEC_FAILED = DISPLAY_BACKEND === "x11" && OZONE_PLATFORM_ARG === undefined;
 if (DISPLAY_BACKEND === "x11") {
   app.commandLine.appendSwitch("ozone-platform", "x11");
   if (!OZONE_PLATFORM_ARG) {
@@ -404,14 +407,16 @@ void app.whenReady().then(async () => {
   profileStage("window:create", windowStart);
 
   if (DISPLAY_BACKEND === "x11") {
-    if (!JOINED_XWAYLAND) {
+    if (XWAYLAND_REEXEC_FAILED) {
       log.error("[Display] XWayland re-exec did not happen - relaunching on native Wayland");
       linuxDisplay.rememberXWaylandFailure();
       app.relaunch();
       app.exit(0);
-    } else {
+    } else if (JOINED_XWAYLAND) {
       log.info("[Display] joined XWayland");
       linuxDisplay.forgetXWaylandFailure();
+    } else {
+      log.warn(`[Display] running on the platform pinned in argv: ${OZONE_PLATFORM_ARG}`);
     }
   } else if (linuxDisplay.info().fallbackActive) {
     log.warn(
