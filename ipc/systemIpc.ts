@@ -5,6 +5,7 @@ import { getLogDirectory, withScope } from "../services/logger";
 import * as itemDb from "../services/itemDatabase";
 import * as wfmCatalog from "../services/wfmCatalog";
 import * as masteryHelper from "../services/masteryHelper";
+import * as codexProfile from "../services/codexProfile";
 import * as relicService from "../services/relicService";
 import * as dropData from "../services/dropData";
 import * as autoUpdater from "../services/autoUpdater";
@@ -15,6 +16,7 @@ import {
   DB_GET_ITEM_DATABASE,
   DB_GET_WFM_ITEMS,
   DB_GET_MASTERY,
+  DB_GET_CODEX_SCANS,
   DB_GET_RELIC_DATABASE,
   DROP_SEARCH,
   APP_UPDATE_CHECK,
@@ -67,6 +69,10 @@ function register(): void {
     });
     return masteryHelper.computeMasteryProgress(data as Record<string, unknown>);
   });
+
+  handleAuthorized(DB_GET_CODEX_SCANS, assertMainRendererSender, (_event, force: unknown) =>
+    codexProfile.getCodexScans(force === true),
+  );
 
   handleAuthorized(DROP_SEARCH, assertMainRendererSender, async (_event, payload: unknown) => {
     if (!isObject(payload)) return [];

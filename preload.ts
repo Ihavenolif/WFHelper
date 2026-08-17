@@ -17,6 +17,7 @@ import {
   DROP_SEARCH,
   DB_GET_WFM_ITEMS,
   DB_GET_MASTERY,
+  DB_GET_CODEX_SCANS,
   OVERLAY_PLACEMENT_LAYOUT,
   OVERLAY_SAVE_PLACEMENT,
   OVERLAY_SAVE_SCALE,
@@ -134,6 +135,7 @@ try {
     wfmPresenceState: inv<"wfmPresenceState">(WFM_PRESENCE_STATE),
 
     getMasteryProgress: inv<"getMasteryProgress">(DB_GET_MASTERY),
+    getCodexScans: inv<"getCodexScans">(DB_GET_CODEX_SCANS),
     getOverlayPlacementLayout: inv<"getOverlayPlacementLayout">(OVERLAY_PLACEMENT_LAYOUT),
     saveOverlayPlacement: inv<"saveOverlayPlacement">(OVERLAY_SAVE_PLACEMENT),
     saveOverlayScale: inv<"saveOverlayScale">(OVERLAY_SAVE_SCALE),

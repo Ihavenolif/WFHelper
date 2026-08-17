@@ -10,6 +10,7 @@ import type { HelperRunReason, HelperStatus } from "../config/shared/apiHelperTy
 import type { DownloadStage } from "../config/shared/statsTypes";
 import { readGameAuthz } from "./gameMemoryAuthz";
 import { readGameAuthzWin } from "./gameMemoryWin";
+import * as codexProfile from "./codexProfile";
 import { resolveEeLogPath } from "./eeLogPath";
 import { withScope } from "./logger";
 
@@ -497,6 +498,7 @@ function runHelperExe(): Promise<{ ok: boolean; reason: HelperRunReason | null }
 
 /** GET inventory.php with the helper-extracted authz. Tries api.warframe.com first. */
 async function fetchInventoryWithAuthz(authz: string, destPath: string): Promise<void> {
+  codexProfile.noteAuthz(authz);
   const hosts = ["api.warframe.com", "mobile.warframe.com"];
   const headers: Record<string, string> = {
     "User-Agent": "Mozilla/5.0",

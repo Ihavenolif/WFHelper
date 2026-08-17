@@ -23,6 +23,7 @@
   import { relicDb } from "../stores/relics.js";
   import ItemImage from "../components/ItemImage.svelte";
   import MasteryRoadmap from "../components/mastery/MasteryRoadmap.svelte";
+  import CodexPanel from "../components/mastery/CodexPanel.svelte";
   import { send } from "../lib/ipc.js";
   import type {
     ComponentInfo,
@@ -65,18 +66,24 @@
   const VIEW_TABS = [
     { key: "collection", label: "Collection" },
     { key: "roadmap", label: "MR Roadmap" },
+    { key: "codex", label: "Codex" },
   ];
 
   // Category keys are data-driven; a stale restore falls back once categories load.
   let catFilter = readStorage(CAT_TAB_KEY) || "all";
   let statusFilter = restoreStatusTab();
-  let viewTab = readStorage(VIEW_TAB_KEY) === "roadmap" ? "roadmap" : "collection";
+  let viewTab = restoreViewTab();
   const breakdownExpanded = persistedBoolean("mastery-breakdown-expanded", false);
   const masteryFilters = sharedFilters("mastery");
 
   function restoreStatusTab(): string {
     const raw = readStorage(STATUS_TAB_KEY);
     return raw && STATUS_TABS.some((tab) => tab.key === raw) ? raw : "all";
+  }
+
+  function restoreViewTab(): string {
+    const raw = readStorage(VIEW_TAB_KEY);
+    return raw && VIEW_TABS.some((tab) => tab.key === raw) ? raw : "collection";
   }
 
   function selectCategoryTab(key: string): void {
@@ -90,7 +97,7 @@
   }
 
   function selectViewTab(key: string): void {
-    viewTab = key === "roadmap" ? "roadmap" : "collection";
+    viewTab = VIEW_TABS.some((tab) => tab.key === key) ? key : "collection";
     writeStorage(VIEW_TAB_KEY, viewTab);
   }
 
@@ -429,7 +436,9 @@
     <HeaderTabs options={VIEW_TABS} activeKey={viewTab} onSelect={selectViewTab} />
   </div>
 
-  {#if displayMasteryData}
+  {#if viewTab === "codex"}
+    <CodexPanel />
+  {:else if displayMasteryData}
     {@const stats = displayMasteryData.stats}
     {@const masteredPct = formatPercent(stats.mastered, stats.total)}
 

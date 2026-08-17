@@ -17,6 +17,18 @@ export const en = {
   "nav.testTitle": "Simulate a relic opening (debug)",
   "nav.overlayTitle": "Toggle relic reward price overlay",
 
+  "codex.summary": "{done} of {total} enemies fully scanned",
+  "codex.searchPlaceholder": "Search enemies...",
+  "codex.incompleteOnly": "Incomplete only",
+  "codex.refresh": "Refresh",
+  "codex.refreshing": "Refreshing...",
+  "codex.updated": "Updated {when}",
+  "codex.noAccount":
+    "No account linked yet. Start Warframe once with WFHelper running so the inventory sync can capture your account id.",
+  "codex.fetchFailed": "Could not fetch profile data from Warframe right now. Try again in a bit.",
+  "codex.empty": "No enemies match the current filters.",
+  "codex.colScans": "Scans",
+
   "view.world": "World",
   "view.market": "Market",
   "view.relics": "Relics",

@@ -1,0 +1,64 @@
+import fs from "node:fs";
+import path from "node:path";
+
+import { test, expect, type Page } from "@playwright/test";
+
+import {
+  closeElectronTestHarness,
+  launchElectronTestHarness,
+  type ElectronTestHarness,
+} from "./electronTestHarness";
+
+test.describe("Mastery codex tab", () => {
+  test.setTimeout(180_000);
+
+  let harness: ElectronTestHarness;
+  let page: Page;
+
+  test.beforeAll(async () => {
+    harness = await launchElectronTestHarness("wfh-codex-e2e-");
+    page = harness.page;
+    // A fresh scans cache keeps getCodexScans off the network entirely.
+    fs.writeFileSync(
+      path.join(harness.sandboxDir, "user-data", "codex-scans.json"),
+      JSON.stringify({
+        fetchedAt: Date.now(),
+        scans: [
+          { type: "/Lotus/Types/Enemies/Grineer/AIWeek/BladeSawmanAvatar", count: 20 },
+          { type: "/Lotus/Types/Enemies/FakeE2E/ShinyTestEnemyAvatar", count: 2 },
+        ],
+      }),
+    );
+  });
+
+  test.afterAll(async () => {
+    await closeElectronTestHarness(harness);
+  });
+
+  test("renders cached scan progress joined with requirements", async () => {
+    await page.locator("#sidebar").getByText("Mastery", { exact: true }).click();
+    await page
+      .locator("#content .view.active")
+      .getByRole("button", { name: "Codex", exact: true })
+      .click();
+
+    const list = page.locator('[data-tour="mastery-codex-list"]');
+    await expect(list).toBeVisible({ timeout: 30_000 });
+
+    // Butcher is BladeSawman: the avatar-path scan must land on the wiki row.
+    const butcher = list.locator("div", { has: page.getByText("Butcher", { exact: true }) });
+    await expect(butcher.first()).toContainText("20 / 20");
+
+    // Unknown types still show, prettified, without a requirement.
+    await expect(list.getByText("Shiny Test Enemy", { exact: true })).toBeVisible();
+
+    await expect(page.getByText(/of \d+ enemies fully scanned/)).toBeVisible();
+
+    await page.screenshot({ path: path.join("test-results", "codex-tab.png") });
+
+    // Incomplete-only drops the finished and the unknown rows.
+    await page.getByText("Incomplete only").click();
+    await expect(list.getByText("Butcher", { exact: true })).toHaveCount(0);
+    await expect(list.getByText("Shiny Test Enemy", { exact: true })).toHaveCount(0);
+  });
+});

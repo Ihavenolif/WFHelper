@@ -20,6 +20,7 @@ import type { DropSearchMode, DropSearchResult } from "./drops.js";
 import type { RelicDatabase } from "./relics.js";
 import type { WorldState } from "./world.js";
 import type { HelperStatus } from "../../config/shared/apiHelperTypes.js";
+import type { CodexScansResult } from "../../config/shared/codexTypes.js";
 import type { InventorySource } from "../../config/shared/inventorySource.js";
 import type { DisplayPreference, LinuxDisplayInfo } from "../../config/shared/linuxDisplay.js";
 import type { OverlaySettings, OverlayWindowKey } from "../../config/runtime/overlaySettings.js";
@@ -233,6 +234,10 @@ export interface IpcInvokeMap {
   getMasteryProgress: {
     args: [];
     return: MasteryData | null;
+  };
+  getCodexScans: {
+    args: [force?: boolean];
+    return: CodexScansResult;
   };
   getOverlayPlacementLayout: {
     args: [];

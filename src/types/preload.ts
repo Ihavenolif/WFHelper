@@ -40,6 +40,9 @@ export interface PreloadAPI {
   wfmGetMe: () => Promise<IpcInvokeMap["wfmGetMe"]["return"]>;
   wfmPresenceState: () => Promise<IpcInvokeMap["wfmPresenceState"]["return"]>;
   getMasteryProgress: () => Promise<IpcInvokeMap["getMasteryProgress"]["return"]>;
+  getCodexScans: (
+    ...args: IpcInvokeMap["getCodexScans"]["args"]
+  ) => Promise<IpcInvokeMap["getCodexScans"]["return"]>;
   getOverlayPlacementLayout: () => Promise<IpcInvokeMap["getOverlayPlacementLayout"]["return"]>;
   saveOverlayPlacement: (
     ...args: IpcInvokeMap["saveOverlayPlacement"]["args"]
