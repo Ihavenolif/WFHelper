@@ -7,6 +7,7 @@ import {
 } from "./ipcSecurity";
 import { disposeAppHotkeys, overlayHotkeyBackend } from "./hotkeyRegistry";
 import { createOverlaySettingsController } from "./overlay/settings";
+import { pinDragSize } from "./overlay/windows";
 import { hideTradeNotification } from "./tradeNotificationIpc";
 import { writeFileAtomicSync } from "../services/atomicFile";
 import { asRecord } from "./ipcValidators";
@@ -310,6 +311,8 @@ function isRivenOverlayWindow(win: BrowserWindow | null): boolean {
   );
 }
 
+const _dragSizes = new WeakMap<object, { width: number; height: number; at: number }>();
+
 function moveInteractiveOverlayWindow(sender: WebContents, rawDelta: unknown): void {
   const win = BrowserWindow.fromWebContents(sender);
   if (!win || win.isDestroyed()) return;
@@ -331,7 +334,12 @@ function moveInteractiveOverlayWindow(sender: WebContents, rawDelta: unknown): v
   if (dx === 0 && dy === 0) return;
 
   const bounds = win.getBounds();
-  win.setBounds({ ...bounds, x: bounds.x + dx, y: bounds.y + dy }, false);
+  const size = pinDragSize(_dragSizes.get(win), bounds, Date.now());
+  _dragSizes.set(win, size);
+  win.setBounds(
+    { x: bounds.x + dx, y: bounds.y + dy, width: size.width, height: size.height },
+    false,
+  );
 }
 
 function register(): void {

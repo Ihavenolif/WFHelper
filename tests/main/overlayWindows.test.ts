@@ -5,6 +5,7 @@ import { OVERLAY_CONTENT_VISIBLE } from "../../config/shared/ipcChannels";
 import {
   createOverlayWindowBoundsChangeHandler,
   createOverlayWindowsController,
+  pinDragSize,
 } from "../../ipc/overlay/windows";
 import type { OverlaySettings } from "../../config/runtime/overlaySettings";
 
@@ -666,6 +667,25 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     controller.setOverlayInteractiveMode(false);
 
     expect(win.showInactive.mock.calls.length).toBe(showsBefore + 1);
+  });
+});
+
+describe("pinDragSize", () => {
+  it("keeps the first tick's size for every later tick of the drag", () => {
+    const first = pinDragSize(undefined, { width: 490, height: 344 }, 1_000);
+    // Windows shrank the window between ticks (DPI rounding); do not adopt it.
+    const second = pinDragSize(first, { width: 489, height: 343 }, 1_016);
+    expect(second).toMatchObject({ width: 490, height: 344 });
+
+    // A long drag stays pinned because each tick refreshes the pin.
+    const third = pinDragSize(second, { width: 480, height: 336 }, 1_400);
+    expect(third).toMatchObject({ width: 490, height: 344 });
+  });
+
+  it("re-reads the size once the previous drag is over", () => {
+    const first = pinDragSize(undefined, { width: 490, height: 344 }, 1_000);
+    const later = pinDragSize(first, { width: 460, height: 320 }, 2_000);
+    expect(later).toMatchObject({ width: 460, height: 320 });
   });
 });
 

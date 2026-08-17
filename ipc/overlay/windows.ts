@@ -86,6 +86,19 @@ type OverlayWindowsControllerOptions = {
   isNativeWayland?: () => boolean;
 };
 
+// getBounds -> setBounds round-trips resize windows on fractionally scaled
+// displays, so a drag pins the size of its first tick for all later ones.
+const DRAG_SIZE_PIN_MS = 500;
+
+export function pinDragSize(
+  pinned: { width: number; height: number; at: number } | undefined,
+  bounds: { width: number; height: number },
+  now: number,
+): { width: number; height: number; at: number } {
+  if (pinned && now - pinned.at < DRAG_SIZE_PIN_MS) return { ...pinned, at: now };
+  return { width: bounds.width, height: bounds.height, at: now };
+}
+
 export function createOverlayWindowBoundsChangeHandler(
   options: OverlaySettingsPersistenceOptions,
 ): (key: OverlayWindowKey, bounds: OverlaySavedWindowBounds) => void {
