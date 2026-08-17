@@ -268,7 +268,7 @@
 
   function dotLabel(key: ChartKey, bar: ChartResult["bars"][number], absVal: number): string {
     let text = shortDate(bar.date);
-    if (!Number.isNaN(absVal)) text += `  ${formatters[key](absVal)}`;
+    if (!Number.isNaN(absVal)) text += ` | ${formatters[key](absVal)}`;
     if (bar.value !== 0) {
       const sign = bar.value >= 0 ? "+" : "−";
       text += `  (${sign}${formatters[key](Math.abs(bar.value))})`;
