@@ -100,9 +100,9 @@ function isSnapshotEntryTooOld(sourceTimestamp: number | null, now = Date.now())
 }
 
 function sanitizeSnapshotEntries(
- entries: Record<string, unknown>,
- timestamp: number,
- options?: { prices?: boolean; preserveSourceTimestamp?: boolean },
+	entries: Record<string, unknown>,
+	timestamp: number,
+	options?: { prices?: boolean; preserveSourceTimestamp?: boolean },
 ): Record<string, unknown> {
 	const sanitized: Record<string, unknown> = {};
 	for (const [key, value] of Object.entries(entries)) {
@@ -828,10 +828,7 @@ export class SnapshotCoordinator {
 	}
 }
 
-async function patchSnapshot(
-	env: Env,
-	patches: SnapshotPatch,
-): Promise<void> {
+async function patchSnapshot(env: Env, patches: SnapshotPatch): Promise<void> {
 	if (!isSnapshotPatch(patches)) throw new TypeError('Invalid snapshot patch');
 	const response = await env.SNAPSHOT_COORDINATOR.getByName('full-v1').fetch('https://snapshot.internal/patch', {
 		method: 'POST',

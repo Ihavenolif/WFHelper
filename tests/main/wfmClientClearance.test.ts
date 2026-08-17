@@ -7,10 +7,7 @@ const state = vi.hoisted(() => ({
 }));
 
 vi.mock("node:https", () => {
-  const request = (
-    options: { headers: Record<string, string> },
-    cb: (res: unknown) => void,
-  ) => {
+  const request = (options: { headers: Record<string, string> }, cb: (res: unknown) => void) => {
     const req = new EventEmitter() as EventEmitter & Record<string, unknown>;
     req.setHeader = () => {};
     req.write = () => {};

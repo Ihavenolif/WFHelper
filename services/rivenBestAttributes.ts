@@ -145,10 +145,7 @@ export function getGoodRolls(weaponName: string): GoodRollData | null {
   return key && goodRolls ? goodRolls[key] : null;
 }
 
-export function getBestAttributes(
-  weaponName: string,
-  isMelee = false,
-): BestAttributes | null {
+export function getBestAttributes(weaponName: string, isMelee = false): BestAttributes | null {
   const data = getGoodRolls(weaponName);
   if (!data) return null;
 

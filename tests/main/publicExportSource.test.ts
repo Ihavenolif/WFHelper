@@ -43,7 +43,9 @@ function indexResponse(): Response {
 const fetchMock = vi.fn(async (url: string) => {
   if (url === INDEX_URL) return indexResponse();
   if (url === `${MANIFEST_BASE}ExportWarframes_en.json!00_wf`)
-    return jsonResponse({ ExportWarframes: [{ uniqueName: SUIT, name: "Test Suit", masteryReq: 0 }] });
+    return jsonResponse({
+      ExportWarframes: [{ uniqueName: SUIT, name: "Test Suit", masteryReq: 0 }],
+    });
   if (url === `${MANIFEST_BASE}ExportWeapons_en.json!00_wp`)
     return jsonResponse({ ExportWeapons: [] });
   if (url === `${MANIFEST_BASE}ExportSentinels_en.json!00_se`)
@@ -70,7 +72,9 @@ describe("publicExportSource", () => {
     };
     compressedIndex = await new Promise((resolve, reject) =>
       lzma.compress(indexText, 1, (result, err) =>
-        err ? reject(err instanceof Error ? err : new Error(String(err))) : resolve(Buffer.from(result)),
+        err
+          ? reject(err instanceof Error ? err : new Error(String(err)))
+          : resolve(Buffer.from(result)),
       ),
     );
   });

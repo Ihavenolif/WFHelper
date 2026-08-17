@@ -7,21 +7,19 @@ import type { HydrationContext } from "../../../src/stores/hydration/hydrateItem
 const hydrateItemMetricsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../../../src/stores/hydration/hydrateItemMetrics.js", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../../../src/stores/hydration/hydrateItemMetrics.js")>();
+  const actual =
+    await importOriginal<typeof import("../../../src/stores/hydration/hydrateItemMetrics.js")>();
   return {
     ...actual,
     hydrateItemMetrics: hydrateItemMetricsMock,
   };
 });
 
-vi.mock("../../../src/lib/wfm/wfmPrice.js", () => ({
-}));
+vi.mock("../../../src/lib/wfm/wfmPrice.js", () => ({}));
 
-vi.mock("../../../src/lib/wfm/orderBook.js", () => ({
-}));
+vi.mock("../../../src/lib/wfm/orderBook.js", () => ({}));
 
-vi.mock("../../../src/lib/wfm/orderSummaryRemote.js", () => ({
-}));
+vi.mock("../../../src/lib/wfm/orderSummaryRemote.js", () => ({}));
 
 function makeItem(index: number): InventoryBaseItem {
   return {
@@ -63,10 +61,10 @@ describe("createInventoryHydrationController", () => {
   });
 
   it("hydrates queued items in fixed batches and ignores duplicate enqueue attempts", async () => {
-    const { createInventoryHydrationController } = await import("../../../src/stores/inventoryHydration.js");
-    const { HYDRATION_BATCH_SIZE, HYDRATION_TICK_MS } = await import(
-      "../../../src/stores/hydration/hydrationTypes.js"
-    );
+    const { createInventoryHydrationController } =
+      await import("../../../src/stores/inventoryHydration.js");
+    const { HYDRATION_BATCH_SIZE, HYDRATION_TICK_MS } =
+      await import("../../../src/stores/hydration/hydrationTypes.js");
     const hydratedKeys: string[] = [];
 
     hydrateItemMetricsMock.mockImplementation(

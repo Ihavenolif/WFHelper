@@ -168,10 +168,7 @@ describe("buildMasteryRoadmap", () => {
   });
 
   it("matches parent-prefixed relic rewards when component paths are unavailable", () => {
-    const { db, owned } = relicInventory(
-      [reward("Boar Prime Blueprint", "", 100)],
-      1,
-    );
+    const { db, owned } = relicInventory([reward("Boar Prime Blueprint", "", 100)], 1);
     const roadmap = buildMasteryRoadmap(
       [item({ name: "Boar Prime", components: [{ name: "Blueprint" }] })],
       db,
@@ -226,9 +223,9 @@ describe("estimateMasteryPurchaseCost", () => {
   });
 
   it("falls back to the set price when a missing component has no price", () => {
-    expect(
-      estimateMasteryPurchaseCost(25, [{ name: "Unknown", owned: false }], () => null),
-    ).toBe(25);
+    expect(estimateMasteryPurchaseCost(25, [{ name: "Unknown", owned: false }], () => null)).toBe(
+      25,
+    );
   });
 
   it("prices only missing copies when another copy is building", () => {

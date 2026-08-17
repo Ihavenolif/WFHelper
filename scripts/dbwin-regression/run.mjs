@@ -154,7 +154,9 @@ async function main() {
   );
   log("worker ready");
   if (ready.alreadyExists) {
-    log("WARNING: DBWIN_BUFFER already existed - another debug listener is running; counts may be off");
+    log(
+      "WARNING: DBWIN_BUFFER already existed - another debug listener is running; counts may be off",
+    );
   }
 
   await waitFor(() => decoyDone, EMITTER_TIMEOUT_MS, "emitter done");
@@ -177,7 +179,9 @@ async function main() {
   if (summary.errors.length > 0) problems.push(`worker errors: ${summary.errors.join("; ")}`);
   if (hostExit.code !== 0) problems.push(`electron host exit code ${hostExit.code}`);
   if (summary.lines < MATCHING_SENDS) {
-    problems.push(`delivered ${summary.lines} lines, expected >= ${MATCHING_SENDS} (lost messages)`);
+    problems.push(
+      `delivered ${summary.lines} lines, expected >= ${MATCHING_SENDS} (lost messages)`,
+    );
   }
   if (summary.lines > MATCHING_SENDS * 3) {
     problems.push(

@@ -4,8 +4,20 @@ import { parseAccelerator } from "../../services/acceleratorVk";
 
 describe("parseAccelerator", () => {
   it("maps bare function keys", () => {
-    expect(parseAccelerator("F7")).toEqual({ ctrl: false, alt: false, shift: false, win: false, vk: 0x76 });
-    expect(parseAccelerator("F8")).toEqual({ ctrl: false, alt: false, shift: false, win: false, vk: 0x77 });
+    expect(parseAccelerator("F7")).toEqual({
+      ctrl: false,
+      alt: false,
+      shift: false,
+      win: false,
+      vk: 0x76,
+    });
+    expect(parseAccelerator("F8")).toEqual({
+      ctrl: false,
+      alt: false,
+      shift: false,
+      win: false,
+      vk: 0x77,
+    });
     expect(parseAccelerator("F1")?.vk).toBe(0x70);
     expect(parseAccelerator("F24")?.vk).toBe(0x87);
   });

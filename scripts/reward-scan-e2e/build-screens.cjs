@@ -11,9 +11,21 @@ const H = 1080;
 // Card scaffolds follow FIXED_REWARD_LAYOUTS; title crops composite at their
 // filename coordinates (the true screen positions of the captured pixels).
 const LAYOUTS = {
-  2: [{ x: 721, w: 234 }, { x: 965, w: 234 }],
-  3: [{ x: 599, w: 234 }, { x: 843, w: 234 }, { x: 1087, w: 234 }],
-  4: [{ x: 470, w: 234 }, { x: 714, w: 234 }, { x: 958, w: 234 }, { x: 1202, w: 234 }],
+  2: [
+    { x: 721, w: 234 },
+    { x: 965, w: 234 },
+  ],
+  3: [
+    { x: 599, w: 234 },
+    { x: 843, w: 234 },
+    { x: 1087, w: 234 },
+  ],
+  4: [
+    { x: 470, w: 234 },
+    { x: 714, w: 234 },
+    { x: 958, w: 234 },
+    { x: 1202, w: 234 },
+  ],
 };
 const SLOT_Y = 243;
 const TITLE_Y = 413;

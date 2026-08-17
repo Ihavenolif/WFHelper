@@ -50,14 +50,8 @@ describe("ipc sender guards", () => {
     ctx.rivenOverlayLeftWindow = makeWindowStub(41);
     ctx.rivenOverlayRightWindow = makeWindowStub(42);
 
-    const leftEvent = makeEvent(
-      41,
-      "file:///D:/app/renderer/riven-overlay.html",
-    );
-    const rightEvent = makeEvent(
-      42,
-      "file:///D:/app/renderer/riven-overlay.html",
-    );
+    const leftEvent = makeEvent(41, "file:///D:/app/renderer/riven-overlay.html");
+    const rightEvent = makeEvent(42, "file:///D:/app/renderer/riven-overlay.html");
 
     expect(() =>
       ipcSecurity.assertRivenOverlayRendererSender(leftEvent, "riven-ready"),

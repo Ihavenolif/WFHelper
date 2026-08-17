@@ -9,13 +9,9 @@ describe("window security URL guards", () => {
     const overlayPath = path.join(process.cwd(), "renderer", "overlay.html");
     const allowed = __test__.normalizeAllowedFiles([indexPath]);
 
-    expect(
-      __test__.isAllowedFileNavigation(pathToFileURL(indexPath).href, allowed),
-    ).toBe(true);
+    expect(__test__.isAllowedFileNavigation(pathToFileURL(indexPath).href, allowed)).toBe(true);
 
-    expect(
-      __test__.isAllowedFileNavigation(pathToFileURL(overlayPath).href, allowed),
-    ).toBe(false);
+    expect(__test__.isAllowedFileNavigation(pathToFileURL(overlayPath).href, allowed)).toBe(false);
 
     expect(__test__.isAllowedFileNavigation("https://example.com", allowed)).toBe(false);
   });

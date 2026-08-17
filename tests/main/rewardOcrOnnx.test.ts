@@ -71,9 +71,7 @@ describe("cleanOnnxRowText", () => {
 
   it("strips non-ascii decode artifacts", () => {
     expect(cleanOnnxRowText("、· 2 X Forma Blueprint")).toBe("2 X Forma Blueprint");
-    expect(cleanOnnxRowText("一——二 Epitaph Prime Receiver")).toBe(
-      "Epitaph Prime Receiver",
-    );
+    expect(cleanOnnxRowText("一——二 Epitaph Prime Receiver")).toBe("Epitaph Prime Receiver");
   });
 
   it("keeps ampersands and already-spaced names", () => {

@@ -48,5 +48,4 @@ describe("wfmIpc payload validators", () => {
     expect(__test__.parseContractsPayload({ page: 0, limit: 20 })).toBeNull();
     expect(__test__.parseContractsPayload({ page: 2, limit: 1000 })).toBeNull();
   });
-
 });

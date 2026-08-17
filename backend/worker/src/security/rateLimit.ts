@@ -17,9 +17,7 @@ export async function checkPublicRateLimit(req: Request, env: Env, route: Public
 
 	try {
 		const result = await publicLimiter(env, route).limit({ key: `${route}:${clientIp(req)}` });
-		return result.success
-			? null
-			: jsonResponse({ ok: false, error: 'rate_limited' }, req, env, 429, { 'retry-after': '60' });
+		return result.success ? null : jsonResponse({ ok: false, error: 'rate_limited' }, req, env, 429, { 'retry-after': '60' });
 	} catch {
 		return null;
 	}

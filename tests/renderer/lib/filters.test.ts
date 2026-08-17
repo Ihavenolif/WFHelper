@@ -231,7 +231,11 @@ describe("mastery filters", () => {
       sortDirection: "desc",
     });
 
-    expect(filtered.map((row) => row.name)).toEqual(["Three Parts", "One Part", "No Parts Tracked"]);
+    expect(filtered.map((row) => row.name)).toEqual([
+      "Three Parts",
+      "One Part",
+      "No Parts Tracked",
+    ]);
   });
 
   it("keeps only items whose parts are all sitting in the inventory", () => {

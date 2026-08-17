@@ -33,12 +33,7 @@ function budgetStub(env: Env, now: number): DurableObjectStub {
 	return env.DAILY_BUDGET.getByName(utcDay(new Date(now)));
 }
 
-async function readBudget(
-	env: Env,
-	now: number,
-	increment: number,
-	maxRequests: number,
-): Promise<BudgetCounterResult> {
+async function readBudget(env: Env, now: number, increment: number, maxRequests: number): Promise<BudgetCounterResult> {
 	const response = await budgetStub(env, now).fetch('https://daily-budget.internal/check', {
 		method: 'POST',
 		headers: { 'content-type': 'application/json' },
@@ -67,7 +62,6 @@ export class DailyBudgetCounter {
 		if (increment < 0 || maxRequests < 1 || expiresAt <= Date.now()) {
 			return Response.json({ error: 'invalid_request' }, { status: 400 });
 		}
-
 
 		const count = await this.state.storage.transaction(async (transaction) => {
 			const storedExpiresAt = (await transaction.get<number>('expiresAt')) ?? 0;

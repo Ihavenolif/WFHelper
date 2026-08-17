@@ -17,8 +17,8 @@ interface GameContentRect {
 }
 
 const BAR_LUMA_THRESHOLD = 12; // pixel considered "black bar" if luma <= this
-const BAR_SAMPLE_COUNT = 32;   // number of samples per row/col test
-const BAR_BLACK_RATIO = 0.85;  // fraction of samples that must be black
+const BAR_SAMPLE_COUNT = 32; // number of samples per row/col test
+const BAR_BLACK_RATIO = 0.85; // fraction of samples that must be black
 
 export function detectGameContentRect(nativeImage: NativeImage): GameContentRect {
   const { width, height } = nativeImage.getSize();
@@ -53,22 +53,34 @@ export function detectGameContentRect(nativeImage: NativeImage): GameContentRect
   // Scan inward from each edge to find the content boundary.
   let top = 0;
   for (let y = 0; y < Math.floor(height * 0.25); y++) {
-    if (!isRowBlack(y)) { top = y; break; }
+    if (!isRowBlack(y)) {
+      top = y;
+      break;
+    }
     top = y + 1;
   }
   let bottom = height;
   for (let y = height - 1; y >= Math.floor(height * 0.75); y--) {
-    if (!isRowBlack(y)) { bottom = y + 1; break; }
+    if (!isRowBlack(y)) {
+      bottom = y + 1;
+      break;
+    }
     bottom = y;
   }
   let left = 0;
   for (let x = 0; x < Math.floor(width * 0.25); x++) {
-    if (!isColBlack(x)) { left = x; break; }
+    if (!isColBlack(x)) {
+      left = x;
+      break;
+    }
     left = x + 1;
   }
   let right = width;
   for (let x = width - 1; x >= Math.floor(width * 0.75); x--) {
-    if (!isColBlack(x)) { right = x + 1; break; }
+    if (!isColBlack(x)) {
+      right = x + 1;
+      break;
+    }
     right = x;
   }
 
@@ -114,7 +126,10 @@ interface Rect {
   height?: number;
 }
 
-export function cropRewardBand(nativeImage: NativeImage, band: Band | null | undefined): NativeImage {
+export function cropRewardBand(
+  nativeImage: NativeImage,
+  band: Band | null | undefined,
+): NativeImage {
   const { width, height } = nativeImage.getSize();
   const topRatio = clampNumber(band?.top, 0.0, 0.95, 0.38);
   const maxHeightRatio = Math.max(0.05, 1.0 - topRatio);
@@ -217,7 +232,10 @@ function enhanceForOcr(nativeImage: NativeImage): NativeImage {
   // Apply LUT: BGRA bitmap -> greyscale via integer luminance approximation.
   for (let i = 0; i < targetBitmap.length; i += 4) {
     // BT.601 luminance: (114*B + 587*G + 299*R) / 1000
-    const lum = ((targetBitmap[i] * 114 + targetBitmap[i + 1] * 587 + targetBitmap[i + 2] * 299 + 500) / 1000) | 0;
+    const lum =
+      ((targetBitmap[i] * 114 + targetBitmap[i + 1] * 587 + targetBitmap[i + 2] * 299 + 500) /
+        1000) |
+      0;
     const out = lut[lum > 255 ? 255 : lum < 0 ? 0 : lum];
     targetBitmap[i] = out;
     targetBitmap[i + 1] = out;
@@ -409,10 +427,7 @@ function detectFixedRewardSlotLayouts(nativeImage: NativeImage): RewardSlotLayou
     const avgScore =
       activities.reduce((sum, score) => sum + score, 0) / Math.max(1, activities.length);
     const confidence = Number(
-      (
-        clamp01(activeCount / count) * 0.58 +
-        clamp01(avgScore / 0.7) * 0.42
-      ).toFixed(3),
+      (clamp01(activeCount / count) * 0.58 + clamp01(avgScore / 0.7) * 0.42).toFixed(3),
     );
     const slots: RewardSlotRect[] = buildFixedSlots(scaled);
 
@@ -549,7 +564,13 @@ function detectRewardSlotLayout(nativeImage: NativeImage): RewardSlotLayout {
 }
 
 /** Mean luminance of a region, sampled on a stride. */
-function meanLuminance(bitmap: Buffer, width: number, height: number, stepX: number, stepY: number): number {
+function meanLuminance(
+  bitmap: Buffer,
+  width: number,
+  height: number,
+  stepX: number,
+  stepY: number,
+): number {
   let sum = 0;
   let count = 0;
   for (let y = 0; y < height; y += stepY) {

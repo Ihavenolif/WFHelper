@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  fallbackNameFromUniqueName,
-  sanitizeDisplayName,
-} from "../../config/shared/displayName";
+import { fallbackNameFromUniqueName, sanitizeDisplayName } from "../../config/shared/displayName";
 
 describe("sanitizeDisplayName", () => {
   it("strips any leading DE bracket marker, not just <ARCHWING>", () => {

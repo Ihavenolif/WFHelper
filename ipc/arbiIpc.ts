@@ -40,30 +40,42 @@ function exportBaseName(id: string): string {
 }
 
 function register(): void {
-  handleAuthorized(ARBI_GET_RUNS, assertMainRendererSender, (): ArbiRunsPayload => ({
-    runs: arbiRunTracker.getRuns(),
-    diskUsageBytes: arbiRunTracker.getDiskUsageBytes(),
-  }));
+  handleAuthorized(
+    ARBI_GET_RUNS,
+    assertMainRendererSender,
+    (): ArbiRunsPayload => ({
+      runs: arbiRunTracker.getRuns(),
+      diskUsageBytes: arbiRunTracker.getDiskUsageBytes(),
+    }),
+  );
 
-  handleAuthorized(ARBI_SET_VITUS, assertMainRendererSender, (_event, id: unknown, vitus: unknown) => {
-    const runId = asRunId(id);
-    if (!runId) return null;
-    let value: number | null = null;
-    if (typeof vitus === "number") {
-      if (!Number.isFinite(vitus) || vitus < 0 || vitus > MAX_VITUS) return null;
-      value = Math.round(vitus);
-    } else if (vitus !== null) {
-      return null;
-    }
-    return arbiRunTracker.setRunVitus(runId, value);
-  });
+  handleAuthorized(
+    ARBI_SET_VITUS,
+    assertMainRendererSender,
+    (_event, id: unknown, vitus: unknown) => {
+      const runId = asRunId(id);
+      if (!runId) return null;
+      let value: number | null = null;
+      if (typeof vitus === "number") {
+        if (!Number.isFinite(vitus) || vitus < 0 || vitus > MAX_VITUS) return null;
+        value = Math.round(vitus);
+      } else if (vitus !== null) {
+        return null;
+      }
+      return arbiRunTracker.setRunVitus(runId, value);
+    },
+  );
 
-  handleAuthorized(ARBI_SET_TAGS, assertMainRendererSender, (_event, id: unknown, tags: unknown) => {
-    const runId = asRunId(id);
-    if (!runId) return null;
-    // normalizeArbiTags is total over unknown input: non-arrays -> [], junk entries dropped.
-    return arbiRunTracker.setRunTags(runId, normalizeArbiTags(tags));
-  });
+  handleAuthorized(
+    ARBI_SET_TAGS,
+    assertMainRendererSender,
+    (_event, id: unknown, tags: unknown) => {
+      const runId = asRunId(id);
+      if (!runId) return null;
+      // normalizeArbiTags is total over unknown input: non-arrays -> [], junk entries dropped.
+      return arbiRunTracker.setRunTags(runId, normalizeArbiTags(tags));
+    },
+  );
 
   handleAuthorized(ARBI_DELETE_RUN, assertMainRendererSender, (_event, id: unknown) => {
     const runId = asRunId(id);
@@ -95,40 +107,52 @@ function register(): void {
     }
   });
 
-  handleAuthorized(ARBI_SAVE_IMAGE, assertMainRendererSender, async (_event, id: unknown, png: unknown) => {
-    const runId = asRunId(id);
-    if (!runId || !ctx.mainWindow) return { ok: false };
-    if (!(png instanceof Uint8Array) || png.byteLength === 0 || png.byteLength > MAX_IMAGE_BYTES) {
-      return { ok: false };
-    }
-    const result = await dialog.showSaveDialog(ctx.mainWindow, {
-      defaultPath: `${exportBaseName(runId)}.png`,
-      filters: [{ name: "PNG image", extensions: ["png"] }],
-    });
-    if (result.canceled || !result.filePath) return { ok: false };
-    try {
-      fs.writeFileSync(result.filePath, Buffer.from(png.buffer, png.byteOffset, png.byteLength));
-      return { ok: true };
-    } catch (err) {
-      log.warn("[Arbi] Image export failed:", normalizeErrorMessage(err));
-      return { ok: false };
-    }
-  });
+  handleAuthorized(
+    ARBI_SAVE_IMAGE,
+    assertMainRendererSender,
+    async (_event, id: unknown, png: unknown) => {
+      const runId = asRunId(id);
+      if (!runId || !ctx.mainWindow) return { ok: false };
+      if (
+        !(png instanceof Uint8Array) ||
+        png.byteLength === 0 ||
+        png.byteLength > MAX_IMAGE_BYTES
+      ) {
+        return { ok: false };
+      }
+      const result = await dialog.showSaveDialog(ctx.mainWindow, {
+        defaultPath: `${exportBaseName(runId)}.png`,
+        filters: [{ name: "PNG image", extensions: ["png"] }],
+      });
+      if (result.canceled || !result.filePath) return { ok: false };
+      try {
+        fs.writeFileSync(result.filePath, Buffer.from(png.buffer, png.byteOffset, png.byteLength));
+        return { ok: true };
+      } catch (err) {
+        log.warn("[Arbi] Image export failed:", normalizeErrorMessage(err));
+        return { ok: false };
+      }
+    },
+  );
 
-  handleAuthorized(ARBI_IMPORT_LOG, assertMainRendererSender, async (): Promise<ArbiImportResult> => {
-    const empty: ArbiImportResult = { imported: [], skipped: 0 };
-    if (!ctx.mainWindow) return empty;
-    const result = await dialog.showOpenDialog(ctx.mainWindow, {
-      title: "Import EE.log",
-      filters: [
-        { name: "EE.log", extensions: ["log", "txt"] },
-        { name: "All files", extensions: ["*"] },
-      ],
-      properties: ["openFile"],
-    });
-    if (result.canceled || result.filePaths.length === 0) return empty;
-    return importEeLog(result.filePaths[0]);
-  });
+  handleAuthorized(
+    ARBI_IMPORT_LOG,
+    assertMainRendererSender,
+    async (): Promise<ArbiImportResult> => {
+      const empty: ArbiImportResult = { imported: [], skipped: 0 };
+      if (!ctx.mainWindow) return empty;
+      const result = await dialog.showOpenDialog(ctx.mainWindow, {
+        title: "Import EE.log",
+        filters: [
+          { name: "EE.log", extensions: ["log", "txt"] },
+          { name: "All files", extensions: ["*"] },
+        ],
+        properties: ["openFile"],
+      });
+      if (result.canceled || result.filePaths.length === 0) return empty;
+      return importEeLog(result.filePaths[0]);
+    },
+  );
 
   handleAuthorized(ARBI_SHOW_LOG_IN_FOLDER, assertMainRendererSender, (_event, id: unknown) => {
     const runId = asRunId(id);

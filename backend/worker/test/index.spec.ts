@@ -442,18 +442,10 @@ describe('backend worker', () => {
 		});
 
 		const sampledCtx = createExecutionContext();
-		const sampled = await worker.fetch(
-			new IncomingRequest('http://example.com/healthz'),
-			testEnv as unknown as Env,
-			sampledCtx,
-		);
+		const sampled = await worker.fetch(new IncomingRequest('http://example.com/healthz'), testEnv as unknown as Env, sampledCtx);
 		await waitOnExecutionContext(sampledCtx);
 		const unsampledCtx = createExecutionContext();
-		const unsampled = await worker.fetch(
-			new IncomingRequest('http://example.com/healthz'),
-			testEnv as unknown as Env,
-			unsampledCtx,
-		);
+		const unsampled = await worker.fetch(new IncomingRequest('http://example.com/healthz'), testEnv as unknown as Env, unsampledCtx);
 		await waitOnExecutionContext(unsampledCtx);
 
 		expect(sampled.status).toBe(503);

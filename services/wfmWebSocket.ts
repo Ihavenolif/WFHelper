@@ -31,10 +31,7 @@ export function setStatusViaWebSocket(
 
     function closeSocket(): void {
       try {
-        if (
-          socket.readyState === WebSocket.CONNECTING ||
-          socket.readyState === WebSocket.OPEN
-        ) {
+        if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
           socket.close(1000);
         }
       } catch (err) {

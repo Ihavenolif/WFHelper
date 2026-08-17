@@ -1,6 +1,5 @@
 /** Fields consumed from DE public exports and WFCD items. */
 
-
 /** A single item from any PEP Export* record. */
 export interface PepExportItem {
   name: string;

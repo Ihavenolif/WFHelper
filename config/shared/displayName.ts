@@ -16,8 +16,6 @@ export function fallbackNameFromUniqueName(uniqueName: string | null | undefined
   if (/\/Lotus\/Language\//i.test(raw)) {
     last = last.replace(/Name$/, "");
   }
-  const name = last
-    .replace(/([a-z])([A-Z])/g, "$1 $2")
-    .replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
+  const name = last.replace(/([a-z])([A-Z])/g, "$1 $2").replace(/([A-Z]+)([A-Z][a-z])/g, "$1 $2");
   return sanitizeDisplayName(name);
 }

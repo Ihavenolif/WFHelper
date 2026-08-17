@@ -208,7 +208,6 @@ async function ensureUpdateFeedReachable(): Promise<boolean> {
   return true;
 }
 
-
 export function initialize(windowRef: import("electron").BrowserWindow): void {
   mainWindow = windowRef;
   if (mainWindow && !mainWindow.isDestroyed()) {
@@ -313,7 +312,12 @@ export async function checkForUpdates(
     return { ok: false, message: "Auto-updater disabled.", state: updateState };
   }
   if (!(await ensureUpdateFeedReachable())) {
-    return { ok: false, source, message: disabledReason || "Auto-updater disabled.", state: updateState };
+    return {
+      ok: false,
+      source,
+      message: disabledReason || "Auto-updater disabled.",
+      state: updateState,
+    };
   }
   if (checkPromise) {
     return checkPromise;
@@ -339,7 +343,11 @@ export function getUpdateState(): UpdateState {
   return { ...updateState };
 }
 
-export async function downloadUpdate(): Promise<{ ok: boolean; message?: string; state: UpdateState }> {
+export async function downloadUpdate(): Promise<{
+  ok: boolean;
+  message?: string;
+  state: UpdateState;
+}> {
   if (!initialized) {
     return { ok: false, message: "Auto-updater not initialized.", state: updateState };
   }

@@ -56,12 +56,7 @@ const TAG: Record<string, string> = {
   FIN: "WeaponMeleeFinisherDamageMod",
 };
 
-const ELEMENT_TAGS = [
-  TAG.HEAT,
-  TAG.COLD,
-  TAG.ELEC,
-  TAG.TOX,
-];
+const ELEMENT_TAGS = [TAG.HEAT, TAG.COLD, TAG.ELEC, TAG.TOX];
 
 function tagsFor(abbrev: string, klass: RivenGoodRollClass): string[] {
   const key = abbrev.toUpperCase().trim();
@@ -99,7 +94,10 @@ function parseCsv(text: string): string[][] {
 
 function parsePositives(cell: string, klass: RivenGoodRollClass): GoodRoll[] {
   const rolls: GoodRoll[] = [];
-  for (const alt of (cell || "").replace(/\s+/g, " ").trim().split(/\s+or\s+/i)) {
+  for (const alt of (cell || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/\s+or\s+/i)) {
     const mandatory = new Set<string>();
     const optional = new Set<string>();
     for (const token of alt.split(/\s+/).filter(Boolean)) {
@@ -134,7 +132,9 @@ export function parseRivenGoodRollCsv(
   const positiveColumn = header.findIndex((h) => h.startsWith("positive"));
   const negativeColumn = header.findIndex((h) => h.startsWith("negative"));
   if (weaponColumn < 0 || positiveColumn < 0 || negativeColumn < 0) {
-    throw new Error(`bad riven good-rolls header for ${klass}: ${rows[0]?.join(", ") ?? "<empty>"}`);
+    throw new Error(
+      `bad riven good-rolls header for ${klass}: ${rows[0]?.join(", ") ?? "<empty>"}`,
+    );
   }
 
   const entries: RivenGoodRollEntry[] = [];
@@ -143,7 +143,8 @@ export function parseRivenGoodRollCsv(
     if (!name) continue;
     const goodAttrs = parsePositives(rows[i][positiveColumn], klass);
     const acceptedBadAttrs = parseNegatives(rows[i][negativeColumn], klass);
-    if (goodAttrs.length || acceptedBadAttrs.length) entries.push({ name, goodAttrs, acceptedBadAttrs });
+    if (goodAttrs.length || acceptedBadAttrs.length)
+      entries.push({ name, goodAttrs, acceptedBadAttrs });
   }
   return entries;
 }

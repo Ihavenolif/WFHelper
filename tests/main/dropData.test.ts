@@ -6,25 +6,49 @@ describe("dropData.flatten", () => {
   const data = {
     missionRewards: {
       Mercury: {
-        Apollodorus: { gameMode: "Survival", rewards: { C: [{ itemName: "Vitus", rarity: "Rare", chance: 7 }] } },
+        Apollodorus: {
+          gameMode: "Survival",
+          rewards: { C: [{ itemName: "Vitus", rarity: "Rare", chance: 7 }] },
+        },
       },
     },
     relics: [
-      { tier: "Axi", relicName: "A1", state: "Intact", rewards: [{ itemName: "Nikana Prime Blueprint", rarity: "Rare", chance: 2 }] },
-      { tier: "Axi", relicName: "A1", state: "Radiant", rewards: [{ itemName: "Nikana Prime Blueprint", rarity: "Rare", chance: 10 }] },
+      {
+        tier: "Axi",
+        relicName: "A1",
+        state: "Intact",
+        rewards: [{ itemName: "Nikana Prime Blueprint", rarity: "Rare", chance: 2 }],
+      },
+      {
+        tier: "Axi",
+        relicName: "A1",
+        state: "Radiant",
+        rewards: [{ itemName: "Nikana Prime Blueprint", rarity: "Rare", chance: 10 }],
+      },
     ],
     modLocations: [
-      { modName: "Serration", enemies: [{ enemyName: "Grineer Lancer", rarity: "Common", chance: 11.06 }] },
+      {
+        modName: "Serration",
+        enemies: [{ enemyName: "Grineer Lancer", rarity: "Common", chance: 11.06 }],
+      },
     ],
     enemyModTables: [
       { enemyName: "Screamer", mods: [{ modName: "Vitality", rarity: "Uncommon", chance: 12.5 }] },
     ],
     resourceByAvatar: [
-      { source: "Motherboard Cluster", items: [{ item: "Techrot Motherboard", rarity: "Common", chance: 100 }] },
+      {
+        source: "Motherboard Cluster",
+        items: [{ item: "Techrot Motherboard", rarity: "Common", chance: 100 }],
+      },
     ],
     syndicates: {
       "Kahl's Garrison": [
-        { item: "Styanax Systems Blueprint", rarity: "Common", chance: 100, place: "Kahl's Garrison, Encampment" },
+        {
+          item: "Styanax Systems Blueprint",
+          rarity: "Common",
+          chance: 100,
+          place: "Kahl's Garrison, Encampment",
+        },
       ],
     },
   };
@@ -33,7 +57,12 @@ describe("dropData.flatten", () => {
   const find = (item: string): DropRow | undefined => rows.find((r) => r.item === item);
 
   it("flattens mission rewards with rotation in the place", () => {
-    expect(find("Vitus")).toEqual({ item: "Vitus", place: "Apollodorus (Mercury), Rotation C", rarity: "Rare", chance: 7 });
+    expect(find("Vitus")).toEqual({
+      item: "Vitus",
+      place: "Apollodorus (Mercury), Rotation C",
+      rarity: "Rare",
+      chance: 7,
+    });
   });
 
   it("keeps only the Intact relic state", () => {

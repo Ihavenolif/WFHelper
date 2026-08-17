@@ -45,7 +45,14 @@ const isTestPath = (p) =>
   p.includes(`${sep}__tests__${sep}`) ||
   /backend[\\/]worker[\\/]test[\\/]/.test(p);
 
-const SKIP_DIR = new Set(["node_modules", ".electron-build", "dist", ".git", "release", ".icon-mirror"]);
+const SKIP_DIR = new Set([
+  "node_modules",
+  ".electron-build",
+  "dist",
+  ".git",
+  "release",
+  ".icon-mirror",
+]);
 
 function walk(dir, out = []) {
   let entries;
@@ -88,8 +95,7 @@ function collectFiles(dirs, rootFiles = []) {
   return files;
 }
 
-const EXPORT_RE =
-  /^\s*export\s+(?:async\s+)?(?:function|const|class|let|var)\s+([A-Za-z_$][\w$]*)/;
+const EXPORT_RE = /^\s*export\s+(?:async\s+)?(?:function|const|class|let|var)\s+([A-Za-z_$][\w$]*)/;
 const REEXPORT_LINE_RE = /^\s*export\s+(?:type\s+)?\{/;
 const IDENT_RE = /[A-Za-z_$][\w$]*/g;
 const TEST_BAG_OPEN_RE = /^\s*export\s+const\s+__test__\s*=\s*\{/;
@@ -117,8 +123,10 @@ for (const file of collectFiles(DEF_DIRS, DEF_ROOT_FILES)) {
     let j = i;
     for (; j < lines.length; j++) {
       for (const ch of lines[j]) {
-        if (ch === "{") { depth++; started = true; }
-        else if (ch === "}") depth--;
+        if (ch === "{") {
+          depth++;
+          started = true;
+        } else if (ch === "}") depth--;
       }
       if (started && depth === 0) break;
     }
@@ -136,7 +144,10 @@ for (const file of collectFiles(DEF_DIRS, DEF_ROOT_FILES)) {
       );
       let declLine = i;
       for (let k = 0; k < lines.length; k++) {
-        if (declRe.test(lines[k])) { declLine = k; break; }
+        if (declRe.test(lines[k])) {
+          declLine = k;
+          break;
+        }
       }
       defs.set(name, { file, line: declLine + 1 });
       defAtLine.set(`${file}\0${declLine + 1}`, name);

@@ -15,7 +15,7 @@ const CreateFileMappingW = kernel32.func("CreateFileMappingW", "void *", [
   "uint32", // flProtect        - PAGE_READWRITE
   "uint32", // dwMaximumSizeHigh
   "uint32", // dwMaximumSizeLow
-  "str16",  // lpName
+  "str16", // lpName
 ]);
 
 const MapViewOfFile = kernel32.func("MapViewOfFile", "void *", [
@@ -32,9 +32,9 @@ const UnmapViewOfFile = kernel32.func("UnmapViewOfFile", "int32", ["void *"]);
 
 const CreateEventW = kernel32.func("CreateEventW", "void *", [
   "void *", // lpEventAttributes - NULL
-  "int32",  // bManualReset  (BOOL)
-  "int32",  // bInitialState (BOOL)
-  "str16",  // lpName
+  "int32", // bManualReset  (BOOL)
+  "int32", // bInitialState (BOOL)
+  "str16", // lpName
 ]);
 
 const WaitForSingleObject = kernel32.func("WaitForSingleObject", "uint32", [
@@ -49,14 +49,13 @@ const GetLastError = kernel32.func("GetLastError", "uint32", []);
 // OpenProcess - used by isWarframePid() to query process image names
 const OpenProcess = kernel32.func("OpenProcess", "void *", [
   "uint32", // dwDesiredAccess - PROCESS_QUERY_LIMITED_INFORMATION
-  "int32",  // bInheritHandle (BOOL) - 0
+  "int32", // bInheritHandle (BOOL) - 0
   "uint32", // dwProcessId
 ]);
 
 // QueryFullProcessImageNameW - retrieves the full exe path for an open handle.
 // lpExeName: caller-allocated WCHAR buffer.  lpdwSize: in=capacity, out=char count.
-const QueryFullProcessImageNameW = kernel32.func(
-  "QueryFullProcessImageNameW", "int32", [
+const QueryFullProcessImageNameW = kernel32.func("QueryFullProcessImageNameW", "int32", [
   "void *", // hProcess
   "uint32", // dwFlags - 0 = Win32 path format
   "void *", // lpExeName  (PWSTR output buffer, raw pointer)
@@ -109,8 +108,8 @@ function rememberPid(pid: number, value: boolean): void {
 }
 
 // Pre-allocated output buffers (reused every call - no per-call heap alloc)
-const _exeNameBuf    = Buffer.alloc(MAX_PATH * 2); // WCHAR[MAX_PATH] = UTF-16LE path
-const _exeNameSizeBuf = Buffer.alloc(4);            // DWORD in/out
+const _exeNameBuf = Buffer.alloc(MAX_PATH * 2); // WCHAR[MAX_PATH] = UTF-16LE path
+const _exeNameSizeBuf = Buffer.alloc(4); // DWORD in/out
 
 function isWarframePid(pid: number): boolean {
   const cached = _pidIsWarframe.get(pid);
@@ -135,7 +134,10 @@ function isWarframePid(pid: number): boolean {
   }
 
   const charCount = _exeNameSizeBuf.readUInt32LE(0);
-  const exePath = _exeNameBuf.subarray(0, charCount * 2).toString("utf16le").toLowerCase();
+  const exePath = _exeNameBuf
+    .subarray(0, charCount * 2)
+    .toString("utf16le")
+    .toLowerCase();
   const result = exePath.endsWith("\\warframe.x64.exe");
   rememberPid(pid, result);
   return result;
@@ -144,8 +146,8 @@ function isWarframePid(pid: number): boolean {
 // Cache image-name lookups so process enumeration stays cheap.
 
 // Pre-allocated buffer for up to 1024 PIDs (4096 bytes / 4 bytes per DWORD)
-const _pidsBuf      = Buffer.alloc(4096);
-const _pidsUsedBuf  = Buffer.alloc(4); // DWORD: bytes returned by EnumProcesses
+const _pidsBuf = Buffer.alloc(4096);
+const _pidsUsedBuf = Buffer.alloc(4); // DWORD: bytes returned by EnumProcesses
 
 function isWarframeRunning(): boolean {
   _pidsUsedBuf.fill(0);
@@ -200,7 +202,7 @@ function runDbwinLoop(): void {
   // DBWIN_BUFFER_READY: auto-reset (0), initially signaled (1) - "ready to receive"
   const hReady = CreateEventW(null, 0, 1, "DBWIN_BUFFER_READY");
   // DBWIN_DATA_READY:  auto-reset (0), initially unsignaled (0)
-  const hData  = CreateEventW(null, 0, 0, "DBWIN_DATA_READY");
+  const hData = CreateEventW(null, 0, 0, "DBWIN_DATA_READY");
 
   if (!hReady || !hData) {
     parentPort?.postMessage({
@@ -210,7 +212,7 @@ function runDbwinLoop(): void {
     UnmapViewOfFile(pBuf);
     CloseHandle(hMap);
     if (hReady) CloseHandle(hReady);
-    if (hData)  CloseHandle(hData);
+    if (hData) CloseHandle(hData);
     return;
   }
 

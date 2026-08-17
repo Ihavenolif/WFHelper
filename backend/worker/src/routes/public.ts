@@ -315,10 +315,9 @@ export async function handlePublicRoutes(req: Request, url: URL, env: Env, ctx?:
 		const edgeCache = caches.default;
 		const cachedResponse = await edgeCache.match(cacheKey);
 		if (cachedResponse) {
-			return annotateResponse(
-				rawJsonResponse(await cachedResponse.text(), req, env, 200, { 'cache-control': WFM_ITEMS_CACHE_CONTROL }),
-				{ cacheHit: true },
-			);
+			return annotateResponse(rawJsonResponse(await cachedResponse.text(), req, env, 200, { 'cache-control': WFM_ITEMS_CACHE_CONTROL }), {
+				cacheHit: true,
+			});
 		}
 
 		let catalog = await readClientCatalogFromKv(env);
@@ -339,9 +338,7 @@ export async function handlePublicRoutes(req: Request, url: URL, env: Env, ctx?:
 		const body = JSON.stringify({ ok: true, updatedAt: catalog.updatedAt, items: catalog.items });
 		const response = rawJsonResponse(body, req, env, 200, { 'cache-control': WFM_ITEMS_CACHE_CONTROL });
 		if (ctx) {
-			ctx.waitUntil(
-				edgeCache.put(cacheKey, new Response(body, { status: 200, headers: { 'cache-control': WFM_ITEMS_CACHE_CONTROL } })),
-			);
+			ctx.waitUntil(edgeCache.put(cacheKey, new Response(body, { status: 200, headers: { 'cache-control': WFM_ITEMS_CACHE_CONTROL } })));
 		}
 		return annotateResponse(response, { cacheHit: false });
 	}

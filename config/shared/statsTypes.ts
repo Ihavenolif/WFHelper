@@ -7,7 +7,6 @@ export type DownloadStage = "resolving" | "downloading" | "done" | "error";
 /** Direction of an item in a trade. */
 export type TradeDirection = "given" | "received";
 
-
 export interface TradeItem {
   internalName: string;
   displayName: string;
@@ -19,32 +18,31 @@ export interface TradeItem {
 
 export interface TradeEvent {
   id: string;
-  date: string;            // ISO datetime
+  date: string; // ISO datetime
   type: TradeType;
-  platChange: number;      // always positive (0 for pure item swaps)
+  platChange: number; // always positive (0 for pure item swaps)
   items: TradeItem[];
-  partner?: string;        // trading partner username (best-effort from EE.log)
-  wfmClosed?: boolean;     // true when a WFM order was auto-closed for this trade
+  partner?: string; // trading partner username (best-effort from EE.log)
+  wfmClosed?: boolean; // true when a WFM order was auto-closed for this trade
 }
 
-
 export interface DailyStatEntry {
-  date: string;           // "YYYY-MM-DD"
-  platDelta: number;      // net plat change this session/day
+  date: string; // "YYYY-MM-DD"
+  platDelta: number; // net plat change this session/day
   creditsDelta: number;
   endoDelta: number;
-  ducatsDelta: number;    // net Void Ducat change (MiscItems/PrimeBucks)
-  ayaDelta: number;       // net Aya (PrimeTokens) change
-  vitusDelta: number;     // net Vitus Essence change (MiscItems/Elitium)
-  relicsOpened: number;   // relics consumed (LevelKeys net decrease, >=0)
-  daysPlayed: number;     // 1 = played; 0 = no inventory data (imported gap)
-  dailyTrades: number;    // number of trades detected or imported for this day
-  absPlat?: number;       // absolute platinum balance at end of day
-  absCredits?: number;    // absolute credits balance at end of day
-  absEndo?: number;       // absolute endo balance at end of day
-  absDucats?: number;     // absolute ducats balance at end of day
-  absAya?: number;        // absolute aya balance at end of day
-  absVitus?: number;      // absolute vitus essence balance at end of day
+  ducatsDelta: number; // net Void Ducat change (MiscItems/PrimeBucks)
+  ayaDelta: number; // net Aya (PrimeTokens) change
+  vitusDelta: number; // net Vitus Essence change (MiscItems/Elitium)
+  relicsOpened: number; // relics consumed (LevelKeys net decrease, >=0)
+  daysPlayed: number; // 1 = played; 0 = no inventory data (imported gap)
+  dailyTrades: number; // number of trades detected or imported for this day
+  absPlat?: number; // absolute platinum balance at end of day
+  absCredits?: number; // absolute credits balance at end of day
+  absEndo?: number; // absolute endo balance at end of day
+  absDucats?: number; // absolute ducats balance at end of day
+  absAya?: number; // absolute aya balance at end of day
+  absVitus?: number; // absolute vitus essence balance at end of day
 }
 
 export interface SessionStats {

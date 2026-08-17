@@ -2,24 +2,24 @@
 
 // Lowercase to allow a single case-insensitive check without regex cost.
 const FILTER_SUBSTRINGS_LOWER = [
-  "loadingcompleteend",        // relic selection screen ready (primary trigger)
-  "populateinventorygrid",     // relic selection screen ready (fallback trigger)
-  "initmapping",               // relic picker close (returns to gameplay)
-  "dialog::sendresult",        // relic/riven dialog closing
-  "pause countdown done",      // mission reward trigger
-  "got rewards",               // mission reward trigger
+  "loadingcompleteend", // relic selection screen ready (primary trigger)
+  "populateinventorygrid", // relic selection screen ready (fallback trigger)
+  "initmapping", // relic picker close (returns to gameplay)
+  "dialog::sendresult", // relic/riven dialog closing
+  "pause countdown done", // mission reward trigger
+  "got rewards", // mission reward trigger
   "projectionrewardchoice.lua", // reward cards rendering (early-scan signal)
-  "omegarerollselection.swf",  // riven rolling screen opened
-  "diorama setup",             // riven diorama ready (OmegaRerollSelection.lua)
-  "npcmanager::clearagents",   // riven session close
-  "recycled effects",          // riven session close (alt signal)
-  "dialog::createokcancel",    // riven cycle confirm / choice confirm
+  "omegarerollselection.swf", // riven rolling screen opened
+  "diorama setup", // riven diorama ready (OmegaRerollSelection.lua)
+  "npcmanager::clearagents", // riven session close
+  "recycled effects", // riven session close (alt signal)
+  "dialog::createokcancel", // riven cycle confirm / choice confirm
   "themeddetailedpurchasedialog", // chat riven HudVis + PopulateInfo detection
-  "tradingpost.lua",           // trade partner detection
-  "you are offering",          // trade dialog buffering start
-  "the trade was successful",  // trade dialog success
-  "chatredux::addtab",         // incoming whisper opens a private chat tab
-  "mainmenu::logindone",       // inventory refresh after login
+  "tradingpost.lua", // trade partner detection
+  "you are offering", // trade dialog buffering start
+  "the trade was successful", // trade dialog success
+  "chatredux::addtab", // incoming whisper opens a private chat tab
+  "mainmenu::logindone", // inventory refresh after login
 ] as const;
 
 // Match eeLogMonitor's picker cooldown because the game repeats these lines.
@@ -53,8 +53,7 @@ export class DebugLineGate {
     }
 
     const isRelicLine =
-      msgLower.includes("loadingcompleteend") ||
-      msgLower.includes("populateinventorygrid");
+      msgLower.includes("loadingcompleteend") || msgLower.includes("populateinventorygrid");
     if (isRelicLine) {
       if (now < this.relicSuppressUntil) return false;
       this.relicSuppressUntil = now + RELIC_PICKER_SUPPRESS_MS;

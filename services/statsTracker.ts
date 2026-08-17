@@ -49,7 +49,6 @@ const HISTORY_MAX_DAYS = 90;
 // user's LOCAL timezone. v1 (and unversioned legacy files) used UTC.
 const HISTORY_SCHEMA_VERSION = 2;
 
-
 function _historyPath(): string {
   return path.join(app.getPath("userData"), "stats-history.json");
 }
@@ -63,7 +62,9 @@ function _todayStr(): string {
 }
 
 function _findMiscItemCount(data: Record<string, unknown>, itemType: string): number | null {
-  const misc = Array.isArray(data.MiscItems) ? data.MiscItems as Array<Record<string, unknown>> : [];
+  const misc = Array.isArray(data.MiscItems)
+    ? (data.MiscItems as Array<Record<string, unknown>>)
+    : [];
   const entry = misc.find((e) => e.ItemType === itemType);
   return entry && typeof entry.ItemCount === "number" ? entry.ItemCount : null;
 }
@@ -85,21 +86,25 @@ function _saveHistory(): void {
 function _upsertToday(): void {
   const today = _todayStr();
 
-  const platDelta = _resumedPlatDelta +
+  const platDelta =
+    _resumedPlatDelta +
     (_currentPlat !== null && _baselinePlat !== null ? _currentPlat - _baselinePlat : 0);
-  const creditsDelta = _resumedCreditsDelta +
+  const creditsDelta =
+    _resumedCreditsDelta +
     (_currentCredits !== null && _baselineCredits !== null
       ? _currentCredits - _baselineCredits
       : 0);
-  const endoDelta = _resumedEndoDelta +
+  const endoDelta =
+    _resumedEndoDelta +
     (_currentEndo !== null && _baselineEndo !== null ? _currentEndo - _baselineEndo : 0);
-  const ducatsDelta = _resumedDucatsDelta +
-    (_currentDucats !== null && _baselineDucats !== null
-      ? _currentDucats - _baselineDucats
-      : 0);
-  const ayaDelta = _resumedAyaDelta +
+  const ducatsDelta =
+    _resumedDucatsDelta +
+    (_currentDucats !== null && _baselineDucats !== null ? _currentDucats - _baselineDucats : 0);
+  const ayaDelta =
+    _resumedAyaDelta +
     (_currentAya !== null && _baselineAya !== null ? _currentAya - _baselineAya : 0);
-  const vitusDelta = _resumedVitusDelta +
+  const vitusDelta =
+    _resumedVitusDelta +
     (_currentVitus !== null && _baselineVitus !== null ? _currentVitus - _baselineVitus : 0);
 
   const entry: DailyStatEntry = {
@@ -153,7 +158,10 @@ export function loadHistory(): void {
     }
     if (Array.isArray(entries)) {
       // Back-fill any fields missing from older schema so the shape is always complete
-      const backFillDefaults: Pick<DailyStatEntry, "ducatsDelta" | "ayaDelta" | "vitusDelta" | "relicsOpened" | "daysPlayed" | "dailyTrades"> = {
+      const backFillDefaults: Pick<
+        DailyStatEntry,
+        "ducatsDelta" | "ayaDelta" | "vitusDelta" | "relicsOpened" | "daysPlayed" | "dailyTrades"
+      > = {
         ducatsDelta: 0,
         ayaDelta: 0,
         vitusDelta: 0,
@@ -205,15 +213,15 @@ export function loadHistory(): void {
 }
 
 export function onInventoryData(data: Record<string, unknown>): void {
-  const plat    = _num(data.PremiumCredits);
+  const plat = _num(data.PremiumCredits);
   const credits = _num(data.RegularCredits);
-  const endo    = _num(data.FusionPoints);
+  const endo = _num(data.FusionPoints);
   // Ducats are stored as a MiscItem entry, not a top-level field
-  const ducats  = _findMiscItemCount(data, "/Lotus/Types/Items/MiscItems/PrimeBucks");
+  const ducats = _findMiscItemCount(data, "/Lotus/Types/Items/MiscItems/PrimeBucks");
   // PrimeTokens is the raw field name for Aya in the Warframe inventory JSON
-  const aya     = _num(data.PrimeTokens);
+  const aya = _num(data.PrimeTokens);
   // Vitus Essence's internal name is Elitium
-  const vitus   = _findMiscItemCount(data, "/Lotus/Types/Items/MiscItems/Elitium");
+  const vitus = _findMiscItemCount(data, "/Lotus/Types/Items/MiscItems/Elitium");
 
   const today = _todayStr();
 
@@ -247,19 +255,19 @@ export function onInventoryData(data: Record<string, unknown>): void {
   }
   _lastRelicTotal = relicTotal;
 
-  if (_baselinePlat    === null && plat    !== null) _baselinePlat    = plat;
+  if (_baselinePlat === null && plat !== null) _baselinePlat = plat;
   if (_baselineCredits === null && credits !== null) _baselineCredits = credits;
-  if (_baselineEndo    === null && endo    !== null) _baselineEndo    = endo;
-  if (_baselineDucats  === null && ducats  !== null) _baselineDucats  = ducats;
-  if (_baselineAya     === null && aya     !== null) _baselineAya     = aya;
-  if (_baselineVitus   === null && vitus   !== null) _baselineVitus   = vitus;
+  if (_baselineEndo === null && endo !== null) _baselineEndo = endo;
+  if (_baselineDucats === null && ducats !== null) _baselineDucats = ducats;
+  if (_baselineAya === null && aya !== null) _baselineAya = aya;
+  if (_baselineVitus === null && vitus !== null) _baselineVitus = vitus;
 
-  _currentPlat    = plat;
+  _currentPlat = plat;
   _currentCredits = credits;
-  _currentEndo    = endo;
-  _currentDucats  = ducats;
-  _currentAya     = aya;
-  _currentVitus   = vitus;
+  _currentEndo = endo;
+  _currentDucats = ducats;
+  _currentAya = aya;
+  _currentVitus = vitus;
 
   _upsertToday();
 }
@@ -312,28 +320,32 @@ export function getCurrentSession(): SessionStats {
     _currentAya !== null ||
     _currentVitus !== null;
   return {
-    platDelta: _resumedPlatDelta +
+    platDelta:
+      _resumedPlatDelta +
       (_currentPlat !== null && _baselinePlat !== null ? _currentPlat - _baselinePlat : 0),
-    creditsDelta: _resumedCreditsDelta +
+    creditsDelta:
+      _resumedCreditsDelta +
       (_currentCredits !== null && _baselineCredits !== null
         ? _currentCredits - _baselineCredits
         : 0),
-    endoDelta: _resumedEndoDelta +
+    endoDelta:
+      _resumedEndoDelta +
       (_currentEndo !== null && _baselineEndo !== null ? _currentEndo - _baselineEndo : 0),
-    ducatsDelta: _resumedDucatsDelta +
-      (_currentDucats !== null && _baselineDucats !== null
-        ? _currentDucats - _baselineDucats
-        : 0),
-    ayaDelta: _resumedAyaDelta +
+    ducatsDelta:
+      _resumedDucatsDelta +
+      (_currentDucats !== null && _baselineDucats !== null ? _currentDucats - _baselineDucats : 0),
+    ayaDelta:
+      _resumedAyaDelta +
       (_currentAya !== null && _baselineAya !== null ? _currentAya - _baselineAya : 0),
-    vitusDelta: _resumedVitusDelta +
+    vitusDelta:
+      _resumedVitusDelta +
       (_currentVitus !== null && _baselineVitus !== null ? _currentVitus - _baselineVitus : 0),
-    currentPlat:    _currentPlat,
+    currentPlat: _currentPlat,
     currentCredits: _currentCredits,
-    currentEndo:    _currentEndo,
-    currentDucats:  _currentDucats,
-    currentAya:     _currentAya,
-    currentVitus:   _currentVitus,
+    currentEndo: _currentEndo,
+    currentDucats: _currentDucats,
+    currentAya: _currentAya,
+    currentVitus: _currentVitus,
     hasData,
   };
 }

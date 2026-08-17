@@ -170,7 +170,9 @@ async function makeStripPng(bg: number, fg: number): Promise<Buffer> {
       raw[i + 3] = 255;
     }
   }
-  return sharp(raw, { raw: { width, height, channels: 4 } }).png().toBuffer();
+  return sharp(raw, { raw: { width, height, channels: 4 } })
+    .png()
+    .toBuffer();
 }
 
 async function binarizedSamples(png: Buffer): Promise<{ glyphs: number[]; background: number[] }> {

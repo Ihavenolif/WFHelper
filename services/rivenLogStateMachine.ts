@@ -2,14 +2,14 @@ import { withScope } from "./logger";
 
 const log = withScope("rivenStateMachine");
 
-
 export const RIVEN_PATTERNS = {
   sessionOpen: /Sys \[Info\]: Created \/Lotus\/Interface\/OmegaRerollSelection\.swf/,
   sessionClose: /NpcManager::ClearAgents\(\) ReadyToCreateAgents = false/,
   /** Matches any HudVis line - we extract the number to track increments/decrements. */
   hudVis: /ThemedDetailedPurchaseDialog\.lua: DBG: HudVis (\d+)/,
   /** Two-step riven detection: PopulateInfo with a Randomized mod path confirms it's a riven. */
-  populateRiven: /ThemedDetailedPurchaseDialog\.lua: PopulateInfo->\/Lotus\/StoreItems\/Upgrades\/Mods\/Randomized\//,
+  populateRiven:
+    /ThemedDetailedPurchaseDialog\.lua: PopulateInfo->\/Lotus\/StoreItems\/Upgrades\/Mods\/Randomized\//,
   cycleConfirmEn:
     /Dialog::CreateOkCancel\(description=Are you sure you want to cycle (.+?) for ([\d,. ]+)\?/,
   choiceConfirmEn: /Dialog::CreateOkCancel\(description=Cycle Riven into current selection\?/,
@@ -24,7 +24,6 @@ export const RIVEN_PATTERNS = {
   /** Extra close signal emitted by the recycled effects line. */
   recycledEffects: /ytes of recycled effects/,
 } as const;
-
 
 interface RivenCallbacks {
   onRivenSessionOpen: (() => void) | null;
@@ -51,7 +50,6 @@ let _callbacks: RivenCallbacks = {
 export function setRivenCallbacks(cbs: Partial<RivenCallbacks>): void {
   _callbacks = { ..._callbacks, ...cbs };
 }
-
 
 let _rivenPendingDialog: "roll_confirm" | "choice" | null = null;
 let _rivenSessionActive = false;
@@ -101,7 +99,6 @@ let _lastHudVis = 0;
 let _lastHudVisIncreaseAt = 0;
 const CHAT_RIVEN_POPULATE_WINDOW_MS = 2_000;
 
-
 function resetRivenIdleTimer(): void {
   if (_rivenSessionIdleTimer) clearTimeout(_rivenSessionIdleTimer);
   _rivenSessionIdleTimer = setTimeout(() => {
@@ -123,7 +120,9 @@ function forceEndRivenSessionIfExpired(): boolean {
   if (!_rivenSessionActive || _rivenSessionStartedAt === 0) return false;
   if (Date.now() - _rivenSessionStartedAt < RIVEN_SESSION_MAX_MS) return false;
 
-  log.info(`[EELog] Riven session exceeded ${RIVEN_SESSION_MAX_MS / 60_000}min cap - force closing`);
+  log.info(
+    `[EELog] Riven session exceeded ${RIVEN_SESSION_MAX_MS / 60_000}min cap - force closing`,
+  );
   _rivenSessionActive = false;
   _rivenSessionStartedAt = 0;
   _rivenDioramaReady = false;
@@ -138,7 +137,6 @@ function forceEndRivenSessionIfExpired(): boolean {
   _callbacks.onRivenSessionClose?.();
   return true;
 }
-
 
 /** Returns whether the riven flow consumed a SendResult from this EE.log line. */
 export function processRivenPatterns(
@@ -188,10 +186,7 @@ export function processRivenPatterns(
   }
 
   // Accept readiness from either source so DBWIN/file ordering cannot block roll OCR.
-  if (
-    _rivenSessionActive &&
-    RIVEN_PATTERNS.dioramaSetup.test(line)
-  ) {
+  if (_rivenSessionActive && RIVEN_PATTERNS.dioramaSetup.test(line)) {
     const now = Date.now();
     if (now - _lastRivenDioramaAt >= RIVEN_DIORAMA_DEDUP_MS) {
       _lastRivenDioramaAt = now;
@@ -203,7 +198,12 @@ export function processRivenPatterns(
   }
 
   // Require diorama readiness because these close lines also fire during screen loading.
-  if (!skipRivenFromFilePoll && _rivenSessionActive && _rivenDioramaReady && (RIVEN_PATTERNS.sessionClose.test(line) || RIVEN_PATTERNS.recycledEffects.test(line))) {
+  if (
+    !skipRivenFromFilePoll &&
+    _rivenSessionActive &&
+    _rivenDioramaReady &&
+    (RIVEN_PATTERNS.sessionClose.test(line) || RIVEN_PATTERNS.recycledEffects.test(line))
+  ) {
     log.info("[EELog] Riven session close detected -> dispatching overlay close");
     _rivenSessionActive = false;
     _rivenSessionStartedAt = 0;
@@ -262,7 +262,9 @@ export function processRivenPatterns(
     _rivenChatWeaponPath = null;
     _rivenChatViewActive = true;
     _rivenChatHudVisLevel = _lastHudVis;
-    log.info("[EELog] Riven chat-link view confirmed (PopulateInfo within HudVis window) -> dispatching chat view");
+    log.info(
+      "[EELog] Riven chat-link view confirmed (PopulateInfo within HudVis window) -> dispatching chat view",
+    );
     _callbacks.onRivenChatView?.();
     if (weaponPath) {
       log.info(`[EELog] Riven chat-link weapon load: ${weaponPath}`);
@@ -273,7 +275,10 @@ export function processRivenPatterns(
   let rivenDialogHandled = skipRivenFromFilePoll;
 
   const rivenCycleMatch = !skipRivenFromFilePoll ? line.match(RIVEN_PATTERNS.cycleConfirmEn) : null;
-  if (rivenCycleMatch && !(!_rivenSessionActive && Date.now() - _rivenForceEndedAt < RIVEN_FORCE_END_COOLDOWN_MS)) {
+  if (
+    rivenCycleMatch &&
+    !(!_rivenSessionActive && Date.now() - _rivenForceEndedAt < RIVEN_FORCE_END_COOLDOWN_MS)
+  ) {
     rivenDialogHandled = true;
     _rivenSessionActive = true;
     resetRivenIdleTimer();
@@ -284,8 +289,12 @@ export function processRivenPatterns(
     _callbacks.onRivenRollPending?.(weapon, cost);
   }
 
-  if (!rivenDialogHandled && !skipRivenFromFilePoll && RIVEN_PATTERNS.choiceConfirmEn.test(line) &&
-      !(!_rivenSessionActive && Date.now() - _rivenForceEndedAt < RIVEN_FORCE_END_COOLDOWN_MS)) {
+  if (
+    !rivenDialogHandled &&
+    !skipRivenFromFilePoll &&
+    RIVEN_PATTERNS.choiceConfirmEn.test(line) &&
+    !(!_rivenSessionActive && Date.now() - _rivenForceEndedAt < RIVEN_FORCE_END_COOLDOWN_MS)
+  ) {
     rivenDialogHandled = true;
     _rivenSessionActive = true;
     resetRivenIdleTimer();
@@ -326,7 +335,11 @@ export function processRivenPatterns(
   if (sendResultMatch && _rivenSessionActive && skipRivenFromFilePoll) {
     sendResultConsumedByRiven = true;
   }
-  if (sendResultMatch && !skipRivenFromFilePoll && (_rivenPendingDialog !== null || _rivenSessionActive)) {
+  if (
+    sendResultMatch &&
+    !skipRivenFromFilePoll &&
+    (_rivenPendingDialog !== null || _rivenSessionActive)
+  ) {
     sendResultConsumedByRiven = true;
     if (_rivenSessionActive) resetRivenIdleTimer();
     const resultCode = sendResultMatch[1];
@@ -355,7 +368,6 @@ export function processRivenPatterns(
 
   return sendResultConsumedByRiven;
 }
-
 
 export function isRivenSessionActive(): boolean {
   return _rivenSessionActive;

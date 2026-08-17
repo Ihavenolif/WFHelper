@@ -315,9 +315,7 @@ async function withReadThrough(env: Env, ctx: ExecutionContext | undefined, desc
 		return { status: 'ok', data: hydrated.data, cacheHit: false };
 	}
 
-	return hydrated.transient
-		? { status: 'unavailable', data: null, cacheHit: false }
-		: { status: 'not_found', data: null, cacheHit: false };
+	return hydrated.transient ? { status: 'unavailable', data: null, cacheHit: false } : { status: 'not_found', data: null, cacheHit: false };
 }
 
 export async function getOrHydratePrice(
@@ -368,8 +366,7 @@ export async function getOrHydrateMeta(env: Env, slug: string, ctx?: ExecutionCo
 			negativeHit: 'metaNegativeHits',
 			staleRefreshQueued: 'metaStaleRefreshQueued',
 		},
-		beforeMissCheck: async () =>
-			(await slugMissingFromCatalog(env, slug)) || (await hasUntradableSkipMarker(env, slug)),
+		beforeMissCheck: async () => (await slugMissingFromCatalog(env, slug)) || (await hasUntradableSkipMarker(env, slug)),
 		onBeforeMissHit: () => {
 			autoStats.metaUntradableSkips += 1;
 		},

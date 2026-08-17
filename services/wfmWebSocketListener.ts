@@ -102,7 +102,9 @@ function _connect(token: string): void {
       if (route.includes("auth/signIn")) {
         _signInFailures++;
         if (_signInFailures >= MAX_SIGNIN_FAILURES) {
-          log.warn("[WFMListener] Sign-in rejected repeatedly - stopping until the next manual login");
+          log.warn(
+            "[WFMListener] Sign-in rejected repeatedly - stopping until the next manual login",
+          );
           const notifyGiveUp = _onAuthGiveUp;
           stopListening();
           notifyGiveUp?.();

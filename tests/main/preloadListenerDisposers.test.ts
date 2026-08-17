@@ -1,9 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  RELIC_REWARD_TRIGGER,
-  RIVEN_ROLL_RESULT,
-} from "../../config/shared/ipcChannels";
+import { RELIC_REWARD_TRIGGER, RIVEN_ROLL_RESULT } from "../../config/shared/ipcChannels";
 
 type Listener = (event: unknown, ...args: unknown[]) => void;
 type ExposedApi = Record<string, unknown>;

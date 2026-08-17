@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { InventoryBaseItem, ItemMetrics, MetricNeeds } from "../../../../src/lib/inventoryMarket.js";
+import type {
+  InventoryBaseItem,
+  ItemMetrics,
+  MetricNeeds,
+} from "../../../../src/lib/inventoryMarket.js";
 import type { WfmItemsLookup } from "../../../../src/types/ipc.js";
 import type { HydrationContext } from "../../../../src/stores/hydration/hydrateItemMetrics.js";
 
@@ -85,7 +89,8 @@ function makeContext(
 describe("hydrateItemMetrics", () => {
   it("does not call per-slug worker routes unless network hydration is explicitly enabled", async () => {
     vi.clearAllMocks();
-    const { hydrateItemMetrics } = await import("../../../../src/stores/hydration/hydrateItemMetrics.js");
+    const { hydrateItemMetrics } =
+      await import("../../../../src/stores/hydration/hydrateItemMetrics.js");
     let patched: ItemMetrics | null = null;
     const needs: MetricNeeds = { price: true, ducats: true, orders: true };
     const lookup: WfmItemsLookup = {};
@@ -116,7 +121,8 @@ describe("hydrateItemMetrics", () => {
 
   it("fetches ranked median prices when foreground hydration enables network access", async () => {
     vi.clearAllMocks();
-    const { hydrateItemMetrics } = await import("../../../../src/stores/hydration/hydrateItemMetrics.js");
+    const { hydrateItemMetrics } =
+      await import("../../../../src/stores/hydration/hydrateItemMetrics.js");
     let patched: ItemMetrics | null = null;
     const needs: MetricNeeds = { price: true, ducats: false, orders: false, network: true };
     const lookup: WfmItemsLookup = {};
@@ -157,7 +163,8 @@ describe("hydrateItemMetrics", () => {
 
   it("replaces a stale metric slug with the item's current marketSlug", async () => {
     vi.clearAllMocks();
-    const { hydrateItemMetrics } = await import("../../../../src/stores/hydration/hydrateItemMetrics.js");
+    const { hydrateItemMetrics } =
+      await import("../../../../src/stores/hydration/hydrateItemMetrics.js");
     // First pass ran before the WFM catalog loaded and cached a slugified guess.
     const staleMetric: ItemMetrics = {
       platinum: null,
@@ -180,18 +187,29 @@ describe("hydrateItemMetrics", () => {
     };
     const needs: MetricNeeds = { price: true, ducats: true, orders: false, network: true };
 
-    fetchPriceBySlugMock.mockResolvedValue({ status: "ok", slug: "ambassador_stock", median: 2, timestamp: Date.now() });
+    fetchPriceBySlugMock.mockResolvedValue({
+      status: "ok",
+      slug: "ambassador_stock",
+      median: 2,
+      timestamp: Date.now(),
+    });
     fetchWfmItemMetaBySlugMock.mockResolvedValue(null);
 
     await hydrateItemMetrics(
-      makeContext(() => {}, () => staleMetric),
+      makeContext(
+        () => {},
+        () => staleMetric,
+      ),
       item,
       {},
       needs,
     );
 
     expect(fetchPriceBySlugMock).toHaveBeenCalledWith("ambassador_stock", expect.anything());
-    expect(fetchPriceBySlugMock).not.toHaveBeenCalledWith("ambassador_stock_blueprint", expect.anything());
+    expect(fetchPriceBySlugMock).not.toHaveBeenCalledWith(
+      "ambassador_stock_blueprint",
+      expect.anything(),
+    );
     expect(fetchWfmItemMetaBySlugMock).toHaveBeenCalledWith("ambassador_stock", expect.anything());
   });
 });

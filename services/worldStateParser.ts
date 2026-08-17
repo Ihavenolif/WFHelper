@@ -34,7 +34,10 @@ const DUVIRI_MOODS = WORLD_STATE_CONFIG.duviriMoods;
 
 const EMPTY_LOOKUP: Record<string, string> = Object.freeze({});
 
-function loadRegionTranslationData(): { regions: Record<string, Record<string, unknown>>; dict: Record<string, string> } {
+function loadRegionTranslationData(): {
+  regions: Record<string, Record<string, unknown>>;
+  dict: Record<string, string>;
+} {
   try {
     const pep = require("warframe-public-export-plus");
     if (pep?.ExportRegions && pep?.dict_en) {
@@ -53,8 +56,13 @@ function loadRegionTranslationData(): { regions: Record<string, Record<string, u
   try {
     const pkgPath = require.resolve("warframe-public-export-plus/package.json");
     const pkgDir = path.dirname(pkgPath);
-    const regions = JSON.parse(fs.readFileSync(path.join(pkgDir, "ExportRegions.json"), "utf8")) as Record<string, Record<string, unknown>>;
-    const dict = JSON.parse(fs.readFileSync(path.join(pkgDir, "dict.en.json"), "utf8")) as Record<string, string>;
+    const regions = JSON.parse(
+      fs.readFileSync(path.join(pkgDir, "ExportRegions.json"), "utf8"),
+    ) as Record<string, Record<string, unknown>>;
+    const dict = JSON.parse(fs.readFileSync(path.join(pkgDir, "dict.en.json"), "utf8")) as Record<
+      string,
+      string
+    >;
     return { regions, dict };
   } catch (err) {
     log.warn(
@@ -117,13 +125,29 @@ function resolveBaroIcon(itemPath: string): string | null {
 }
 
 /** Lazy-loaded item lookup: maps Lotus item paths -> { name: string } from ExportResources + ExportRecipes */
-let _itemLookup: Record<string, { name?: string; era?: string; category?: string; resultType?: string }> | null = null;
-function getItemLookup(): Record<string, { name?: string; era?: string; category?: string; resultType?: string }> {
+let _itemLookup: Record<
+  string,
+  { name?: string; era?: string; category?: string; resultType?: string }
+> | null = null;
+function getItemLookup(): Record<
+  string,
+  { name?: string; era?: string; category?: string; resultType?: string }
+> {
   if (_itemLookup) return _itemLookup;
   _itemLookup = {};
   try {
     const pep = require("warframe-public-export-plus");
-    for (const key of ["ExportResources", "ExportRecipes", "ExportUpgrades", "ExportGear", "ExportRelics", "ExportKeys", "ExportWeapons", "ExportWarframes", "ExportSentinels"]) {
+    for (const key of [
+      "ExportResources",
+      "ExportRecipes",
+      "ExportUpgrades",
+      "ExportGear",
+      "ExportRelics",
+      "ExportKeys",
+      "ExportWeapons",
+      "ExportWarframes",
+      "ExportSentinels",
+    ]) {
       const data = pep?.[key];
       if (data && typeof data === "object") {
         Object.assign(_itemLookup, data);
@@ -132,11 +156,23 @@ function getItemLookup(): Record<string, { name?: string; era?: string; category
   } catch {
     try {
       const pkgDir = path.dirname(require.resolve("warframe-public-export-plus/package.json"));
-      for (const file of ["ExportResources.json", "ExportRecipes.json", "ExportUpgrades.json", "ExportGear.json", "ExportRelics.json", "ExportKeys.json", "ExportWeapons.json", "ExportWarframes.json", "ExportSentinels.json"]) {
+      for (const file of [
+        "ExportResources.json",
+        "ExportRecipes.json",
+        "ExportUpgrades.json",
+        "ExportGear.json",
+        "ExportRelics.json",
+        "ExportKeys.json",
+        "ExportWeapons.json",
+        "ExportWarframes.json",
+        "ExportSentinels.json",
+      ]) {
         try {
           const data = JSON.parse(fs.readFileSync(path.join(pkgDir, file), "utf8"));
           if (data && typeof data === "object") Object.assign(_itemLookup, data);
-        } catch { /* skip missing file */ }
+        } catch {
+          /* skip missing file */
+        }
       }
     } catch {
       log.warn("[WorldState] failed to load item data for invasion rewards");
@@ -313,7 +349,11 @@ function railjackMissionLabel(nodeId: string): string {
   return name.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
 }
 
-function computeVallisCycle(nowMs: number = Date.now()): { isWarm: boolean; timeLeft: string; expiry: string } {
+function computeVallisCycle(nowMs: number = Date.now()): {
+  isWarm: boolean;
+  timeLeft: string;
+  expiry: string;
+} {
   const elapsed = (nowMs - VALLIS_EPOCH_MS) % VALLIS_PERIOD_MS;
   const isWarm = elapsed < VALLIS_WARM_MS;
   const timeLeftMs = isWarm ? VALLIS_WARM_MS - elapsed : VALLIS_PERIOD_MS - elapsed;
@@ -327,7 +367,10 @@ function computeVallisCycle(nowMs: number = Date.now()): { isWarm: boolean; time
 function computeCetusCambionCycles(
   bountyCycleExpiryMs: number,
   nowMs: number = Date.now(),
-): { cetus: { isDay: boolean; timeLeft: string; expiry: string }; cambion: { active: string; timeLeft: string; expiry: string } } {
+): {
+  cetus: { isDay: boolean; timeLeft: string; expiry: string };
+  cambion: { active: string; timeLeft: string; expiry: string };
+} {
   const nightStart = bountyCycleExpiryMs - POE_NIGHT_MS;
   const isDay = nowMs < nightStart;
   const expiryIso = new Date(isDay ? nightStart : bountyCycleExpiryMs).toISOString();
@@ -337,7 +380,11 @@ function computeCetusCambionCycles(
   };
 }
 
-function computeDuviriMoodCycle(nowMs: number = Date.now()): { state: string; expiry: string; nextState: string } {
+function computeDuviriMoodCycle(nowMs: number = Date.now()): {
+  state: string;
+  expiry: string;
+  nextState: string;
+} {
   const moodIndex = Math.trunc(nowMs / DUVIRI_MOOD_PERIOD_MS);
   const moodStart = moodIndex * DUVIRI_MOOD_PERIOD_MS;
   const moodEnd = moodStart + DUVIRI_MOOD_PERIOD_MS;
@@ -351,10 +398,19 @@ function computeDuviriMoodCycle(nowMs: number = Date.now()): { state: string; ex
   };
 }
 
-async function fetchEarthCycle(): Promise<{ isDay: boolean; timeLeft: string; expiry: string } | null> {
+async function fetchEarthCycle(): Promise<{
+  isDay: boolean;
+  timeLeft: string;
+  expiry: string;
+} | null> {
   try {
-    const data = await fetchJsonWithTimeout(EARTH_CYCLE_URL, EARTH_CYCLE_FETCH_TIMEOUT_MS) as Record<string, unknown>;
-    const earthData = (data && typeof data.earthCycle === "object" ? data.earthCycle : data) as Record<string, unknown> | null;
+    const data = (await fetchJsonWithTimeout(
+      EARTH_CYCLE_URL,
+      EARTH_CYCLE_FETCH_TIMEOUT_MS,
+    )) as Record<string, unknown>;
+    const earthData = (
+      data && typeof data.earthCycle === "object" ? data.earthCycle : data
+    ) as Record<string, unknown> | null;
 
     const expiryIsoRaw = typeof earthData?.expiry === "string" ? earthData.expiry : null;
     const expiryMs = expiryIsoRaw ? Date.parse(expiryIsoRaw) : Number.NaN;
@@ -438,12 +494,12 @@ async function fetchDuviriChoices(): Promise<Array<{ category: string; choices: 
 }
 
 const BOUNTY_SYNDICATES = new Set([
-  "Ostrons",         // CetusSyndicate
-  "Solaris United",  // SolarisSyndicate
-  "Entrati",         // EntratiSyndicate
-  "The Holdfasts",   // ZarimanSyndicate
-  "Cavia",           // EntratiLabSyndicate
-  "The Hex",         // HexSyndicate
+  "Ostrons", // CetusSyndicate
+  "Solaris United", // SolarisSyndicate
+  "Entrati", // EntratiSyndicate
+  "The Holdfasts", // ZarimanSyndicate
+  "Cavia", // EntratiLabSyndicate
+  "The Hex", // HexSyndicate
 ]);
 
 const RAW_BOUNTY_SYNDICATES: Record<string, string> = {
@@ -473,22 +529,59 @@ const BOUNTY_CYCLE_SYNDICATES: Record<
 > = {
   ZarimanSyndicate: {
     displayName: "The Holdfasts",
-    standingTiers: [[1000, 1500], [2000, 3000], [3000, 4500], [4000, 6000], [5000, 7500]],
-    levelTiers: [[50, 55], [60, 65], [70, 75], [90, 95], [110, 115]],
+    standingTiers: [
+      [1000, 1500],
+      [2000, 3000],
+      [3000, 4500],
+      [4000, 6000],
+      [5000, 7500],
+    ],
+    levelTiers: [
+      [50, 55],
+      [60, 65],
+      [70, 75],
+      [90, 95],
+      [110, 115],
+    ],
   },
   EntratiLabSyndicate: {
     displayName: "Cavia",
-    standingTiers: [[1000, 1500], [2000, 3000], [3000, 4500], [4000, 6000], [5000, 7500]],
-    levelTiers: [[55, 60], [65, 70], [75, 80], [95, 100], [115, 120]],
+    standingTiers: [
+      [1000, 1500],
+      [2000, 3000],
+      [3000, 4500],
+      [4000, 6000],
+      [5000, 7500],
+    ],
+    levelTiers: [
+      [55, 60],
+      [65, 70],
+      [75, 80],
+      [95, 100],
+      [115, 120],
+    ],
   },
   HexSyndicate: {
     displayName: "The Hex",
     standingTiers: [
-      [1000, 1500], [2000, 3000], [3000, 4500], [4000, 6000],
-      [5000, 7500], [6000, 9000], [7500, 11250],
+      [1000, 1500],
+      [2000, 3000],
+      [3000, 4500],
+      [4000, 6000],
+      [5000, 7500],
+      [6000, 9000],
+      [7500, 11250],
     ],
     // In-game levels; DE's drop-table labels run 10 lower (pools are matched by tier index)
-    levelTiers: [[65, 70], [75, 80], [85, 90], [95, 100], [105, 110], [115, 120], [125, 130]],
+    levelTiers: [
+      [65, 70],
+      [75, 80],
+      [85, 90],
+      [95, 100],
+      [105, 110],
+      [115, 120],
+      [125, 130],
+    ],
   },
 };
 
@@ -496,8 +589,22 @@ interface WarframestatInvasion {
   id: string;
   node?: string;
   desc?: string;
-  attacker?: { reward?: { items?: string[]; countedItems?: { count: number; type: string }[]; credits?: number }; faction?: string };
-  defender?: { reward?: { items?: string[]; countedItems?: { count: number; type: string }[]; credits?: number }; faction?: string };
+  attacker?: {
+    reward?: {
+      items?: string[];
+      countedItems?: { count: number; type: string }[];
+      credits?: number;
+    };
+    faction?: string;
+  };
+  defender?: {
+    reward?: {
+      items?: string[];
+      countedItems?: { count: number; type: string }[];
+      credits?: number;
+    };
+    faction?: string;
+  };
   vsInfestation?: boolean;
   completion?: number;
   completed?: boolean;
@@ -561,25 +668,32 @@ async function fetchWarframestatExtras(): Promise<{
   // Bounties (syndicate missions with jobs)
   if (syndicateRes.status === "fulfilled" && Array.isArray(syndicateRes.value)) {
     result.bounties = (syndicateRes.value as WarframestatSyndicateMission[])
-      .filter((sm) => BOUNTY_SYNDICATES.has(sm.syndicate || "") && Array.isArray(sm.jobs) && sm.jobs.length > 0)
+      .filter(
+        (sm) =>
+          BOUNTY_SYNDICATES.has(sm.syndicate || "") && Array.isArray(sm.jobs) && sm.jobs.length > 0,
+      )
       .map((sm) => ({
         syndicate: sm.syndicate || "",
         syndicateKey: sm.syndicateKey || "",
         expiry: sm.expiry || null,
         jobs: (sm.jobs || []).map((j) => ({
           type: j.type || "Unknown",
-          enemyLevels: Array.isArray(j.enemyLevels) ? [j.enemyLevels[0] || 0, j.enemyLevels[1] || 0] : [0, 0],
+          enemyLevels: Array.isArray(j.enemyLevels)
+            ? [j.enemyLevels[0] || 0, j.enemyLevels[1] || 0]
+            : [0, 0],
           standingStages: j.standingStages || [],
           minMR: j.minMR || 0,
         })),
       }));
   } else if (syndicateRes.status === "rejected") {
-    log.warn("[WorldState] syndicateMissions fetch failed:", normalizeErrorMessage(syndicateRes.reason));
+    log.warn(
+      "[WorldState] syndicateMissions fetch failed:",
+      normalizeErrorMessage(syndicateRes.reason),
+    );
   }
 
   return result;
 }
-
 
 // Dict key prefixes for challenge description lookup (tried in order)
 const CHALLENGE_DESC_PREFIXES = [
@@ -592,10 +706,7 @@ const CHALLENGE_DESC_PREFIXES = [
 const DIFFICULTY_SUFFIXES = ["VeryHard", "Hard", "Normal", "Easy"];
 
 /** Resolve oracle challenge paths through their language dictionary keys. */
-function resolveChallengeInfo(
-  challengePath: string,
-  allyName?: string,
-): { desc?: string } | null {
+function resolveChallengeInfo(challengePath: string, allyName?: string): { desc?: string } | null {
   if (!challengePath) return null;
 
   const slug = challengePath.split("/").pop() || "";
@@ -674,17 +785,17 @@ export function parseBountyCycleBounties(data: BountyCycleResponse): unknown[] {
       const missionType = region?.missionType
         ? formatMissionTypeLabel(String(region.missionType), job.node)
         : "Unknown";
-      const levels: [number, number] = config.levelTiers[index] ??
-        [Number(region?.minEnemyLevel) || 0, Number(region?.maxEnemyLevel) || 0];
+      const levels: [number, number] = config.levelTiers[index] ?? [
+        Number(region?.minEnemyLevel) || 0,
+        Number(region?.maxEnemyLevel) || 0,
+      ];
       // Oracle bounties are single-stage; standingTiers[index] is [base, bonus], not per-stage
       const standingPair = config.standingTiers[index] || [];
       const stages = standingPair.length > 0 ? [standingPair[0]] : [];
 
       // Resolve challenge name and description
       const allyName = resolveAllyName(job.ally);
-      const challengeInfo = job.challenge
-        ? resolveChallengeInfo(job.challenge, allyName)
-        : null;
+      const challengeInfo = job.challenge ? resolveChallengeInfo(job.challenge, allyName) : null;
 
       return {
         type: missionType,
@@ -717,7 +828,10 @@ async function fetchAndComputeCycles(
 
   // Fetch oracle bounty-cycle, earth cycle and Circuit choices in parallel
   const [oracleResult, earthResult, duviriChoicesResult] = await Promise.allSettled([
-    fetchJsonWithTimeout(ORACLE_BOUNTY_CYCLE_URL, CYCLE_FETCH_TIMEOUT_MS) as Promise<BountyCycleResponse>,
+    fetchJsonWithTimeout(
+      ORACLE_BOUNTY_CYCLE_URL,
+      CYCLE_FETCH_TIMEOUT_MS,
+    ) as Promise<BountyCycleResponse>,
     fetchEarthCycle(),
     knownChoices.length > 0 ? Promise.resolve(knownChoices) : fetchDuviriChoices(),
   ]);
@@ -741,7 +855,10 @@ async function fetchAndComputeCycles(
     bountyCycleBounties = parseBountyCycleBounties(oracleResult.value);
     bountyRotation = oracleResult.value.rot || undefined;
   } else {
-    log.warn("[WorldState] oracle bounty-cycle fetch failed:", normalizeErrorMessage(oracleResult.reason));
+    log.warn(
+      "[WorldState] oracle bounty-cycle fetch failed:",
+      normalizeErrorMessage(oracleResult.reason),
+    );
   }
 
   let earthCycle = earthResult.status === "fulfilled" ? earthResult.value : null;
@@ -761,7 +878,10 @@ async function fetchAndComputeCycles(
 }
 
 async function fetchOracleWorldState(): Promise<WorldStateRaw> {
-  const raw = await fetchJsonWithTimeout(ORACLE_WORLDSTATE_URL, FETCH_TIMEOUT_MS) as WorldStateRaw;
+  const raw = (await fetchJsonWithTimeout(
+    ORACLE_WORLDSTATE_URL,
+    FETCH_TIMEOUT_MS,
+  )) as WorldStateRaw;
   if (!isWorldStatePayload(raw)) throw new Error("oracle returned an invalid payload");
   log.info("[WorldState] fetched oracle world-state OK");
   return raw;
@@ -834,10 +954,16 @@ export async function fetchAndParse(): Promise<Record<string, unknown>> {
   const extras = extrasResult.status === "fulfilled" ? extrasResult.value : null;
 
   if (cyclesResult.status === "rejected") {
-    log.warn("[WorldState] planet cycle computation failed:", normalizeErrorMessage(cyclesResult.reason));
+    log.warn(
+      "[WorldState] planet cycle computation failed:",
+      normalizeErrorMessage(cyclesResult.reason),
+    );
   }
   if (extrasResult.status === "rejected") {
-    log.warn("[WorldState] warframestat extras failed:", normalizeErrorMessage(extrasResult.reason));
+    log.warn(
+      "[WorldState] warframestat extras failed:",
+      normalizeErrorMessage(extrasResult.reason),
+    );
   }
 
   const nowMs = Date.now();
@@ -852,10 +978,12 @@ export async function fetchAndParse(): Promise<Record<string, unknown>> {
   // Prefer raw bounties, then fill gaps from warframestat and the seed oracle.
   const rawBounties = (parsed.bounties || []) as { syndicateKey?: string }[];
   const warframestatBounties = (extras?.bounties || []) as { syndicateKey?: string }[];
-  const seedBounties = ((cycles?.bountyCycleBounties || []) as { syndicateKey?: string }[]);
+  const seedBounties = (cycles?.bountyCycleBounties || []) as { syndicateKey?: string }[];
 
   // Collect all display names already covered by raw bounties
-  const rawDisplayNames = new Set(rawBounties.map((b) => RAW_BOUNTY_SYNDICATES[b.syndicateKey || ""]));
+  const rawDisplayNames = new Set(
+    rawBounties.map((b) => RAW_BOUNTY_SYNDICATES[b.syndicateKey || ""]),
+  );
   // Build final list: raw first, warframestat fills gaps (by display name), seed fills remaining
   const bountyMap = new Map<string, unknown>();
   for (const b of rawBounties) {
@@ -880,7 +1008,8 @@ export async function fetchAndParse(): Promise<Record<string, unknown>> {
       ...(fallbackCycles?.duviriCycle || {}),
     },
     steelPath,
-    invasions: (parsed.invasions as unknown[])?.length > 0 ? parsed.invasions : (extras?.invasions || []),
+    invasions:
+      (parsed.invasions as unknown[])?.length > 0 ? parsed.invasions : extras?.invasions || [],
     bounties: allBounties,
     bountyRotation: (cycles as Record<string, unknown>)?.bountyRotation || undefined,
   };
@@ -946,15 +1075,15 @@ export function parseRaw(raw: WorldStateRaw | null): Record<string, unknown> | n
         inventory: (baroRaw.Manifest || [])
           .filter((i) => !(i.ItemType || "").includes("BaroTreasureBox"))
           .map((i) => {
-          const un = (i.ItemType || "").replace(/^\/Lotus\/StoreItems/, "/Lotus");
-          return {
-            uniqueName: un,
-            item: resolveItemName(un),
-            ducats: i.PrimePrice ?? 0,
-            credits: i.RegularPrice ?? 0,
-            imageOverride: resolveBaroIcon(un),
-          };
-        }),
+            const un = (i.ItemType || "").replace(/^\/Lotus\/StoreItems/, "/Lotus");
+            return {
+              uniqueName: un,
+              item: resolveItemName(un),
+              ducats: i.PrimePrice ?? 0,
+              credits: i.RegularPrice ?? 0,
+              imageOverride: resolveBaroIcon(un),
+            };
+          }),
       }
     : null;
 
@@ -1004,20 +1133,23 @@ export function parseRaw(raw: WorldStateRaw | null): Record<string, unknown> | n
       syndicate: RAW_BOUNTY_SYNDICATES[sm.Tag],
       syndicateKey: sm.Tag,
       expiry: deDate(sm.Expiry),
-      jobs: sm.Jobs!.filter((j) => j.jobType).map((j) => {
-        // Extract a short label from the Lotus path (e.g. "/Lotus/.../AttritionBountyExt" -> "Attrition Bounty")
-        const slug = (j.jobType || "").split("/").pop() || "Unknown";
-        const type = slug
-          .replace(/Bounty.*/, " Bounty")
-          .replace(/([a-z])([A-Z])/g, "$1 $2")
-          .trim() || "Unknown";
-        return {
-          type,
-          enemyLevels: [j.minEnemyLevel || 0, j.maxEnemyLevel || 0],
-          standingStages: j.xpAmounts || [],
-          minMR: j.masteryReq || 0,
-        };
-      }),
+      jobs: sm
+        .Jobs!.filter((j) => j.jobType)
+        .map((j) => {
+          // Extract a short label from the Lotus path (e.g. "/Lotus/.../AttritionBountyExt" -> "Attrition Bounty")
+          const slug = (j.jobType || "").split("/").pop() || "Unknown";
+          const type =
+            slug
+              .replace(/Bounty.*/, " Bounty")
+              .replace(/([a-z])([A-Z])/g, "$1 $2")
+              .trim() || "Unknown";
+          return {
+            type,
+            enemyLevels: [j.minEnemyLevel || 0, j.maxEnemyLevel || 0],
+            standingStages: j.xpAmounts || [],
+            minMR: j.masteryReq || 0,
+          };
+        }),
     }));
 
   const rawInvasions = (raw.Invasions || [])
@@ -1026,11 +1158,12 @@ export function parseRaw(raw: WorldStateRaw | null): Record<string, unknown> | n
       const atkFaction = FACTION_LABEL[inv.Faction] || inv.Faction;
       const defFaction = FACTION_LABEL[inv.DefenderFaction] || inv.DefenderFaction;
       const vsInfestation = inv.Faction === "FC_INFESTATION";
-      const completion = inv.Goal > 0
-        ? Math.round((inv.Count / inv.Goal) * 1000) / 10
-        : 0;
+      const completion = inv.Goal > 0 ? Math.round((inv.Count / inv.Goal) * 1000) / 10 : 0;
 
-      function mapReward(reward?: { countedItems?: { ItemType: string; ItemCount: number }[]; credits?: number }) {
+      function mapReward(reward?: {
+        countedItems?: { ItemType: string; ItemCount: number }[];
+        credits?: number;
+      }) {
         if (!reward) return { items: [], countedItems: [], credits: 0 };
         return {
           items: [] as string[],

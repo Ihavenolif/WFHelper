@@ -12,7 +12,8 @@ const SPAM_SKIP = /Game \[Warning\]:|DamagePct/;
 const AGENT_CREATED = /OnAgentCreated/;
 const AGENT_FULL = /OnAgentCreated.*?\/Npc\/(.+?)(\d+)\s+.*?MonitoredTicking\s+(\d+)/;
 const AGENT_NPC_NAME = /\/Npc\/([A-Za-z0-9_]+)/;
-const AGENT_EXCLUDE = /(Replicant|RJCrew|petavatar|VoidClone|Turret|Dropship|CatbrowPetAgent|AllyAgent)/i;
+const AGENT_EXCLUDE =
+  /(Replicant|RJCrew|petavatar|VoidClone|Turret|Dropship|CatbrowPetAgent|AllyAgent)/i;
 const DRONE = /OnAgentCreated.*?CorpusEliteShieldDroneAgent/;
 const DEFENSE_REWARD = /Sys \[Info\]: Created \/Lotus\/Interface\/DefenseReward\.swf/;
 // Survival rotations pop their own reward UI every 5 minutes.
@@ -27,7 +28,8 @@ const TERRITORY = /Script \[Info\]: TerritoryMission\.lua/;
 const TERRITORY_START = /TerritoryMission\.lua: .*(control|captured)/i;
 
 // _EliteAlert on a squad mission sector is locale-independent and precedes the mission name.
-const PENDING_SECTOR_PLAIN = /(?:ThemedSquadOverlay\.lua: Pending mission:|MapRedux\.lua: Confirm sector) (\S+)/;
+const PENDING_SECTOR_PLAIN =
+  /(?:ThemedSquadOverlay\.lua: Pending mission:|MapRedux\.lua: Confirm sector) (\S+)/;
 const PENDING_SECTOR_JSON = /Set squad mission.*?"name":"([^"]+)"/;
 const ELITE_SECTOR = /^(SolNode\d+)_EliteAlert$/;
 // Mid-mission joins omit "Mission name", so either client-load marker can start the run.
@@ -37,7 +39,8 @@ const CLIENT_MISSION_JOIN =
 const CACHED_MISSION_NAME = /ThemedSquadOverlay\.lua: Cached mission name=(.+) \((SolNode\d+)\)/;
 
 // Timestamped in-mission lines carrying the engine mission type (and node id).
-const SYNC_CONSUMABLES = /SyncAutoPopulatedConsumables for mission (MT_[A-Z_]+) with location (\S+)/;
+const SYNC_CONSUMABLES =
+  /SyncAutoPopulatedConsumables for mission (MT_[A-Z_]+) with location (\S+)/;
 const STATE_STARTED = /Game \[Info\]: OnStateStarted, mission type=(MT_[A-Z_]+)/;
 
 // Confirmed abort and EOM inventory commit are reliable run ends.
@@ -54,7 +57,8 @@ const MIRROR_DEFENSE_NODES = ["munio", "tyana"];
 
 // Disruption (MT_ARTIFACT) states. A round ends on ARTIFACT_ROUND_DONE, which is
 // the only reliable rotation marker here - SurvivalReward.swf fires constantly.
-const DISRUPTION_ROUND_START = /SentientArtifactMission\.lua: Disruption: State change: ARTIFACT_ROUND$/;
+const DISRUPTION_ROUND_START =
+  /SentientArtifactMission\.lua: Disruption: State change: ARTIFACT_ROUND$/;
 const DISRUPTION_ROUND_DONE =
   /SentientArtifactMission\.lua: Disruption: State change: ARTIFACT_ROUND_DONE/;
 const DISRUPTION_CONDUITS_PER_ROUND = 4;
@@ -361,8 +365,7 @@ export function createArbiParser(): ArbiParser {
 
     // The survival reward UI also gets created in other modes (seen 25s before
     // an interception's DefenseReward) - only trust it in actual survivals.
-    const isSurvivalReward =
-      run.missionTypeRaw === "MT_SURVIVAL" && SURVIVAL_REWARD.test(line);
+    const isSurvivalReward = run.missionTypeRaw === "MT_SURVIVAL" && SURVIVAL_REWARD.test(line);
     if (isSurvivalReward) run.eventCount++;
     if (isSurvivalReward || DEFENSE_REWARD.test(line)) {
       if (ts - run.lastRewardSec > REWARD_DEBOUNCE_SEC) {

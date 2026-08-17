@@ -104,11 +104,7 @@ describe("groupEntriesByDay", () => {
     const day1 = new Date(2026, 6, 8, 22, 0).getTime();
     const day1b = new Date(2026, 6, 8, 23, 0).getTime();
     const day2 = new Date(2026, 6, 9, 1, 0).getTime();
-    const groups = groupEntriesByDay([
-      entry(day1, "a"),
-      entry(day1b, "b"),
-      entry(day2, "c"),
-    ]);
+    const groups = groupEntriesByDay([entry(day1, "a"), entry(day1b, "b"), entry(day2, "c")]);
     expect(groups).toHaveLength(2);
     expect(groups[0].entries).toHaveLength(2);
     expect(groups[1].entries).toHaveLength(1);

@@ -72,12 +72,7 @@ describe("componentResolution", () => {
     });
 
     expect(
-      resolveComponentPriceLookup(
-        comp,
-        "Trinity Prime",
-        { isBuildComponent: true },
-        {},
-      ),
+      resolveComponentPriceLookup(comp, "Trinity Prime", { isBuildComponent: true }, {}),
     ).toEqual({
       name: "Trinity Prime Chassis Blueprint",
       isTradable: true,

@@ -13,7 +13,11 @@ interface VitusModel {
   std: number;
 }
 
-export function computeVitusModel(rotations: number, wavesPerRotation: number, drones: number): VitusModel {
+export function computeVitusModel(
+  rotations: number,
+  wavesPerRotation: number,
+  drones: number,
+): VitusModel {
   const meanVal = 4 * VITUS_RETRIEVER_CHANCE + 2 * (1 - VITUS_RETRIEVER_CHANCE);
   const expectValSq = 16 * VITUS_RETRIEVER_CHANCE + 4 * (1 - VITUS_RETRIEVER_CHANCE);
   const varVal = expectValSq - meanVal * meanVal;

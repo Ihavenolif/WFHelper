@@ -45,12 +45,22 @@ function unescapeAnsi(esc: string): string {
       continue;
     }
     const next = esc[i + 1];
-    if (next === "n") { bytes.push(10); i += 1; }
-    else if (next === "r") { bytes.push(13); i += 1; }
-    else if (next === "t") { bytes.push(9); i += 1; }
-    else if (next === '"') { bytes.push(34); i += 1; }
-    else if (next === "\\") { bytes.push(92); i += 1; }
-    else if (next === "x" && isHexDigit(esc[i + 2]) && isHexDigit(esc[i + 3])) {
+    if (next === "n") {
+      bytes.push(10);
+      i += 1;
+    } else if (next === "r") {
+      bytes.push(13);
+      i += 1;
+    } else if (next === "t") {
+      bytes.push(9);
+      i += 1;
+    } else if (next === '"') {
+      bytes.push(34);
+      i += 1;
+    } else if (next === "\\") {
+      bytes.push(92);
+      i += 1;
+    } else if (next === "x" && isHexDigit(esc[i + 2]) && isHexDigit(esc[i + 3])) {
       bytes.push(parseInt(esc.slice(i + 2, i + 4), 16));
       i += 3;
     } else {
@@ -70,12 +80,22 @@ function unescapeWide(esc: string): string {
       continue;
     }
     const next = esc[i + 1];
-    if (next === "n") { out += "\n"; i += 1; }
-    else if (next === "r") { out += "\r"; i += 1; }
-    else if (next === "t") { out += "\t"; i += 1; }
-    else if (next === '"') { out += '"'; i += 1; }
-    else if (next === "\\") { out += "\\"; i += 1; }
-    else if (next === "x" && isHexDigit(esc[i + 2]) && isHexDigit(esc[i + 3])) {
+    if (next === "n") {
+      out += "\n";
+      i += 1;
+    } else if (next === "r") {
+      out += "\r";
+      i += 1;
+    } else if (next === "t") {
+      out += "\t";
+      i += 1;
+    } else if (next === '"') {
+      out += '"';
+      i += 1;
+    } else if (next === "\\") {
+      out += "\\";
+      i += 1;
+    } else if (next === "x" && isHexDigit(esc[i + 2]) && isHexDigit(esc[i + 3])) {
       let digits = 2;
       if (isHexDigit(esc[i + 4]) && isHexDigit(esc[i + 5])) digits = 4;
       out += String.fromCharCode(parseInt(esc.slice(i + 2, i + 2 + digits), 16));
@@ -223,7 +243,8 @@ export function startProtonDebugstrMonitor(onLine: (line: string) => void): void
     log.info("[ProtonLog] tailing", logPath, "for real-time triggers");
   } else {
     log.info(
-      "[ProtonLog] no log at", logPath,
+      "[ProtonLog] no log at",
+      logPath,
       "- real-time triggers off; add PROTON_LOG=1 %command% to Warframe's Steam launch options",
     );
   }

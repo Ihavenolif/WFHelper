@@ -3,11 +3,7 @@
 import { withScope } from "./logger";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { otsuThreshold } from "./rewardScannerImage";
-import {
-  paddleRecognizerAvailable,
-  recognizePaddleCrops,
-  type RgbCrop,
-} from "./rivenOcrOnnx";
+import { paddleRecognizerAvailable, recognizePaddleCrops, type RgbCrop } from "./rivenOcrOnnx";
 
 const log = withScope("rewardOcrOnnx");
 
@@ -95,9 +91,7 @@ export function splitStripRows(mono: Uint8Array, width: number, height: number):
     queue.unshift({ y1: seg.y1, y2: valleyY - 1 }, { y1: valleyY + 1, y2: seg.y2 });
   }
 
-  return out
-    .filter((seg) => seg.y2 - seg.y1 + 1 >= MIN_LINE_HEIGHT)
-    .sort((a, b) => a.y1 - b.y1);
+  return out.filter((seg) => seg.y2 - seg.y1 + 1 >= MIN_LINE_HEIGHT).sort((a, b) => a.y1 - b.y1);
 }
 
 /** Restore spaces lost by the CH model at item-name case boundaries. */
@@ -169,7 +163,11 @@ export async function recognizeRewardStripOnnx(stripPng: Buffer): Promise<Reward
     if (rows.length === 0) return null;
 
     return {
-      text: rows.map((row) => row.text).join(" ").replace(/\s+/g, " ").trim(),
+      text: rows
+        .map((row) => row.text)
+        .join(" ")
+        .replace(/\s+/g, " ")
+        .trim(),
       rows,
     };
   } catch (err) {

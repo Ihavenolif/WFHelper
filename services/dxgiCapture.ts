@@ -63,14 +63,30 @@ function ensureGdi(): boolean {
       ClientToScreen: u32.func("__stdcall", "ClientToScreen", "int32", ["void*", "void*"]),
       CreateCompatibleDC: g32.func("__stdcall", "CreateCompatibleDC", "void*", ["void*"]),
       CreateCompatibleBitmap: g32.func("__stdcall", "CreateCompatibleBitmap", "void*", [
-        "void*", "int32", "int32",
+        "void*",
+        "int32",
+        "int32",
       ]),
       SelectObject: g32.func("__stdcall", "SelectObject", "void*", ["void*", "void*"]),
       BitBlt: g32.func("__stdcall", "BitBlt", "int32", [
-        "void*", "int32", "int32", "int32", "int32", "void*", "int32", "int32", "uint32",
+        "void*",
+        "int32",
+        "int32",
+        "int32",
+        "int32",
+        "void*",
+        "int32",
+        "int32",
+        "uint32",
       ]),
       GetDIBits: g32.func("__stdcall", "GetDIBits", "int32", [
-        "void*", "void*", "uint32", "uint32", "void*", "void*", "uint32",
+        "void*",
+        "void*",
+        "uint32",
+        "uint32",
+        "void*",
+        "void*",
+        "uint32",
       ]),
       DeleteObject: g32.func("__stdcall", "DeleteObject", "int32", ["void*"]),
       DeleteDC: g32.func("__stdcall", "DeleteDC", "int32", ["void*"]),
@@ -121,7 +137,10 @@ export function captureGdi(displayId?: string | null): GdiCaptureResult | null {
   const g = _gdiFns!;
 
   // Determine capture area from target display
-  let cx = 0, cy = 0, cw = 0, ch = 0;
+  let cx = 0,
+    cy = 0,
+    cw = 0,
+    ch = 0;
   let resolvedDisplayId = "";
 
   const wantedId = displayId?.trim() || null;
@@ -135,8 +154,8 @@ export function captureGdi(displayId?: string | null): GdiCaptureResult | null {
       const mi = Buffer.alloc(40);
       mi.writeUInt32LE(40, 0); // cbSize
       if (g.GetMonitorInfoW(hMon, mi)) {
-        cx = mi.readInt32LE(4);  // rcMonitor.left
-        cy = mi.readInt32LE(8);  // rcMonitor.top
+        cx = mi.readInt32LE(4); // rcMonitor.left
+        cy = mi.readInt32LE(8); // rcMonitor.top
         cw = mi.readInt32LE(12) - cx; // right - left
         ch = mi.readInt32LE(16) - cy; // bottom - top
         resolvedDisplayId = wantedId;
@@ -177,11 +196,11 @@ export function captureGdi(displayId?: string | null): GdiCaptureResult | null {
 
     // BITMAPINFOHEADER (40 bytes): top-down 32-bit BGRA
     const bmi = Buffer.alloc(40);
-    bmi.writeUInt32LE(40, 0);   // biSize
-    bmi.writeInt32LE(cw, 4);    // biWidth
-    bmi.writeInt32LE(-ch, 8);   // biHeight (negative -> top-down)
-    bmi.writeUInt16LE(1, 12);   // biPlanes
-    bmi.writeUInt16LE(32, 14);  // biBitCount
+    bmi.writeUInt32LE(40, 0); // biSize
+    bmi.writeInt32LE(cw, 4); // biWidth
+    bmi.writeInt32LE(-ch, 8); // biHeight (negative -> top-down)
+    bmi.writeUInt16LE(1, 12); // biPlanes
+    bmi.writeUInt16LE(32, 14); // biBitCount
     // biCompression = BI_RGB (0), rest zero
 
     const pixels = Buffer.alloc(cw * ch * 4);

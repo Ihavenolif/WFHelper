@@ -322,7 +322,13 @@ export async function detectRelicSelectionEra(
   // labelOnly: recheck pass while a mission tag is already known - tile/band
   // text must not masquerade as a label there, so skip the fallbacks entirely.
   if (!options.labelOnly && best.confidence < 0.9) {
-    const tileBest = await scanTileLabels(screenshot, timeoutMs, perAttemptTimeoutMs, startedAt, ocr);
+    const tileBest = await scanTileLabels(
+      screenshot,
+      timeoutMs,
+      perAttemptTimeoutMs,
+      startedAt,
+      ocr,
+    );
     if (tileBest.confidence > best.confidence) best = tileBest;
   }
 

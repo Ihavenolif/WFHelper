@@ -174,7 +174,15 @@ async function buildClientCroppedSims(outDir) {
   try {
     execFileSync(
       "powershell",
-      ["-ExecutionPolicy", "Bypass", "-NoProfile", "-File", path.join(__dirname, "make-synthetic-screens.ps1"), "-OutDir", screenDir],
+      [
+        "-ExecutionPolicy",
+        "Bypass",
+        "-NoProfile",
+        "-File",
+        path.join(__dirname, "make-synthetic-screens.ps1"),
+        "-OutDir",
+        screenDir,
+      ],
       { stdio: "pipe" },
     );
   } catch (err) {
@@ -201,24 +209,27 @@ async function buildClientCroppedSims(outDir) {
   async function scanImage(imgPath, scannerPath, reader) {
     // retries cover the relic item list still loading at boot
     for (let attempt = 0; attempt < 15; attempt++) {
-      const result = await app.evaluate(async ({ nativeImage }, p) => {
-        const scanner = process.mainModule.require(p.scannerPath);
-        const image = nativeImage.createFromPath(p.imgPath);
-        if (image.isEmpty()) return { error: "image failed to load" };
-        // same frame is scanned once per reader - the dedup cache would
-        // otherwise return the first reader's result for the rest
-        scanner.resetFrameDedup();
-        return scanner.scanRewardsDetailed(
-          {
-            image,
-            sourceType: "file",
-            sourceName: "scan-e2e",
-            sourceId: null,
-            sourceDisplayId: null,
-          },
-          { reader: p.reader },
-        );
-      }, { imgPath, scannerPath, reader });
+      const result = await app.evaluate(
+        async ({ nativeImage }, p) => {
+          const scanner = process.mainModule.require(p.scannerPath);
+          const image = nativeImage.createFromPath(p.imgPath);
+          if (image.isEmpty()) return { error: "image failed to load" };
+          // same frame is scanned once per reader - the dedup cache would
+          // otherwise return the first reader's result for the rest
+          scanner.resetFrameDedup();
+          return scanner.scanRewardsDetailed(
+            {
+              image,
+              sourceType: "file",
+              sourceName: "scan-e2e",
+              sourceId: null,
+              sourceDisplayId: null,
+            },
+            { reader: p.reader },
+          );
+        },
+        { imgPath, scannerPath, reader },
+      );
       if (result && !result.error && Array.isArray(result.items)) return result;
       if (result?.error) throw new Error(result.error);
       await new Promise((r) => setTimeout(r, 2000));
@@ -247,7 +258,9 @@ async function buildClientCroppedSims(outDir) {
         const bySlot = new Map((result?.items || []).map((it) => [it.slotIndex, it.name]));
         console.log(
           `[${screen.file}][${reader}] strategy=${result?.meta?.strategy ?? "none"} items=` +
-            JSON.stringify((result?.items || []).map((it) => ({ name: it.name, slot: it.slotIndex }))),
+            JSON.stringify(
+              (result?.items || []).map((it) => ({ name: it.name, slot: it.slotIndex })),
+            ),
         );
 
         for (const [slot, expected] of Object.entries(screen.expect)) {
@@ -257,7 +270,8 @@ async function buildClientCroppedSims(outDir) {
           console.log(
             `${tag}: ${screen.file} [${reader}] slot ${Number(slot) + 1} ${expected} -> ${actual ?? "(none)"}`,
           );
-          if (!ok && !screen.info) failures.push(`${screen.file}[${reader}] slot ${Number(slot) + 1}`);
+          if (!ok && !screen.info)
+            failures.push(`${screen.file}[${reader}] slot ${Number(slot) + 1}`);
         }
       }
       if (screen.info) console.log(`NOTE: ${screen.file} not gating - ${screen.info}`);
@@ -266,7 +280,9 @@ async function buildClientCroppedSims(outDir) {
     await app.close().catch(() => {});
   }
   fs.rmSync(workDir, { recursive: true, force: true });
-  console.log(failures.length === 0 ? "ALL GATING CHECKS PASSED" : `FAILURES: ${failures.join(", ")}`);
+  console.log(
+    failures.length === 0 ? "ALL GATING CHECKS PASSED" : `FAILURES: ${failures.join(", ")}`,
+  );
   process.exit(failures.length === 0 ? 0 : 1);
 })().catch((err) => {
   console.error(err);
