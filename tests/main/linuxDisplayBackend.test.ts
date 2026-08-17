@@ -21,8 +21,9 @@ function start(
   env: Record<string, string | undefined>,
   platform = "linux",
   version = "1.0.0",
+  argv: string[] = [],
 ): string {
-  return initialize(dir, env, platform, version);
+  return initialize(dir, env, platform, version, argv);
 }
 
 function remember(state: Record<string, unknown>): void {
@@ -92,6 +93,17 @@ describe("initialize", () => {
   it("lets a forced retry override a remembered failure", () => {
     remember({ xwaylandFailed: true, failedVersion: "1.0.0" });
     expect(start({ ...WAYLAND, WFHELPER_FORCE_XWAYLAND: "1" })).toBe("x11");
+  });
+
+  it("takes a hand-passed x11 ozone flag over a stored wayland preference", () => {
+    remember({ preference: "wayland" });
+    expect(start(WAYLAND, "linux", "1.0.0", ["--ozone-platform=x11"])).toBe("x11");
+    expect(isNativeWayland()).toBe(false);
+  });
+
+  it("stays native when argv pins a non-x11 ozone platform", () => {
+    expect(start(WAYLAND, "linux", "1.0.0", ["--ozone-platform=wayland"])).toBe("auto");
+    expect(isNativeWayland()).toBe(true);
   });
 });
 

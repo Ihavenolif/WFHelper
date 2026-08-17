@@ -14,6 +14,7 @@ const DISPLAY_BACKEND = linuxDisplay.initialize(
   process.env,
   process.platform,
   app.getVersion(),
+  process.argv,
 );
 // Ozone reads its platform before this script runs, so appendSwitch alone never
 // joins XWayland; re-exec once with the flag in argv instead.

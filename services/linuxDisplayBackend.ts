@@ -66,6 +66,7 @@ export function initialize(
   env: Record<string, string | undefined>,
   platform: string,
   appVersion = "",
+  argv: readonly string[] = [],
 ): BackendChoice {
   _userDataDir = userDataDir;
   _appVersion = appVersion;
@@ -77,6 +78,15 @@ export function initialize(
   if (platform !== "linux") return _active;
   if (!env.WAYLAND_DISPLAY && env.XDG_SESSION_TYPE !== "wayland") return _active;
   _waylandSession = true;
+
+  // An explicit ozone flag in argv is what chromium actually runs; it beats every
+  // stored choice, else keep-mapped hides can run against real X11 windows.
+  const ozoneArg = argv.find((arg) => arg.startsWith("--ozone-platform="));
+  if (ozoneArg) {
+    _pinned = true;
+    if (ozoneArg === "--ozone-platform=x11") _active = "x11";
+    return _active;
+  }
 
   const state = readState();
   // An update earns one fresh x11 attempt; only same-version failures stick.
