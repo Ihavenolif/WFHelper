@@ -5,7 +5,7 @@
   import { masteryData } from "../stores/mastery.js";
   import { marketOrders } from "../stores/market.js";
   import { ensureMarketOrdersLoaded } from "../lib/marketOrdersSync.js";
-  import { attachParentMastered } from "../lib/parentMastery.js";
+  import { attachPartMasteryFlags } from "../lib/parentMastery.js";
   import { relicDb } from "../stores/relics.js";
   import InventoryHeader from "../components/inventory/InventoryHeader.svelte";
   import InventoryGrid from "../components/inventory/InventoryGrid.svelte";
@@ -312,7 +312,7 @@
   $: selectedItem = selectedInternalName
     ? tabItems.find((entry) => entry.internalName === selectedInternalName) || null
     : null;
-  $: masteredTabItems = attachParentMastered(searchableTabItems, $itemDb, $masteryData);
+  $: masteredTabItems = attachPartMasteryFlags(searchableTabItems, $itemDb, $masteryData);
   $: filtered = applySharedFiltersAndSort(masteredTabItems, $inventoryFilters);
   $: resourceList =
     $inventoryData && Object.keys($itemDb).length > 0
@@ -341,6 +341,7 @@
     let active = 0;
     if (state.orderPlaced !== "all") active++;
     if (state.mastered !== "all") active++;
+    if (state.spares !== "all") active++;
     if (state.vaulted !== "all") active++;
     if (state.partType !== "all") active++;
     if (state.favorite !== "all") active++;

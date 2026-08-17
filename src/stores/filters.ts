@@ -10,6 +10,7 @@ function createDefaultSharedFiltersState(): SharedFiltersState {
     sortDirection: "asc",
     orderPlaced: "all",
     mastered: "all",
+    spares: "all",
     vaulted: "all",
     partType: "all",
     favorite: "all",

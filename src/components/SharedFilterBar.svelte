@@ -97,6 +97,7 @@
     key:
       | "orderPlaced"
       | "mastered"
+      | "spares"
       | "vaulted"
       | "favorite"
       | "equipped"
@@ -238,6 +239,19 @@
               class="filter-tab"
               class:active={state.mastered === mode}
               on:click={() => setYesNoFilter("mastered", mode)}>{label}</button
+            >
+          {/each}
+        </div>
+      </div>
+
+      <div class="shared-chip-group" title="Yes: owned above what unbuilt gear still needs">
+        <span class="shared-chip-label">Spares</span>
+        <div class="filter-tabs">
+          {#each YES_NO_OPTIONS as [mode, label]}
+            <button
+              class="filter-tab"
+              class:active={state.spares === mode}
+              on:click={() => setYesNoFilter("spares", mode)}>{label}</button
             >
           {/each}
         </div>

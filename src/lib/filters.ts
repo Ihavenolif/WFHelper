@@ -45,6 +45,8 @@ interface FilterableItem {
   orderPlaced?: boolean;
   /** Undefined when nothing masterable needs the item (mods, resources). */
   parentMastered?: boolean;
+  /** Owned above what unbuilt gear still needs; undefined off the parts tabs. */
+  spare?: boolean;
   vaulted?: boolean;
   owned?: boolean;
   currentlyOwned?: boolean;
@@ -188,6 +190,7 @@ export function matchesSharedFilters(item: FilterableItem, filters: SharedFilter
   if (filters.mastered !== "all" && item.parentMastered !== (filters.mastered === "yes")) {
     return false;
   }
+  if (filters.spares !== "all" && item.spare !== (filters.spares === "yes")) return false;
   if (!matchesYesNo(filters.vaulted, item.vaulted)) return false;
   if (!matchesPartType(item, filters.partType)) return false;
   if (!matchesYesNo(filters.favorite, item.favorite)) return false;

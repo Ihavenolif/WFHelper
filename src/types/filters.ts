@@ -36,6 +36,8 @@ export interface SharedFiltersState {
   orderPlaced: YesNoFilterMode;
   /** Parts filter: yes = everything this part builds into is mastered. */
   mastered: YesNoFilterMode;
+  /** Parts filter: yes = owned above what unbuilt gear still needs. */
+  spares: YesNoFilterMode;
   vaulted: YesNoFilterMode;
   partType: PartTypeFilterMode;
   favorite: YesNoFilterMode;
