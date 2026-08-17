@@ -112,8 +112,18 @@ const REWARD_TRIGGER_COOLDOWN_MS = 2500;
 const RELIC_PICKER_COOLDOWN_MS = 3000;
 /** Grace period after close before another close can fire - debounces rapid log flushes. */
 const RELIC_PICKER_CLOSE_COOLDOWN_MS = 500;
-// Measure the close guard from picker activity so fast valid closes still work.
-const RELIC_PICKER_CLOSE_MIN_GAP_MS = 1500;
+// Entry InitMapping trails the open dispatch only briefly. Anchored on the open
+// alone - pattern repeats re-armed the old guard and ate genuine fast back-outs.
+const RELIC_PICKER_CLOSE_MIN_GAP_MS = 800;
+
+/** InitMapping also fires on picker entry; skip it once per session, near open. */
+export function isPickerEntryMapping(
+  now: number,
+  lastOpenAt: number,
+  entrySkipUsed: boolean,
+): boolean {
+  return !entrySkipUsed && now - lastOpenAt < RELIC_PICKER_CLOSE_MIN_GAP_MS;
+}
 // Suppress reward scans while the relic picker renders reward-preview cards.
 const REWARD_AFTER_PICKER_SUPPRESS_MS = 3000;
 // File polling is a backup path when DBWIN is inactive.
@@ -201,6 +211,7 @@ let lastRelicPickerAt = 0;
 let lastRelicPickerPatternAt = 0;
 let lastRelicPickerCloseAt = 0;
 let relicPickerSessionOpen = false;
+let relicPickerEntrySkipUsed = false;
 
 function clearPendingTimers(): void {
   if (pendingRewardTimer) {
@@ -333,6 +344,7 @@ function scheduleTrigger(
     pendingRelicPickerTimer = null;
     lastRelicPickerAt = Date.now();
     relicPickerSessionOpen = true;
+    relicPickerEntrySkipUsed = false;
     if (relicPickerCallback) {
       log.info(
         `[EELog] Relic picker trigger detected (via ${source}${staleNote}) -> dispatching recommendation overlay`,
@@ -457,12 +469,10 @@ function handleLine(line: string, source: "dbwin" | "file" = "file"): void {
     const now = Date.now();
     if (relicPickerSessionOpen && now - lastRelicPickerCloseAt >= RELIC_PICKER_CLOSE_COOLDOWN_MS) {
       lastRelicPickerCloseAt = now;
-      if (
-        now - Math.max(lastRelicPickerAt, lastRelicPickerPatternAt) <
-        RELIC_PICKER_CLOSE_MIN_GAP_MS
-      ) {
-        // Fresh InitMapping belongs to picker entry, not exit.
-        log.info("[EELog] Relic picker close skipped - too close to last open trigger");
+      if (isPickerEntryMapping(now, lastRelicPickerAt, relicPickerEntrySkipUsed)) {
+        // One skip per session, so the real close can never be swallowed.
+        relicPickerEntrySkipUsed = true;
+        log.info("[EELog] Relic picker close skipped - entry InitMapping");
       } else if (relicPickerCloseCallback) {
         relicPickerSessionOpen = false;
         log.info("[EELog] Relic picker close detected -> dispatching overlay close");
@@ -671,6 +681,7 @@ export function startWatching(
   relicPickerCallback = normalized.onRelicSelectionOpen;
   relicPickerCloseCallback = normalized.onRelicSelectionClose;
   relicPickerSessionOpen = false;
+  relicPickerEntrySkipUsed = false;
   tradePartnerCallback = normalized.onTradingPartner;
   tradeConfirmedCallback = normalized.onTradeConfirmed;
   messageCallback = normalized.onInGameMessage;
@@ -757,4 +768,5 @@ export function stopWatching(): void {
   resetRivenState();
   lineRemainder = "";
   relicPickerSessionOpen = false;
+  relicPickerEntrySkipUsed = false;
 }
