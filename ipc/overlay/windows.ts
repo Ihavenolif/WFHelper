@@ -426,6 +426,19 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     onWindowRebuilt?.(freshWindow);
   }
 
+  // Raising in the same breath as a re-show can lose the race against the map,
+  // and the z-order poll no longer rescues that (its every-tick moveTop stole
+  // focus). Two one-shot re-raises replace the poll's accidental safety net.
+  function scheduleRaiseReassert(overlayWindow: import("electron").BrowserWindow): void {
+    for (const delay of CLICK_THROUGH_REASSERT_DELAYS_MS) {
+      setTimeout(() => {
+        if (overlayWindow.isDestroyed() || !isOverlayWindowVisible()) return;
+        keepOverlayAboveGame(overlayWindow);
+        overlayWindow.moveTop();
+      }, delay);
+    }
+  }
+
   // Click-through set in the same breath as the first show lands before X maps
   // the window and is lost, so passive mode is re-asserted once it is up.
   function scheduleClickThroughReassert(overlayWindow: import("electron").BrowserWindow): void {
@@ -526,6 +539,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
           log.warn(
             `[OverlayWindow] shown existing window visible=${visible} bounds=${JSON.stringify(bounds)}`,
           );
+          scheduleRaiseReassert(existingWindow);
         }
       }
       setOverlayInteractiveMode(readInteractiveMode());
@@ -591,6 +605,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       if (isKeepMappedActive()) keepMapped.present(createdWindow, setKeepMappedContentVisible);
       setOverlayInteractiveMode(readInteractiveMode());
       scheduleClickThroughReassert(createdWindow);
+      if (!isKeepMappedActive()) scheduleRaiseReassert(createdWindow);
     }
     createdWindow.on("closed", () => {
       // The interactive rebuild destroys and recreates within one tick. If this
@@ -660,6 +675,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       showKeepMapped(overlayWindow);
     } else {
       overlayWindow.showInactive();
+      scheduleRaiseReassert(overlayWindow);
     }
     // A window shown after a mode change carries the old input state; re-assert it.
     setOverlayInteractiveMode(readInteractiveMode());

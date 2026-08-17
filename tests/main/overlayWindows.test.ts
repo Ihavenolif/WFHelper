@@ -670,6 +670,53 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
   });
 });
 
+describe("show raise reassert", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Field case: a re-shown planner landed behind the game and nothing rescued
+  // it - the z-order poll deliberately skips windows already always-on-top.
+  it("re-raises a re-shown window after the map settles", async () => {
+    vi.useFakeTimers();
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    const win = windows[0];
+    controller.hideOverlayWindow();
+    controller.showOverlayWindowInactive();
+    win.moveTop.mockClear();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(win.moveTop.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(win.setAlwaysOnTop).toHaveBeenLastCalledWith(true, "screen-saver");
+  });
+
+  it("does not raise a window that was hidden again before the timer", async () => {
+    vi.useFakeTimers();
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    const win = windows[0];
+    controller.showOverlayWindowInactive();
+    controller.hideOverlayWindow();
+    win.moveTop.mockClear();
+
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(win.moveTop).not.toHaveBeenCalled();
+  });
+});
+
 describe("pinDragSize", () => {
   it("keeps the first tick's size for every later tick of the drag", () => {
     const first = pinDragSize(undefined, { width: 490, height: 344 }, 1_000);
