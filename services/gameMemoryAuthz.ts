@@ -122,7 +122,7 @@ export function bestAuthz(counts: Map<string, number>): {
   return { authz: ambiguous ? null : authz, hits, ambiguous };
 }
 
-export interface ScannableRegion {
+interface ScannableRegion {
   start: number;
   end: number;
 }

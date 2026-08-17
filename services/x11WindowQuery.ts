@@ -8,7 +8,7 @@ const log = withScope("x11WindowQuery");
 const MAX_TREE_DEPTH = 3;
 const MAX_WINDOWS_VISITED = 4_000;
 
-export interface X11WindowBounds {
+interface X11WindowBounds {
   x: number;
   y: number;
   width: number;

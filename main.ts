@@ -330,7 +330,13 @@ void app.whenReady().then(async () => {
   };
 
   inventorySync.init({
-    runner: apiHelperRunner,
+    // Named members, not the namespace: the runner surface stays visible to
+    // static analysis instead of looking like dead code.
+    runner: {
+      startPolling: apiHelperRunner.startPolling,
+      stopPolling: apiHelperRunner.stopPolling,
+      runAfterGameLogin: apiHelperRunner.runAfterGameLogin,
+    },
     getSource: () => inventoryIpc.getInventorySource(),
     isAutoSyncEnabled: () => ctx.overlaySettings.autoInventorySyncEnabled !== false,
     onRunComplete: attachInventoryAfterHelperRun,
