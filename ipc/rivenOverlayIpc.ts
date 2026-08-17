@@ -132,15 +132,15 @@ function replayRivenEvents(window: InstanceType<typeof BrowserWindow>): void {
   });
 }
 
-function getRivenWindows(): (InstanceType<typeof BrowserWindow> | null)[] {
-  return [ctx.rivenOverlayLeftWindow, ctx.rivenOverlayRightWindow];
-}
-
 function rivenWindowEntries() {
   return [
     { win: ctx.rivenOverlayLeftWindow, controller: rivenLeftWindowsController },
     { win: ctx.rivenOverlayRightWindow, controller: rivenRightWindowsController },
   ];
+}
+
+function getRivenWindows(): (InstanceType<typeof BrowserWindow> | null)[] {
+  return rivenWindowEntries().map(({ win }) => win);
 }
 
 export function isAnyRivenWindowVisible(): boolean {
@@ -210,10 +210,7 @@ function createRivenOverlayWindows(options: { show?: boolean } = {}): void {
     } else {
       for (const { win, controller } of rivenWindowEntries()) {
         if (!win || win.isDestroyed()) continue;
-        win.setSkipTaskbar(true);
-        win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-        win.setAlwaysOnTop(true, "screen-saver");
-        win.moveTop();
+        applyOverlayZOrder(win, true);
         if (options.show !== false) controller.showOverlayWindowInactive();
       }
       rivenLeftWindowsController.setOverlayInteractiveMode(_rivenInteractive);
@@ -518,10 +515,7 @@ export function onRivenChatView(): void {
     _rivenInteractive = false;
     createRivenWindow("left", { show: true });
   } else {
-    existLeft.setSkipTaskbar(true);
-    existLeft.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
-    existLeft.setAlwaysOnTop(true, "screen-saver");
-    existLeft.moveTop();
+    applyOverlayZOrder(existLeft, true);
     rivenLeftWindowsController.showOverlayWindowInactive();
     rivenLeftWindowsController.setOverlayInteractiveMode(_rivenInteractive);
   }

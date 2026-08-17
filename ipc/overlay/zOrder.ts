@@ -16,17 +16,13 @@ let interval: ReturnType<typeof setInterval> | null = null;
 let polling = false;
 let lastFocused: boolean | null = null;
 
-// What each window has already been told. Re-running the Win32 calls on every
-// poll is not free: moveTop() can pull the overlay into the foreground, which
-// unfocuses the game, which flips the next poll and drops always-on-top - a
-// loop that feeds itself every two seconds and needs a click to restart.
-const applied = new WeakMap<OverlayWindow, boolean>();
-
+// Gated on the window's own always-on-top state, not a remembered one: overlays
+// are raised from outside this module too, and a shadow cache misses those and
+// skips the drop that should follow. Re-running moveTop() every poll pulled the
+// overlay into the foreground, unfocusing the game - a loop that fed itself.
 export function applyOverlayZOrder(win: OverlayWindow, warframeFocused: boolean): void {
-  if (applied.get(win) === warframeFocused) return;
-  applied.set(win, warframeFocused);
-
   if (warframeFocused) {
+    if (win.isAlwaysOnTop()) return;
     win.setSkipTaskbar(true);
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.setAlwaysOnTop(true, "screen-saver");
@@ -45,9 +41,8 @@ async function poll(): Promise<void> {
   polling = true;
   try {
     const status = await warframeStatus.getStatus();
-    // Named on change only: if this flips every poll with WFHelper in the
-    // foreground, the overlay is stealing focus from the game rather than
-    // reacting to the user alt-tabbing away.
+    // Named on change only: flipping every poll with WFHelper in the foreground
+    // means the overlay is stealing focus, not that the user alt-tabbed away.
     if (lastFocused !== status.isFocused) {
       lastFocused = status.isFocused;
       log.info(
