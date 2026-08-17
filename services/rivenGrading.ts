@@ -422,8 +422,8 @@ export function gradeRiven(
     return null;
   }
 
-  // Resolve tag/entry, the numeric display value, and that value's display
-  // resolution once per stat.
+  // Precomputed once per stat; the dispo and rank search below re-reads it
+  // for every candidate combination.
   const prepared = stats.map((stat) => {
     const tag = rivenData.statNameToTag(stat.name);
     const entry = tag ? rivenData.findUpgradeEntry(rivenTypeKey, tag) : null;
