@@ -15,6 +15,7 @@ function defaultFilters(): SharedFiltersState {
     sortBy: "name",
     sortDirection: "asc",
     orderPlaced: "all",
+    mastered: "all",
     vaulted: "all",
     partType: "all",
     favorite: "all",

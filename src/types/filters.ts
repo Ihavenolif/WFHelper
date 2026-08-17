@@ -34,6 +34,8 @@ export interface SharedFiltersState {
   sortBy: SharedSortKey;
   sortDirection: SortDirection;
   orderPlaced: YesNoFilterMode;
+  /** Parts filter: yes = everything this part builds into is mastered. */
+  mastered: YesNoFilterMode;
   vaulted: YesNoFilterMode;
   partType: PartTypeFilterMode;
   favorite: YesNoFilterMode;

@@ -94,7 +94,14 @@
   }
 
   function setYesNoFilter(
-    key: "orderPlaced" | "vaulted" | "favorite" | "equipped" | "leveledUp" | "subsumed",
+    key:
+      | "orderPlaced"
+      | "mastered"
+      | "vaulted"
+      | "favorite"
+      | "equipped"
+      | "leveledUp"
+      | "subsumed",
     value: Exclude<YesNoFilterMode, "all">,
   ): void {
     const next = state[key] === value ? "all" : value;
@@ -218,6 +225,19 @@
               class="filter-tab"
               class:active={state.orderPlaced === mode}
               on:click={() => setYesNoFilter("orderPlaced", mode)}>{label}</button
+            >
+          {/each}
+        </div>
+      </div>
+
+      <div class="shared-chip-group" title="Yes: everything this part builds into is mastered">
+        <span class="shared-chip-label">Mastered</span>
+        <div class="filter-tabs">
+          {#each YES_NO_OPTIONS as [mode, label]}
+            <button
+              class="filter-tab"
+              class:active={state.mastered === mode}
+              on:click={() => setYesNoFilter("mastered", mode)}>{label}</button
             >
           {/each}
         </div>

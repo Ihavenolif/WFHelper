@@ -43,6 +43,8 @@ interface FilterableItem {
   /** Distinct component types owned; null when the item has no parts to track. */
   partsOwned?: number | null;
   orderPlaced?: boolean;
+  /** Undefined when nothing masterable needs the item (mods, resources). */
+  parentMastered?: boolean;
   vaulted?: boolean;
   owned?: boolean;
   currentlyOwned?: boolean;
@@ -182,6 +184,10 @@ export function matchesSharedFilters(item: FilterableItem, filters: SharedFilter
   if (filters.masteredMode === "not_mastered" && isMastered(item)) return false;
 
   if (!matchesYesNo(filters.orderPlaced, item.orderPlaced)) return false;
+  // Strict tri-state: rows with no masterable owner drop out while active.
+  if (filters.mastered !== "all" && item.parentMastered !== (filters.mastered === "yes")) {
+    return false;
+  }
   if (!matchesYesNo(filters.vaulted, item.vaulted)) return false;
   if (!matchesPartType(item, filters.partType)) return false;
   if (!matchesYesNo(filters.favorite, item.favorite)) return false;

@@ -2,7 +2,10 @@
   import { onDestroy, onMount } from "svelte";
 
   import { parsedItems, wfmItems, inventoryData, itemDb } from "../stores/data.js";
+  import { masteryData } from "../stores/mastery.js";
   import { marketOrders } from "../stores/market.js";
+  import { ensureMarketOrdersLoaded } from "../lib/marketOrdersSync.js";
+  import { attachParentMastered } from "../lib/parentMastery.js";
   import { relicDb } from "../stores/relics.js";
   import InventoryHeader from "../components/inventory/InventoryHeader.svelte";
   import InventoryGrid from "../components/inventory/InventoryGrid.svelte";
@@ -240,6 +243,9 @@
 
   onMount(() => {
     hydration.resume();
+    // The "Order placed" badges read the orders store, which only the Market
+    // tab used to fill - straight-to-inventory sessions saw every item as unlisted.
+    void ensureMarketOrdersLoaded();
   });
 
   onDestroy(() => {
@@ -306,7 +312,8 @@
   $: selectedItem = selectedInternalName
     ? tabItems.find((entry) => entry.internalName === selectedInternalName) || null
     : null;
-  $: filtered = applySharedFiltersAndSort(searchableTabItems, $inventoryFilters);
+  $: masteredTabItems = attachParentMastered(searchableTabItems, $itemDb, $masteryData);
+  $: filtered = applySharedFiltersAndSort(masteredTabItems, $inventoryFilters);
   $: resourceList =
     $inventoryData && Object.keys($itemDb).length > 0
       ? parseResources($inventoryData, $itemDb)
@@ -333,6 +340,7 @@
   function countActiveAdvancedFilters(state: SharedFiltersState): number {
     let active = 0;
     if (state.orderPlaced !== "all") active++;
+    if (state.mastered !== "all") active++;
     if (state.vaulted !== "all") active++;
     if (state.partType !== "all") active++;
     if (state.favorite !== "all") active++;
