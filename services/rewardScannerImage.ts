@@ -96,6 +96,12 @@ const OCR_ENHANCE: Readonly<{
   whitePoint: 214,
 });
 
+const CONSOLE_BRIGHT_LUM = 140;
+const CONSOLE_MAX_SAT = 0.3;
+const CONSOLE_BRIGHT_RATIO = 0.55;
+// The console bar outshines the frame it covers; a light UI theme does not.
+const CONSOLE_MIN_LUM_DELTA = 55;
+
 interface Band {
   top?: number;
   height?: number;
@@ -542,8 +548,22 @@ function detectRewardSlotLayout(nativeImage: NativeImage): RewardSlotLayout {
   };
 }
 
-// An open chat console draws a near-white bar over the bottom strip that corrupts reward OCR.
-// Open = over 55% of strip pixels bright (luminance >= 140) with low saturation (<= 0.3).
+/** Mean luminance of a region, sampled on a stride. */
+function meanLuminance(bitmap: Buffer, width: number, height: number, stepX: number, stepY: number): number {
+  let sum = 0;
+  let count = 0;
+  for (let y = 0; y < height; y += stepY) {
+    for (let x = 0; x < width; x += stepX) {
+      const idx = (y * width + x) * 4;
+      sum += luminanceFromBgr(bitmap[idx], bitmap[idx + 1], bitmap[idx + 2]);
+      count += 1;
+    }
+  }
+  return count === 0 ? 0 : sum / count;
+}
+
+// A light Warframe UI theme makes the bottom strip permanently bright, so an open
+// console has to stand out from the frame behind it rather than just be bright.
 export function detectConsoleOpen(nativeImage: NativeImage): boolean {
   if (!nativeImage || typeof nativeImage.getSize !== "function") return false;
 
@@ -555,8 +575,10 @@ export function detectConsoleOpen(nativeImage: NativeImage): boolean {
   if (stripHeight < 4) return false;
 
   let strip: NativeImage;
+  let backdrop: NativeImage;
   try {
     strip = nativeImage.crop({ x: 0, y: stripTop, width, height: stripHeight });
+    backdrop = nativeImage.crop({ x: 0, y: 0, width, height: stripTop });
   } catch {
     return false;
   }
@@ -567,6 +589,7 @@ export function detectConsoleOpen(nativeImage: NativeImage): boolean {
 
   let bright = 0;
   let total = 0;
+  let stripLumSum = 0;
 
   for (let y = 0; y < stripHeight; y += stepY) {
     for (let x = 0; x < width; x += stepX) {
@@ -578,12 +601,22 @@ export function detectConsoleOpen(nativeImage: NativeImage): boolean {
       const maxC = Math.max(red, green, blue);
       const minC = Math.min(red, green, blue);
       const sat = maxC === 0 ? 0 : (maxC - minC) / maxC;
-      if (lum >= 140 && sat <= 0.3) bright += 1;
+      if (lum >= CONSOLE_BRIGHT_LUM && sat <= CONSOLE_MAX_SAT) bright += 1;
+      stripLumSum += lum;
       total += 1;
     }
   }
 
-  return total > 0 && bright / total >= 0.55;
+  if (total === 0 || bright / total < CONSOLE_BRIGHT_RATIO) return false;
+
+  const backdropLum = meanLuminance(
+    backdrop.toBitmap(),
+    width,
+    stripTop,
+    stepX,
+    Math.max(1, Math.floor(stripTop / 24)),
+  );
+  return stripLumSum / total - backdropLum >= CONSOLE_MIN_LUM_DELTA;
 }
 
 // Otsu threshold: adapts to the crop's brightness instead of a fixed cutoff.
@@ -638,9 +671,18 @@ export async function binarizeRewardRegion(
       .raw()
       .toBuffer({ resolveWithObject: true });
     const threshold = otsuThreshold(data);
+    // Whichever class covers more of the crop is the background, so a light UI
+    // theme (dark text on a pale card) comes out the same way up as the default.
+    let brightCount = 0;
+    for (let i = 0; i < data.length; i++) {
+      if (data[i] >= threshold) brightCount += 1;
+    }
+    const brightIsBackground = brightCount * 2 > data.length;
     const mono = Buffer.alloc(data.length);
     for (let i = 0; i < data.length; i++) {
-      mono[i] = data[i] >= threshold ? 0 : 255; // bright text -> dark on white
+      const isBright = data[i] >= threshold;
+      // Always emit dark text on white, whichever way round the source was.
+      mono[i] = isBright === brightIsBackground ? 255 : 0;
     }
     return await sharp(mono, {
       raw: { width: info.width, height: info.height, channels: 1 },

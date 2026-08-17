@@ -273,10 +273,10 @@ export async function runRewardScanPipeline({
     return null;
   }
 
-  if (detectConsoleOpen(screenshot.image)) {
-    log.info("[RewardScanner] Chat console detected - skipping scan");
-    return null;
-  }
+  // Never a reason to skip - the titles sit well above the console and the matcher
+  // rejects stray chat text. Kept so an empty scan can say why instead of blaming OCR.
+  const consoleOpen = detectConsoleOpen(screenshot.image);
+  if (consoleOpen) log.info("[RewardScanner] Chat console detected - scanning anyway");
 
   const frameHash = computeFrameHash(screenshot.image);
   if (
@@ -355,7 +355,7 @@ export async function runRewardScanPipeline({
     ocrTotalMs: 0,
     slotDetectMs: 0,
     strategy,
-    failureReason: items.length === 0 ? "no-items" : null,
+    failureReason: items.length === 0 ? (consoleOpen ? "chat-console" : "no-items") : null,
   };
 
   const result = {

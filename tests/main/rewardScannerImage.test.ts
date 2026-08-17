@@ -94,6 +94,21 @@ describe("detectConsoleOpen", () => {
     const img = makeFakeNativeImage(50, 50, () => [230, 230, 230, 255]);
     expect(detectConsoleOpen(img)).toBe(false);
   });
+
+  it("returns false on a light UI theme, where the whole frame is bright", () => {
+    // Orokin-style theme: the bottom strip is bright, but so is everything else.
+    const img = makeFakeNativeImage(400, 200, (_x, y) =>
+      y >= 192 ? [200, 200, 200, 255] : [190, 190, 190, 255],
+    );
+    expect(detectConsoleOpen(img)).toBe(false);
+  });
+
+  it("still spots a console bar on a light UI theme", () => {
+    const img = makeFakeNativeImage(400, 200, (_x, y) =>
+      y >= 192 ? [248, 248, 248, 255] : [150, 150, 150, 255],
+    );
+    expect(detectConsoleOpen(img)).toBe(true);
+  });
 });
 
 describe("detectGameContentRect", () => {
@@ -215,6 +230,12 @@ describe("binarizeRewardRegion", () => {
 
   it("renders bright text on a BRIGHT strip as dark-on-white (names over bright art)", async () => {
     const { glyphs, background } = await binarizedSamples(await makeStripPng(170, 240));
+    for (const value of glyphs) expect(value).toBe(0);
+    for (const value of background) expect(value).toBe(255);
+  });
+
+  it("renders DARK text on a light strip as dark-on-white (light UI theme)", async () => {
+    const { glyphs, background } = await binarizedSamples(await makeStripPng(235, 25));
     for (const value of glyphs) expect(value).toBe(0);
     for (const value of background) expect(value).toBe(255);
   });
