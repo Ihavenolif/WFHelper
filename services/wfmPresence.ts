@@ -24,6 +24,42 @@ let _autoActive = false;
 let _preAutoStatus: WfmStatus | null = null;
 let _onChange: ((state: WfmPresenceState) => void) | null = null;
 
+// The auto push has no expiry, so it survives an app quit. The flag survives
+// with it, letting the next run reclaim and restore a status it owns.
+const AUTO_FLAG_FILE = "wfm-presence.json";
+const STARTUP_RECLAIM_DELAY_MS = 5_000;
+
+function autoFlagPath(): string | null {
+  try {
+    const { app } = require("electron") as typeof import("electron");
+    return require("node:path").join(app.getPath("userData"), AUTO_FLAG_FILE);
+  } catch {
+    return null;
+  }
+}
+
+function readAutoFlag(): boolean {
+  const file = autoFlagPath();
+  if (!file) return false;
+  try {
+    const fs = require("node:fs") as typeof import("node:fs");
+    return JSON.parse(fs.readFileSync(file, "utf8")).autoActive === true;
+  } catch {
+    return false;
+  }
+}
+
+function writeAutoFlag(active: boolean): void {
+  const file = autoFlagPath();
+  if (!file) return;
+  try {
+    const fs = require("node:fs") as typeof import("node:fs");
+    fs.writeFileSync(file, JSON.stringify({ autoActive: active }));
+  } catch (err) {
+    log.warn("[WFMPresence] auto flag write failed:", normalizeErrorMessage(err));
+  }
+}
+
 export function getState(): WfmPresenceState {
   return { status: _status, expiresAt: _expiresAt, autoActive: _autoActive };
 }
@@ -124,6 +160,15 @@ export async function refreshFromServer(): Promise<void> {
   if (!status || _status) return;
   _status = status;
   _emit();
+  // A previous run's auto push - reclaim it so this run can restore it. The
+  // delay lets the first game poll land before deciding the game is closed.
+  if (status === "ingame" && readAutoFlag()) {
+    _autoActive = true;
+    _preAutoStatus = null;
+    log.info("[WFMPresence] Reclaimed an auto ingame status from a previous run");
+    const timer = setTimeout(() => void syncGameRunning(_gameOpen), STARTUP_RECLAIM_DELAY_MS);
+    (timer as { unref?: () => void }).unref?.();
+  }
 }
 
 /** WFM announced our status - on sign-in, or after a change made elsewhere.
@@ -140,6 +185,7 @@ export function applyServerStatus(payload: unknown): void {
 
 /** User picked a status: it wins over the auto rule until the game state changes. */
 export async function setManualStatus(status: WfmStatus): Promise<void> {
+  if (_autoActive) writeAutoFlag(false);
   _autoActive = false;
   _preAutoStatus = null;
   const applied = await _push(status);
@@ -157,6 +203,7 @@ export async function syncGameRunning(isOpen: boolean): Promise<void> {
     _autoActive = true;
     log.info("[WFMPresence] Warframe running - setting status to ingame");
     if (!(await _push("ingame", true))) _autoActive = false;
+    else writeAutoFlag(true);
     return;
   }
 
@@ -166,7 +213,7 @@ export async function syncGameRunning(isOpen: boolean): Promise<void> {
     const restore = _preAutoStatus ?? "invisible";
     _preAutoStatus = null;
     log.info(`[WFMPresence] Auto status ended - restoring status to ${restore}`);
-    await _push(restore);
+    if (await _push(restore)) writeAutoFlag(false);
   }
 }
 
