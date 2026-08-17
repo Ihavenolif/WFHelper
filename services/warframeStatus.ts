@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { withScope } from "./logger";
-import { findWindowBoundsByTitle } from "./x11WindowQuery";
+import { findWindowBoundsByTitle, isWindowFocusedByTitle } from "./x11WindowQuery";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { WARFRAME_STATUS_CACHE_TTL_MS } from "../config/runtime/cacheConfig";
 
@@ -282,6 +282,13 @@ function noteGeometrySource(source: string, bounds: WindowBounds): WindowBounds 
     );
   }
   return bounds;
+}
+
+/** X11-only focus read for the overlay unfocus-hide; the status poll stays
+ * permissive (running == focused). Null = unknowable, callers treat as focused. */
+export function isWarframeWindowFocusedLinux(): boolean | null {
+  if (!process.env.DISPLAY) return null;
+  return isWindowFocusedByTitle(WARFRAME_WINDOW_TITLE_RE);
 }
 
 export async function getWarframeWindowBoundsLinux(): Promise<WindowBounds | null> {

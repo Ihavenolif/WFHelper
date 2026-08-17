@@ -199,6 +199,75 @@ function childrenOf(x11: X11Bindings, display: unknown, window: number): number[
   }
 }
 
+function readWindowIdProperty(
+  x11: X11Bindings,
+  display: unknown,
+  window: number,
+  atomName: string,
+): number | null {
+  const atom = Number(x11.XInternAtom(display, atomName, 1));
+  if (!atom) return null;
+
+  const actualType = [0];
+  const actualFormat = [0];
+  const itemCount = [0];
+  const bytesAfter = [0];
+  const property = [null];
+  const status = x11.XGetWindowProperty(
+    display,
+    window,
+    atom,
+    0,
+    1,
+    0,
+    0,
+    actualType,
+    actualFormat,
+    itemCount,
+    bytesAfter,
+    property,
+  );
+  if (status !== 0) return null;
+
+  const ptr = property[0];
+  if (!ptr) return null;
+  try {
+    if ((Number(itemCount[0]) || 0) <= 0) return null;
+    const ids = _koffi!.decode(ptr, "unsigned long", 1) as number[];
+    return Number(ids[0]);
+  } finally {
+    x11.XFree(ptr);
+  }
+}
+
+/** Whether the X active window matches; null when focus cannot be read at all. */
+export function isWindowFocusedByTitle(titlePattern: RegExp): boolean | null {
+  const x11 = loadBindings();
+  if (!x11) return null;
+
+  let display: unknown = null;
+  try {
+    display = x11.XOpenDisplay(null);
+    if (!display) return null;
+
+    const root = Number(x11.XDefaultRootWindow(display));
+    const active = readWindowIdProperty(x11, display, root, "_NET_ACTIVE_WINDOW");
+    if (active === null) return null;
+    // 0 = focus sits on a non-X client (native wayland window) or nowhere.
+    if (active === 0) return false;
+    return titlePattern.test(readWindowLabel(x11, display, active));
+  } catch (err) {
+    log.warn("[X11] focus query failed:", normalizeErrorMessage(err));
+    return null;
+  } finally {
+    try {
+      if (display) x11.XCloseDisplay(display);
+    } catch {
+      // closing a broken display connection is best effort
+    }
+  }
+}
+
 /** Largest matching window in absolute screen coordinates, null when unavailable. */
 export function findWindowBoundsByTitle(
   titlePattern: RegExp,

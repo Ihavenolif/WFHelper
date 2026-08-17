@@ -15,6 +15,7 @@ import * as rivenGrading from "../services/rivenGrading";
 import * as rivenDataSvc from "../services/rivenData";
 import * as rivenBestAttributes from "../services/rivenBestAttributes";
 import * as wfmRivenSearch from "../services/wfmRivenSearch";
+import * as warframeStatus from "../services/warframeStatus";
 import { withScope } from "../services/logger";
 import { hardenBrowserWindowNavigation } from "../services/windowSecurity";
 import { isRivenOverlayEnabled as isRivenOverlaySettingEnabled } from "../config/runtime/overlaySettings";
@@ -162,19 +163,27 @@ function forEachRivenWindow(fn: (win: InstanceType<typeof BrowserWindow>) => voi
   }
 }
 
-// Alt-tab hides the panels until the game refocuses. Windows only: the linux
-// focus poll treats a running game as focused, so a hide would never release.
+// Alt-tab hides the panels until the game refocuses. The linux status poll is
+// permissive (running == focused), so X11 is asked directly; anything
+// unknowable (no libX11, native-wayland game) reads as focused = never hide.
+function unfocusHideFocused(pollFocused: boolean): boolean {
+  if (process.platform === "win32") return pollFocused;
+  if (process.platform !== "linux") return true;
+  return warframeStatus.isWarframeWindowFocusedLinux() !== false;
+}
+
 // Focus on one of our own windows (F7 drag, main app) does not count as away.
 function syncRivenWindowZOrder(warframeFocused: boolean): void {
-  if (process.platform === "win32") {
+  if (process.platform === "win32" || process.platform === "linux") {
+    const focusedForHide = unfocusHideFocused(warframeFocused);
     if (_rivenHiddenByUnfocus) {
-      if (!warframeFocused) return;
+      if (!focusedForHide) return;
       const restore = _rivenUnfocusHidden;
       _rivenHiddenByUnfocus = false;
       _rivenUnfocusHidden = [];
       log.info("[ZOrder] riven panels restored - Warframe refocused");
       for (const controller of restore) controller.showOverlayWindowInactive();
-    } else if (!warframeFocused && !_rivenInteractive && !BrowserWindow.getFocusedWindow()) {
+    } else if (!focusedForHide && !_rivenInteractive && !BrowserWindow.getFocusedWindow()) {
       const visible = rivenWindowEntries()
         .filter(({ controller }) => controller.isOverlayWindowVisible())
         .map(({ controller }) => controller);
