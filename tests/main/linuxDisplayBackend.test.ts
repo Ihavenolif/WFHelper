@@ -15,8 +15,12 @@ const WAYLAND = { XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-1", DIS
 
 let dir = "";
 
-function start(env: Record<string, string | undefined>, platform = "linux"): string {
-  return initialize(dir, env, platform);
+function start(
+  env: Record<string, string | undefined>,
+  platform = "linux",
+  version = "1.0.0",
+): string {
+  return initialize(dir, env, platform, version);
 }
 
 function remember(state: Record<string, unknown>): void {
@@ -55,9 +59,19 @@ describe("initialize", () => {
     expect(start({ XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-1" })).toBe("auto");
   });
 
-  it("stays native after XWayland failed to show a window", () => {
-    remember({ xwaylandFailed: true });
+  it("stays native after XWayland failed to show a window on this version", () => {
+    remember({ xwaylandFailed: true, failedVersion: "1.0.0" });
     expect(start(WAYLAND)).toBe("auto");
+  });
+
+  it("retries x11 once after an update", () => {
+    remember({ xwaylandFailed: true, failedVersion: "0.9.0" });
+    expect(start(WAYLAND)).toBe("x11");
+  });
+
+  it("retries x11 when the stored failure predates version tracking", () => {
+    remember({ xwaylandFailed: true });
+    expect(start(WAYLAND)).toBe("x11");
   });
 
   it("honors the native-wayland opt-out", () => {
@@ -65,14 +79,47 @@ describe("initialize", () => {
   });
 
   it("lets a forced retry override a remembered failure", () => {
-    remember({ xwaylandFailed: true });
+    remember({ xwaylandFailed: true, failedVersion: "1.0.0" });
     expect(start({ ...WAYLAND, WFHELPER_FORCE_XWAYLAND: "1" })).toBe("x11");
+  });
+});
+
+describe("fallback hint", () => {
+  it("reports the fallback and raises the hint exactly once", () => {
+    remember({ xwaylandFailed: true, failedVersion: "1.0.0" });
+
+    start(WAYLAND);
+    expect(info().fallbackActive).toBe(true);
+    expect(info().fallbackHint).toBe(true);
+
+    start(WAYLAND);
+    expect(info().fallbackActive).toBe(true);
+    expect(info().fallbackHint).toBe(false);
+  });
+
+  it("stays quiet on a healthy x11 session", () => {
+    start(WAYLAND);
+    expect(info().fallbackActive).toBe(false);
+    expect(info().fallbackHint).toBe(false);
+  });
+
+  it("hints again when the post-update retry fails too", async () => {
+    vi.useFakeTimers();
+    remember({ xwaylandFailed: true, failedVersion: "0.9.0", hintShown: true });
+    expect(start(WAYLAND)).toBe("x11");
+
+    armWindowPresentationWatchdog(() => false, vi.fn());
+    await vi.advanceTimersByTimeAsync(20_000);
+    vi.useRealTimers();
+
+    expect(start(WAYLAND)).toBe("auto");
+    expect(info().fallbackHint).toBe(true);
   });
 });
 
 describe("applyPreference", () => {
   it("pins a backend across restarts and clears the remembered failure", () => {
-    remember({ xwaylandFailed: true });
+    remember({ xwaylandFailed: true, failedVersion: "1.0.0" });
     start(WAYLAND);
 
     applyPreference("x11");
@@ -112,7 +159,9 @@ describe("window-presentation watchdog", () => {
 
     expect(onGiveUp).toHaveBeenCalledTimes(1);
     expect(recalled().xwaylandFailed).toBe(true);
+    expect(recalled().failedVersion).toBe("1.0.0");
     expect(start(WAYLAND)).toBe("auto");
+    expect(start(WAYLAND, "linux", "1.1.0")).toBe("x11");
   });
 
   it("stands down once desktop capture sees the window", async () => {

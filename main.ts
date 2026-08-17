@@ -12,6 +12,7 @@ const DISPLAY_BACKEND = linuxDisplay.initialize(
   app.getPath("userData"),
   process.env,
   process.platform,
+  app.getVersion(),
 );
 if (DISPLAY_BACKEND === "x11") {
   app.commandLine.appendSwitch("ozone-platform", "x11");
@@ -353,6 +354,10 @@ void app.whenReady().then(async () => {
         app.relaunch();
         app.exit(0);
       },
+    );
+  } else if (linuxDisplay.info().fallbackActive) {
+    log.warn(
+      "[Display] native Wayland fallback active - overlays may misbehave; pin XWayland in Settings to retry",
     );
   }
 

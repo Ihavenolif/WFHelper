@@ -155,6 +155,18 @@
         .catch((err) => console.warn("[Mastery] getMasteryProgress failed:", err));
     });
 
+    // Main raises fallbackHint once per remembered XWayland failure.
+    void invoke("getLinuxDisplay").then((display) => {
+      if (!display?.fallbackHint) return;
+      addToast({
+        level: "warning",
+        title: "Overlay fallback active",
+        message:
+          "XWayland failed last launch, so WFHelper runs on native Wayland and overlays may not appear above the game. Pin XWayland in Settings to retry.",
+        durationMs: 15000,
+      });
+    });
+
     const startup = initStartup();
 
     // Match the exact-"1" check used in stores/app.ts so any future

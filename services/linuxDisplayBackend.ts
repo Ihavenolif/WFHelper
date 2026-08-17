@@ -16,12 +16,17 @@ const WINDOW_PRESENTATION_POLL_MS = 250;
 
 interface DisplayState {
   xwaylandFailed?: boolean;
+  failedVersion?: string;
+  hintShown?: boolean;
   preference?: DisplayPreference;
 }
 
 let _userDataDir = "";
+let _appVersion = "";
 let _active: BackendChoice = "auto";
 let _pinned = false;
+let _fallbackActive = false;
+let _fallbackHint = false;
 let _pollTimer: ReturnType<typeof setInterval> | null = null;
 let _timeoutTimer: ReturnType<typeof setTimeout> | null = null;
 let _watchdogGeneration = 0;
@@ -51,15 +56,21 @@ export function initialize(
   userDataDir: string,
   env: Record<string, string | undefined>,
   platform: string,
+  appVersion = "",
 ): BackendChoice {
   disposeWindowPresentationWatchdog();
   _userDataDir = userDataDir;
+  _appVersion = appVersion;
   _pinned = false;
   _active = "auto";
+  _fallbackActive = false;
+  _fallbackHint = false;
   if (platform !== "linux") return _active;
   if (!env.WAYLAND_DISPLAY && env.XDG_SESSION_TYPE !== "wayland") return _active;
 
   const state = readState();
+  // An update earns one fresh x11 attempt; only same-version failures stick.
+  const failed = state.xwaylandFailed === true && state.failedVersion === _appVersion;
   if (env.WFHELPER_FORCE_XWAYLAND === "1") {
     _pinned = true;
     _active = "x11";
@@ -70,21 +81,37 @@ export function initialize(
     _active = "x11";
   } else if (state.preference === "wayland") {
     _pinned = true;
-  } else if (!state.xwaylandFailed && env.DISPLAY) {
+  } else if (!failed && env.DISPLAY) {
     _active = "x11";
+  } else if (failed && env.DISPLAY) {
+    _fallbackActive = true;
+    if (!state.hintShown) {
+      _fallbackHint = true;
+      writeState({ ...state, hintShown: true });
+    }
   }
   return _active;
 }
 
 export function info(): LinuxDisplayInfo {
-  return { preference: readState().preference ?? "auto", active: _active };
+  return {
+    preference: readState().preference ?? "auto",
+    active: _active,
+    fallbackActive: _fallbackActive,
+    fallbackHint: _fallbackHint,
+  };
 }
 
 /** A hand-picked backend also clears the remembered failure, so x11 gets retried. */
 export function applyPreference(value: unknown): LinuxDisplayInfo {
   if (!isDisplayPreference(value)) throw new Error("Unknown display preference");
   writeState({ preference: value });
-  return { preference: value, active: _active };
+  return {
+    preference: value,
+    active: _active,
+    fallbackActive: _fallbackActive,
+    fallbackHint: _fallbackHint,
+  };
 }
 
 function clearWatchdogTimers(): void {
@@ -125,14 +152,18 @@ export function armWindowPresentationWatchdog(
 
     disposeWindowPresentationWatchdog();
     const state = readState();
-    if (state.xwaylandFailed) writeState({ ...state, xwaylandFailed: false });
+    if (state.xwaylandFailed) {
+      writeState({ preference: state.preference, xwaylandFailed: false });
+    }
   };
 
   _pollTimer = setInterval(() => void probe(), WINDOW_PRESENTATION_POLL_MS);
   _timeoutTimer = setTimeout(() => {
     if (generation !== _watchdogGeneration) return;
     disposeWindowPresentationWatchdog();
-    writeState({ ...readState(), xwaylandFailed: true });
+    const state = readState();
+    // Rebuilt, not spread: a fresh failure drops hintShown so the hint re-fires.
+    writeState({ preference: state.preference, xwaylandFailed: true, failedVersion: _appVersion });
     onGiveUp();
   }, WINDOW_PRESENTATION_TIMEOUT_MS);
   void probe();
