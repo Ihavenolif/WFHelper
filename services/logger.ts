@@ -38,6 +38,11 @@ function resetLogFileOnAppStart(): void {
   }
 }
 
+// A dead stdout (desktop launcher, or the parent of the xwayland re-exec going
+// away) makes every console write throw EIO, and logging that error loops.
+process.stdout.on("error", () => {});
+process.stderr.on("error", () => {});
+
 electronLog.transports.file.level = isTest
   ? false
   : (level as typeof electronLog.transports.file.level);
