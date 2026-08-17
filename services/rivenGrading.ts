@@ -202,6 +202,8 @@ function weaponDamageTag(tag: string, isMelee: boolean): string {
 // Same tolerance as the dispo refit: display rounding can nudge a legit
 // min/max roll fractionally out of range.
 const CORRECTION_FIT_TOLERANCE = 0.02;
+// Display values round to 0.1%, so a legitimate min/max roll can sit a hair out.
+const REFIT_TOLERANCE = 0.02;
 // Only rename when the parsed stat is clearly impossible, not merely marginal.
 const CORRECTION_MISFIT_THRESHOLD = 0.1;
 
@@ -217,8 +219,7 @@ export function correctScannedStats(
     return { stats, corrections: 0 };
   }
 
-  const category = rivenData.getWeaponCategory(weaponName);
-  const isMelee = category === "Melee" || category === "SpaceMelee";
+  const isMelee = rivenData.isMeleeWeapon(weaponName);
   const numBuffs = stats.filter((s) => s.positive).length;
   const numCurses = stats.filter((s) => !s.positive).length;
   const dispositions = [
@@ -234,26 +235,14 @@ export function correctScannedStats(
     if (stat.positive ? !entry.canBeBuff : !entry.canBeCurse) return null;
     let best = Infinity;
     for (const disp of dispositions) {
-      const f = stat.positive
-        ? unparseBuffRaw(
-            displayedValue,
-            entry.baseValue,
-            disp,
-            numBuffs,
-            numCurses,
-            tag,
-            DEFAULT_LVL,
-          )
-        : unparseCurseRaw(
-            displayedValue,
-            entry.baseValue,
-            disp,
-            numBuffs,
-            numCurses,
-            tag,
-            DEFAULT_LVL,
-          );
-      best = Math.min(best, Math.max(0, f - 1) + Math.max(0, -f));
+      // Every rank, not just max: a chat-linked card shows its values at the
+      // mod's own rank, and a partly ranked stat is not a misread label.
+      for (let lvl = 0; lvl <= DEFAULT_LVL; lvl++) {
+        const f = stat.positive
+          ? unparseBuffRaw(displayedValue, entry.baseValue, disp, numBuffs, numCurses, tag, lvl)
+          : unparseCurseRaw(displayedValue, entry.baseValue, disp, numBuffs, numCurses, tag, lvl);
+        best = Math.min(best, Math.max(0, f - 1) + Math.max(0, -f));
+      }
     }
     return best;
   };
@@ -425,7 +414,7 @@ export function gradeRiven(
   // Count buffs and curses
   const numBuffs = stats.filter((s) => s.positive).length;
   const numCurses = stats.filter((s) => !s.positive).length;
-  const assumedLevel = DEFAULT_LVL;
+  let assumedLevel = DEFAULT_LVL;
 
   // Reject impossible shapes before invalid values are clamped into valid grades.
   if (numBuffs > 3 || numCurses > 1) {
@@ -435,74 +424,127 @@ export function gradeRiven(
     return null;
   }
 
-  // Resolve tag/entry and the numeric display value once per stat.
+  // Resolve tag/entry, the numeric display value, and that value's display
+  // resolution once per stat.
   const prepared = stats.map((stat) => {
     const tag = rivenData.statNameToTag(stat.name);
     const entry = tag ? rivenData.findUpgradeEntry(rivenTypeKey, tag) : null;
+    const isFraction = !!tag && NON_PERCENTAGE_TAGS.has(tag);
     let displayedValue: number | null = null;
+    // Half a display step, in the same units as displayedValue - the card shows
+    // one decimal, or two for an x-multiplier.
+    let halfStep = 0.05;
     if (stat.value != null && Number.isFinite(stat.value)) {
-      // x-multiplier format: x1.59 -> (value - 1) * 100 for positive,
-      // (1 - value) * 100 for negative
-      displayedValue = stat.multiplier
-        ? stat.positive
-          ? (stat.value - 1) * 100
-          : (1 - stat.value) * 100
-        : stat.value;
+      if (stat.multiplier) {
+        // "x1.05" is a +0.05 multiplier, and faction damage is a non-percentage
+        // tag whose displayed value IS that fraction (browse.wf: "0.05 to 0.06
+        // Damage to Corpus"). Scaling it by 100 here counted the scale twice and
+        // pinned every scanned faction roll to the top or bottom of its range.
+        const fraction = stat.positive ? stat.value - 1 : 1 - stat.value;
+        displayedValue = isFraction ? fraction : fraction * 100;
+        halfStep = isFraction ? 0.005 : 0.5;
+      } else {
+        displayedValue = stat.value;
+      }
     }
-    return { stat, tag, entry, displayedValue };
+    return { stat, tag, entry, displayedValue, halfStep };
   });
 
   type Prepared = (typeof prepared)[number];
-  const rawFloatAt = (p: Prepared, disp: number): number =>
+  const rawFloatAt = (
+    p: Prepared,
+    disp: number,
+    lvl: number,
+    value: number = p.displayedValue!,
+  ): number =>
     p.stat.positive
-      ? unparseBuffRaw(
-          p.displayedValue!,
-          p.entry!.baseValue,
-          disp,
-          numBuffs,
-          numCurses,
-          p.tag!,
-          assumedLevel,
-        )
-      : unparseCurseRaw(
-          p.displayedValue!,
-          p.entry!.baseValue,
-          disp,
-          numBuffs,
-          numCurses,
-          p.tag!,
-          assumedLevel,
-        );
+      ? unparseBuffRaw(value, p.entry!.baseValue, disp, numBuffs, numCurses, p.tag!, lvl)
+      : unparseCurseRaw(value, p.entry!.baseValue, disp, numBuffs, numCurses, p.tag!, lvl);
 
-  // The roll screen names the family but uses the linked variant's disposition.
-  // Refit out-of-range values against sibling variants and choose the best match.
+  // On a wide stat the card's rounding is noise, but Wolf Sledge Range spans
+  // 0.2 to 0.3 metres at rank 0, so half a step is half the roll. Ask whether
+  // the rounding interval can reach [0,1] rather than whether one nominal value
+  // lands inside it.
+  const fitsAt = (p: Prepared, disp: number, lvl: number): boolean => {
+    const a = rawFloatAt(p, disp, lvl, p.displayedValue! - p.halfStep);
+    const b = rawFloatAt(p, disp, lvl, p.displayedValue! + p.halfStep);
+    return Math.min(a, b) <= 1 + REFIT_TOLERANCE && Math.max(a, b) >= -REFIT_TOLERANCE;
+  };
+
+  // Two things the card does not tell us: the roll screen names the family but
+  // uses the linked variant's disposition, and a chat-linked mod shows its values
+  // at its own rank. An unranked card reads 1/9 of max, so grading it at rank 8
+  // scores every stat F. Search rank and disposition together before grading.
   let disposition = baseDisposition;
   const gradeable = prepared.filter((p) => p.tag && p.entry && p.displayedValue != null);
   if (gradeable.length > 0) {
-    const violationAt = (disp: number): number =>
+    // Sum of how far out of [0,1] the card sits, for ranking near-misses when
+    // nothing fits outright.
+    const violationAt = (disp: number, lvl: number): number =>
       gradeable.reduce((sum, p) => {
-        const f = rawFloatAt(p, disp);
+        const f = rawFloatAt(p, disp, lvl);
         return sum + Math.max(0, f - 1) + Math.max(0, -f);
       }, 0);
-    const currentViolation = violationAt(disposition);
-    // 0.02 tolerance: display values round to 0.1%, which can nudge a
-    // legitimate min/max roll fractionally out of range.
-    if (currentViolation > 0.02) {
-      let best = { name: weaponName, disposition, violation: currentViolation };
-      for (const variant of rivenData.getFamilyVariants(weaponName)) {
-        const violation = violationAt(variant.disposition);
-        const closer =
-          Math.abs(variant.disposition - baseDisposition) <
-          Math.abs(best.disposition - baseDisposition);
-        if (violation < best.violation - 1e-9 || (violation < best.violation + 1e-9 && closer)) {
-          best = { name: variant.name, disposition: variant.disposition, violation };
+    const allFitAt = (disp: number, lvl: number): boolean =>
+      gradeable.every((p) => fitsAt(p, disp, lvl));
+
+    if (!allFitAt(disposition, assumedLevel)) {
+      const candidates = [
+        { name: weaponName, disposition: baseDisposition },
+        ...rivenData.getFamilyVariants(weaponName),
+      ];
+
+      // Highest rank first, so a card that fits at max rank is never demoted
+      // just because a lower rank happens to fit as well. Needs two stats to
+      // pin a rank - a lone value fits several, and picking one is a guess.
+      const maxRefitLvl = gradeable.length >= 2 ? DEFAULT_LVL : -1;
+      let refit: { name: string; disposition: number; lvl: number } | null = null;
+      for (let lvl = maxRefitLvl; lvl >= 0 && !refit; lvl--) {
+        for (const candidate of candidates) {
+          if (!allFitAt(candidate.disposition, lvl)) continue;
+          const closer =
+            !refit ||
+            Math.abs(candidate.disposition - baseDisposition) <
+              Math.abs(refit.disposition - baseDisposition);
+          if (closer) refit = { ...candidate, lvl };
         }
       }
-      if (best.disposition !== disposition) {
-        log.info(
-          `[RivenGrade] "${weaponName}" dispo misfits the rolled values - grading as "${best.name}"`,
-        );
-        disposition = best.disposition;
+
+      if (refit) {
+        if (refit.disposition !== disposition) {
+          log.info(
+            `[RivenGrade] "${weaponName}" dispo misfits the rolled values - grading as "${refit.name}"`,
+          );
+          disposition = refit.disposition;
+        }
+        if (refit.lvl !== assumedLevel) {
+          log.info(
+            `[RivenGrade] "${weaponName}" values match rank ${refit.lvl} - grading at that rank`,
+          );
+          assumedLevel = refit.lvl;
+        }
+      } else {
+        // Nothing fits exactly - keep max rank and settle for the closest dispo.
+        let best = {
+          name: weaponName,
+          disposition,
+          violation: violationAt(disposition, assumedLevel),
+        };
+        for (const variant of rivenData.getFamilyVariants(weaponName)) {
+          const violation = violationAt(variant.disposition, assumedLevel);
+          const closer =
+            Math.abs(variant.disposition - baseDisposition) <
+            Math.abs(best.disposition - baseDisposition);
+          if (violation < best.violation - 1e-9 || (violation < best.violation + 1e-9 && closer)) {
+            best = { name: variant.name, disposition: variant.disposition, violation };
+          }
+        }
+        if (best.disposition !== disposition) {
+          log.info(
+            `[RivenGrade] "${weaponName}" dispo misfits the rolled values - grading as "${best.name}"`,
+          );
+          disposition = best.disposition;
+        }
       }
     }
   }
@@ -528,7 +570,7 @@ export function gradeRiven(
     }
 
     if (p.displayedValue != null) {
-      const rollFloat = clamp01(rawFloatAt(p, disposition));
+      const rollFloat = clamp01(rawFloatAt(p, disposition, assumedLevel));
       const grade = floatToGrade(rollFloat, !stat.positive);
       const score = lerp(-10, 10, !stat.positive ? 1 - rollFloat : rollFloat);
 

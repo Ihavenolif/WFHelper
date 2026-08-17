@@ -328,8 +328,7 @@ function sendWeaponEnrichment(): void {
   // Send best attributes to both panels
   void rivenBestAttributes.ensureRivenGoodRollsLoaded().then(() => {
     if (!_rivenWeaponName || _rivenWeaponName === "Riven") return;
-    const category = rivenDataSvc.getWeaponCategory(_rivenWeaponName);
-    const isMelee = category === "Melee" || category === "SpaceMelee";
+    const isMelee = rivenDataSvc.isMeleeWeapon(_rivenWeaponName);
     const weaponInfo = rivenBestAttributes.getBestAttributes(_rivenWeaponName, isMelee);
     if (weaponInfo) sendToRivenWindows(RIVEN_BEST_ATTRIBUTES, weaponInfo);
   });

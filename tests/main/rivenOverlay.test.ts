@@ -1102,6 +1102,23 @@ describe("findWeaponInText", () => {
   it("supports Aleca-style alias fallback names", () => {
     expect(findWeaponInText("Gotva Visi-critata\n+198.2% Multishot")).toBe("Gotva Prime");
   });
+
+  // Fezalion's log 2026-08-16: Haalvu is missing from the bundled export, so the
+  // matcher fell through to the riven's generated suffix and produced grades for
+  // the wrong gun - "Hera-decipha" scored as Hema, "Lexi-gelitron" as Lex.
+  it("never takes a weapon name out of the riven suffix", () => {
+    expect(findWeaponInText("Haalvu Hera-decipha\n+50.3% Status Duration")).toBeNull();
+    expect(findWeaponInText("Haalvu Lexi-gelitron\nx1.22 Damage to Corpus")).toBeNull();
+    expect(findWeaponInText("Haalvu Acriata\n+103.9% Damage")).toBeNull();
+  });
+
+  it("still resolves weapon names that lead the title line", () => {
+    expect(findWeaponInText("Wolf Sledge Acri-\ncronitor\n+0.2 Range")).toBe("Wolf Sledge");
+    expect(findWeaponInText("Cobra & Crane Deciata")).toBe("Cobra & Crane");
+    expect(findWeaponInText("MK1-Braton Croni-visican")).toBe("MK1-Braton");
+    expect(findWeaponInText("Kuva Bramma Toxi-critacan")).toBe("Kuva Bramma");
+    expect(findWeaponInText("Verglas Visi-acricron")).toBe("Verglas");
+  });
 });
 
 // Real roll-right OCR outputs from 2026-07-07 main.log: the stat crop clips the

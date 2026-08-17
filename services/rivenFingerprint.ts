@@ -294,8 +294,7 @@ function decodeSingleRiven(entry: {
   const rivenTypeKey = rivenData.resolveRivenType(weaponName);
   if (!rivenTypeKey) return null;
 
-  const category = rivenData.getWeaponCategory(weaponName);
-  const isMelee = category === "Melee" || category === "SpaceMelee";
+  const isMelee = rivenData.isMeleeWeapon(weaponName);
 
   const lvl = typeof fp.lvl === "number" ? fp.lvl : 8;
   const buffs = Array.isArray(fp.buffs) ? fp.buffs : [];

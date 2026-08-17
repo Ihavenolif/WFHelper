@@ -233,21 +233,15 @@ describe("rivenData", () => {
     });
   });
 
-  describe("getWeaponCategory", () => {
-    it("returns category for LongGuns", () => {
-      expect(rivenData.getWeaponCategory("Rubico Prime")).toBe("LongGuns");
+  describe("isMeleeWeapon", () => {
+    it("returns false for an unknown weapon", () => {
+      expect(rivenData.isMeleeWeapon("Nonexistent")).toBe(false);
     });
 
-    it("returns category for Pistols", () => {
-      expect(rivenData.getWeaponCategory("Bolto")).toBe("Pistols");
-    });
-
-    it("returns category for Melee", () => {
-      expect(rivenData.getWeaponCategory("Skana")).toBe("Melee");
-    });
-
-    it("returns null for unknown weapon", () => {
-      expect(rivenData.getWeaponCategory("Nonexistent")).toBeNull();
+    it("separates ranged from melee", () => {
+      expect(rivenData.isMeleeWeapon("Rubico Prime")).toBe(false);
+      expect(rivenData.isMeleeWeapon("Bolto")).toBe(false);
+      expect(rivenData.isMeleeWeapon("Skana")).toBe(true);
     });
   });
 
@@ -283,8 +277,60 @@ describe("rivenData", () => {
       expect(rivenData.resolveRivenType("Kuva Sobek")).toContain("ShotgunRandomModRare");
     });
 
+    it("resolves Duviri melee to the ordinary melee riven", () => {
+      // Their own productCategory, so they resolved to nothing and never graded.
+      expect(rivenData.resolveRivenType("Sun & Moon")).toContain("MeleeWeaponRandomModRare");
+      expect(rivenData.resolveRivenType("Edun")).toContain("MeleeWeaponRandomModRare");
+      expect(rivenData.isMeleeWeapon("Edun")).toBe(true);
+    });
+
+    it("resolves companion weapons by the class they holster as", () => {
+      // SentinelWeapons has no pool of its own; vex's Verglas riven graded
+      // nothing at all because resolveRivenType returned null.
+      expect(rivenData.resolveRivenType("Verglas")).toContain("RifleRandomModRare");
+      expect(rivenData.resolveRivenType("Verglas Prime")).toContain("RifleRandomModRare");
+      expect(rivenData.resolveRivenType("Vulklok")).toContain("RifleRandomModRare");
+      expect(rivenData.resolveRivenType("Sweeper")).toContain("ShotgunRandomModRare");
+      expect(rivenData.resolveRivenType("Deconstructor")).toContain("MeleeWeaponRandomModRare");
+      // Burst Laser and its variants carry no holsterCategory at all.
+      expect(rivenData.resolveRivenType("Burst Laser")).toContain("PistolRandomModRare");
+      expect(rivenData.resolveRivenType("Prisma Burst Laser")).toContain("PistolRandomModRare");
+    });
+
+    it("does not invent a riven type for weapons that cannot roll one", () => {
+      // These carry a leftover omegaAttenuation but have no rivens in game, and
+      // DE ships no veiled riven for them either.
+      expect(rivenData.resolveRivenType("Artemis Bow")).toBeNull(); // exalted
+      expect(rivenData.resolveRivenType("Shadow Claws")).toBeNull(); // exalted
+      expect(rivenData.resolveRivenType("Sirocco")).toBeNull(); // operator amp
+      expect(rivenData.resolveRivenType("Batoten")).toBeNull(); // hound weapon
+    });
+
+    it("treats a melee-holstered companion weapon as melee", () => {
+      expect(rivenData.isMeleeWeapon("Deconstructor")).toBe(true);
+      expect(rivenData.isMeleeWeapon("Verglas")).toBe(false);
+      expect(rivenData.isMeleeWeapon("Skana")).toBe(true);
+      expect(rivenData.isMeleeWeapon("Rubico Prime")).toBe(false);
+    });
+
     it("returns null for unknown weapon", () => {
       expect(rivenData.resolveRivenType("Nonexistent")).toBeNull();
+    });
+  });
+
+  describe("getRivenFamilySlug", () => {
+    it("strips a variant affix when the base weapon exists", () => {
+      expect(rivenData.getRivenFamilySlug("Boar Prime")).toBe("boar");
+      expect(rivenData.getRivenFamilySlug("Rubico Prime")).toBe("rubico");
+      expect(rivenData.getRivenFamilySlug("Kuva Karak")).toBe("karak");
+      expect(rivenData.getRivenFamilySlug("MK1-Braton")).toBe("braton");
+    });
+
+    it("keeps the affix when the weapon has no base form", () => {
+      // WFM has no "gotva" or "kuva_bramma" family - asking for one 404s the search.
+      expect(rivenData.getRivenFamilySlug("Gotva Prime")).toBe("gotva_prime");
+      expect(rivenData.getRivenFamilySlug("Kuva Bramma")).toBe("kuva_bramma");
+      expect(rivenData.getRivenFamilySlug("Tenet Envoy")).toBe("tenet_envoy");
     });
   });
 
@@ -576,5 +622,113 @@ describe("rivenBestAttributes", () => {
 
   it("returns null for unknown weapons (no fallback)", () => {
     expect(getBestAttributes("NotAWeaponName")).toBeNull();
+  });
+});
+
+describe("x-multiplier faction damage", () => {
+  // "x1.51" is a +0.51 multiplier and faction damage is a non-percentage tag, so
+  // 0.51 IS the displayed value. Scaling it to 51 counted the scale twice and
+  // pinned every scanned faction roll to the end of its range.
+  it("grades a real faction roll inside its range, not clamped", () => {
+    // Tatsu, from vex's log 2026-08-09 02:38:15.
+    const result = gradeRiven("Tatsu", [
+      { name: "Status Duration", positive: true, value: 111.6 },
+      { name: "Damage to Corpus", positive: true, value: 1.51, multiplier: true },
+      { name: "Slash", positive: false, value: 58.5 },
+    ]);
+
+    const faction = result!.stats.find((s) => s.name === "Damage to Corpus")!;
+    expect(faction.rollFloat).toBeGreaterThan(0);
+    expect(faction.rollFloat).toBeLessThan(1);
+  });
+
+  it("keeps a faction roll ordered - a bigger multiplier grades higher", () => {
+    const at = (value: number) =>
+      gradeRiven("Proboscis Cernos", [
+        { name: "Damage to Infested", positive: true, value, multiplier: true },
+        { name: "Projectile Speed", positive: true, value: 77.2 },
+      ])!.stats.find((s) => s.name === "Damage to Infested")!.rollFloat;
+
+    expect(at(1.4)).toBeGreaterThan(at(1.36));
+  });
+});
+
+describe("unranked cards", () => {
+  // Three chat-linked cards from vex's 2026-08-15 log. Each read one ninth of the
+  // max-rank values because the mod was unranked; browse.wf puts all four Wolf
+  // Sledge rolls inside range at Level 0. Graded at rank 8 they all scored F.
+  const UNRANKED_WOLF_SLEDGE = [
+    { name: "Range", positive: true, value: 0.2 },
+    { name: "Critical Damage", positive: true, value: 12.3 },
+    { name: "Attack Speed", positive: true, value: 7.3 },
+    { name: "Impact", positive: false, value: 12.2 },
+  ];
+  const UNRANKED_OBEX = [
+    { name: "Range", positive: true, value: 0.3 },
+    { name: "Electricity", positive: true, value: 11.4 },
+    { name: "Status Chance", positive: true, value: 13.2 },
+    { name: "Impact", positive: false, value: 12.9 },
+  ];
+  const UNRANKED_PANTHERA = [
+    { name: "Zoom", positive: true, value: 10.1 },
+    { name: "Cold", positive: true, value: 16.3 },
+    { name: "Status Chance", positive: false, value: 6.6 },
+  ];
+
+  it.each([
+    ["Wolf Sledge", UNRANKED_WOLF_SLEDGE],
+    ["Obex", UNRANKED_OBEX],
+    ["Panthera", UNRANKED_PANTHERA],
+  ])("grades an unranked %s on its own rank", (weapon, stats) => {
+    const result = gradeRiven(weapon, stats);
+
+    expect(result).not.toBeNull();
+    // The whole bug: pinned at rank 8 every roll clamps to the bottom of its range.
+    expect(result!.stats.some((s) => s.rollFloat > 0 && s.rollFloat < 1)).toBe(true);
+    expect(result!.overallGrade).not.toBe("F");
+  });
+
+  it("keeps the same grades when the card is scanned at max rank", () => {
+    const unranked = gradeRiven("Wolf Sledge", UNRANKED_WOLF_SLEDGE);
+    const maxRank = gradeRiven(
+      "Wolf Sledge",
+      UNRANKED_WOLF_SLEDGE.map((stat) => ({ ...stat, value: stat.value * 9 })),
+    );
+
+    expect(maxRank!.stats.map((s) => s.grade)).toEqual(unranked!.stats.map((s) => s.grade));
+  });
+
+  it("grades vex's unranked Verglas, a sentinel weapon, on the rifle pool", () => {
+    const result = gradeRiven("Verglas", [
+      { name: "Critical Damage", positive: true, value: 16.4 },
+      { name: "Damage", positive: true, value: 23.9 },
+      { name: "Critical Chance", positive: true, value: 18.5 },
+      { name: "Damage to Infested", positive: false, value: 0.95, multiplier: true },
+    ]);
+
+    expect(result).not.toBeNull();
+    // Every stat inside its range is what makes the rifle-pool mapping credible.
+    for (const stat of result!.stats) {
+      expect(stat.rollFloat).toBeGreaterThan(0);
+      expect(stat.rollFloat).toBeLessThan(1);
+    }
+  });
+
+  it("needs two stats before it will refit a rank", () => {
+    // One value alone fits several ranks; picking one would be a guess.
+    const result = gradeRiven("Wolf Sledge", [
+      { name: "Critical Damage", positive: true, value: 12.3 },
+    ]);
+
+    expect(result!.stats[0].rollFloat).toBe(0);
+  });
+
+  it("leaves a card that cannot fit any rank at the bottom", () => {
+    const impossible = UNRANKED_WOLF_SLEDGE.map((stat) => ({ ...stat, value: stat.value * 90 }));
+
+    const result = gradeRiven("Wolf Sledge", impossible);
+
+    expect(result).not.toBeNull();
+    expect(result!.stats.every((s) => s.rollFloat === 0 || s.rollFloat === 1)).toBe(true);
   });
 });

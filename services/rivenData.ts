@@ -154,19 +154,45 @@ const TAG_TO_WFM_URL_NAME: Record<string, string> = {
   WeaponMeleeFactionDamageInfested: "damage_vs_infested",
 };
 
-const RIVEN_MODS_BY_CATEGORY: Record<string, string> = {
-  LongGuns: "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare",
-  Pistols: "/Lotus/Upgrades/Mods/Randomized/LotusPistolRandomModRare",
-  Melee: "/Lotus/Upgrades/Mods/Randomized/PlayerMeleeWeaponRandomModRare",
-  SpaceGuns: "/Lotus/Upgrades/Mods/Randomized/LotusArchgunRandomModRare",
-};
-
+const RIFLE_RIVEN_KEY = "/Lotus/Upgrades/Mods/Randomized/LotusRifleRandomModRare";
+const PISTOL_RIVEN_KEY = "/Lotus/Upgrades/Mods/Randomized/LotusPistolRandomModRare";
+const MELEE_RIVEN_KEY = "/Lotus/Upgrades/Mods/Randomized/PlayerMeleeWeaponRandomModRare";
 // Shotgun override: LongGuns with SHOTGUN compat tag -> shotgun riven
 const SHOTGUN_RIVEN_KEY = "/Lotus/Upgrades/Mods/Randomized/LotusShotgunRandomModRare";
+const ARCHGUN_RIVEN_KEY = "/Lotus/Upgrades/Mods/Randomized/LotusArchgunRandomModRare";
 
 // Modular weapon overrides
 const KITGUN_RIVEN_KEY = "/Lotus/Upgrades/Mods/Randomized/LotusModularPistolRandomModRare";
 const ZAW_RIVEN_KEY = "/Lotus/Upgrades/Mods/Randomized/LotusModularMeleeRandomModRare";
+
+const RIVEN_MODS_BY_CATEGORY: Record<string, string> = {
+  LongGuns: RIFLE_RIVEN_KEY,
+  Pistols: PISTOL_RIVEN_KEY,
+  Melee: MELEE_RIVEN_KEY,
+  SpaceGuns: ARCHGUN_RIVEN_KEY,
+  // Duviri melee - Sun & Moon, Edun, Syam - roll the ordinary melee pool.
+  DrifterMelee: MELEE_RIVEN_KEY,
+};
+
+/** DE's marker for a companion weapon, the only riven-capable group outside the
+ * four main product categories. */
+const SENTINEL_WEAPON_TAG = "SENTINEL_WEAPON";
+
+// Companion weapons have NO stat pool of their own - the only randomized
+// sentinel entry is the VEILED `RawSentinelWeaponRandomMod`, which has no
+// upgradeEntries and `compatName=ANY`. They roll the pool of the class whose
+// mods they equip, and `holsterCategory` is where the export states it.
+const RIVEN_MODS_BY_HOLSTER: Record<string, string> = {
+  RIFLE: RIFLE_RIVEN_KEY,
+  SNIPER: RIFLE_RIVEN_KEY,
+  BOW: RIFLE_RIVEN_KEY,
+  SHOTGUN: SHOTGUN_RIVEN_KEY,
+  PISTOL: PISTOL_RIVEN_KEY,
+  MELEE: MELEE_RIVEN_KEY,
+};
+
+/** Weapon categories whose cards read "Melee Damage" and "Attack Speed". */
+const MELEE_CATEGORIES = new Set(["Melee", "SpaceMelee", "DrifterMelee"]);
 
 function stripColorTags(text: string): string {
   // Remove <DT_*_COLOR> tags from localized strings
@@ -295,11 +321,13 @@ export function getWeaponDisposition(weaponName: string): number | null {
   return info ? info.omegaAttenuation : null;
 }
 
-/** Returns a weapon's product category by display name. */
-export function getWeaponCategory(weaponName: string): string | null {
+/** True when the card reads "Melee Damage" and "Attack Speed" for this weapon.
+ * Deconstructor is a SentinelWeapons product but holsters as MELEE. */
+export function isMeleeWeapon(weaponName: string): boolean {
   ensureBuilt();
   const info = _weaponByNameLc.get(weaponName.toLowerCase());
-  return info ? info.productCategory : null;
+  if (!info) return false;
+  return MELEE_CATEGORIES.has(info.productCategory) || info.holsterCategory === "MELEE";
 }
 
 /** Resolves the riven mod uniqueName for a weapon, or null when unknown. */
@@ -327,7 +355,20 @@ export function resolveRivenType(weaponName: string): string | null {
     return KITGUN_RIVEN_KEY;
   }
 
-  return RIVEN_MODS_BY_CATEGORY[cat] || null;
+  const byCategory = RIVEN_MODS_BY_CATEGORY[cat];
+  if (byCategory) return byCategory;
+
+  // Only companion weapons get the holster fallback. A leftover omegaAttenuation
+  // is NOT proof a weapon can roll a riven - exalted weapons, hound weapons and
+  // Sirocco all carry one and none of them have rivens. DE's own marker is the
+  // veiled riven: `RawSentinelWeaponRandomMod` exists, so sentinel-weapon rivens
+  // are real, and there is no veiled exalted/hound/amp riven.
+  if (!info.compatibilityTags.includes(SENTINEL_WEAPON_TAG)) return null;
+
+  // Burst Laser and its Prime/Prisma variants carry no holsterCategory at all;
+  // the class is still stated, in the path.
+  const holster = info.holsterCategory || (/Pistol$/i.test(info.uniqueName) ? "PISTOL" : "");
+  return RIVEN_MODS_BY_HOLSTER[holster] || null;
 }
 
 /** Returns the upgrade entries for a riven mod type. */
@@ -427,16 +468,29 @@ export function generateRivenSuffix(
   return name;
 }
 
-/** Prefers the longest OCR weapon match so "Bo" does not match inside "Boar". */
+/** Prefers the longest OCR weapon match so "Bo" does not match inside "Boar".
+ * A card reads "<Weapon> <RivenSuffix>", so a match is only trusted where the
+ * weapon can actually be: at the start of a line. The riven suffix is built from
+ * stat syllables ("Hera-decipha", "Lexi-gelitron") that collide with short
+ * weapon names, and matching those produced confident grades for the wrong gun
+ * whenever the real weapon was missing from the export. */
 export function findWeaponInText(text: string): string | null {
   ensureBuilt();
-  const lc = text.toLowerCase();
+  const lineStarts = String(text || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim().toLowerCase())
+    .filter(Boolean);
+
   let bestExact: string | null = null;
   let bestExactLen = 0;
   for (const [nameLc] of _weaponByNameLc) {
     if (nameLc.length <= bestExactLen) continue;
     if (nameLc.length < 3) continue; // skip very short names to avoid false positives
-    if (lc.includes(nameLc)) {
+    // Anchored, and on a word boundary: "Lex" must not match "Lexi-gelitron".
+    const anchored = lineStarts.some(
+      (line) => line.startsWith(nameLc) && !/[a-z0-9]/.test(line.charAt(nameLc.length)),
+    );
+    if (anchored) {
       // Keys are lowercased; recover the display-cased name from the parallel map.
       bestExact = _weaponDisplayNames.get(nameLc) || nameLc;
       bestExactLen = nameLc.length;
@@ -460,7 +514,8 @@ export function findWeaponInText(text: string): string | null {
     const words = line.split(" ").filter((word) => word.length >= 2);
     if (words.length === 0) continue;
 
-    for (let start = 0; start < words.length; start += 1) {
+    // Only phrases that begin the line - see the anchoring note above.
+    for (let start = 0; start < 1; start += 1) {
       for (let len = 1; len <= 4 && start + len <= words.length; len += 1) {
         const phrase = words
           .slice(start, start + len)
@@ -518,18 +573,23 @@ const VARIANT_PREFIXES = ["MK1-", "Mk1-", "Kuva ", "Tenet "];
 
 /** Derives the WFM riven family slug, such as "Boar Prime" -> "boar". */
 export function getRivenFamilySlug(weaponName: string): string {
+  ensureBuilt();
+  // An affix only marks a variant when the plain weapon exists. Gotva Prime and
+  // Kuva Bramma have no base form, so they are their own family - stripping it
+  // asks WFM for a weapon that was never made.
+  const baseIfKnown = (candidate: string, fallback: string): string =>
+    _weaponByNameLc.has(candidate.toLowerCase()) ? candidate : fallback;
+
   let name = weaponName.trim();
   for (const suffix of VARIANT_SUFFIXES) {
-    if (name.endsWith(suffix)) {
-      name = name.slice(0, -suffix.length);
-      break;
-    }
+    if (!name.endsWith(suffix)) continue;
+    name = baseIfKnown(name.slice(0, -suffix.length), name);
+    break;
   }
   for (const prefix of VARIANT_PREFIXES) {
-    if (name.startsWith(prefix)) {
-      name = name.slice(prefix.length);
-      break;
-    }
+    if (!name.startsWith(prefix)) continue;
+    name = baseIfKnown(name.slice(prefix.length), name);
+    break;
   }
   return name
     .toLowerCase()

@@ -60,10 +60,10 @@ function logScanTiming(label: string, t: RivenScanTiming): void {
   );
 }
 
-// Empty scans save only card crops because OCR text cannot reveal crop alignment.
+// OCR text cannot reveal crop alignment, so the crop is kept alongside it.
 const DEBUG_DUMP_KEEP = 10;
 
-function dumpFailedScanCrops(label: string, cardCrop: NativeImage, statCrop: NativeImage): void {
+function dumpScanCrops(label: string, cardCrop: NativeImage, statCrop: NativeImage): void {
   if (!areOcrDebugDumpsEnabled()) return;
   try {
     const { app } = require("electron") as typeof import("electron");
@@ -213,9 +213,9 @@ export async function recognizeRivenCardStats(
     totalMs: Date.now() - totalStart,
   });
 
-  if (bestStats.length === 0) {
-    dumpFailedScanCrops(label, cardCrop, statCrop);
-  }
+  // Every scan, not only empty ones: a confident read of a badly cropped card
+  // looks perfect in the log, so the image is the only evidence that settles it.
+  dumpScanCrops(label, cardCrop, statCrop);
 
   return { text: bestText, titleText: "", footerText: "", stats: bestStats };
 }

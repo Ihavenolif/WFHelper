@@ -100,8 +100,7 @@ function register(): void {
       const weapon = trimmedString(weaponName, 120);
       if (!weapon) return null;
       await rivenBestAttributes.ensureRivenGoodRollsLoaded();
-      const category = rivenData.getWeaponCategory(weapon);
-      const isMelee = category === "Melee" || category === "SpaceMelee";
+      const isMelee = rivenData.isMeleeWeapon(weapon);
       return rivenBestAttributes.getBestAttributes(weapon, isMelee);
     },
   );

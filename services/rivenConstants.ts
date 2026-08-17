@@ -19,4 +19,6 @@ export const NON_PERCENTAGE_TAGS = new Set([
   "WeaponMeleeComboInitialBonusMod",
   "ComboDurationMod",
   "WeaponMeleeRangeIncMod",
+  // Metres, like melee range - the card reads "+3.7 Punch Through", no percent.
+  "WeaponPunctureDepthMod",
 ]);
