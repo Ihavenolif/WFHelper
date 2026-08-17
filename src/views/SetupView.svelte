@@ -184,10 +184,11 @@
     }
   }
 
-  // Remember the pick so a restart does not silently switch back to the helper.
-  async function persistInventorySource(source: "helper" | "manual" | "aleca"): Promise<void> {
+  // Remember the pick so a restart does not silently switch back to something
+  // else. Only the helper needs this - the file pickers record their own source.
+  async function persistHelperInventorySource(): Promise<void> {
     try {
-      await invoke("setInventorySource", source);
+      await invoke("setInventorySource", "helper");
     } catch {
       // non-fatal: the chosen data still loads for this session
     }
@@ -268,7 +269,7 @@
 
   async function useSelectedInventorySource(): Promise<void> {
     if (inventorySource === "helper") {
-      await persistInventorySource("helper");
+      await persistHelperInventorySource();
       if (runnerStatus?.exeFound) {
         await loadApiHelper(false);
         return;

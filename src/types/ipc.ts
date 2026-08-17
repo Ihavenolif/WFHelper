@@ -83,7 +83,7 @@ interface InventoryReadError {
 interface InventoryStatus {
   path: string | null;
   found: boolean;
-  /** The persisted pick, not the file currently loaded. */
+  /** The user's persisted pick. Matches the loaded file whenever `path` is set. */
   source: InventorySource;
   /** The last read failure, or null when no file was discovered or after success. */
   lastError?: InventoryReadError | null;

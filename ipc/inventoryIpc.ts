@@ -462,7 +462,12 @@ function loadInitialInventory(): { path: string; data: unknown } | null {
       const data = readInventory(manualPath, "manual");
       return data ? { path: manualPath, data } : null;
     }
-    log.warn("Manually selected inventory file is gone, falling back to discovery.");
+    // Demoted, not just bypassed: leaving the pick on "manual" would keep auto
+    // sync switched off for a file that no longer exists, so nothing refreshes.
+    log.warn("Manually selected inventory file is gone, falling back to the helper.");
+    _trustedInventorySource = "helper";
+    _trustedInventoryPath = null;
+    _persistState();
   }
 
   const filePath = findInventoryFile();
@@ -504,9 +509,20 @@ function reattachHelperInventory(): void {
   }
 }
 
-/** Records the user's explicit pick and re-applies the auto-sync gate. */
+/** Records the user's explicit pick and re-applies the auto-sync gate.
+ *  Returns the source actually in effect, which is the caller's answer on
+ *  whether the switch took. */
 function setInventorySource(source: InventorySource): InventorySource {
   if (_trustedInventorySource === source) return _trustedInventorySource;
+
+  // Only the helper can be switched to on its own; the others ARE a file, and
+  // the file pickers commit them. Persisting one here would leave the helper's
+  // last snapshot remembered as a hand-picked import that nothing refreshes.
+  if (source !== "helper" && _activeInventorySource !== source) {
+    log.warn(`Ignoring switch to "${source}" - no file has been chosen for it yet`);
+    return _trustedInventorySource;
+  }
+
   _trustedInventorySource = source;
   // The remembered file belongs to the source that picked it; keeping it would
   // shadow helper output for good.
@@ -524,9 +540,13 @@ function register(): void {
     return readCurrentInventory();
   });
 
-  handleAuthorized(INVENTORY_SET_SOURCE, assertMainRendererSender, async (_event, raw: unknown) => ({
-    source: setInventorySource(normalizeInventorySource(raw)),
-  }));
+  handleAuthorized(
+    INVENTORY_SET_SOURCE,
+    assertMainRendererSender,
+    async (_event, raw: unknown) => ({
+      source: setInventorySource(normalizeInventorySource(raw)),
+    }),
+  );
 
   handleAuthorized(INVENTORY_OPEN_FILE, assertMainRendererSender, async (_event, raw: unknown) => {
     // The setup wizard says whether this pick replaces the helper ("manual") or

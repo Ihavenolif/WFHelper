@@ -347,11 +347,24 @@ describe("findInventoryFile", () => {
   });
 
   it("persists a source change for the next start", async () => {
+    writeState(path.join(tmpDir, "downloads", "inventory_manual.json"), "manual");
     const inventoryIpc = await loadModule();
-    expect(inventoryIpc.setInventorySource("manual")).toBe("manual");
+    expect(inventoryIpc.setInventorySource("helper")).toBe("helper");
 
-    expect(readState().inventorySource).toBe("manual");
-    expect((await loadModule()).getInventorySource()).toBe("manual");
+    expect(readState().inventorySource).toBe("helper");
+    expect((await loadModule()).getInventorySource()).toBe("helper");
+  });
+
+  // Those sources ARE a file, and only the pickers can produce one. Persisting
+  // the switch on its own froze the helper's last output as a hand-picked import
+  // that nothing refreshes, since auto sync is off for everything but the helper.
+  it("refuses a switch to a file source before a file has been picked", async () => {
+    const inventoryIpc = await loadModule();
+
+    expect(inventoryIpc.setInventorySource("manual")).toBe("helper");
+    expect(inventoryIpc.setInventorySource("aleca")).toBe("helper");
+    expect(inventoryIpc.getInventorySource()).toBe("helper");
+    expect((await loadModule()).getInventorySource()).toBe("helper");
   });
 
   it("reports the persisted source through the status getter", async () => {
@@ -387,6 +400,24 @@ describe("findInventoryFile", () => {
     expect(chokidarMock.watch).toHaveBeenLastCalledWith(helper, expect.anything());
     expect(readState()).toMatchObject({ inventorySource: "helper", inventoryPath: helper });
     expect(syncMock.apply).toHaveBeenCalledWith("source helper");
+  });
+
+  // Staying on "manual" for a file that is gone keeps auto sync switched off,
+  // so the helper output it silently falls back to would never refresh again.
+  it("demotes a manual pick to the helper once its file disappears", async () => {
+    const helper = writeValidInventory(
+      path.join(tmpDir, "userData", "api-helper", "inventory.json"),
+      "helper",
+      Date.now(),
+    );
+    writeState(path.join(tmpDir, "downloads", "deleted_by_the_user.json"), "manual");
+
+    const inventoryIpc = await loadModule();
+    inventoryIpc.loadInitialInventory();
+
+    expect(inventoryIpc.getInventoryStatus()).toMatchObject({ source: "helper", path: helper });
+    expect(readState()).toMatchObject({ inventorySource: "helper", inventoryPath: helper });
+    expect((await loadModule()).getInventorySource()).toBe("helper");
   });
 
   it("forgets the manual path even when no helper output exists yet", async () => {

@@ -22,12 +22,21 @@ describe("describeInventorySource", () => {
     );
   });
 
-  it("adds no file detail for sources the user does not point at a file", () => {
+  // The helper discovers its own file, so naming it says nothing the label does not.
+  it("adds no file detail for the helper, which the user never points at a file", () => {
     const helper = describeInventorySource("helper", "/var/api-helper/inventory.json");
-    const aleca = describeInventorySource("aleca", "C:\\AlecaFrame\\lastData.dat");
 
     expect(helper).toEqual({ label: "Built-in helper", detail: "", title: "Built-in helper" });
-    expect(aleca).toEqual({ label: "AlecaFrame", detail: "", title: "AlecaFrame" });
+  });
+
+  it("names the AlecaFrame file too - the user picked that one", () => {
+    const aleca = describeInventorySource("aleca", "C:\\AlecaFrame\\lastData.dat");
+
+    expect(aleca).toEqual({
+      label: "AlecaFrame",
+      detail: "lastData.dat",
+      title: "C:\\AlecaFrame\\lastData.dat",
+    });
   });
 
   it("falls back to the helper label for a legacy or unknown source", () => {
