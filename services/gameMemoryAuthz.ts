@@ -12,6 +12,9 @@ const OVERLAP = 256;
 const ACCOUNT_ID_LEN = 24; // DE account ids are 24-hex Mongo ObjectIds
 const NONCE_SEP = "&nonce=";
 const MAX_NONCE_DIGITS = 24;
+// start-end perms offset dev inode [pathname]
+const MAPS_LINE = /^([0-9a-f]+)-([0-9a-f]+) (\S{4}) \S+ \S+ +\S+(?:\s+(.*))?$/;
+const MAX_REGION_BYTES = 4 * 1024 * 1024 * 1024; // reserve guard, never a real heap
 
 interface AuthzScanDiagnostics {
   truncated: number;
@@ -119,6 +122,29 @@ export function bestAuthz(counts: Map<string, number>): {
   return { authz: ambiguous ? null : authz, hits, ambiguous };
 }
 
+export interface ScannableRegion {
+  start: number;
+  end: number;
+}
+
+// The auth string is built at runtime, so it only ever lives in private writable
+// memory. Reading /dev/ or special mappings faults the driver and stalls the game.
+export function scannableRegionFromMapsLine(line: string, widen = false): ScannableRegion | null {
+  const m = line.match(MAPS_LINE);
+  if (!m) return null;
+  const perms = m[3];
+  if (perms[0] !== "r" || perms[1] !== "w" || perms[3] !== "p") return null;
+  const path = (m[4] ?? "").trim();
+  if (path.startsWith("/dev/")) return null;
+  if (path.startsWith("[vvar") || path === "[vdso]" || path === "[vsyscall]") return null;
+  if (!widen && path !== "") return null;
+  const start = parseInt(m[1], 16);
+  const end = parseInt(m[2], 16);
+  if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end) || end <= start) return null;
+  if (end - start > MAX_REGION_BYTES) return null;
+  return { start, end };
+}
+
 function findWarframePid(): number | null {
   let entries: string[];
   try {
@@ -162,32 +188,46 @@ export async function readGameAuthz(): Promise<AuthzResult> {
   const counts = new Map<string, number>();
   const buf = Buffer.allocUnsafe(CHUNK);
   let chunkNo = 0;
-  try {
-    const maps = await fs.promises.readFile(`/proc/${pid}/maps`, "utf8");
-    for (const line of maps.split("\n")) {
-      const m = line.match(/^([0-9a-f]+)-([0-9a-f]+) (\S{4})/);
-      if (!m || m[3][0] !== "r") continue; // readable regions only
-      const start = parseInt(m[1], 16);
-      const end = parseInt(m[2], 16);
-      if (!Number.isSafeInteger(start) || !Number.isSafeInteger(end)) continue;
-      for (let addr = start; addr < end; addr += CHUNK - OVERLAP) {
-        const len = Math.min(CHUNK, end - addr);
-        let n = 0;
+  let regions = 0;
+  let bytes = 0;
+
+  const scanPass = async (lines: string[], widen: boolean) => {
+    for (const line of lines) {
+      const region = scannableRegionFromMapsLine(line, widen);
+      if (!region) continue;
+      regions += 1;
+      for (let addr = region.start; addr < region.end; addr += CHUNK - OVERLAP) {
+        const len = Math.min(CHUNK, region.end - addr);
+        let n: number;
         try {
           ({ bytesRead: n } = await fh.read(buf, 0, len, addr));
         } catch {
           continue; // uncommitted / guard page
         }
         if (!n) continue;
+        bytes += n;
         scanBufferForAuthz(buf.subarray(0, n), counts);
         if (++chunkNo % 8 === 0) await new Promise((r) => setImmediate(r));
       }
+    }
+  };
+
+  try {
+    const maps = (await fs.promises.readFile(`/proc/${pid}/maps`, "utf8")).split("\n");
+    await scanPass(maps, false);
+    if (counts.size === 0) {
+      log.info("No match in anonymous memory - widening to private file-backed regions");
+      await scanPass(maps, true);
     }
   } finally {
     await fh.close();
   }
 
-  if (counts.size === 0) return { authz: null, reason: "crumbs-not-found" };
+  const scanned = `${regions} regions, ${Math.round(bytes / (1024 * 1024))} MB`;
+  if (counts.size === 0) {
+    log.warn(`No auth crumbs found (scanned ${scanned})`);
+    return { authz: null, reason: "crumbs-not-found" };
+  }
   const { authz, hits, ambiguous } = bestAuthz(counts);
   if (ambiguous) {
     log.warn(`Multiple auth matches share the highest frequency (${hits}) - refusing all`);
@@ -195,5 +235,6 @@ export async function readGameAuthz(): Promise<AuthzResult> {
   }
   if (counts.size > 1)
     log.warn(`Multiple distinct auth matches (${counts.size}) - using the most frequent`);
+  log.info(`Auth match found ${hits}x (scanned ${scanned})`);
   return { authz, reason: `ok-${hits}x` };
 }

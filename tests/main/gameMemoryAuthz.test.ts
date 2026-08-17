@@ -5,6 +5,7 @@ import {
   createAuthzScanDiagnostics,
   parseAuthzAt,
   scanBufferForAuthz,
+  scannableRegionFromMapsLine,
 } from "../../services/gameMemoryAuthz";
 
 const ACC = "0123456789abcdef01234567"; // 24 hex
@@ -67,6 +68,90 @@ describe("parseAuthzAt", () => {
   it("returns null when the match runs off the buffer end", () => {
     const buf = Buffer.from(`?accountId=${ACC}&nonce=`, "latin1");
     expect(parseAuthzAt(buf, 0)).toBeNull();
+  });
+});
+
+describe("scannableRegionFromMapsLine", () => {
+  const ANON = "7f1e40000000-7f1e40021000 rw-p 00000000 00:00 0 ";
+  const NVIDIA = "7f1e30000000-7f1e30010000 rw-p 00000000 00:06 1234    /dev/nvidia0";
+  const RENDERD = "7f1e31000000-7f1e31010000 rw-p 00000000 00:06 1235    /dev/dri/renderD128";
+  const MEMFD = "7f1e2c000000-7f1e2c400000 rw-p 00000000 00:01 99   /memfd:wine-shm (deleted)";
+
+  it("accepts a private anonymous writable region", () => {
+    expect(scannableRegionFromMapsLine(ANON)).toEqual({
+      start: 0x7f1e40000000,
+      end: 0x7f1e40021000,
+    });
+  });
+
+  it("accepts an anonymous region with no trailing pathname column", () => {
+    expect(scannableRegionFromMapsLine("1000-2000 rw-p 00000000 00:00 0")).toEqual({
+      start: 0x1000,
+      end: 0x2000,
+    });
+  });
+
+  it("rejects GPU device mappings", () => {
+    expect(scannableRegionFromMapsLine(NVIDIA)).toBeNull();
+    expect(scannableRegionFromMapsLine(RENDERD)).toBeNull();
+  });
+
+  it("rejects file-backed executable mappings", () => {
+    const line = "55a1b2c00000-55a1b2c21000 r-xp 00000000 08:02 12345    /usr/bin/wine64";
+    expect(scannableRegionFromMapsLine(line)).toBeNull();
+  });
+
+  it("rejects kernel special regions", () => {
+    expect(
+      scannableRegionFromMapsLine("7ffd8b1f9000-7ffd8b1fd000 rw-p 00000000 00:00 0   [vvar]"),
+    ).toBeNull();
+    expect(
+      scannableRegionFromMapsLine("7ffd8b1fd000-7ffd8b1ff000 rw-p 00000000 00:00 0   [vdso]"),
+    ).toBeNull();
+    expect(
+      scannableRegionFromMapsLine(
+        "ffffffffff600000-ffffffffff601000 rw-p 00000000 00:00 0   [vsyscall]",
+      ),
+    ).toBeNull();
+  });
+
+  it("rejects read-only and shared anonymous regions", () => {
+    expect(scannableRegionFromMapsLine("1000-2000 r--p 00000000 00:00 0 ")).toBeNull();
+    expect(scannableRegionFromMapsLine("1000-2000 rw-s 00000000 00:00 0 ")).toBeNull();
+    expect(scannableRegionFromMapsLine("1000-2000 ---p 00000000 00:00 0 ")).toBeNull();
+  });
+
+  it("rejects implausibly large reserves and empty ranges", () => {
+    expect(scannableRegionFromMapsLine("100000000-500000001000 rw-p 00000000 00:00 0 ")).toBeNull();
+    expect(scannableRegionFromMapsLine("2000-2000 rw-p 00000000 00:00 0 ")).toBeNull();
+  });
+
+  it("rejects garbage lines", () => {
+    expect(scannableRegionFromMapsLine("")).toBeNull();
+    expect(scannableRegionFromMapsLine("not a maps line")).toBeNull();
+  });
+
+  it("widens to private file-backed regions in the fallback pass", () => {
+    expect(scannableRegionFromMapsLine(MEMFD)).toBeNull();
+    expect(scannableRegionFromMapsLine(MEMFD, true)).toEqual({
+      start: 0x7f1e2c000000,
+      end: 0x7f1e2c400000,
+    });
+    expect(scannableRegionFromMapsLine(ANON, true)).not.toBeNull();
+  });
+
+  it("still excludes devices and special regions in the fallback pass", () => {
+    expect(scannableRegionFromMapsLine(NVIDIA, true)).toBeNull();
+    expect(scannableRegionFromMapsLine(RENDERD, true)).toBeNull();
+    expect(
+      scannableRegionFromMapsLine("7ffd8b1f9000-7ffd8b1fd000 rw-p 00000000 00:00 0   [vvar]", true),
+    ).toBeNull();
+    expect(
+      scannableRegionFromMapsLine(
+        "55a1b2c00000-55a1b2c21000 r-xp 00000000 08:02 12345    /usr/bin/wine64",
+        true,
+      ),
+    ).toBeNull();
   });
 });
 
