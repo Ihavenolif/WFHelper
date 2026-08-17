@@ -9,9 +9,14 @@ import type { WfmStatus } from "./market.js";
 export interface PreloadAPI {
   platform: string;
   getInventory: () => Promise<IpcInvokeMap["getInventory"]["return"]>;
-  openInventoryFile: () => Promise<IpcInvokeMap["openInventoryFile"]["return"]>;
+  openInventoryFile: (
+    source: IpcInvokeMap["openInventoryFile"]["args"][0],
+  ) => Promise<IpcInvokeMap["openInventoryFile"]["return"]>;
   openAlecaFrameInventoryFile: () => Promise<IpcInvokeMap["openAlecaFrameInventoryFile"]["return"]>;
   getInventoryStatus: () => Promise<IpcInvokeMap["getInventoryStatus"]["return"]>;
+  setInventorySource: (
+    source: IpcInvokeMap["setInventorySource"]["args"][0],
+  ) => Promise<IpcInvokeMap["setInventorySource"]["return"]>;
   getItemDatabase: () => Promise<IpcInvokeMap["getItemDatabase"]["return"]>;
   getWorldState: () => Promise<IpcInvokeMap["getWorldState"]["return"]>;
   getRelicDatabase: () => Promise<IpcInvokeMap["getRelicDatabase"]["return"]>;

@@ -7,6 +7,7 @@ import {
   INVENTORY_OPEN_FILE,
   INVENTORY_OPEN_ALECA_FRAME_FILE,
   INVENTORY_GET_STATUS,
+  INVENTORY_SET_SOURCE,
   INVENTORY_UPDATED,
   INVENTORY_STATUS_UPDATED,
   DB_GET_ITEM_DATABASE,
@@ -113,6 +114,7 @@ try {
       INVENTORY_OPEN_ALECA_FRAME_FILE,
     ),
     getInventoryStatus: inv<"getInventoryStatus">(INVENTORY_GET_STATUS),
+    setInventorySource: inv<"setInventorySource">(INVENTORY_SET_SOURCE),
 
     getItemDatabase: inv<"getItemDatabase">(DB_GET_ITEM_DATABASE),
     getWorldState: inv<"getWorldState">(DB_GET_WORLD_STATE),

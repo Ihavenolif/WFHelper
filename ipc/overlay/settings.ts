@@ -237,6 +237,7 @@ export function createOverlaySettingsController(options: OverlaySettingsControll
       rivenOverlayEnabled: booleanSetting("rivenOverlayEnabled"),
       arbiSummaryOverlayEnabled: booleanSetting("arbiSummaryOverlayEnabled"),
       arbiTrackingEnabled: booleanSetting("arbiTrackingEnabled"),
+      autoInventorySyncEnabled: booleanSetting("autoInventorySyncEnabled"),
       ocrDebugImagesEnabled: booleanSetting("ocrDebugImagesEnabled"),
       uiScale: normalizeOverlayScale(candidate.uiScale, defaults.uiScale),
       overlayScale: normalizeOverlayScale(candidate.overlayScale, defaults.overlayScale),

@@ -17,6 +17,7 @@ import * as rewardOverlayIpc from "./rewardOverlayIpc";
 import * as arbiOverlayIpc from "./arbiOverlayIpc";
 import * as arbiRunTracker from "../services/arbiRunTracker";
 import * as wfmPresence from "../services/wfmPresence";
+import * as inventorySync from "../services/inventorySync";
 import { setOcrDebugDumpsEnabled } from "../services/rewardScanDebug";
 import { applyMainWindowZoom } from "./mainWindowZoom";
 import {
@@ -379,6 +380,7 @@ function register(): void {
       applyOverlayAvailabilitySettings(previousSettings);
       arbiRunTracker.setArbiTrackingEnabled(settings.arbiTrackingEnabled !== false);
       setOcrDebugDumpsEnabled(settings.ocrDebugImagesEnabled !== false);
+      inventorySync.apply("settings");
       wfmPresence.setOptions({
         autoIngameEnabled: settings.wfmAutoIngameEnabled === true,
         holdMinutes: settings.wfmStatusHoldMinutes,

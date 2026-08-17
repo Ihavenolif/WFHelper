@@ -10,13 +10,19 @@
   import AppearanceCard from "../components/settings/AppearanceCard.svelte";
   import ProtonLaunchOption from "../components/ProtonLaunchOption.svelte";
   import LinuxDisplayBackend from "../components/LinuxDisplayBackend.svelte";
+  import SegmentedControl from "../components/SegmentedControl.svelte";
   import { invoke, send, getPlatform } from "../lib/ipc.js";
+  import { onInventoryLoaded } from "../lib/actions.js";
+  import {
+    describeInventorySource,
+    INVENTORY_SOURCE_OPTIONS,
+  } from "../lib/inventorySourceLabel.js";
   import { tr } from "../lib/i18n.js";
   import { hideFoundryClaims, hideFounderMasteryItems } from "../stores/preferences.js";
   import { TOGGLEABLE_TABS, tabVisibility } from "../stores/sidebarTabs.js";
   import { startTour } from "../stores/tour.js";
   import { currentView } from "../stores/app.js";
-  import type { OverlaySettings, OverlayWindowKey } from "../types/ipc.js";
+  import type { InventorySource, OverlaySettings, OverlayWindowKey } from "../types/ipc.js";
 
   type OverlaySettingsFormInput = Partial<OverlaySettings> & {
     showTradeNotification?: boolean;
@@ -54,6 +60,47 @@
     if (!isError) statusTimer = setTimeout(() => (statusMsg = ""), 2000);
   }
 
+  let inventorySource: InventorySource = "helper";
+  let inventoryPath: string | null = null;
+  let switchingSource = false;
+
+  $: sourceDescription = describeInventorySource(inventorySource, inventoryPath);
+  $: autoSyncApplies = inventorySource === "helper";
+
+  async function refreshInventorySource(): Promise<void> {
+    try {
+      const status = await invoke("getInventoryStatus");
+      inventorySource = status.source;
+      inventoryPath = status.path;
+    } catch {
+      // keep the last known source rather than claiming a wrong one
+    }
+  }
+
+  // The pickers own the switch to a user file: a cancelled dialog returns null
+  // and main keeps the current source.
+  async function selectInventorySource(next: InventorySource): Promise<void> {
+    if (switchingSource || next === inventorySource) return;
+    switchingSource = true;
+    try {
+      if (next === "helper") {
+        await invoke("setInventorySource", "helper");
+      } else {
+        const data =
+          next === "aleca"
+            ? await invoke("openAlecaFrameInventoryFile")
+            : await invoke("openInventoryFile", "manual");
+        if (data) await onInventoryLoaded(data);
+      }
+      await refreshInventorySource();
+    } catch {
+      flashStatus("Could not change the inventory source.", true);
+      await refreshInventorySource();
+    } finally {
+      switchingSource = false;
+    }
+  }
+
   const OVERLAY_SCALE_ROWS: Array<{ key: OverlayWindowKey; label: string }> = [
     { key: "reward", label: "Relic rewards size" },
     { key: "planner", label: "Relic recommendation size" },
@@ -88,6 +135,7 @@
   let rivenOverlayEnabled = OVERLAY_DEFAULTS.rivenOverlayEnabled;
   let arbiSummaryOverlayEnabled = OVERLAY_DEFAULTS.arbiSummaryOverlayEnabled;
   let arbiTrackingEnabled = OVERLAY_DEFAULTS.arbiTrackingEnabled;
+  let autoInventorySyncEnabled = OVERLAY_DEFAULTS.autoInventorySyncEnabled;
   let ocrDebugImagesEnabled = OVERLAY_DEFAULTS.ocrDebugImagesEnabled;
   let overlayScale = OVERLAY_DEFAULTS.overlayScale;
   let hotkeyEnabled = OVERLAY_DEFAULTS.hotkeyEnabled;
@@ -118,6 +166,8 @@
     arbiSummaryOverlayEnabled =
       s.arbiSummaryOverlayEnabled ?? OVERLAY_DEFAULTS.arbiSummaryOverlayEnabled;
     arbiTrackingEnabled = s.arbiTrackingEnabled ?? OVERLAY_DEFAULTS.arbiTrackingEnabled;
+    autoInventorySyncEnabled =
+      s.autoInventorySyncEnabled ?? OVERLAY_DEFAULTS.autoInventorySyncEnabled;
     ocrDebugImagesEnabled = s.ocrDebugImagesEnabled ?? OVERLAY_DEFAULTS.ocrDebugImagesEnabled;
     overlayScale = s.overlayScale ?? OVERLAY_DEFAULTS.overlayScale;
     windowScales = { ...(s.overlayWindowScales || {}) };
@@ -138,6 +188,7 @@
       }
     }
     applyToForm($overlaySettings);
+    await refreshInventorySource();
   });
 
   let saveRevision = 0;
@@ -159,6 +210,7 @@
       rivenOverlayEnabled,
       arbiSummaryOverlayEnabled,
       arbiTrackingEnabled,
+      autoInventorySyncEnabled,
       ocrDebugImagesEnabled,
       hotkeyEnabled,
       hotkey,
@@ -429,11 +481,43 @@
             Inventory
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Blueprints remain in inventory data until their Foundry build is claimed.
+            Blueprints remain in inventory data until their Foundry build is claimed. Automatic sync
+            only runs when your source is warframe-api-helper; imported files are never overwritten.
           </p>
         </div>
 
         <div class="mt-2.5 grid gap-1">
+          <div class="settings-control-row">
+            <span>
+              Source
+              <span class="block text-xs text-text-secondary" title={sourceDescription.title}>
+                {sourceDescription.label}{sourceDescription.detail
+                  ? ` - ${sourceDescription.detail}`
+                  : ""}
+              </span>
+            </span>
+            <SegmentedControl
+              value={inventorySource}
+              options={INVENTORY_SOURCE_OPTIONS}
+              onChange={(next) => void selectInventorySource(next)}
+              disabled={switchingSource}
+            />
+          </div>
+          <label class="settings-control-row">
+            <span>
+              Automatic inventory sync
+              {#if !autoSyncApplies}
+                <span class="block text-xs text-text-secondary">Helper source only</span>
+              {/if}
+            </span>
+            <input
+              type="checkbox"
+              bind:checked={autoInventorySyncEnabled}
+              on:change={autoSave}
+              disabled={!autoSyncApplies}
+              class="accent-accent disabled:opacity-50"
+            />
+          </label>
           <label class="settings-control-row">
             <span>Hide blueprints waiting in the foundry</span>
             <input type="checkbox" bind:checked={$hideFoundryClaims} class="accent-accent" />

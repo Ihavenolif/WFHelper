@@ -39,7 +39,12 @@ vi.mock("chokidar", () => ({
   default: { watch: chokidarMock.watch },
 }));
 
+const syncMock = vi.hoisted(() => ({ apply: vi.fn(), onGameLogin: vi.fn() }));
+
+vi.mock("../../services/inventorySync", () => syncMock);
+
 const HOUR = 60 * 60 * 1000;
+const STATE_FILE = "inventory-reload-state.json";
 
 function writeInventoryFile(filePath: string, mtimeMs: number): string {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
@@ -57,9 +62,13 @@ function writeValidInventory(filePath: string, marker: string, mtimeMs: number):
 
 function writeState(inventoryPath: string, inventorySource = "json"): void {
   fs.writeFileSync(
-    path.join(tmpDir, "userData", "inventory-reload-state.json"),
+    path.join(tmpDir, "userData", STATE_FILE),
     JSON.stringify({ hash: "x", inventoryPath, inventorySource }),
   );
+}
+
+function readState(): { inventoryPath?: string | null; inventorySource?: string } {
+  return JSON.parse(fs.readFileSync(path.join(tmpDir, "userData", STATE_FILE), "utf-8"));
 }
 
 function writeAlecaInventory(filePath: string, inventory: unknown): void {
@@ -87,6 +96,7 @@ describe("findInventoryFile", () => {
     chokidarMock.watch.mockClear();
     chokidarMock.watcher.close.mockClear();
     chokidarMock.watcher.on.mockClear();
+    syncMock.apply.mockClear();
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "wfh-inv-"));
     for (const dir of ["userData", "downloads", "desktop", "documents", "home"]) {
       fs.mkdirSync(path.join(tmpDir, dir), { recursive: true });
@@ -317,6 +327,147 @@ describe("findInventoryFile", () => {
       expect.objectContaining({ lastError: null }),
     );
     vi.useRealTimers();
+  });
+
+  it("restores every persisted inventory source across restarts", async () => {
+    const inventoryPath = path.join(tmpDir, "downloads", "inventory.json");
+    for (const source of ["helper", "manual", "aleca"] as const) {
+      writeState(inventoryPath, source);
+      const { getInventorySource } = await loadModule();
+      expect(getInventorySource()).toBe(source);
+    }
+  });
+
+  it("treats the legacy json source and a missing state as helper", async () => {
+    writeState(path.join(tmpDir, "downloads", "inventory.json"), "json");
+    expect((await loadModule()).getInventorySource()).toBe("helper");
+
+    fs.rmSync(path.join(tmpDir, "userData", STATE_FILE));
+    expect((await loadModule()).getInventorySource()).toBe("helper");
+  });
+
+  it("persists a source change for the next start", async () => {
+    const inventoryIpc = await loadModule();
+    expect(inventoryIpc.setInventorySource("manual")).toBe("manual");
+
+    expect(readState().inventorySource).toBe("manual");
+    expect((await loadModule()).getInventorySource()).toBe("manual");
+  });
+
+  it("reports the persisted source through the status getter", async () => {
+    const inventoryPath = path.join(tmpDir, "downloads", "inventory.json");
+    for (const source of ["helper", "manual", "aleca"] as const) {
+      writeState(inventoryPath, source);
+      const { getInventoryStatus } = await loadModule();
+      expect(getInventoryStatus()).toMatchObject({ source, found: false });
+    }
+  });
+
+  it("drops the manual path and reattaches helper output when switching back", async () => {
+    const now = Date.now();
+    const helper = writeValidInventory(
+      path.join(tmpDir, "userData", "api-helper", "inventory.json"),
+      "helper",
+      now,
+    );
+    const manual = writeValidInventory(
+      path.join(tmpDir, "downloads", "inventory_manual.json"),
+      "manual",
+      now - 24 * HOUR,
+    );
+    writeState(manual, "manual");
+
+    const inventoryIpc = await loadModule();
+    inventoryIpc.loadInitialInventory();
+    expect(inventoryIpc.getInventoryStatus()).toMatchObject({ source: "manual", path: manual });
+
+    expect(inventoryIpc.setInventorySource("helper")).toBe("helper");
+
+    expect(inventoryIpc.getInventoryStatus()).toMatchObject({ source: "helper", path: helper });
+    expect(chokidarMock.watch).toHaveBeenLastCalledWith(helper, expect.anything());
+    expect(readState()).toMatchObject({ inventorySource: "helper", inventoryPath: helper });
+    expect(syncMock.apply).toHaveBeenCalledWith("source helper");
+  });
+
+  it("forgets the manual path even when no helper output exists yet", async () => {
+    const manual = writeValidInventory(
+      path.join(tmpDir, "downloads", "backup", "inventory.json"),
+      "manual",
+      Date.now(),
+    );
+    writeState(manual, "manual");
+
+    const inventoryIpc = await loadModule();
+    inventoryIpc.loadInitialInventory();
+    inventoryIpc.setInventorySource("helper");
+
+    expect(inventoryIpc.getInventoryStatus()).toMatchObject({ source: "helper", found: false });
+    expect(readState().inventoryPath).toBeNull();
+    expect(syncMock.apply).toHaveBeenCalledWith("source helper");
+  });
+
+  it("keeps loading the manual selection when helper output is newer", async () => {
+    const now = Date.now();
+    writeValidInventory(
+      path.join(tmpDir, "userData", "api-helper", "inventory.json"),
+      "helper",
+      now,
+    );
+    const manual = writeValidInventory(
+      path.join(tmpDir, "downloads", "inventory_manual.json"),
+      "manual",
+      now - 24 * HOUR,
+    );
+    writeState(manual, "manual");
+
+    const inventoryIpc = await loadModule();
+    expect(inventoryIpc.loadInitialInventory()).toMatchObject({
+      path: manual,
+      data: { marker: "manual" },
+    });
+    expect(chokidarMock.watch).toHaveBeenCalledWith(manual, expect.anything());
+    expect(inventoryIpc.getInventorySource()).toBe("manual");
+  });
+
+  it("watches the manual file and keeps the source on external updates", async () => {
+    const now = Date.now();
+    const manual = writeValidInventory(
+      path.join(tmpDir, "downloads", "inventory_manual.json"),
+      "manual",
+      now - 60_000,
+    );
+    writeState(manual, "manual");
+
+    const inventoryIpc = await loadModule();
+    const context = (await import("../../ipc/context")).default;
+    const send = vi.fn();
+    context.mainWindow = {
+      isDestroyed: () => false,
+      webContents: { send },
+    } as never;
+
+    inventoryIpc.loadInitialInventory();
+    writeValidInventory(manual, "fresh", now);
+    chokidarMock.callbacks.get("change")?.();
+
+    expect(send).toHaveBeenCalledWith(
+      "inventory-updated",
+      expect.objectContaining({ marker: "fresh" }),
+    );
+    expect(inventoryIpc.getInventorySource()).toBe("manual");
+  });
+
+  it("falls back to discovery when the manual file is gone", async () => {
+    const helper = writeValidInventory(
+      path.join(tmpDir, "userData", "api-helper", "inventory.json"),
+      "helper",
+      Date.now(),
+    );
+    writeState(path.join(tmpDir, "downloads", "deleted.json"), "manual");
+
+    const inventoryIpc = await loadModule();
+    expect(inventoryIpc.loadInitialInventory()).toMatchObject({ path: helper });
+    expect(inventoryIpc.getInventorySource()).toBe("helper");
   });
 
   it("cancels a pending watcher retry during shutdown", async () => {

@@ -74,6 +74,7 @@ import * as tradeWfmMatcher from "./services/tradeWfmMatcher";
 import { summarizeMatches, summarizeTrade } from "./config/shared/tradeMatch";
 import type { TradeMatchPayload, TradeNotificationStatus } from "./config/shared/tradeMatch";
 import * as apiHelperRunner from "./services/apiHelperRunner";
+import * as inventorySync from "./services/inventorySync";
 import { disposeLinuxStreamCapture } from "./services/linuxStreamCapture";
 import { isTradeNotificationOverlayEnabled } from "./config/runtime/overlaySettings";
 import { WIN_APP_USER_MODEL_ID } from "./config/shared/appMeta";
@@ -286,6 +287,13 @@ void app.whenReady().then(async () => {
     }
   };
 
+  inventorySync.init({
+    runner: apiHelperRunner,
+    getSource: () => inventoryIpc.getInventorySource(),
+    isAutoSyncEnabled: () => ctx.overlaySettings.autoInventorySyncEnabled !== false,
+    onRunComplete: attachInventoryAfterHelperRun,
+  });
+
   // Helper runner IPC
   handleAuthorized(HELPER_GET_STATUS, assertMainRendererSender, () => ({
     ...apiHelperRunner.getStatus(),
@@ -302,9 +310,7 @@ void app.whenReady().then(async () => {
         ctx.mainWindow.webContents.send(HELPER_DOWNLOAD_PROGRESS, progress);
       }
     });
-    if (ok) {
-      apiHelperRunner.startPolling(undefined, attachInventoryAfterHelperRun);
-    }
+    if (ok) inventorySync.apply("helper download");
     return { ok };
   });
 
@@ -425,13 +431,13 @@ void app.whenReady().then(async () => {
 
   // The first helper run can create inventory.json after initial discovery.
   // Re-run discovery after polling so the watcher attaches.
-  apiHelperRunner.startPolling(undefined, attachInventoryAfterHelperRun);
+  inventorySync.apply("startup");
 
   profileStage("inventory:auto-detect", inventoryDetectStart);
 
   const eeLogStart = Date.now();
   const eeLogPath = eeLogMonitor.startWatching({
-    onLoginComplete: () => apiHelperRunner.runAfterGameLogin(),
+    onLoginComplete: () => inventorySync.onGameLogin(),
     onRewardTrigger: (stalenessMs) => overlayIpc.onRelicRewardTrigger("eelog", stalenessMs),
     onRewardUiReady: () => overlayIpc.notifyRewardUiReady(),
     onRewardScreenClose: (stalenessMs) => overlayIpc.notifyRewardScreenClosed(stalenessMs),

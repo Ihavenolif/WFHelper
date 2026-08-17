@@ -98,7 +98,8 @@
   $: if ($hiddenTabs.has($currentView)) currentView.set("inventory");
 
   async function loadInventoryFile(): Promise<void> {
-    const result = await invoke("openInventoryFile");
+    // seeds the helper source without claiming it - Settings owns the switch
+    const result = await invoke("openInventoryFile", "helper");
     if (result) currentView.set("inventory");
   }
 

@@ -20,10 +20,12 @@ import type { DropSearchMode, DropSearchResult } from "./drops.js";
 import type { RelicDatabase } from "./relics.js";
 import type { WorldState } from "./world.js";
 import type { HelperStatus } from "../../config/shared/apiHelperTypes.js";
+import type { InventorySource } from "../../config/shared/inventorySource.js";
 import type { DisplayPreference, LinuxDisplayInfo } from "../../config/shared/linuxDisplay.js";
 import type { OverlaySettings, OverlayWindowKey } from "../../config/runtime/overlaySettings.js";
 
 export type { HelperStatus } from "../../config/shared/apiHelperTypes.js";
+export type { InventorySource } from "../../config/shared/inventorySource.js";
 export type {
   FissureAlert,
   OverlaySettings,
@@ -81,6 +83,8 @@ interface InventoryReadError {
 interface InventoryStatus {
   path: string | null;
   found: boolean;
+  /** The persisted pick, not the file currently loaded. */
+  source: InventorySource;
   /** The last read failure, or null when no file was discovered or after success. */
   lastError?: InventoryReadError | null;
 }
@@ -139,8 +143,12 @@ export interface IpcInvokeMap {
     return: RawInventoryData | null;
   };
   openInventoryFile: {
-    args: [];
+    args: [source: Exclude<InventorySource, "aleca">];
     return: RawInventoryData | null;
+  };
+  setInventorySource: {
+    args: [source: InventorySource];
+    return: { source: InventorySource };
   };
   openAlecaFrameInventoryFile: {
     args: [];

@@ -50,6 +50,8 @@ export interface OverlaySettings {
   rivenOverlayEnabled: boolean;
   arbiSummaryOverlayEnabled: boolean;
   arbiTrackingEnabled: boolean;
+  /** Refresh inventory in the background; only applies to the helper source. */
+  autoInventorySyncEnabled: boolean;
   /** Save failed-scan OCR images (riven crops, reward scan-debug bundles); on unless opted out. */
   ocrDebugImagesEnabled: boolean;
   /** Main-window zoom multiplier applied on top of the display-derived base. */
@@ -95,6 +97,7 @@ export const OVERLAY_SETTINGS_DEFAULTS = Object.freeze({
   rivenOverlayEnabled: true,
   arbiSummaryOverlayEnabled: true,
   arbiTrackingEnabled: true,
+  autoInventorySyncEnabled: true,
   ocrDebugImagesEnabled: true,
   uiScale: 1,
   overlayScale: 1,

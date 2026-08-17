@@ -8,10 +8,17 @@ import {
   INVENTORY_OPEN_ALECA_FRAME_FILE,
   INVENTORY_OPEN_FILE,
   INVENTORY_GET_STATUS,
+  INVENTORY_SET_SOURCE,
   INVENTORY_STATUS_UPDATED,
   INVENTORY_UPDATED,
 } from "../config/shared/ipcChannels";
+import {
+  DEFAULT_INVENTORY_SOURCE,
+  normalizeInventorySource,
+  type InventorySource,
+} from "../config/shared/inventorySource";
 import { readAlecaFrameInventoryFile } from "../services/alecaFrameInventory";
+import * as inventorySync from "../services/inventorySync";
 import { dialog, app } from "electron";
 import path from "node:path";
 import fs from "node:fs";
@@ -46,9 +53,10 @@ const JSON_ENCODING = "utf-8";
 let _lastInventoryHash: string | null = null;
 let _lastListenerInventoryHash: string | null = null;
 let _trustedInventoryPath: string | null = null;
-type InventorySource = "json" | "aleca";
-let _trustedInventorySource: InventorySource = "json";
-let _activeInventorySource: InventorySource = "json";
+/** Sources that read plain inventory JSON; only their acquisition differs. */
+type JsonInventorySource = Exclude<InventorySource, "aleca">;
+let _trustedInventorySource: InventorySource = DEFAULT_INVENTORY_SOURCE;
+let _activeInventorySource: InventorySource = DEFAULT_INVENTORY_SOURCE;
 let _loadedInventoryModifiedAt: number | null = null;
 let _watchGeneration = 0;
 let _watchRetryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -73,7 +81,7 @@ function _loadPersistedState(): void {
     };
     if (typeof data.hash === "string") _lastInventoryHash = data.hash;
     if (typeof data.inventoryPath === "string") _trustedInventoryPath = data.inventoryPath;
-    if (data.inventorySource === "aleca") _trustedInventorySource = "aleca";
+    _trustedInventorySource = normalizeInventorySource(data.inventorySource);
   } catch (err) {
     const code = err && typeof err === "object" ? (err as { code?: unknown }).code : null;
     if (code !== "ENOENT") {
@@ -133,14 +141,16 @@ function _notifyListenersOncePerProcessHash(hash: string, data: unknown): void {
   _notifyListeners(data as Record<string, unknown>);
 }
 
-function inventoryStatus(): {
+function getInventoryStatus(): {
   path: string | null;
   found: boolean;
+  source: InventorySource;
   lastError: InventoryReadError | null;
 } {
   return {
     path: ctx.currentInventoryPath,
     found: ctx.currentInventoryPath !== null,
+    source: _trustedInventorySource,
     lastError: _lastReadError,
   };
 }
@@ -148,7 +158,7 @@ function inventoryStatus(): {
 function notifyInventoryStatus(): void {
   const window = ctx.mainWindow;
   if (!window || window.isDestroyed()) return;
-  window.webContents.send(INVENTORY_STATUS_UPDATED, inventoryStatus());
+  window.webContents.send(INVENTORY_STATUS_UPDATED, getInventoryStatus());
 }
 
 function newestExistingInventoryPath(paths: string[]): string | null {
@@ -210,7 +220,7 @@ function findInventoryFile(): string | null {
   // newest wins between helper output and the last import - a stale helper
   // snapshot must not shadow a fresher manually imported file
   const primaryCandidates = collectInventoryCandidates(HELPER_INVENTORY_DIRECTORIES);
-  if (_trustedInventoryPath && _trustedInventorySource === "json") {
+  if (_trustedInventoryPath && _trustedInventorySource !== "aleca") {
     primaryCandidates.push(_trustedInventoryPath);
   }
   const primaryCandidate = newestExistingInventoryPath(primaryCandidates);
@@ -283,7 +293,7 @@ function parseInventoryRaw(raw: string): unknown {
   return data;
 }
 
-function readInventory(filePath: string): unknown {
+function readInventory(filePath: string, source: JsonInventorySource = "helper"): unknown {
   const snapshot = readInventorySnapshot(filePath);
   if (snapshot == null) return null;
 
@@ -297,8 +307,8 @@ function readInventory(filePath: string): unknown {
     ctx.currentInventoryData = data as Record<string, unknown> | null;
     _loadedInventoryModifiedAt = snapshot.modifiedAt;
     _lastReadError = null;
-    _activeInventorySource = "json";
-    rememberInventoryPath(filePath, "json");
+    _activeInventorySource = source;
+    rememberInventoryPath(filePath, source);
 
     _notifyListenersOncePerProcessHash(hash, data);
 
@@ -339,7 +349,7 @@ function readAlecaFrameInventory(filePath: string): unknown {
   }
 }
 
-function watchInventoryFile(filePath: string, source: InventorySource = "json"): void {
+function watchInventoryFile(filePath: string, source: InventorySource = "helper"): void {
   stopInventoryWatcher();
   const generation = _watchGeneration;
   ctx.currentInventoryPath = filePath;
@@ -378,7 +388,7 @@ function watchInventoryFile(filePath: string, source: InventorySource = "json"):
       ctx.currentInventoryData = data as Record<string, unknown> | null;
       _loadedInventoryModifiedAt = snapshot.modifiedAt;
       _lastReadError = null;
-      rememberInventoryPath(filePath, "json");
+      rememberInventoryPath(filePath, source);
       _notifyListenersOncePerProcessHash(hash, data);
       if (data && ctx.mainWindow) {
         ctx.mainWindow.webContents.send(INVENTORY_UPDATED, data);
@@ -442,10 +452,23 @@ function loadInitialInventory(): { path: string; data: unknown } | null {
     }
   }
 
+  // A manually imported file wins over helper output: the user picked it, and
+  // nothing refreshes it but them.
+  if (_trustedInventorySource === "manual" && _trustedInventoryPath) {
+    const manualPath = newestExistingInventoryPath([_trustedInventoryPath]);
+    if (manualPath) {
+      ctx.currentInventoryPath = manualPath;
+      watchInventoryFile(manualPath, "manual");
+      const data = readInventory(manualPath, "manual");
+      return data ? { path: manualPath, data } : null;
+    }
+    log.warn("Manually selected inventory file is gone, falling back to discovery.");
+  }
+
   const filePath = findInventoryFile();
   if (!filePath) return null;
   ctx.currentInventoryPath = filePath;
-  _activeInventorySource = "json";
+  _activeInventorySource = "helper";
   watchInventoryFile(filePath);
   const data = readInventory(filePath);
   return data ? { path: filePath, data } : null;
@@ -453,9 +476,47 @@ function loadInitialInventory(): { path: string; data: unknown } | null {
 
 function readCurrentInventory(): unknown {
   if (!ctx.currentInventoryPath) return loadInitialInventory()?.data ?? null;
-  return _activeInventorySource === "aleca"
-    ? readAlecaFrameInventory(ctx.currentInventoryPath)
-    : readInventory(ctx.currentInventoryPath);
+  if (_activeInventorySource === "aleca") {
+    return readAlecaFrameInventory(ctx.currentInventoryPath);
+  }
+  return readInventory(ctx.currentInventoryPath, _activeInventorySource);
+}
+
+function getInventorySource(): InventorySource {
+  return _trustedInventorySource;
+}
+
+/** Re-runs discovery so a switch back to the helper picks up its output and
+ *  re-arms the watcher without a restart. */
+function reattachHelperInventory(): void {
+  const filePath = findInventoryFile();
+  if (!filePath) {
+    stopInventoryWatcher();
+    ctx.currentInventoryPath = null;
+    _activeInventorySource = "helper";
+    return;
+  }
+  watchInventoryFile(filePath, "helper");
+  const data = readInventory(filePath, "helper");
+  const window = ctx.mainWindow;
+  if (data && window && !window.isDestroyed()) {
+    window.webContents.send(INVENTORY_UPDATED, data);
+  }
+}
+
+/** Records the user's explicit pick and re-applies the auto-sync gate. */
+function setInventorySource(source: InventorySource): InventorySource {
+  if (_trustedInventorySource === source) return _trustedInventorySource;
+  _trustedInventorySource = source;
+  // The remembered file belongs to the source that picked it; keeping it would
+  // shadow helper output for good.
+  if (source === "helper") _trustedInventoryPath = null;
+  _persistState();
+  log.info(`Inventory source set to "${source}"`);
+  if (source === "helper") reattachHelperInventory();
+  inventorySync.apply(`source ${source}`);
+  notifyInventoryStatus();
+  return _trustedInventorySource;
 }
 
 function register(): void {
@@ -463,7 +524,14 @@ function register(): void {
     return readCurrentInventory();
   });
 
-  handleAuthorized(INVENTORY_OPEN_FILE, assertMainRendererSender, async () => {
+  handleAuthorized(INVENTORY_SET_SOURCE, assertMainRendererSender, async (_event, raw: unknown) => ({
+    source: setInventorySource(normalizeInventorySource(raw)),
+  }));
+
+  handleAuthorized(INVENTORY_OPEN_FILE, assertMainRendererSender, async (_event, raw: unknown) => {
+    // The setup wizard says whether this pick replaces the helper ("manual") or
+    // just seeds it while the helper keeps refreshing.
+    const source: JsonInventorySource = raw === "manual" ? "manual" : "helper";
     const openOptions: import("electron").OpenDialogOptions = {
       title: "Select warframe-api-helper inventory JSON",
       defaultPath: path.join(process.cwd(), "api-inventory-data", "inventory.json"),
@@ -477,11 +545,13 @@ function register(): void {
     if (result.canceled || result.filePaths.length === 0) return null;
 
     const filePath = result.filePaths[0];
-    const data = readInventory(filePath);
+    const previousSource = _trustedInventorySource;
+    const data = readInventory(filePath, source);
 
     if (data) {
       ctx.currentInventoryPath = filePath;
-      watchInventoryFile(filePath);
+      watchInventoryFile(filePath, source);
+      if (previousSource !== _trustedInventorySource) inventorySync.apply(`source ${source}`);
       return data;
     }
     return null;
@@ -508,12 +578,18 @@ function register(): void {
 
     if (result.canceled || result.filePaths.length === 0) return null;
     const filePath = result.filePaths[0];
+    const previousSource = _trustedInventorySource;
     const data = readAlecaFrameInventory(filePath);
-    if (data) watchInventoryFile(filePath, "aleca");
+    if (data) {
+      watchInventoryFile(filePath, "aleca");
+      if (previousSource !== _trustedInventorySource) inventorySync.apply("source aleca");
+    }
     return data;
   });
 
-  handleAuthorized(INVENTORY_GET_STATUS, assertMainRendererSender, async () => inventoryStatus());
+  handleAuthorized(INVENTORY_GET_STATUS, assertMainRendererSender, async () =>
+    getInventoryStatus(),
+  );
 }
 
 export {
@@ -523,5 +599,8 @@ export {
   watchInventoryFile,
   stopInventoryWatcher,
   readInventory,
+  getInventorySource,
+  getInventoryStatus,
+  setInventorySource,
   getLoadedInventoryModifiedAt,
 };

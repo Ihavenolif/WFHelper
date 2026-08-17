@@ -184,10 +184,19 @@
     }
   }
 
+  // Remember the pick so a restart does not silently switch back to the helper.
+  async function persistInventorySource(source: "helper" | "manual" | "aleca"): Promise<void> {
+    try {
+      await invoke("setInventorySource", source);
+    } catch {
+      // non-fatal: the chosen data still loads for this session
+    }
+  }
+
   async function importInventory(): Promise<void> {
     loadingApi = true;
     try {
-      const data = await invoke("openInventoryFile");
+      const data = await invoke("openInventoryFile", "manual");
       await acceptInventoryData(
         data,
         "That file does not look like an inventory JSON export. AlecaFrame stats/trade exports are not inventory imports.",
@@ -228,8 +237,9 @@
         loadError = getLoadErrorMessage(data);
       }
 
+      // "Browse for JSON" replaces the helper; the silent fallback only seeds it.
       if (!data || loadError) {
-        data = await invoke("openInventoryFile");
+        data = await invoke("openInventoryFile", preferPicker ? "manual" : "helper");
         loadError = getLoadErrorMessage(data);
       }
 
@@ -258,6 +268,7 @@
 
   async function useSelectedInventorySource(): Promise<void> {
     if (inventorySource === "helper") {
+      await persistInventorySource("helper");
       if (runnerStatus?.exeFound) {
         await loadApiHelper(false);
         return;
