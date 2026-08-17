@@ -24,6 +24,7 @@ interface DisplayState {
 let _userDataDir = "";
 let _appVersion = "";
 let _active: BackendChoice = "auto";
+let _waylandSession = false;
 let _pinned = false;
 let _fallbackActive = false;
 let _fallbackHint = false;
@@ -63,10 +64,12 @@ export function initialize(
   _appVersion = appVersion;
   _pinned = false;
   _active = "auto";
+  _waylandSession = false;
   _fallbackActive = false;
   _fallbackHint = false;
   if (platform !== "linux") return _active;
   if (!env.WAYLAND_DISPLAY && env.XDG_SESSION_TYPE !== "wayland") return _active;
+  _waylandSession = true;
 
   const state = readState();
   // An update earns one fresh x11 attempt; only same-version failures stick.
@@ -91,6 +94,11 @@ export function initialize(
     }
   }
   return _active;
+}
+
+/** Wayland session and the app did not join XWayland - overlays map natively. */
+export function isNativeWayland(): boolean {
+  return _waylandSession && _active !== "x11";
 }
 
 export function info(): LinuxDisplayInfo {

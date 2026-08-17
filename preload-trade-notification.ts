@@ -4,6 +4,7 @@ import type {
   TradeRepResultPayload,
 } from "./ipc/tradeNotificationIpc";
 import { onIpcData } from "./ipc/preloadListeners";
+import { installOverlayContentVisibility } from "./ipc/overlayContentVisibility";
 import {
   TRADE_NOTIFICATION_SHOW,
   TRADE_NOTIFICATION_DISMISS,
@@ -12,6 +13,8 @@ import {
 } from "./config/shared/ipcChannels";
 
 export type { TradeNotificationShowPayload, TradeRepResultPayload };
+
+installOverlayContentVisibility(ipcRenderer);
 
 contextBridge.exposeInMainWorld("tradeNotificationApi", {
   onShow: (callback: (payload: TradeNotificationShowPayload) => void) => {

@@ -110,6 +110,21 @@ function getRivenWindows(): (InstanceType<typeof BrowserWindow> | null)[] {
   return [ctx.rivenOverlayLeftWindow, ctx.rivenOverlayRightWindow];
 }
 
+function rivenWindowEntries() {
+  return [
+    { win: ctx.rivenOverlayLeftWindow, controller: rivenLeftWindowsController },
+    { win: ctx.rivenOverlayRightWindow, controller: rivenRightWindowsController },
+  ];
+}
+
+export function isAnyRivenWindowVisible(): boolean {
+  return rivenWindowEntries().some(({ controller }) => controller.isOverlayWindowVisible());
+}
+
+function hideRivenWindows(): void {
+  for (const { controller } of rivenWindowEntries()) controller.hideOverlayWindow();
+}
+
 function forEachRivenWindow(fn: (win: InstanceType<typeof BrowserWindow>) => void): void {
   for (const win of getRivenWindows()) {
     if (win && !win.isDestroyed()) fn(win);
@@ -117,8 +132,9 @@ function forEachRivenWindow(fn: (win: InstanceType<typeof BrowserWindow>) => voi
 }
 
 function syncRivenWindowZOrder(warframeFocused: boolean): void {
-  forEachRivenWindow((win) => {
-    if (!win.isVisible()) return;
+  for (const { win, controller } of rivenWindowEntries()) {
+    if (!win || win.isDestroyed()) continue;
+    if (!controller.isOverlayWindowVisible()) continue;
     if (warframeFocused) {
       win.setSkipTaskbar(true);
       win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
@@ -128,7 +144,7 @@ function syncRivenWindowZOrder(warframeFocused: boolean): void {
       win.setAlwaysOnTop(false);
       win.setVisibleOnAllWorkspaces(false);
     }
-  });
+  }
 }
 
 function toggleRivenInteractiveMode(): void {
@@ -168,17 +184,22 @@ function createRivenOverlayWindows(options: { show?: boolean } = {}): void {
   const existLeft = ctx.rivenOverlayLeftWindow;
   const existRight = ctx.rivenOverlayRightWindow;
   if (existLeft && !existLeft.isDestroyed() && existRight && !existRight.isDestroyed()) {
-    if (options.show !== false && (!existLeft.isVisible() || !existRight.isVisible())) {
+    if (
+      options.show !== false &&
+      (!rivenLeftWindowsController.isOverlayWindowVisible() ||
+        !rivenRightWindowsController.isOverlayWindowVisible())
+    ) {
       existLeft.destroy();
       existRight.destroy();
     } else {
-      forEachRivenWindow((win) => {
+      for (const { win, controller } of rivenWindowEntries()) {
+        if (!win || win.isDestroyed()) continue;
         win.setSkipTaskbar(true);
         win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
         win.setAlwaysOnTop(true, "screen-saver");
         win.moveTop();
-        if (options.show !== false) win.showInactive();
-      });
+        if (options.show !== false) controller.showOverlayWindowInactive();
+      }
       rivenLeftWindowsController.setOverlayInteractiveMode(_rivenInteractive);
       rivenRightWindowsController.setOverlayInteractiveMode(_rivenInteractive);
       return;
@@ -196,7 +217,7 @@ function createRivenOverlayWindows(options: { show?: boolean } = {}): void {
 }
 
 registerZOrderSubscriber({
-  isActive: () => getRivenWindows().some((win) => Boolean(win?.isVisible())),
+  isActive: isAnyRivenWindowVisible,
   sync: syncRivenWindowZOrder,
 });
 
@@ -481,7 +502,7 @@ export function onRivenSessionClose(): void {
   _rivenWeaponName = "";
   _rivenInteractive = false;
   rivenSession.endSession(getRivenWindows());
-  forEachRivenWindow((win) => win.hide());
+  hideRivenWindows();
 }
 
 export function onRivenChatView(): void {
@@ -506,13 +527,12 @@ export function onRivenChatView(): void {
     existLeft.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     existLeft.setAlwaysOnTop(true, "screen-saver");
     existLeft.moveTop();
-    existLeft.showInactive();
+    rivenLeftWindowsController.showOverlayWindowInactive();
     rivenLeftWindowsController.setOverlayInteractiveMode(_rivenInteractive);
   }
 
   // Hide right window if it exists (chat view = left only)
-  const existRight = ctx.rivenOverlayRightWindow;
-  if (existRight && !existRight.isDestroyed()) existRight.hide();
+  rivenRightWindowsController.hideOverlayWindow();
 
   // Start session with "Riven" placeholder, no kuva cost
   const wins = [ctx.rivenOverlayLeftWindow];
@@ -584,8 +604,7 @@ export function onRivenDioramaSetup(): void {
 export function onRivenChoiceConfirmed(): void {
   if (!isRivenOverlayEnabled()) return;
   // A delayed file echo may arrive after ESC; never scan a hidden desktop.
-  const anyVisible = getRivenWindows().some((w) => w && !w.isDestroyed() && w.isVisible());
-  if (!anyVisible) {
+  if (!isAnyRivenWindowVisible()) {
     log.info("[RivenScan] choice confirmed but overlay is not visible - skipping");
     return;
   }
@@ -666,7 +685,7 @@ export function register(): void {
     _rivenInitialStats = [];
     _rivenNewRollStats = [];
     rivenSession.endSession(getRivenWindows());
-    forEachRivenWindow((win) => win.hide());
+    hideRivenWindows();
   });
 
   onAuthorized(

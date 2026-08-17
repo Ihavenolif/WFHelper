@@ -106,11 +106,14 @@ export const plannerWindowsController = createOverlayWindowsController({
   onWindowBoundsChanged: rememberOverlayWindowBounds,
 });
 
+type OverlayWindowsController = ReturnType<typeof createOverlayWindowsController>;
+
 function syncOverlayWindowZOrder(
+  controller: OverlayWindowsController,
   win: InstanceType<typeof BrowserWindow> | null,
   warframeFocused: boolean,
 ): void {
-  if (!win || win.isDestroyed() || !win.isVisible()) return;
+  if (!win || win.isDestroyed() || !controller.isOverlayWindowVisible()) return;
 
   if (warframeFocused) {
     win.setSkipTaskbar(true);
@@ -124,10 +127,12 @@ function syncOverlayWindowZOrder(
 }
 
 registerZOrderSubscriber({
-  isActive: () => Boolean(ctx.overlayWindow?.isVisible() || ctx.plannerOverlayWindow?.isVisible()),
+  isActive: () =>
+    rewardWindowsController.isOverlayWindowVisible() ||
+    plannerWindowsController.isOverlayWindowVisible(),
   sync: (warframeFocused) => {
-    syncOverlayWindowZOrder(ctx.overlayWindow, warframeFocused);
-    syncOverlayWindowZOrder(ctx.plannerOverlayWindow, warframeFocused);
+    syncOverlayWindowZOrder(rewardWindowsController, ctx.overlayWindow, warframeFocused);
+    syncOverlayWindowZOrder(plannerWindowsController, ctx.plannerOverlayWindow, warframeFocused);
   },
 });
 
@@ -215,12 +220,11 @@ export function setActiveMissionTag(tag: string): void {
 
 export function onRelicSelectionClose(pushOverlayInteractionMode: () => void): void {
   relicSelectionController.resetMissionTier?.();
-  const win = ctx.plannerOverlayWindow;
-  if (!win || win.isDestroyed() || !win.isVisible()) return;
+  if (!plannerWindowsController.isOverlayWindowVisible()) return;
   plannerWindowsController.clearOverlayAutoHideTimer();
   ctx.overlayInteractiveMode = false;
   pushOverlayInteractionMode();
-  win.hide();
+  plannerWindowsController.hideOverlayWindow();
   log.info("[OverlayClose] planner closed via Dialog::SendResult");
 }
 
@@ -243,13 +247,11 @@ export function register(
       !ctx.plannerOverlayWindow.isDestroyed() &&
       senderId === ctx.plannerOverlayWindow.webContents.id
     ) {
-      ctx.plannerOverlayWindow.hide();
+      plannerWindowsController.hideOverlayWindow();
       return;
     }
 
-    if (ctx.overlayWindow && !ctx.overlayWindow.isDestroyed()) {
-      ctx.overlayWindow.hide();
-    }
+    rewardWindowsController.hideOverlayWindow();
   });
 
   handleAuthorized(OVERLAY_GET_RELIC_ITEMS, assertOverlayRendererSender, async () => {
@@ -288,14 +290,14 @@ export function register(
       rewardWindowsController.setOverlayInteractiveMode(ctx.overlayInteractiveMode);
       pushOverlayInteractionMode();
       pushOverlayThemeVars();
-    } else if (ctx.overlayWindow.isVisible()) {
-      ctx.overlayWindow.hide();
+    } else if (rewardWindowsController.isOverlayWindowVisible()) {
+      rewardWindowsController.hideOverlayWindow();
     } else {
       rewardWindowsController.positionOverlayWindow(rewardWindowsController.getAnchorMeta());
       rewardWindowsController.setOverlayInteractiveMode(ctx.overlayInteractiveMode);
       pushOverlayInteractionMode();
       pushOverlayThemeVars();
-      ctx.overlayWindow.showInactive();
+      rewardWindowsController.showOverlayWindowInactive();
     }
   });
 

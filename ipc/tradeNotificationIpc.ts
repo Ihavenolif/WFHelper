@@ -8,7 +8,9 @@ import {
   TRADE_NOTIFICATION_SHOW,
   TRADE_NOTIFICATION_DISMISS,
   TRADE_NOTIFICATION_REP_RESULT,
+  OVERLAY_CONTENT_VISIBLE,
 } from "../config/shared/ipcChannels";
+import { isNativeWayland } from "../services/linuxDisplayBackend";
 import { resolveRepOffer } from "../config/shared/tradeMatch";
 import type {
   TradeMatchPayload,
@@ -56,6 +58,36 @@ export interface TradeRepResultPayload {
 let _hideTimer: ReturnType<typeof setTimeout> | null = null;
 let _rendererReady = false;
 let _notificationRevision = 0;
+let _keepMappedLogged = false;
+
+// Native-Wayland maps activate the window; the toast is transparent and always
+// click-through, so "hide" = blank DOM and the window stays mapped after the first show.
+function _keepMappedActive(): boolean {
+  return process.platform === "linux" && isNativeWayland();
+}
+
+function _presentWindow(win: InstanceType<typeof BrowserWindow>): void {
+  if (_keepMappedActive()) {
+    if (!_keepMappedLogged) {
+      _keepMappedLogged = true;
+      log.info("[TradeNotification] keep-mapped mode active (native Wayland)");
+    }
+    win.webContents.send(OVERLAY_CONTENT_VISIBLE, true);
+    if (!win.isVisible()) win.showInactive();
+    win.moveTop();
+    return;
+  }
+  win.showInactive();
+  win.moveTop();
+}
+
+function _hideWindow(win: InstanceType<typeof BrowserWindow>): void {
+  if (_keepMappedActive() && win.isVisible()) {
+    win.webContents.send(OVERLAY_CONTENT_VISIBLE, false);
+    return;
+  }
+  win.hide();
+}
 
 interface PendingTradeNotification {
   match: TradeMatchPayload;
@@ -131,8 +163,7 @@ function _pushRepResult(payload: TradeRepResultPayload): void {
   const win = ctx.tradeNotificationWindow;
   if (!win || win.isDestroyed()) return;
   win.webContents.send(TRADE_NOTIFICATION_REP_RESULT, payload);
-  win.showInactive();
-  win.moveTop();
+  _presentWindow(win);
   _scheduleHide(win, payload.timing.visibleMs + payload.timing.fadeMs + MAIN_HIDE_BUFFER_MS);
 }
 
@@ -141,7 +172,7 @@ function _scheduleHide(win: InstanceType<typeof BrowserWindow>, delayMs: number)
   _hideTimer = setTimeout(() => {
     _hideTimer = null;
     _disarmRep();
-    if (!win.isDestroyed()) win.hide();
+    if (!win.isDestroyed()) _hideWindow(win);
   }, delayMs);
 }
 
@@ -162,8 +193,7 @@ function _displayNotification(
     timing: { visibleMs: rep ? REP_VISIBLE_MS : RENDERER_VISIBLE_MS, fadeMs: RENDERER_FADE_MS },
   };
   win.webContents.send(TRADE_NOTIFICATION_SHOW, payload);
-  win.showInactive();
-  win.moveTop();
+  _presentWindow(win);
 
   _scheduleHide(win, payload.timing.visibleMs + payload.timing.fadeMs + MAIN_HIDE_BUFFER_MS);
 
@@ -264,13 +294,13 @@ export function showTradeNotification(
 export function hideTradeNotification(): void {
   _invalidateNotification();
   const win = ctx.tradeNotificationWindow;
-  if (win && !win.isDestroyed()) win.hide();
+  if (win && !win.isDestroyed()) _hideWindow(win);
 }
 
 export function register(): void {
   onAuthorized(TRADE_NOTIFICATION_DISMISS, assertTradeNotificationSender, () => {
     const win = ctx.tradeNotificationWindow;
-    if (win && !win.isDestroyed()) win.hide();
+    if (win && !win.isDestroyed()) _hideWindow(win);
     _disarmRep();
     _clearHideTimer();
   });

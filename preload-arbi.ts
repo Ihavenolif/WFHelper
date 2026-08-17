@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import { onIpc } from "./ipc/preloadListeners";
+import { installOverlayContentVisibility } from "./ipc/overlayContentVisibility";
 import {
   ARBI_SUMMARY_CLOSE,
   ARBI_SUMMARY_DATA,
@@ -14,6 +15,8 @@ const onArbiIpc = (
   channel: string,
   listener: (event: IpcRendererEvent, ...args: unknown[]) => void,
 ): (() => void) => onIpc(ipcRenderer, channel, listener);
+
+installOverlayContentVisibility(ipcRenderer);
 
 contextBridge.exposeInMainWorld("arbiSummary", {
   ready: () => ipcRenderer.send(ARBI_SUMMARY_READY),

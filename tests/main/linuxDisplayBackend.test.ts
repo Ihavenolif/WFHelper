@@ -9,6 +9,7 @@ import {
   disposeWindowPresentationWatchdog,
   info,
   initialize,
+  isNativeWayland,
 } from "../../services/linuxDisplayBackend";
 
 const WAYLAND = { XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-1", DISPLAY: ":0" };
@@ -81,6 +82,39 @@ describe("initialize", () => {
   it("lets a forced retry override a remembered failure", () => {
     remember({ xwaylandFailed: true, failedVersion: "1.0.0" });
     expect(start({ ...WAYLAND, WFHELPER_FORCE_XWAYLAND: "1" })).toBe("x11");
+  });
+});
+
+describe("isNativeWayland", () => {
+  it("is false when the app joined XWayland", () => {
+    start(WAYLAND);
+    expect(isNativeWayland()).toBe(false);
+  });
+
+  it("is true on a wayland session with no X display to join", () => {
+    start({ XDG_SESSION_TYPE: "wayland", WAYLAND_DISPLAY: "wayland-1" });
+    expect(isNativeWayland()).toBe(true);
+  });
+
+  it("is true when native wayland is pinned", () => {
+    start({ ...WAYLAND, WFHELPER_NATIVE_WAYLAND: "1" });
+    expect(isNativeWayland()).toBe(true);
+  });
+
+  it("is true on the remembered-failure fallback", () => {
+    remember({ xwaylandFailed: true, failedVersion: "1.0.0" });
+    start(WAYLAND);
+    expect(isNativeWayland()).toBe(true);
+  });
+
+  it("is false on a plain X11 session even though active stays auto", () => {
+    start({ DISPLAY: ":0" });
+    expect(isNativeWayland()).toBe(false);
+  });
+
+  it("is false off linux", () => {
+    start(WAYLAND, "win32");
+    expect(isNativeWayland()).toBe(false);
   });
 });
 

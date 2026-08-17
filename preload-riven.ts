@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from "electron";
 import { onIpc } from "./ipc/preloadListeners";
+import { installOverlayContentVisibility } from "./ipc/overlayContentVisibility";
 import {
   RIVEN_OVERLAY_CLOSE,
   RIVEN_OPEN_AUCTION,
@@ -25,6 +26,8 @@ const onRivenIpc = (
   channel: string,
   listener: (event: IpcRendererEvent, ...args: unknown[]) => void,
 ): (() => void) => onIpc(ipcRenderer, channel, listener);
+
+installOverlayContentVisibility(ipcRenderer);
 
 contextBridge.exposeInMainWorld("rivenOverlay", {
   close: () => ipcRenderer.send(RIVEN_OVERLAY_CLOSE),

@@ -101,35 +101,17 @@ function setOverlayInteractionMode(enabled: boolean, source = "unknown"): void {
 }
 
 function toggleOverlayInteractionMode(source = "unknown"): void {
-  const plannerWindow =
-    ctx.plannerOverlayWindow && !ctx.plannerOverlayWindow.isDestroyed()
-      ? ctx.plannerOverlayWindow
-      : null;
-  const rewardWindow =
-    ctx.overlayWindow && !ctx.overlayWindow.isDestroyed() ? ctx.overlayWindow : null;
-
-  // Check if any riven window is visible
-  const rivenLeftWindow =
+  const plannerVisible = rewardOverlayIpc.plannerWindowsController.isOverlayWindowVisible();
+  const rewardVisible = rewardOverlayIpc.rewardWindowsController.isOverlayWindowVisible();
+  const rivenLeftExists = !!(
     ctx.rivenOverlayLeftWindow && !ctx.rivenOverlayLeftWindow.isDestroyed()
-      ? ctx.rivenOverlayLeftWindow
-      : null;
-  const anyRivenVisible =
-    (rivenLeftWindow && rivenLeftWindow.isVisible()) ||
-    (ctx.rivenOverlayRightWindow &&
-      !ctx.rivenOverlayRightWindow.isDestroyed() &&
-      ctx.rivenOverlayRightWindow.isVisible());
+  );
+  const anyRivenVisible = rivenOverlayIpc.isAnyRivenWindowVisible();
 
-  // Only consider a window "active" if it is currently visible.
-  const activeWindow =
-    plannerWindow && plannerWindow.isVisible()
-      ? plannerWindow
-      : rewardWindow && rewardWindow.isVisible()
-        ? rewardWindow
-        : anyRivenVisible
-          ? rivenLeftWindow
-          : null;
+  // Only consider a window "active" if it is currently (logically) visible.
+  const anyActive = plannerVisible || rewardVisible || (anyRivenVisible && rivenLeftExists);
 
-  if (!activeWindow) {
+  if (!anyActive) {
     // Nothing is visible - do nothing. This prevents the reward overlay from
     // appearing unexpectedly when Ctrl+Tab is pressed after closing the planner.
     return;
@@ -290,14 +272,12 @@ function setActiveMissionTag(tag: string): void {
 function applyOverlayAvailabilitySettings(previousSettings: OverlaySettings): void {
   if (!isRelicRewardsOverlayEnabled(ctx.overlaySettings)) {
     rewardOverlayIpc.rewardWindowsController.clearOverlayAutoHideTimer();
-    if (ctx.overlayWindow && !ctx.overlayWindow.isDestroyed()) ctx.overlayWindow.hide();
+    rewardOverlayIpc.rewardWindowsController.hideOverlayWindow();
   }
 
   if (!isRelicRecommendationOverlayEnabled(ctx.overlaySettings)) {
     rewardOverlayIpc.plannerWindowsController.clearOverlayAutoHideTimer();
-    if (ctx.plannerOverlayWindow && !ctx.plannerOverlayWindow.isDestroyed()) {
-      ctx.plannerOverlayWindow.hide();
-    }
+    rewardOverlayIpc.plannerWindowsController.hideOverlayWindow();
   }
 
   const repSettingsChanged =
@@ -312,9 +292,7 @@ function applyOverlayAvailabilitySettings(previousSettings: OverlaySettings): vo
   }
 
   if (!isArbiSummaryOverlayEnabled(ctx.overlaySettings)) {
-    if (ctx.arbiSummaryWindow && !ctx.arbiSummaryWindow.isDestroyed()) {
-      ctx.arbiSummaryWindow.hide();
-    }
+    arbiOverlayIpc.arbiSummaryWindowsController.hideOverlayWindow();
   }
 }
 

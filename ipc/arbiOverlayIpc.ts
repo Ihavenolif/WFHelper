@@ -37,7 +37,7 @@ const rememberOverlayWindowBounds = createOverlayWindowBoundsChangeHandler({
   },
 });
 
-const arbiSummaryWindowsController = createOverlayWindowsController({
+export const arbiSummaryWindowsController = createOverlayWindowsController({
   app,
   BrowserWindow,
   screen,
@@ -83,8 +83,9 @@ function makeClickable(): void {
 
 function hideArbiSummary(): void {
   arbiSummaryWindowsController.clearOverlayAutoHideTimer();
-  const win = ctx.arbiSummaryWindow;
-  if (win && !win.isDestroyed() && win.isVisible()) win.hide();
+  if (arbiSummaryWindowsController.isOverlayWindowVisible()) {
+    arbiSummaryWindowsController.hideOverlayWindow();
+  }
 }
 
 export function maybeShowArbiSummary(run: ArbiRunRecord): void {

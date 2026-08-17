@@ -1,5 +1,7 @@
 import path from "node:path";
 import { clampNumber } from "../../config/shared/numeric";
+import { OVERLAY_CONTENT_VISIBLE } from "../../config/shared/ipcChannels";
+import { isNativeWayland as linuxIsNativeWayland } from "../../services/linuxDisplayBackend";
 import type {
   OverlaySavedWindowBounds,
   OverlayWindowKey,
@@ -43,7 +45,7 @@ type OverlayWindowsControllerOptions = {
   setOverlayWindow?: (window: import("electron").BrowserWindow | null) => void;
   getOverlayInteractiveMode?: () => boolean;
   setOverlayInteractiveModeState?: (enabled: boolean) => void;
-  log: { warn: (...args: unknown[]) => void };
+  log: { warn: (...args: unknown[]) => void; info?: (...args: unknown[]) => void };
   hardenBrowserWindowNavigation: (
     browserWindow: import("electron").BrowserWindow,
     options: {
@@ -74,6 +76,7 @@ type OverlayWindowsControllerOptions = {
   /** Persist moves even in passive mode (arbi summary drags without the unlock hotkey). */
   persistBoundsWhenPassive?: boolean;
   platform?: NodeJS.Platform;
+  isNativeWayland?: () => boolean;
 };
 
 export function createOverlayWindowBoundsChangeHandler(
@@ -124,6 +127,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     onWindowBoundsChanged,
     persistBoundsWhenPassive = false,
     platform = process.platform,
+    isNativeWayland = linuxIsNativeWayland,
   } = options;
 
   let lastOverlayAnchorMeta: OverlayAnchorMeta | null = null;
@@ -131,6 +135,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   let suppressMoveSave = false;
   let moveSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let rendererReady = false;
+  let keepMappedLogged = false;
+  let logicalVisible = false;
   const pendingOverlayEvents: Array<{ channel: string; payload?: unknown }> = [];
 
   const readOverlayWindow =
@@ -343,6 +349,38 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     overlayWindow.setAlwaysOnTop(true, "screen-saver");
   }
 
+  // Native-Wayland maps always activate, so a mapped overlay stays mapped forever;
+  // "hidden" = blank DOM + click-through. Transparent-only: a blank opaque window shows a box.
+  function isKeepMappedActive(): boolean {
+    return platform === "linux" && transparent && isNativeWayland();
+  }
+
+  function logKeepMappedOnce(): void {
+    if (keepMappedLogged) return;
+    keepMappedLogged = true;
+    log.info?.(`[OverlayWindow] ${windowLabel} keep-mapped mode active (native Wayland)`);
+  }
+
+  function applyClickThrough(overlayWindow: import("electron").BrowserWindow): void {
+    if (ignoreMouseEventsForward) {
+      overlayWindow.setIgnoreMouseEvents(true, { forward: true });
+    } else {
+      overlayWindow.setIgnoreMouseEvents(true);
+    }
+  }
+
+  function showKeepMapped(overlayWindow: import("electron").BrowserWindow): void {
+    logKeepMappedOnce();
+    logicalVisible = true;
+    sendOverlayEvent(OVERLAY_CONTENT_VISIBLE, true);
+    if (!overlayWindow.isVisible()) {
+      // One-time map (one focus blip); every later "show" is content + z-order only.
+      overlayWindow.showInactive();
+    }
+    overlayWindow.moveTop();
+    keepOverlayAboveGame(overlayWindow);
+  }
+
   function isWebContentsCrashed(webContents: import("electron").WebContents): boolean {
     return webContents.isCrashed();
   }
@@ -386,7 +424,9 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       existingWindow = null;
     }
     // transparent windows re-show as a black box on Windows, so rebuild those; opaque ones are reused
+    // (keep-mapped never unmaps, so the black-box path cannot occur there)
     if (
+      !isKeepMappedActive() &&
       transparent &&
       shouldShow &&
       existingWindow &&
@@ -403,16 +443,20 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       positionOverlayWindow(lastOverlayAnchorMeta);
       keepOverlayAboveGame(existingWindow);
       if (shouldShow) {
-        existingWindow.showInactive();
-        // moveTop + alwaysOnTop confirmed AFTER showInactive so the window
-        // is definitely in the visible stack before we raise it.
-        existingWindow.moveTop();
-        keepOverlayAboveGame(existingWindow);
-        const bounds = existingWindow.getBounds();
-        const visible = existingWindow.isVisible();
-        log.warn(
-          `[OverlayWindow] shown existing window visible=${visible} bounds=${JSON.stringify(bounds)}`,
-        );
+        if (isKeepMappedActive()) {
+          showKeepMapped(existingWindow);
+        } else {
+          existingWindow.showInactive();
+          // moveTop + alwaysOnTop confirmed AFTER showInactive so the window
+          // is definitely in the visible stack before we raise it.
+          existingWindow.moveTop();
+          keepOverlayAboveGame(existingWindow);
+          const bounds = existingWindow.getBounds();
+          const visible = existingWindow.isVisible();
+          log.warn(
+            `[OverlayWindow] shown existing window visible=${visible} bounds=${JSON.stringify(bounds)}`,
+          );
+        }
       }
       setOverlayInteractiveMode(readInteractiveMode());
       return;
@@ -447,6 +491,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     });
 
     rendererReady = false;
+    logicalVisible = false;
     pendingOverlayEvents.length = 0;
     writeOverlayWindow(createdWindow);
     attachRendererDiagnostics(createdWindow);
@@ -465,6 +510,11 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       createdWindow.moveTop();
       createdWindow.showInactive();
       keepOverlayAboveGame(createdWindow);
+      if (isKeepMappedActive()) {
+        logKeepMappedOnce();
+        logicalVisible = true;
+        sendOverlayEvent(OVERLAY_CONTENT_VISIBLE, true);
+      }
       setOverlayInteractiveMode(readInteractiveMode());
     }
     createdWindow.on("closed", () => {
@@ -475,6 +525,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       }
       writeOverlayWindow(null);
       rendererReady = false;
+      logicalVisible = false;
       pendingOverlayEvents.length = 0;
     });
     attachBoundsPersistence(createdWindow);
@@ -495,12 +546,40 @@ export function createOverlayWindowsController(options: OverlayWindowsController
 
     overlayAutoHideTimer = setTimeout(() => {
       overlayAutoHideTimer = null;
-      const activeWindow = readOverlayWindow();
-      if (!activeWindow || activeWindow.isDestroyed()) return;
-      if (activeWindow.isVisible()) {
-        activeWindow.hide();
+      if (isOverlayWindowVisible()) {
+        hideOverlayWindow();
       }
     }, delay);
+  }
+
+  function isOverlayWindowVisible(): boolean {
+    const overlayWindow = readOverlayWindow();
+    if (!overlayWindow || overlayWindow.isDestroyed()) return false;
+    if (!overlayWindow.isVisible()) return false;
+    // Keep-mapped windows are always OS-visible; the logical flag is the truth.
+    return isKeepMappedActive() ? logicalVisible : true;
+  }
+
+  function hideOverlayWindow(): void {
+    const overlayWindow = readOverlayWindow();
+    if (!overlayWindow || overlayWindow.isDestroyed()) return;
+    if (isKeepMappedActive() && overlayWindow.isVisible()) {
+      logicalVisible = false;
+      sendOverlayEvent(OVERLAY_CONTENT_VISIBLE, false);
+      applyClickThrough(overlayWindow);
+      return;
+    }
+    overlayWindow.hide();
+  }
+
+  function showOverlayWindowInactive(): void {
+    const overlayWindow = readOverlayWindow();
+    if (!overlayWindow || overlayWindow.isDestroyed()) return;
+    if (isKeepMappedActive()) {
+      showKeepMapped(overlayWindow);
+      return;
+    }
+    overlayWindow.showInactive();
   }
 
   function sendOverlayEvent(channel: string, payload?: unknown): void {
@@ -544,9 +623,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     writeInteractiveMode(!!enabled);
     const overlayWindow = readOverlayWindow();
     if (!overlayWindow || overlayWindow.isDestroyed()) return;
-    const isVisible = overlayWindow.isVisible();
 
-    if (!isVisible) return;
+    if (!isOverlayWindowVisible()) return;
 
     if (readInteractiveMode()) {
       overlayWindow.setIgnoreMouseEvents(false);
@@ -555,16 +633,15 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       overlayWindow.moveTop();
       overlayWindow.focus();
     } else {
-      if (ignoreMouseEventsForward) {
-        overlayWindow.setIgnoreMouseEvents(true, { forward: true });
-      } else {
-        overlayWindow.setIgnoreMouseEvents(true);
-      }
+      applyClickThrough(overlayWindow);
       overlayWindow.blur();
       overlayWindow.setFocusable(false);
       keepOverlayAboveGame(overlayWindow);
       overlayWindow.moveTop();
-      overlayWindow.showInactive();
+      // Keep-mapped: the window never unmapped, so there is nothing to re-show.
+      if (!isKeepMappedActive()) {
+        overlayWindow.showInactive();
+      }
     }
   }
 
@@ -579,5 +656,8 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     setAnchorMeta,
     getAnchorMeta,
     setOverlayInteractiveMode,
+    isOverlayWindowVisible,
+    hideOverlayWindow,
+    showOverlayWindowInactive,
   };
 }

@@ -1,5 +1,6 @@
 ﻿import { contextBridge, ipcRenderer } from "electron";
 import { onIpc } from "./ipc/preloadListeners";
+import { installOverlayContentVisibility } from "./ipc/overlayContentVisibility";
 import {
   OVERLAY_CLOSE,
   OVERLAY_GET_RELIC_ITEMS,
@@ -18,6 +19,8 @@ import {
 
 const onOverlayIpc = (channel: string, listener: Parameters<typeof onIpc>[2]): (() => void) =>
   onIpc(ipcRenderer, channel, listener);
+
+installOverlayContentVisibility(ipcRenderer);
 
 contextBridge.exposeInMainWorld("overlay", {
   close: () => ipcRenderer.send(OVERLAY_CLOSE),
