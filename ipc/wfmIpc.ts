@@ -57,6 +57,14 @@ async function withWfmError<T>(
   }
 }
 
+/** Everything that has to come up behind a live token, from sign-in or restore. */
+function _startSessionServices(): void {
+  const token = wfmSession.getToken();
+  if (!token) return;
+  startListening(token, _handleWfmEvent, _handleWfmAuthGiveUp);
+  void wfmPresence.refreshFromServer().then(() => wfmPresence.resync());
+}
+
 function _handleWfmEvent(route: string, payload: unknown): void {
   // WFM announces the account status on sign-in and whenever it changes, expiry
   // included - that push is what keeps our countdown honest across restarts.
@@ -122,12 +130,7 @@ function register(): void {
 
     try {
       const result = await wfmSession.signIn(creds.email, creds.password);
-      // Start persistent WS listener after successful sign-in
-      const token = wfmSession.getToken();
-      if (token) {
-        startListening(token, _handleWfmEvent, _handleWfmAuthGiveUp);
-        void wfmPresence.refreshFromServer().then(() => wfmPresence.resync());
-      }
+      _startSessionServices();
       return result;
     } catch (err) {
       return { loggedIn: false, error: normalizeErrorMessage(err, "Sign-in failed.") };
@@ -295,15 +298,11 @@ function _handlePresenceChange(state: wfmPresence.WfmPresenceState): void {
 
 wfmPresence.configure({ onChange: _handlePresenceChange });
 
-
 /** Restarts the WFM socket when session restore finds a saved token. */
 function startListenerIfLoggedIn(): void {
-  const token = wfmSession.getToken();
-  if (token) {
-    log.info("[WFMIpc] Resuming WS listener after session restore");
-    startListening(token, _handleWfmEvent, _handleWfmAuthGiveUp);
-    void wfmPresence.refreshFromServer().then(() => wfmPresence.resync());
-  }
+  if (!wfmSession.getToken()) return;
+  log.info("[WFMIpc] Resuming WS listener after session restore");
+  _startSessionServices();
 }
 
 export { register, startListenerIfLoggedIn };

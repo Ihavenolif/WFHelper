@@ -359,10 +359,9 @@ export function resolveRivenType(weaponName: string): string | null {
   if (byCategory) return byCategory;
 
   // Only companion weapons get the holster fallback. A leftover omegaAttenuation
-  // is NOT proof a weapon can roll a riven - exalted weapons, hound weapons and
-  // Sirocco all carry one and none of them have rivens. DE's own marker is the
-  // veiled riven: `RawSentinelWeaponRandomMod` exists, so sentinel-weapon rivens
-  // are real, and there is no veiled exalted/hound/amp riven.
+  // proves nothing - exalted, hound and Sirocco all carry one without rivens.
+  // The veiled mod is the real marker: RawSentinelWeaponRandomMod exists, and no
+  // veiled exalted/hound/amp riven does.
   if (!info.compatibilityTags.includes(SENTINEL_WEAPON_TAG)) return null;
 
   // Burst Laser and its Prime/Prisma variants carry no holsterCategory at all;
@@ -468,12 +467,10 @@ export function generateRivenSuffix(
   return name;
 }
 
-/** Prefers the longest OCR weapon match so "Bo" does not match inside "Boar".
- * A card reads "<Weapon> <RivenSuffix>", so a match is only trusted where the
- * weapon can actually be: at the start of a line. The riven suffix is built from
- * stat syllables ("Hera-decipha", "Lexi-gelitron") that collide with short
- * weapon names, and matching those produced confident grades for the wrong gun
- * whenever the real weapon was missing from the export. */
+/** Prefers the longest OCR weapon match so "Bo" does not match inside "Boar",
+ * and only at the start of a line, where a card's "<Weapon> <RivenSuffix>" puts
+ * it. Suffixes are built from stat syllables ("Lexi-gelitron") that collide with
+ * short weapon names and graded the wrong gun when the real one was unknown. */
 export function findWeaponInText(text: string): string | null {
   ensureBuilt();
   const lineStarts = String(text || "")
@@ -515,43 +512,35 @@ export function findWeaponInText(text: string): string | null {
     if (words.length === 0) continue;
 
     // Only phrases that begin the line - see the anchoring note above.
-    for (let start = 0; start < 1; start += 1) {
-      for (let len = 1; len <= 4 && start + len <= words.length; len += 1) {
-        const phrase = words
-          .slice(start, start + len)
-          .join(" ")
-          .trim();
-        if (phrase.length < 4) continue;
+    for (let len = 1; len <= 4 && len <= words.length; len += 1) {
+      const phrase = words.slice(0, len).join(" ").trim();
+      if (phrase.length < 4) continue;
 
-        const directAlias = WEAPON_OCR_ALIASES[phrase];
-        if (directAlias) return directAlias;
+      const directAlias = WEAPON_OCR_ALIASES[phrase];
+      if (directAlias) return directAlias;
 
-        for (const [normalizedWeapon, displayName] of _weaponDisplayNamesNormalized) {
-          if (!normalizedWeapon) continue;
+      for (const [normalizedWeapon, displayName] of _weaponDisplayNamesNormalized) {
+        if (!normalizedWeapon) continue;
 
-          const phraseWords = phrase.split(" ");
-          const weaponWords = normalizedWeapon.split(" ");
-          if (Math.abs(phraseWords.length - weaponWords.length) > 1) continue;
+        const phraseWords = phrase.split(" ");
+        const weaponWords = normalizedWeapon.split(" ");
+        if (Math.abs(phraseWords.length - weaponWords.length) > 1) continue;
 
-          const maxDistance =
-            normalizedWeapon.length >= 14 ? 3 : normalizedWeapon.length >= 8 ? 2 : 1;
-          const distance = levenshteinDistance(phrase, normalizedWeapon);
-          if (distance > maxDistance) continue;
+        const maxDistance =
+          normalizedWeapon.length >= 14 ? 3 : normalizedWeapon.length >= 8 ? 2 : 1;
+        const distance = levenshteinDistance(phrase, normalizedWeapon);
+        if (distance > maxDistance) continue;
 
-          if (
-            !bestCandidate ||
-            distance < bestCandidate.distance ||
-            (distance === bestCandidate.distance &&
-              weaponWords.length > bestCandidate.tokenCount) ||
-            (distance <= bestCandidate.distance + 1 &&
-              weaponWords.length > bestCandidate.tokenCount)
-          ) {
-            bestCandidate = {
-              name: displayName,
-              distance,
-              tokenCount: weaponWords.length,
-            };
-          }
+        if (
+          !bestCandidate ||
+          distance < bestCandidate.distance ||
+          (distance <= bestCandidate.distance + 1 && weaponWords.length > bestCandidate.tokenCount)
+        ) {
+          bestCandidate = {
+            name: displayName,
+            distance,
+            tokenCount: weaponWords.length,
+          };
         }
       }
     }

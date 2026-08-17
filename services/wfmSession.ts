@@ -266,8 +266,10 @@ export async function getPublicStatus(): Promise<WfmStatus | null> {
   if (!_token || !_userName) return null;
   try {
     const slug = normalizeWfmSlugKey(_userName);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped WFM v2 envelope
-    const data = (await requestV2("GET", `/user/${encodeURIComponent(slug)}`)) as Record<string, any>;
+    // Only the one field is read, so the envelope needs no type of its own.
+    const data = (await requestV2("GET", `/user/${encodeURIComponent(slug)}`)) as {
+      data?: { status?: unknown };
+    };
     const status = String(data?.data?.status ?? "").toLowerCase();
     if (status === "online" || status === "ingame" || status === "invisible") return status;
     return status === "offline" ? "invisible" : null;

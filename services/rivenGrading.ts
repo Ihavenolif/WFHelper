@@ -199,11 +199,9 @@ function weaponDamageTag(tag: string, isMelee: boolean): string {
   return tag;
 }
 
-// Same tolerance as the dispo refit: display rounding can nudge a legit
-// min/max roll fractionally out of range.
-const CORRECTION_FIT_TOLERANCE = 0.02;
-// Display values round to 0.1%, so a legitimate min/max roll can sit a hair out.
-const REFIT_TOLERANCE = 0.02;
+// Display values round to 0.1%, so a legitimate min/max roll can sit a hair
+// outside [0,1]. Shared by the OCR correction pass and the dispo/rank refit.
+const FIT_TOLERANCE = 0.02;
 // Only rename when the parsed stat is clearly impossible, not merely marginal.
 const CORRECTION_MISFIT_THRESHOLD = 0.1;
 
@@ -276,7 +274,7 @@ export function correctScannedStats(
     ].filter((sibling) => {
       if (sibling === tag) return false;
       const v = violationFor(sibling, stat, value);
-      return v != null && v <= CORRECTION_FIT_TOLERANCE;
+      return v != null && v <= FIT_TOLERANCE;
     });
 
     if (fitTags.length === 1) {
@@ -468,7 +466,7 @@ export function gradeRiven(
   const fitsAt = (p: Prepared, disp: number, lvl: number): boolean => {
     const a = rawFloatAt(p, disp, lvl, p.displayedValue! - p.halfStep);
     const b = rawFloatAt(p, disp, lvl, p.displayedValue! + p.halfStep);
-    return Math.min(a, b) <= 1 + REFIT_TOLERANCE && Math.max(a, b) >= -REFIT_TOLERANCE;
+    return Math.min(a, b) <= 1 + FIT_TOLERANCE && Math.max(a, b) >= -FIT_TOLERANCE;
   };
 
   // Two things the card does not tell us: the roll screen names the family but
