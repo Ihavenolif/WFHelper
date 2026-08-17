@@ -87,8 +87,10 @@ app.commandLine.appendSwitch("disable-logging");
 app.commandLine.appendSwitch("log-level", "3");
 
 // Software compositing avoids idle GPU use; grayscale text avoids LCD color fringes.
+// Its X11 presenter can fail under XWayland, so WFHELPER_ENABLE_GPU=1 keeps the GPU path.
 app.commandLine.appendSwitch("disable-lcd-text");
-app.disableHardwareAcceleration();
+const GPU_ACCELERATION_ENABLED = process.env.WFHELPER_ENABLE_GPU === "1";
+if (!GPU_ACCELERATION_ENABLED) app.disableHardwareAcceleration();
 
 // Windows uses the AUMID for notification settings and Focus Assist.
 if (process.platform === "win32") {
@@ -266,6 +268,9 @@ void app.whenReady().then(async () => {
       (process.env.WFHELPER_USER_DATA ? " (WFHELPER_USER_DATA override)" : ""),
   );
   log.info(`[Startup] crashDumps: ${app.getPath("crashDumps")}`);
+  if (process.platform === "linux") {
+    log.info(`[Startup] display=${DISPLAY_BACKEND} gpu=${GPU_ACCELERATION_ENABLED ? "on" : "off"}`);
+  }
 
   const settingsStart = Date.now();
   overlayIpc.loadOverlaySettings();
