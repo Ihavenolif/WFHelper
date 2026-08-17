@@ -19,6 +19,7 @@ const resetLogOnStart: boolean = ["1", "true"].includes(
 const isTest = process.env.VITEST === "true" || process.env.NODE_ENV === "test";
 const loggerState = globalThis as typeof globalThis & {
   __wfhelperLoggerInitialized?: boolean;
+  __wfhelperStreamGuardsInstalled?: boolean;
 };
 
 function resetLogFileOnAppStart(): void {
@@ -40,8 +41,13 @@ function resetLogFileOnAppStart(): void {
 
 // A dead stdout (desktop launcher, or the parent of the xwayland re-exec going
 // away) makes every console write throw EIO, and logging that error loops.
-process.stdout.on("error", () => {});
-process.stderr.on("error", () => {});
+// Guarded on the global: test runners re-evaluate this module per file against
+// one shared process, and the listeners would pile up past the warning limit.
+if (!loggerState.__wfhelperStreamGuardsInstalled) {
+  loggerState.__wfhelperStreamGuardsInstalled = true;
+  process.stdout.on("error", () => {});
+  process.stderr.on("error", () => {});
+}
 
 electronLog.transports.file.level = isTest
   ? false
