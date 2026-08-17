@@ -32,6 +32,7 @@ import {
   WFM_LOOKUP_ITEM,
   WFM_GET_ME,
   WFM_SET_STATUS,
+  WFM_PRESENCE_STATE,
   WFM_NOTIFICATION,
   APP_UPDATE_CHECK,
   APP_UPDATE_STATE,
@@ -128,6 +129,7 @@ try {
     wfmLookupItemBySlug: (slug): Ret<"wfmLookupItemBySlug"> =>
       ipcRenderer.invoke(WFM_LOOKUP_ITEM, { slug }),
     wfmGetMe: inv<"wfmGetMe">(WFM_GET_ME),
+    wfmPresenceState: inv<"wfmPresenceState">(WFM_PRESENCE_STATE),
 
     getMasteryProgress: inv<"getMasteryProgress">(DB_GET_MASTERY),
     getOverlayPlacementLayout: inv<"getOverlayPlacementLayout">(OVERLAY_PLACEMENT_LAYOUT),

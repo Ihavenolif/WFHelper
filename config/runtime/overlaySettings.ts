@@ -38,6 +38,10 @@ export interface OverlaySettings {
   messageNotificationsEnabled: boolean;
   messageNotificationsWhileFocused: boolean;
   autoCloseWfmOrders: boolean;
+  /** Flip WFM presence to "In Game" while Warframe runs, restore it on exit. */
+  wfmAutoIngameEnabled: boolean;
+  /** Minutes an online/ingame presence is held before dropping to invisible; 0 = no expiry. */
+  wfmStatusHoldMinutes: number;
   tradeRepHotkeyEnabled: boolean;
   tradeRepHotkey: string;
   relicRewardsOverlayEnabled: boolean;
@@ -80,6 +84,9 @@ export const OVERLAY_SETTINGS_DEFAULTS = Object.freeze({
   // Off by default: while focused you also see your own sends, so stay quiet.
   messageNotificationsWhileFocused: false,
   autoCloseWfmOrders: true,
+  // Off by default: it changes how other traders see you.
+  wfmAutoIngameEnabled: false,
+  wfmStatusHoldMinutes: 0,
   tradeRepHotkeyEnabled: true,
   tradeRepHotkey: "F9",
   relicRewardsOverlayEnabled: true,

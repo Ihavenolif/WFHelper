@@ -24,6 +24,11 @@
   import RivenDetailModal from "../modals/RivenDetailModal.svelte";
   import ThemedInput from "../components/ThemedInput.svelte";
   import { sharedFilters } from "../stores/filters.js";
+  import {
+    applyOverlaySettingsResponse,
+    overlaySettings,
+    overlaySettingsLoaded,
+  } from "../stores/overlaySettings.js";
   import { applySharedFiltersAndSort } from "../lib/filters.js";
   import { buildInventoryViewItems } from "../lib/inventoryMarket.js";
   import {
@@ -35,7 +40,7 @@
   import { startupPriceCacheReady } from "../lib/startupLoader.js";
   import { marketDensity } from "../stores/uiDensity.js";
   import { getInventoryHydrationController } from "../stores/inventoryHydration.js";
-  import { titleFromSlug } from "../../config/shared/wfm.js";
+  import { WFM_STATUS_HOLD_MINUTES, titleFromSlug } from "../../config/shared/wfm.js";
   import type {
     MarketTab,
     OrderModalHint,
@@ -195,12 +200,51 @@
 
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let unsubscribeWfmNotification: (() => void) | null = null;
+  let holdTicker: ReturnType<typeof setInterval> | null = null;
+  let holdNow = Date.now();
+
+  $: autoIngameEnabled = $overlaySettings.wfmAutoIngameEnabled === true;
+  $: statusHoldMinutes = $overlaySettings.wfmStatusHoldMinutes ?? 0;
+  $: holdRemaining = formatHoldRemaining($marketViewState.statusExpiresAt, holdNow);
+  $: holdIdle = !$marketViewState.status || $marketViewState.status === "invisible";
+
+  function holdLabel(minutes: number): string {
+    if (!minutes) return "Always";
+    return minutes < 60 ? `${minutes}m` : `${minutes / 60}h`;
+  }
+
+  function formatHoldRemaining(expiresAt: number | null, now: number): string {
+    if (!expiresAt) return "";
+    const totalSeconds = Math.max(0, Math.round((expiresAt - now) / 1000));
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    if (hours) return `${hours}h ${String(minutes).padStart(2, "0")}m`;
+    return minutes ? `${minutes}m` : `${totalSeconds}s`;
+  }
+
+  async function saveOverlayPatch(patch: Record<string, unknown>): Promise<void> {
+    try {
+      const saved = await invoke("setOverlaySettings", patch);
+      if (saved) applyOverlaySettingsResponse(saved);
+    } catch (error) {
+      console.error("[Market] saving presence settings failed:", error);
+    }
+  }
+
+  const saveAutoIngame = (enabled: boolean) => saveOverlayPatch({ wfmAutoIngameEnabled: enabled });
+  const saveHoldMinutes = (minutes: number) => saveOverlayPatch({ wfmStatusHoldMinutes: minutes });
 
   onMount(async () => {
     hydration.resume();
     unsubscribeWfmNotification = on("wfm:notification", (notification) => {
       if (notification.type === "orders-changed") void backgroundRefresh();
     });
+    if (!$overlaySettingsLoaded) {
+      void invoke("getOverlaySettings").then(
+        (loaded) => loaded && applyOverlaySettingsResponse(loaded),
+      );
+    }
+    holdTicker = setInterval(() => (holdNow = Date.now()), 1000);
     window.addEventListener("focus", backgroundRefresh);
     pollTimer = setInterval(backgroundRefresh, ORDERS_POLL_MS);
     await loadView();
@@ -213,6 +257,7 @@
     unsubscribeWfmNotification?.();
     window.removeEventListener("focus", backgroundRefresh);
     if (pollTimer) clearInterval(pollTimer);
+    if (holdTicker) clearInterval(holdTicker);
   });
 
   function backgroundRefresh(): void {
@@ -243,17 +288,16 @@
 
     if (!$marketViewState.status) {
       try {
-        const me = await invoke("wfmGetMe");
-        // v2 /me reports "in_game"; our buttons use "ingame". Anything else
-        // (e.g. offline) leaves the status unset so no button highlights.
-        const status = String(me?.status ?? "")
-          .toLowerCase()
-          .replace("_", "");
-        if (status === "online" || status === "ingame" || status === "invisible") {
-          setMarketViewState({ status: status as WfmStatus });
-        }
+        // Main owns presence: it seeds from the public profile (`/v2/me` omits
+        // status) and knows how long the current status is still held.
+        const presence = await invoke("wfmPresenceState");
+        setMarketViewState({
+          status: presence.status,
+          statusExpiresAt: presence.expiresAt,
+          statusAutoActive: presence.autoActive,
+        });
       } catch (error) {
-        console.warn("[Market] getMe failed:", error);
+        console.warn("[Market] presence state failed:", error);
       }
     }
 
@@ -414,7 +458,8 @@
     if (status === $marketViewState.status) return;
     try {
       await tradeInvoke("wfmSetStatus", status);
-      setMarketViewState({ status });
+      // Main broadcasts the authoritative state (hold expiry) right after.
+      setMarketViewState({ status, statusAutoActive: false });
     } catch (error) {
       console.error("[Market] setStatus failed:", error);
     }
@@ -654,21 +699,6 @@
             >
           {/if}
 
-          <div class="flex flex-wrap gap-1.5">
-            {#each STATUS_OPTIONS as [statusKey, label]}
-              <button
-                class="rounded-md border border-border bg-bg-surface px-2 py-1 font-display text-xs font-semibold text-text-secondary transition-all duration-[0.14s] hover:border-text-secondary hover:text-text-primary"
-                class:statusOnlineActive={statusKey === "online" &&
-                  $marketViewState.status === statusKey}
-                class:statusIngameActive={statusKey === "ingame" &&
-                  $marketViewState.status === statusKey}
-                class:statusInvisibleActive={statusKey === "invisible" &&
-                  $marketViewState.status === statusKey}
-                on:click={() => setStatus(statusKey)}>{label}</button
-              >
-            {/each}
-          </div>
-
           {#if !isRivensTab}
             <button
               class="btn-primary btn-sm"
@@ -694,6 +724,53 @@
           </button>
           <button class="btn-secondary btn-sm" on:click={logout}>Sign Out</button>
         </div>
+      </div>
+
+      <div class="mb-2.5 flex flex-wrap items-center gap-1.5">
+        {#each STATUS_OPTIONS as [statusKey, label]}
+          <button
+            class="rounded-md border border-border bg-bg-surface px-2 py-1 font-display text-xs font-semibold text-text-secondary transition-all duration-[0.14s] hover:border-text-secondary hover:text-text-primary"
+            class:statusOnlineActive={statusKey === "online" &&
+              $marketViewState.status === statusKey}
+            class:statusIngameActive={statusKey === "ingame" &&
+              $marketViewState.status === statusKey}
+            class:statusInvisibleActive={statusKey === "invisible" &&
+              $marketViewState.status === statusKey}
+            on:click={() => setStatus(statusKey)}>{label}</button
+          >
+        {/each}
+
+        <span class="mx-1 h-4 w-px bg-white/10"></span>
+
+        <button
+          class="presence-chip"
+          class:presenceChipActive={autoIngameEnabled}
+          title="Set your Warframe.market status to In Game while Warframe is running, and put it back when the game closes."
+          on:click={() => saveAutoIngame(!autoIngameEnabled)}
+        >
+          Auto In Game{autoIngameEnabled ? " on" : " off"}
+        </button>
+
+        <!-- Warframe.market disables the same control while invisible: an already
+             hidden status has nothing left to expire. -->
+        <div class="flex flex-wrap items-center gap-1.5" class:presenceHoldIdle={holdIdle}>
+          <span class="ml-1 font-display text-xs text-text-muted">Keep status for</span>
+          {#each WFM_STATUS_HOLD_MINUTES as minutes}
+            <button
+              class="presence-chip"
+              class:presenceChipActive={statusHoldMinutes === minutes && !holdIdle}
+              disabled={holdIdle}
+              on:click={() => saveHoldMinutes(minutes)}>{holdLabel(minutes)}</button
+            >
+          {/each}
+        </div>
+
+        {#if holdRemaining}
+          <span class="font-display text-xs text-text-secondary">{holdRemaining} left</span>
+        {/if}
+        {#if $marketViewState.statusAutoActive}
+          <span class="font-display text-xs text-text-muted">(following the game)</span>
+        {/if}
       </div>
 
       <div class="mb-2.5 flex items-end border-b border-white/10">
@@ -848,5 +925,35 @@
     border-color: rgba(226, 232, 240, 0.45);
     background: rgba(226, 232, 240, 0.08);
     color: var(--text-primary);
+  }
+  .presence-chip {
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    background: var(--bg-surface);
+    padding: 0.15rem 0.6rem;
+    font-family: var(--font-display);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    transition: all 0.14s;
+  }
+  .presence-chip:hover {
+    border-color: var(--text-secondary);
+    color: var(--text-primary);
+  }
+  .presenceChipActive {
+    border-color: rgba(96, 165, 250, 0.55);
+    background: rgba(96, 165, 250, 0.12);
+    color: var(--info);
+  }
+  .presenceHoldIdle {
+    opacity: 0.4;
+  }
+  .presence-chip:disabled {
+    cursor: default;
+  }
+  .presence-chip:disabled:hover {
+    border-color: var(--border);
+    color: var(--text-muted);
   }
 </style>

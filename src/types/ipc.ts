@@ -8,6 +8,7 @@ import type {
   WfmMutationError,
   WfmOrder,
   WfmOrdersResult,
+  WfmPresenceState,
   WfmSearchItem,
   WfmSession,
   WfmStatus,
@@ -216,6 +217,10 @@ export interface IpcInvokeMap {
   wfmSetStatus: {
     args: [status: WfmStatus];
     return: WfmStatusResponse;
+  };
+  wfmPresenceState: {
+    args: [];
+    return: WfmPresenceState;
   };
   getMasteryProgress: {
     args: [];
@@ -452,7 +457,9 @@ type WfmNotification =
   // the session token is dead and the user must log in again.
   | { type: "listener-auth-failed" }
   // WFM pushed an order/auction change made elsewhere (website, another client).
-  | { type: "orders-changed" };
+  | { type: "orders-changed" }
+  // Main changed our presence (hold expiry, game launch/exit) - refresh the chips.
+  | ({ type: "presence" } & WfmPresenceState);
 
 // Single source of truth for trade/stat types lives in config/shared/statsTypes.ts.
 import type {

@@ -99,6 +99,20 @@ describe("overlay settings controller", () => {
     expect(normalized.autoCloseWfmOrders).toBe(false);
   });
 
+  it("keeps WFM presence automation off by default and snaps the hold duration", () => {
+    const { controller } = buildController();
+
+    expect(controller.normalizeOverlaySettings({}).wfmAutoIngameEnabled).toBe(false);
+    expect(controller.normalizeOverlaySettings({}).wfmStatusHoldMinutes).toBe(0);
+    expect(
+      controller.normalizeOverlaySettings({ wfmStatusHoldMinutes: 120 }).wfmStatusHoldMinutes,
+    ).toBe(120);
+    // Anything outside the offered durations falls back instead of holding forever.
+    expect(
+      controller.normalizeOverlaySettings({ wfmStatusHoldMinutes: 999 }).wfmStatusHoldMinutes,
+    ).toBe(0);
+  });
+
   it("normalizes notification sound and overlay availability settings", () => {
     const { controller } = buildController();
 

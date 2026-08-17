@@ -3,7 +3,7 @@ import fs from "fs";
 import { randomUUID } from "crypto";
 import { withScope } from "./logger";
 import { normalizeErrorMessage } from "../config/shared/errors";
-import type { WfmStatus } from "../config/shared/wfm";
+import { normalizeWfmSlugKey, type WfmStatus } from "../config/shared/wfm";
 
 import {
   WfmApiError,
@@ -35,6 +35,8 @@ interface SignOutResult {
 
 interface SetStatusResult {
   status: WfmStatus;
+  /** ISO timestamp WFM will expire the status at; null when it is held indefinitely. */
+  statusUntil: string | null;
 }
 
 interface WfmUserProfile {
@@ -249,8 +251,28 @@ export async function getMe(): Promise<WfmUserProfile | null> {
   }
 }
 
-export async function setStatus(status: WfmStatus): Promise<SetStatusResult> {
+export async function setStatus(
+  status: WfmStatus,
+  durationSeconds: number | null = null,
+): Promise<SetStatusResult> {
   if (!_token) throw new Error("Not logged in to Warframe.market.");
-  await setStatusViaWebSocket(_token, status);
-  return { status };
+  const { statusUntil } = await setStatusViaWebSocket(_token, status, durationSeconds);
+  return { status, statusUntil };
+}
+
+/** Our presence as everyone else sees it. `/v2/me` omits status, the public
+ * profile carries it - and WFM reports a hidden user as "offline". */
+export async function getPublicStatus(): Promise<WfmStatus | null> {
+  if (!_token || !_userName) return null;
+  try {
+    const slug = normalizeWfmSlugKey(_userName);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- untyped WFM v2 envelope
+    const data = (await requestV2("GET", `/user/${encodeURIComponent(slug)}`)) as Record<string, any>;
+    const status = String(data?.data?.status ?? "").toLowerCase();
+    if (status === "online" || status === "ingame" || status === "invisible") return status;
+    return status === "offline" ? "invisible" : null;
+  } catch (err) {
+    log.warn("[WFMSession] getPublicStatus failed:", normalizeErrorMessage(err));
+    return null;
+  }
 }

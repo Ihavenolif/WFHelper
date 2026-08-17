@@ -68,6 +68,14 @@ export interface WfmStatusResult {
   status: WfmStatus;
 }
 
+export interface WfmPresenceState {
+  status: WfmStatus | null;
+  /** Epoch ms the current status drops to invisible; null while held indefinitely. */
+  expiresAt: number | null;
+  /** True while Warframe running is what is driving the status. */
+  autoActive: boolean;
+}
+
 export interface WfmUserProfile {
   status?: WfmStatus;
   [key: string]: unknown;

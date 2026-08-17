@@ -1,5 +1,6 @@
 import { normalizeErrorMessage } from "../../config/shared/errors";
 import { clampNumber } from "../../config/shared/numeric";
+import { normalizeWfmHoldMinutes } from "../../config/shared/wfm";
 import { asRecord } from "../ipcValidators";
 import { LEGACY_INTERACTION_HOTKEY } from "../../config/runtime/overlaySettings";
 import type {
@@ -220,6 +221,11 @@ export function createOverlaySettingsController(options: OverlaySettingsControll
       messageNotificationsEnabled: booleanSetting("messageNotificationsEnabled"),
       messageNotificationsWhileFocused: booleanSetting("messageNotificationsWhileFocused"),
       autoCloseWfmOrders: booleanSetting("autoCloseWfmOrders"),
+      wfmAutoIngameEnabled: booleanSetting("wfmAutoIngameEnabled"),
+      wfmStatusHoldMinutes: normalizeWfmHoldMinutes(
+        candidate.wfmStatusHoldMinutes,
+        Number((defaults as Record<string, unknown>).wfmStatusHoldMinutes ?? 0),
+      ),
       tradeRepHotkeyEnabled: booleanSetting("tradeRepHotkeyEnabled"),
       tradeRepHotkey: normalizeHotkey(
         candidate.tradeRepHotkey ?? defaults.tradeRepHotkey,

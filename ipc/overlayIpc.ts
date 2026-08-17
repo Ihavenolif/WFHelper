@@ -16,6 +16,7 @@ import * as rivenOverlayIpc from "./rivenOverlayIpc";
 import * as rewardOverlayIpc from "./rewardOverlayIpc";
 import * as arbiOverlayIpc from "./arbiOverlayIpc";
 import * as arbiRunTracker from "../services/arbiRunTracker";
+import * as wfmPresence from "../services/wfmPresence";
 import { setOcrDebugDumpsEnabled } from "../services/rewardScanDebug";
 import { applyMainWindowZoom } from "./mainWindowZoom";
 import {
@@ -378,6 +379,10 @@ function register(): void {
       applyOverlayAvailabilitySettings(previousSettings);
       arbiRunTracker.setArbiTrackingEnabled(settings.arbiTrackingEnabled !== false);
       setOcrDebugDumpsEnabled(settings.ocrDebugImagesEnabled !== false);
+      wfmPresence.setOptions({
+        autoIngameEnabled: settings.wfmAutoIngameEnabled === true,
+        holdMinutes: settings.wfmStatusHoldMinutes,
+      });
       applyMainWindowZoom();
       rewardOverlayIpc.rewardWindowsController.positionOverlayWindow(
         rewardOverlayIpc.rewardWindowsController.getAnchorMeta(),

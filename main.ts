@@ -31,6 +31,7 @@ import * as publicExportSource from "./services/publicExportSource";
 import * as dropData from "./services/dropData";
 import * as wfmCatalog from "./services/wfmCatalog";
 import * as wfmSession from "./services/wfmSession";
+import * as wfmPresence from "./services/wfmPresence";
 import * as relicService from "./services/relicService";
 import * as eeLogMonitor from "./services/eeLogMonitor";
 import * as rewardScanner from "./services/rewardScanner";
@@ -249,6 +250,10 @@ void app.whenReady().then(async () => {
   arbiRunTracker.initArbiTracker();
   arbiRunTracker.setArbiTrackingEnabled(ctx.overlaySettings.arbiTrackingEnabled !== false);
   setOcrDebugDumpsEnabled(ctx.overlaySettings.ocrDebugImagesEnabled !== false);
+  wfmPresence.setOptions({
+    autoIngameEnabled: ctx.overlaySettings.wfmAutoIngameEnabled === true,
+    holdMinutes: ctx.overlaySettings.wfmStatusHoldMinutes,
+  });
   inventoryIpc.addInventoryListener((data: Record<string, unknown>) => {
     statsTracker.onInventoryData(data);
   });
@@ -536,6 +541,7 @@ async function syncOverlayHotkeyGate(): Promise<void> {
     if (isOpen === _hotkeyGameActive) return;
     _hotkeyGameActive = isOpen;
     overlayIpc.setOverlayHotkeysActive(isOpen);
+    void wfmPresence.syncGameRunning(isOpen);
   } catch {
     // best effort; keep the gate in its current state
   }

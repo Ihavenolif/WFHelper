@@ -18,6 +18,7 @@ import * as wfmSession from "../services/wfmSession";
 import * as wfmOrders from "../services/wfmOrders";
 import * as wfmContracts from "../services/wfmContracts";
 import * as wfmCatalog from "../services/wfmCatalog";
+import * as wfmPresence from "../services/wfmPresence";
 import { startListening, stopListening } from "../services/wfmWebSocketListener";
 import ctx from "./context";
 import {
@@ -34,6 +35,7 @@ import {
   WFM_LOOKUP_ITEM,
   WFM_GET_ME,
   WFM_SET_STATUS,
+  WFM_PRESENCE_STATE,
   WFM_NOTIFICATION,
 } from "../config/shared/ipcChannels";
 import { registerWfmFixtures } from "./wfmFixtureIpc";
@@ -56,6 +58,13 @@ async function withWfmError<T>(
 }
 
 function _handleWfmEvent(route: string, payload: unknown): void {
+  // WFM announces the account status on sign-in and whenever it changes, expiry
+  // included - that push is what keeps our countdown honest across restarts.
+  if (route.includes("status/set")) {
+    wfmPresence.applyServerStatus(payload);
+    return;
+  }
+
   const win = ctx.mainWindow;
   if (!win || win.isDestroyed()) return;
 
@@ -117,6 +126,7 @@ function register(): void {
       const token = wfmSession.getToken();
       if (token) {
         startListening(token, _handleWfmEvent, _handleWfmAuthGiveUp);
+        void wfmPresence.refreshFromServer().then(() => wfmPresence.resync());
       }
       return result;
     } catch (err) {
@@ -126,6 +136,7 @@ function register(): void {
 
   handleAuthorized(WFM_SIGNOUT, assertMainRendererSender, async () => {
     stopListening();
+    wfmPresence.reset();
     return wfmSession.signOut();
   });
 
@@ -262,11 +273,27 @@ function register(): void {
 
     return withWfmError(
       "set-status",
-      () => wfmSession.setStatus(parsed.status as WfmStatus),
+      async () => {
+        await wfmPresence.setManualStatus(parsed.status as WfmStatus);
+        return { status: parsed.status as WfmStatus };
+      },
       "Failed to set status.",
     );
   });
+
+  handleAuthorized(WFM_PRESENCE_STATE, assertMainRendererSender, async () =>
+    wfmPresence.getState(),
+  );
 }
+
+/** Broadcast presence the main process changed on its own (hold expiry, game launch). */
+function _handlePresenceChange(state: wfmPresence.WfmPresenceState): void {
+  const win = ctx.mainWindow;
+  if (!win || win.isDestroyed()) return;
+  win.webContents.send(WFM_NOTIFICATION, { type: "presence", ...state });
+}
+
+wfmPresence.configure({ onChange: _handlePresenceChange });
 
 
 /** Restarts the WFM socket when session restore finds a saved token. */
@@ -275,6 +302,7 @@ function startListenerIfLoggedIn(): void {
   if (token) {
     log.info("[WFMIpc] Resuming WS listener after session restore");
     startListening(token, _handleWfmEvent, _handleWfmAuthGiveUp);
+    void wfmPresence.refreshFromServer().then(() => wfmPresence.resync());
   }
 }
 

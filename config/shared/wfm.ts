@@ -3,6 +3,21 @@ import { normalizeForSlug } from "./textNormalize";
 /** Warframe.market user presence status. */
 export type WfmStatus = "online" | "ingame" | "invisible";
 
+/** Selectable "keep my status for" durations; 0 means the status never expires. */
+export const WFM_STATUS_HOLD_MINUTES: readonly number[] = Object.freeze([0, 30, 60, 120, 240]);
+
+/** Snap an arbitrary value onto the offered hold durations. */
+export function normalizeWfmHoldMinutes(value: unknown, fallback = 0): number {
+  const minutes = Math.round(Number(value));
+  if (!Number.isFinite(minutes)) return fallback;
+  return WFM_STATUS_HOLD_MINUTES.includes(minutes) ? minutes : fallback;
+}
+
+/** Only a visible presence can expire - invisible is already the resting state. */
+export function wfmStatusCanExpire(status: WfmStatus): boolean {
+  return status === "online" || status === "ingame";
+}
+
 /** Standard Warframe Market v1 request headers. */
 export const WFM_HEADERS: Readonly<Record<string, string>> = Object.freeze({
   Platform: "pc",

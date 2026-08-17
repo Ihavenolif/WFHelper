@@ -12,10 +12,17 @@ import {
 
 const log = withScope("wfmWebSocket");
 
-export function setStatusViaWebSocket(token: string, status: WfmStatus): Promise<void> {
+/** Set the account status. `durationSeconds` asks WFM to expire it server-side, so
+ * the countdown keeps running once we close the socket - or the whole app. */
+export function setStatusViaWebSocket(
+  token: string,
+  status: WfmStatus,
+  durationSeconds: number | null = null,
+): Promise<{ statusUntil: string | null }> {
   return new Promise((resolve, reject) => {
     let settled = false;
     let statusOk = false;
+    let statusUntil: string | null = null;
     const socket = createWfmWebSocket({ handshakeTimeout: WFM_WS_TIMEOUT_MS });
 
     const timer = setTimeout(() => {
@@ -41,7 +48,7 @@ export function setStatusViaWebSocket(token: string, status: WfmStatus): Promise
       clearTimeout(timer);
       closeSocket();
       if (err) reject(err);
-      else resolve();
+      else resolve({ statusUntil });
     }
 
     socket.on("open", () => {
@@ -61,11 +68,13 @@ export function setStatusViaWebSocket(token: string, status: WfmStatus): Promise
       }
 
       if (route.includes("auth/signIn:ok")) {
-        sendWfmWsMessage(socket, "@wfm|cmd/status/set", { status });
+        sendWfmWsMessage(socket, "@wfm|cmd/status/set", { status, duration: durationSeconds });
         return;
       }
 
       if (route.includes("status/set:ok")) {
+        const until = (msg.payload as { statusUntil?: unknown } | null)?.statusUntil;
+        statusUntil = typeof until === "string" ? until : null;
         statusOk = true;
         done(null);
       }

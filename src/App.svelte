@@ -33,6 +33,7 @@
     applyClosedWfmListing,
     clearMarketAccountState,
     resetMarketFetchTimes,
+    setMarketViewState,
   } from "./stores/market.js";
   import { activeItem, activeComponent, activeRelic } from "./stores/modals.js";
   import { applyUpdateState } from "./stores/updates.js";
@@ -113,6 +114,16 @@
       if (notification.type === "orders-changed") {
         // MarketView refetches when it is mounted; this covers when it is not.
         resetMarketFetchTimes();
+        return;
+      }
+      if (notification.type === "presence") {
+        // Main drives presence (hold expiry, game launch) while the lazy Market
+        // tab may be unmounted - keep the store current either way.
+        setMarketViewState({
+          status: notification.status,
+          statusExpiresAt: notification.expiresAt,
+          statusAutoActive: notification.autoActive,
+        });
         return;
       }
       if (notification.type === "listener-auth-failed") {

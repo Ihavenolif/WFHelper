@@ -35,6 +35,10 @@ export const marketContracts = writable<WfmContractsResult>({
 interface MarketViewState {
   typeTab: MarketTab;
   status: WfmStatus | null;
+  /** Epoch ms the status drops to invisible; null while it is held indefinitely. */
+  statusExpiresAt: number | null;
+  /** True while Warframe running is driving the status instead of the user. */
+  statusAutoActive: boolean;
   ordersLastFetch: number;
   contractsLastFetch: number;
 }
@@ -42,6 +46,8 @@ interface MarketViewState {
 const DEFAULT_MARKET_VIEW_STATE: MarketViewState = {
   typeTab: restoreMarketTab(),
   status: null,
+  statusExpiresAt: null,
+  statusAutoActive: false,
   ordersLastFetch: 0,
   contractsLastFetch: 0,
 };

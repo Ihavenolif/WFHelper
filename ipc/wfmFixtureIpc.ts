@@ -19,6 +19,7 @@ import {
   WFM_LOOKUP_ITEM,
   WFM_GET_ME,
   WFM_SET_STATUS,
+  WFM_PRESENCE_STATE,
 } from "../config/shared/ipcChannels";
 
 const log = withScope("wfmFixtureIpc");
@@ -140,6 +141,11 @@ export function registerWfmFixtures(): boolean {
   }));
   handleAuthorized(WFM_GET_ME, assertMainRendererSender, async () => ({ status: "online" }));
   handleAuthorized(WFM_SET_STATUS, assertMainRendererSender, async () => ({ ok: true }));
+  handleAuthorized(WFM_PRESENCE_STATE, assertMainRendererSender, async () => ({
+    status: "online",
+    expiresAt: null,
+    autoActive: false,
+  }));
 
   return true;
 }
