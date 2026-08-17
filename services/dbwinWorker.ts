@@ -45,6 +45,8 @@ const WaitForSingleObject = kernel32.func("WaitForSingleObject", "uint32", [
 const SetEvent = kernel32.func("SetEvent", "int32", ["void *"]);
 const CloseHandle = kernel32.func("CloseHandle", "int32", ["void *"]);
 const GetLastError = kernel32.func("GetLastError", "uint32", []);
+const GetCurrentThread = kernel32.func("GetCurrentThread", "void *", []);
+const SetThreadPriority = kernel32.func("SetThreadPriority", "int32", ["void *", "int32"]);
 
 // OpenProcess - used by isWarframePid() to query process image names
 const OpenProcess = kernel32.func("OpenProcess", "void *", [
@@ -81,6 +83,7 @@ const INVALID_HANDLE_VALUE = -1n;
 const WAIT_TIMEOUT_MS = 500;
 // PROCESS_QUERY_LIMITED_INFORMATION - minimum right for QueryFullProcessImageNameW
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
+const THREAD_PRIORITY_HIGHEST = 2;
 // MAX_PATH in wide characters (WCHAR)
 const MAX_PATH = 260;
 // Phase 0: sleep this long between Warframe presence checks
@@ -224,8 +227,16 @@ function runDbwinLoop(): void {
     while (Atomics.load(stopFlag, 0) === 0) {
       const waitResult = WaitForSingleObject(hData, WAIT_TIMEOUT_MS) as number;
 
-      const now = Date.now();
+      let buf: Buffer | null = null;
+      if (waitResult === WAIT_OBJECT_0) {
+        // OutputDebugString() in the game thread blocks until BUFFER_READY -
+        // NOTHING may run before this ack but the one copy out of the buffer.
+        const bytes = koffi.decode(pBuf, uint8ArrayType) as Uint8Array;
+        SetEvent(hReady);
+        buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+      }
 
+      const now = Date.now();
       // Check both on timeout AND on message receipt (so that if noisy
       // non-Warframe processes keep the loop busy, we still detect exit).
       if (now > warframeRecheckAt) {
@@ -234,36 +245,23 @@ function runDbwinLoop(): void {
         if (!isWarframeRunning()) break; // exit Phase 1, return to Phase 0
       }
 
-      if (waitResult === WAIT_OBJECT_0) {
-        const pid = koffi.decode(pBuf, "uint32") as number;
-
-        if (!isWarframePid(pid)) {
-          // Not Warframe - release buffer immediately and skip message body.
-          // DBWIN_BUFFER_READY MUST be signalled or the writing process blocks.
-          SetEvent(hReady);
-          continue;
-        }
-
-        // OutputDebugString() in the game thread blocks until BUFFER_READY -
-        // keep pre-ACK work to this single memcpy decode, then release.
-        const bytes = koffi.decode(pBuf, uint8ArrayType) as Uint8Array;
-        SetEvent(hReady);
-
-        const buf = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        let end = buf.indexOf(0, 4);
-        if (end < 0) end = DBWIN_BUFFER_SIZE;
-        if (end <= 4) continue;
-        // utf8 to match the file poll - latin1 split multi-byte glyphs into
-        // mojibake, so the same line produced different strings per source.
-        const msg = buf.toString("utf8", 4, end);
-
-        // Pre-filter + repeat suppression - unfiltered repeats would flood
-        // the main thread and starve async OCR.
-        if (lineGate.wants(msg, now)) {
-          parentPort?.postMessage({ type: "line", pid, msg });
-        }
-      }
       // On WAIT_TIMEOUT (258) just loop and re-check stopFlag / Warframe presence
+      if (!buf) continue;
+      const pid = buf.readUInt32LE(0);
+      if (!isWarframePid(pid)) continue;
+
+      let end = buf.indexOf(0, 4);
+      if (end < 0) end = DBWIN_BUFFER_SIZE;
+      if (end <= 4) continue;
+      // utf8 to match the file poll - latin1 split multi-byte glyphs into
+      // mojibake, so the same line produced different strings per source.
+      const msg = buf.toString("utf8", 4, end);
+
+      // Pre-filter + repeat suppression - unfiltered repeats would flood
+      // the main thread and starve async OCR.
+      if (lineGate.wants(msg, now)) {
+        parentPort?.postMessage({ type: "line", pid, msg });
+      }
     }
   } finally {
     UnmapViewOfFile(pBuf);
@@ -277,8 +275,10 @@ function runDbwinLoop(): void {
 }
 
 function run(): void {
-  // Keep DBWIN absent until Warframe starts, then enter the message loop.
+  // The game's logger blocks until this thread acks each line - jump the queue.
+  SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_HIGHEST);
 
+  // Keep DBWIN absent until Warframe starts, then enter the message loop.
   while (Atomics.load(stopFlag, 0) === 0) {
     while (Atomics.load(stopFlag, 0) === 0) {
       if (isWarframeRunning()) break;
