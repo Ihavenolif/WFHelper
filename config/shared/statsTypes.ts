@@ -32,7 +32,7 @@ export interface DailyStatEntry {
   creditsDelta: number;
   endoDelta: number;
   ducatsDelta: number; // net Void Ducat change (MiscItems/PrimeBucks)
-  ayaDelta: number; // net Aya (PrimeTokens) change
+  ayaDelta: number; // net Aya (MiscItems/SchismKey) change
   vitusDelta: number; // net Vitus Essence change (MiscItems/Elitium)
   relicsOpened: number; // relics consumed (LevelKeys net decrease, >=0)
   daysPlayed: number; // 1 = played; 0 = no inventory data (imported gap)

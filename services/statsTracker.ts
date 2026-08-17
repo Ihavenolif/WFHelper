@@ -218,8 +218,8 @@ export function onInventoryData(data: Record<string, unknown>): void {
   const endo = _num(data.FusionPoints);
   // Ducats are stored as a MiscItem entry, not a top-level field
   const ducats = _findMiscItemCount(data, "/Lotus/Types/Items/MiscItems/PrimeBucks");
-  // PrimeTokens is the raw field name for Aya in the Warframe inventory JSON
-  const aya = _num(data.PrimeTokens);
+  // Aya is the SchismKey MiscItem; top-level PrimeTokens is Regal Aya.
+  const aya = _findMiscItemCount(data, "/Lotus/Types/Items/MiscItems/SchismKey");
   // Vitus Essence's internal name is Elitium
   const vitus = _findMiscItemCount(data, "/Lotus/Types/Items/MiscItems/Elitium");
 
