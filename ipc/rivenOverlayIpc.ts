@@ -146,7 +146,13 @@ export function isAnyRivenWindowVisible(): boolean {
   return rivenWindowEntries().some(({ controller }) => controller.isOverlayWindowVisible());
 }
 
+let _rivenHiddenByUnfocus = false;
+let _rivenUnfocusHidden: ReturnType<typeof createOverlayWindowsController>[] = [];
+
 function hideRivenWindows(): void {
+  // A real close also cancels a pending unfocus restore.
+  _rivenHiddenByUnfocus = false;
+  _rivenUnfocusHidden = [];
   for (const { controller } of rivenWindowEntries()) controller.hideOverlayWindow();
 }
 
@@ -156,7 +162,31 @@ function forEachRivenWindow(fn: (win: InstanceType<typeof BrowserWindow>) => voi
   }
 }
 
+// Alt-tab hides the panels until the game refocuses. Windows only: the linux
+// focus poll treats a running game as focused, so a hide would never release.
+// Focus on one of our own windows (F7 drag, main app) does not count as away.
 function syncRivenWindowZOrder(warframeFocused: boolean): void {
+  if (process.platform === "win32") {
+    if (_rivenHiddenByUnfocus) {
+      if (!warframeFocused) return;
+      const restore = _rivenUnfocusHidden;
+      _rivenHiddenByUnfocus = false;
+      _rivenUnfocusHidden = [];
+      log.info("[ZOrder] riven panels restored - Warframe refocused");
+      for (const controller of restore) controller.showOverlayWindowInactive();
+    } else if (!warframeFocused && !_rivenInteractive && !BrowserWindow.getFocusedWindow()) {
+      const visible = rivenWindowEntries()
+        .filter(({ controller }) => controller.isOverlayWindowVisible())
+        .map(({ controller }) => controller);
+      if (visible.length > 0) {
+        _rivenHiddenByUnfocus = true;
+        _rivenUnfocusHidden = visible;
+        log.info("[ZOrder] riven panels hidden - Warframe unfocused");
+        for (const controller of visible) controller.hideOverlayWindow();
+        return;
+      }
+    }
+  }
   for (const { win, controller } of rivenWindowEntries()) {
     if (!win || win.isDestroyed()) continue;
     if (!controller.isOverlayWindowVisible()) continue;
@@ -223,6 +253,8 @@ function createRivenOverlayWindows(options: { show?: boolean } = {}): void {
   if (existRight && !existRight.isDestroyed()) existRight.destroy();
 
   _rivenInteractive = false;
+  _rivenHiddenByUnfocus = false;
+  _rivenUnfocusHidden = [];
   rivenLastEvents.clear();
 
   createRivenWindow("left", options);
@@ -230,7 +262,8 @@ function createRivenOverlayWindows(options: { show?: boolean } = {}): void {
 }
 
 registerZOrderSubscriber({
-  isActive: isAnyRivenWindowVisible,
+  // Stays active while hidden by unfocus, or the restore poll would never run.
+  isActive: () => isAnyRivenWindowVisible() || _rivenHiddenByUnfocus,
   sync: syncRivenWindowZOrder,
 });
 
