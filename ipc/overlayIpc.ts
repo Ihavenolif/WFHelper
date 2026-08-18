@@ -120,12 +120,16 @@ function toggleOverlayInteractionMode(source = "unknown"): void {
     return;
   }
 
-  // If any riven overlay is visible, toggle interactive mode on both riven windows.
+  // A riven session close resets the riven flag but not the shared one, so
+  // independent toggles desync; the visible surface picks one value for both.
+  const next = anyRivenVisible
+    ? !rivenOverlayIpc.isRivenInteractiveMode()
+    : !ctx.overlayInteractiveMode;
   if (anyRivenVisible) {
-    rivenOverlayIpc.toggleRivenInteractiveMode();
+    rivenOverlayIpc.setRivenInteractiveMode(next);
   }
 
-  setOverlayInteractionMode(!ctx.overlayInteractiveMode, source);
+  setOverlayInteractionMode(next, source);
 }
 
 // Share the theme allowlist so renderer payloads and main validation cannot drift.

@@ -46,6 +46,7 @@ let inFlight: Promise<WarframeStatus> | null = null;
 let _win32: {
   GetForegroundWindow: (...args: any[]) => any;
   GetWindowThreadProcessId: (...args: any[]) => any;
+  GetWindowLongW: (...args: any[]) => any;
   GetWindowRect: (...args: any[]) => any;
   OpenProcess: (...args: any[]) => any;
   CloseHandle: (...args: any[]) => any;
@@ -70,6 +71,7 @@ function ensureWin32(): boolean {
         "void *",
         "void *",
       ]),
+      GetWindowLongW: user32.func("__stdcall", "GetWindowLongW", "int32", ["uint64", "int32"]),
       // Win32 BOOL is a 4-byte int; koffi "bool" is 1 byte and leaves garbage
       // in the upper bytes of BOOL params - always use int32.
       GetWindowRect: user32.func("__stdcall", "GetWindowRect", "int32", ["void *", "void *"]),
@@ -223,6 +225,27 @@ export function isOwnProcessForeground(): boolean | null {
     const pid = foregroundPidBuffer.readUInt32LE(0);
     if (pid <= 0) return null;
     return pid === process.pid;
+  } catch {
+    return null;
+  }
+}
+
+const GWL_EXSTYLE = -20;
+const WS_EX_TOPMOST = 0x0000_0008;
+
+/** Live WS_EX_TOPMOST read for a getNativeWindowHandle() buffer; null =
+ * unknowable (off-windows or the read failed). */
+export function isWindowTopmost(handle: Buffer): boolean | null {
+  if (process.platform !== "win32" || handle.length < 4) return null;
+  try {
+    if (!ensureWin32()) return null;
+    const hwnd = handle.length >= 8 ? handle.readBigUInt64LE(0) : BigInt(handle.readUInt32LE(0));
+    if (hwnd === 0n) return null;
+    const style = Number(_win32!.GetWindowLongW(hwnd, GWL_EXSTYLE));
+    // 0 = failed read or a style-less window; overlays always carry ex-styles,
+    // so report unknown rather than "not topmost".
+    if (style === 0) return null;
+    return (style & WS_EX_TOPMOST) !== 0;
   } catch {
     return null;
   }

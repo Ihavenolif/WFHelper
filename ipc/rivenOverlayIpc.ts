@@ -197,6 +197,23 @@ function isOwnWindowForeground(): boolean {
   return !!BrowserWindow.getFocusedWindow();
 }
 
+let _lastZOrderProbe = "";
+
+// One line per state change; a top cache/OS split is the buried-panel tell.
+function probeRivenZOrder(keepRaised: boolean): void {
+  const sides = rivenWindowEntries().map(({ win }, index) => {
+    const side = index === 0 ? "L" : "R";
+    if (!win || win.isDestroyed()) return `${side}=gone`;
+    const os = warframeStatus.isWindowTopmost(win.getNativeWindowHandle());
+    const top = `${win.isAlwaysOnTop() ? 1 : 0}/${os === null ? "?" : os ? 1 : 0}`;
+    return `${side}=vis:${win.isVisible() ? 1 : 0} top:${top}`;
+  });
+  const line = `raised=${keepRaised ? 1 : 0} ${sides.join(" ")}`;
+  if (line === _lastZOrderProbe) return;
+  _lastZOrderProbe = line;
+  log.info(`[ZOrder] riven ${line}`);
+}
+
 function syncRivenWindowZOrder(warframeFocused: boolean): void {
   if (process.platform === "win32" || process.platform === "linux") {
     const focusedForHide = unfocusHideFocused(warframeFocused);
@@ -216,17 +233,21 @@ function syncRivenWindowZOrder(warframeFocused: boolean): void {
       }
     }
   }
+  // Interactive clicks unfocus the game, so keep the panels raised through it.
+  // Own-process focus must not count: panels would cover the main window.
+  const keepRaised = warframeFocused || _rivenInteractive;
+  probeRivenZOrder(keepRaised);
   for (const { win, controller } of rivenWindowEntries()) {
     if (!win || win.isDestroyed()) continue;
     if (!controller.isOverlayWindowVisible()) continue;
-    applyOverlayZOrder(win, warframeFocused);
+    applyOverlayZOrder(win, keepRaised);
   }
 }
 
-function toggleRivenInteractiveMode(): void {
-  _rivenInteractive = !_rivenInteractive;
-  // Entering interactive mode while hidden by an alt-tab means the user wants
-  // the panels now - restore them instead of toggling an invisible window.
+function setRivenInteractiveMode(next: boolean): void {
+  _rivenInteractive = next;
+  // F7 while hidden by an alt-tab means the user wants the panels; restore
+  // instead of toggling an invisible window.
   if (_rivenInteractive) clearUnfocusHide("interactive mode requested");
   rivenLeftWindowsController.setOverlayInteractiveMode(_rivenInteractive);
   rivenRightWindowsController.setOverlayInteractiveMode(_rivenInteractive);
@@ -327,7 +348,7 @@ let _rivenWeaponName = "";
 // Card layout of the running session, so a manual rescan reuses the right crop.
 let _rivenScanLayout: rivenScan.InitialCardLayout = "reroll";
 // Where the current name came from, and whether a label read produced it
-// verbatim. An exact label is the screen's own answer, so nothing overrides it.
+// verbatim. An exact label read outranks every other source.
 let _rivenWeaponSource: RivenWeaponSource = "";
 let _rivenWeaponLabelExact = false;
 // Bumped on every session boundary so a late async label read cannot apply
@@ -811,7 +832,7 @@ export function onRivenChoiceConfirmed(): void {
   }, CHOICE_RESCAN_DELAY_MS);
 }
 
-export { toggleRivenInteractiveMode, forEachRivenWindow };
+export { setRivenInteractiveMode, forEachRivenWindow };
 
 export function configureOverlaySettingsPersistence(persist: () => void): void {
   persistOverlaySettings = persist;
@@ -832,8 +853,8 @@ export function register(): void {
     rivenLastEvents.clear();
   });
 
-  // Redo the current-card scan on demand - after switching the linked variant
-  // via the FITS IN arrows, both the values and the weapon must be re-read.
+  // Redo the current-card scan on demand: a FITS IN variant switch changes
+  // both the values and the weapon.
   onAuthorized(RIVEN_RESCAN_REQUEST, assertRivenOverlayRendererSender, () => {
     if (!isAnyRivenWindowVisible()) return;
     log.info("[OverlayRoute] trigger=riven-manual-rescan");

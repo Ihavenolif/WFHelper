@@ -161,6 +161,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   let lastAutoHideDelayMs = 0;
   const lastOverlayEvents = new Map<string, unknown>();
   const pendingOverlayEvents: Array<{ channel: string; payload?: unknown }> = [];
+  let raiseReassertTimers: Array<ReturnType<typeof setTimeout>> = [];
   const keepMapped = createKeepMappedMode({
     label: `OverlayWindow ${windowLabel}`,
     transparent,
@@ -424,16 +425,18 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     if (autoHideWasPending) scheduleOverlayAutoHide(lastAutoHideDelayMs);
   }
 
-  // Raising in the same breath as a re-show can lose the race against the map,
-  // and the z-order poll no longer rescues a buried window.
+  // An immediate raise can lose the race against the map, and the z-order poll
+  // no longer rescues buried windows. Pending timers are replaced, so stacked
+  // triggers raise once.
   function scheduleRaiseReassert(overlayWindow: import("electron").BrowserWindow): void {
-    for (const delay of CLICK_THROUGH_REASSERT_DELAYS_MS) {
+    for (const timer of raiseReassertTimers) clearTimeout(timer);
+    raiseReassertTimers = CLICK_THROUGH_REASSERT_DELAYS_MS.map((delay) =>
       setTimeout(() => {
         if (overlayWindow.isDestroyed() || !isOverlayWindowVisible()) return;
         keepOverlayAboveGame(overlayWindow);
         overlayWindow.moveTop();
-      }, delay);
-    }
+      }, delay),
+    );
   }
 
   // Click-through set in the same breath as the first show lands before X maps
@@ -620,6 +623,12 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       pendingOverlayEvents.length = 0;
     });
     attachBoundsPersistence(createdWindow);
+    // The window that just lost focus is the one the OS may have de-banded;
+    // this closes the z-order poll's 2s rescue gap to one reassert delay.
+    createdWindow.on("blur", () => {
+      if (createdWindow.isDestroyed() || readOverlayWindow() !== createdWindow) return;
+      if (isOverlayWindowVisible() && !isKeepMappedActive()) scheduleRaiseReassert(createdWindow);
+    });
     // Events sent while the page is still loading reach a renderer with no
     // listeners and are lost; the owner replays them once the load finishes.
     onWindowCreated?.(createdWindow);
@@ -766,6 +775,9 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       // Keep-mapped: the window never unmapped, so there is nothing to re-show.
       overlayWindow.showInactive();
     }
+    // Either direction of the focusable flip can drop the window out of the
+    // topmost band mid-raise, and focus() only rescues the last-focused window.
+    if (!isKeepMappedActive()) scheduleRaiseReassert(overlayWindow);
   }
 
   return {

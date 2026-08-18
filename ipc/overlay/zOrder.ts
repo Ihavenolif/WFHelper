@@ -16,13 +16,11 @@ let interval: ReturnType<typeof setInterval> | null = null;
 let polling = false;
 let lastFocused: boolean | null = null;
 
-// Gated on the window's own always-on-top state, not a remembered one: overlays
-// are raised from outside this module too, and a shadow cache misses those and
-// skips the drop that should follow. Re-running moveTop() every poll pulled the
-// overlay into the foreground, unfocusing the game - a loop that fed itself.
+// isAlwaysOnTop() is a cache; Windows strips WS_EX_TOPMOST from a clicked
+// overlay. Gate on the live style; a raised window gates out next tick.
 export function applyOverlayZOrder(win: OverlayWindow, warframeFocused: boolean): void {
   if (warframeFocused) {
-    if (win.isAlwaysOnTop()) return;
+    if (warframeStatus.isWindowTopmost(win.getNativeWindowHandle()) ?? win.isAlwaysOnTop()) return;
     win.setSkipTaskbar(true);
     win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
     win.setAlwaysOnTop(true, "screen-saver");

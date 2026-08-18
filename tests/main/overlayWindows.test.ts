@@ -427,6 +427,95 @@ describe("keep-mapped presentation mode (native Wayland)", () => {
     expect(win.showInactive).toHaveBeenCalledTimes(1);
   });
 
+  it("leaving interactive mode re-raises after the show settles", () => {
+    vi.useFakeTimers();
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    const win = windows[0];
+    vi.advanceTimersByTime(5_000);
+    controller.setOverlayInteractiveMode(true);
+
+    // An immediate raise loses the race with the focusable flip; only the
+    // delayed reassert rescues the window.
+    controller.setOverlayInteractiveMode(false);
+    win.setAlwaysOnTop.mockClear();
+    win.moveTop.mockClear();
+    vi.advanceTimersByTime(1_600);
+
+    expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true, "screen-saver");
+    expect(win.moveTop).toHaveBeenCalled();
+  });
+
+  it("a blurred panel re-raises - the focus handoff can strip its topmost band", () => {
+    vi.useFakeTimers();
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    const win = windows[0];
+    vi.advanceTimersByTime(5_000);
+    win.setAlwaysOnTop.mockClear();
+    win.moveTop.mockClear();
+
+    fireWindowEvent(win, "blur");
+    vi.advanceTimersByTime(1_600);
+
+    expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true, "screen-saver");
+    expect(win.moveTop).toHaveBeenCalled();
+  });
+
+  it("stacked reassert triggers collapse into one pending raise pair", () => {
+    vi.useFakeTimers();
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    const win = windows[0];
+    controller.setOverlayInteractiveMode(true);
+    vi.advanceTimersByTime(5_000);
+    win.moveTop.mockClear();
+
+    // F7-off schedules a reassert and its blur() fires the listener's too.
+    controller.setOverlayInteractiveMode(false);
+    fireWindowEvent(win, "blur");
+    win.moveTop.mockClear();
+    vi.advanceTimersByTime(1_600);
+
+    expect(win.moveTop).toHaveBeenCalledTimes(2);
+  });
+
+  it("entering interactive mode re-raises the panel focus() does not rescue", () => {
+    vi.useFakeTimers();
+    const { controller, windows } = createPresentationProbe({
+      platform: "win32",
+      nativeWayland: false,
+    });
+
+    controller.createOverlayWindow();
+    controller.markRendererReady(1);
+    const win = windows[0];
+    vi.advanceTimersByTime(5_000);
+
+    controller.setOverlayInteractiveMode(true);
+    win.setAlwaysOnTop.mockClear();
+    win.moveTop.mockClear();
+    vi.advanceTimersByTime(1_600);
+
+    expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true, "screen-saver");
+    expect(win.moveTop).toHaveBeenCalled();
+  });
+
   it("applies the input flags while hidden so the mode cannot desync", () => {
     const { controller, windows } = createPresentationProbe({
       platform: "win32",

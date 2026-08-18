@@ -1,12 +1,20 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("electron", () => ({
   app: { once: vi.fn() },
   BrowserWindow: class {},
 }));
-vi.mock("../../services/warframeStatus", () => ({ getStatus: vi.fn() }));
+vi.mock("../../services/warframeStatus", () => ({
+  getStatus: vi.fn(),
+  isWindowTopmost: vi.fn(() => null),
+}));
 
 import { applyOverlayZOrder } from "../../ipc/overlay/zOrder";
+import * as warframeStatus from "../../services/warframeStatus";
+
+beforeEach(() => {
+  vi.mocked(warframeStatus.isWindowTopmost).mockReturnValue(null);
+});
 
 function fakeWindow(alwaysOnTop = false) {
   const win = {
@@ -18,6 +26,7 @@ function fakeWindow(alwaysOnTop = false) {
     }),
     moveTop: vi.fn(),
     isAlwaysOnTop: vi.fn(() => win.alwaysOnTop),
+    getNativeWindowHandle: vi.fn(() => Buffer.alloc(8)),
   };
   return win;
 }
@@ -78,5 +87,24 @@ describe("applyOverlayZOrder", () => {
     apply(win, false);
 
     expect(win.setAlwaysOnTop).not.toHaveBeenCalled();
+  });
+
+  it("raises when the OS says the band is gone though the cache disagrees", () => {
+    vi.mocked(warframeStatus.isWindowTopmost).mockReturnValue(false);
+    const win = fakeWindow(true);
+
+    apply(win, true);
+
+    expect(win.setAlwaysOnTop).toHaveBeenCalledWith(true, "screen-saver");
+    expect(win.moveTop).toHaveBeenCalledTimes(1);
+  });
+
+  it("skips the raise while the OS confirms the window is topmost", () => {
+    vi.mocked(warframeStatus.isWindowTopmost).mockReturnValue(true);
+    const win = fakeWindow(false);
+
+    apply(win, true);
+
+    expect(win.moveTop).not.toHaveBeenCalled();
   });
 });
