@@ -14,6 +14,8 @@ interface PartMasteryFlags {
   spare?: boolean;
 }
 
+type PartMasteryResolver = (row: RowLike) => PartMasteryFlags;
+
 function dbEntryFor(
   itemDb: Record<string, ItemDbEntry>,
   key: string | undefined,
@@ -27,14 +29,13 @@ function dbEntryFor(
   return null;
 }
 
-/** Per-row mastered/spare flags: parts resolve through componentOf, sets via
- * their base item, masterables via themselves. A part only counts against its
- * recipe while the owner is missing - built or mastered gear needs nothing
- * more. Unset flags mean nothing masterable needs the row; filters skip it. */
+/** Per-row mastered/spare flags. A part only counts against its recipe while
+ * the owner is still missing; built or mastered gear needs nothing more.
+ * Unset flags mean nothing masterable needs the row, and filters skip it. */
 export function buildPartMasteryResolver(
   itemDb: Record<string, ItemDbEntry>,
   mastery: MasteryData | null,
-): (row: RowLike) => PartMasteryFlags {
+): PartMasteryResolver {
   const items = mastery?.items ?? [];
   if (items.length === 0) return () => ({});
 
@@ -85,12 +86,12 @@ export function buildPartMasteryResolver(
   };
 }
 
+/** Takes a prebuilt resolver: it indexes the whole item database, so callers
+ * keep one per itemDb/mastery pair instead of rebuilding it per row list. */
 export function attachPartMasteryFlags<T extends RowLike>(
   rows: T[],
-  itemDb: Record<string, ItemDbEntry>,
-  mastery: MasteryData | null,
+  resolve: PartMasteryResolver,
 ): T[] {
-  const resolve = buildPartMasteryResolver(itemDb, mastery);
   return rows.map((row) => {
     const flags = resolve(row);
     return flags.parentMastered === undefined && flags.spare === undefined

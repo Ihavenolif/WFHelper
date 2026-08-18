@@ -43,9 +43,8 @@ interface FilterableItem {
   /** Distinct component types owned; null when the item has no parts to track. */
   partsOwned?: number | null;
   orderPlaced?: boolean;
-  /** Undefined when nothing masterable needs the item (mods, resources). */
+  /** Both undefined when nothing masterable needs the item (mods, resources). */
   parentMastered?: boolean;
-  /** Owned above what unbuilt gear still needs; undefined off the parts tabs. */
   spare?: boolean;
   vaulted?: boolean;
   owned?: boolean;

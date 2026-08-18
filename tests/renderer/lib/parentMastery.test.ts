@@ -124,7 +124,7 @@ describe("attachPartMasteryFlags", () => {
       { name: "Braton Prime Barrel", internalName: "/W/BratonPrimeBarrel", amount: 4 },
       { name: "Forma" },
     ];
-    const [barrel, forma] = attachPartMasteryFlags(rows, itemDb, mastery);
+    const [barrel, forma] = attachPartMasteryFlags(rows, resolve);
     expect(barrel.parentMastered).toBe(true);
     expect(barrel.spare).toBe(true);
     expect(forma).toBe(rows[1]);

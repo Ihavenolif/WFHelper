@@ -5,7 +5,7 @@
   import { masteryData } from "../stores/mastery.js";
   import { marketOrders } from "../stores/market.js";
   import { ensureMarketOrdersLoaded } from "../lib/marketOrdersSync.js";
-  import { attachPartMasteryFlags } from "../lib/parentMastery.js";
+  import { attachPartMasteryFlags, buildPartMasteryResolver } from "../lib/parentMastery.js";
   import { relicDb } from "../stores/relics.js";
   import InventoryHeader from "../components/inventory/InventoryHeader.svelte";
   import InventoryGrid from "../components/inventory/InventoryGrid.svelte";
@@ -247,7 +247,7 @@
   onMount(() => {
     hydration.resume();
     // The "Order placed" badges read the orders store, which only the Market
-    // tab used to fill - straight-to-inventory sessions saw every item as unlisted.
+    // tab used to fill; straight-to-inventory sessions saw every item as unlisted.
     void ensureMarketOrdersLoaded();
   });
 
@@ -315,7 +315,8 @@
   $: selectedItem = selectedInternalName
     ? tabItems.find((entry) => entry.internalName === selectedInternalName) || null
     : null;
-  $: masteredTabItems = attachPartMasteryFlags(searchableTabItems, $itemDb, $masteryData);
+  $: partMastery = buildPartMasteryResolver($itemDb, $masteryData);
+  $: masteredTabItems = attachPartMasteryFlags(searchableTabItems, partMastery);
   $: filtered = applySharedFiltersAndSort(masteredTabItems, $inventoryFilters);
   $: resourceList =
     $inventoryData && Object.keys($itemDb).length > 0

@@ -187,8 +187,8 @@ export async function ensureMarketOrdersLoaded(): Promise<void> {
       return;
     }
   }
-  const orders = get(marketOrders);
-  const hasOrders = orders.sell.length + orders.buy.length > 0;
+  // Freshness only; treating an empty store as stale would refetch no-listing
+  // accounts on every visit.
   const stale = Date.now() - get(marketViewState).ordersLastFetch > ORDERS_FRESH_MS;
-  if (!hasOrders || stale) await controller.refresh({ background: true });
+  if (stale) await controller.refresh({ background: true });
 }
