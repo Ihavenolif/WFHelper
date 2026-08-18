@@ -26,6 +26,14 @@ test.describe("Mastery codex tab", () => {
         scans: [
           { type: "/Lotus/Types/Enemies/Grineer/AIWeek/BladeSawmanAvatar", count: 20 },
           { type: "/Lotus/Types/Enemies/FakeE2E/ShinyTestEnemyAvatar", count: 2 },
+          {
+            type: "/Lotus/Types/NeutralCreatures/Conservation/BirdOfPrey/CommonBirdOfPreyAvatar",
+            count: 20,
+          },
+          {
+            type: "/Lotus/Types/Lore/Fragments/AlbrectFragments/AlbrectLoreFragmentA",
+            count: 6,
+          },
         ],
       }),
     );
@@ -51,6 +59,15 @@ test.describe("Mastery codex tab", () => {
 
     // Unknown types still show, prettified, without a requirement.
     await expect(list.getByText("Shiny Test Enemy", { exact: true })).toBeVisible();
+
+    // Profile-only types resolve through the DE export extras: conservation
+    // animals get their species name and a Wildlife faction chip.
+    await expect(list.getByText("Common Condroc", { exact: true })).toBeVisible();
+    const factionChips = page.locator('[data-tour="mastery-codex-factions"]');
+    await expect(factionChips.getByRole("button", { name: "Wildlife", exact: true })).toBeVisible();
+    await expect(
+      factionChips.getByRole("button", { name: "Fragments", exact: true }),
+    ).toBeVisible();
 
     await expect(page.getByText(/of \d+ enemies fully scanned/)).toBeVisible();
 

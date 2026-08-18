@@ -1,4 +1,4 @@
-import { CODEX_SCAN_REQUIREMENTS } from "../data/codexScanRequirements.js";
+import { CODEX_EXTRA_INFO, CODEX_SCAN_REQUIREMENTS } from "../data/codexScanRequirements.js";
 import type { CodexScanEntry } from "../../config/shared/codexTypes.js";
 
 export interface CodexRow {
@@ -28,12 +28,18 @@ export const CODEX_FACTIONS: Array<{ key: string; label: string }> = [
   { key: "anarchs", label: "Anarchs" },
   { key: "stalker", label: "Stalker" },
   { key: "unaffiliated", label: "Unaffiliated" },
+  { key: "wildlife", label: "Wildlife" },
+  { key: "objects", label: "Objects" },
+  { key: "lore", label: "Fragments" },
 ];
 
 const ENEMY_IMAGE_BASE = "https://assets.wfhelper.com/enemies/";
 
+/** Wiki rows carry a bare filename; export-sourced rows a full mirror URL. */
 export function enemyImageUrl(image: string | null): string | null {
-  return image ? `${ENEMY_IMAGE_BASE}${encodeURIComponent(image)}` : null;
+  if (!image) return null;
+  if (image.startsWith("https://")) return image;
+  return `${ENEMY_IMAGE_BASE}${encodeURIComponent(image)}`;
 }
 
 // The profile reports Avatar paths while the wiki mostly stores Agent paths;
@@ -75,14 +81,16 @@ export function buildCodexRows(scans: CodexScanEntry[]): CodexRow[] {
     const key = normalizeType(entry.type);
     if (covered.has(key)) continue;
     covered.add(key);
+    const extra = CODEX_EXTRA_INFO[entry.type];
+    const required = extra?.scans ?? null;
     rows.push({
       type: entry.type,
-      name: fallbackName(entry.type),
+      name: extra?.name || fallbackName(entry.type),
       scanned: entry.count,
-      required: null,
-      complete: null,
-      faction: null,
-      image: null,
+      required,
+      complete: required !== null ? entry.count >= required : null,
+      faction: extra?.faction ?? null,
+      image: extra?.icon ?? null,
     });
   }
 

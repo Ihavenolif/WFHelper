@@ -143,6 +143,15 @@ async function collectWfmThumbEntries() {
   }));
 }
 
+// Codex extras (conservation animals, objects, fragments) use DE textures the
+// item database never touches; the codex data build writes their source URLs.
+function collectCodexIconUrls(urls) {
+  const listPath = path.join(__dirname, "codex-icon-urls.json");
+  if (!fs.existsSync(listPath)) return;
+  const sources = JSON.parse(fs.readFileSync(listPath, "utf-8"));
+  if (Array.isArray(sources)) for (const source of sources) addUrl(urls, source);
+}
+
 function collectRelicDatabaseUrls(urls) {
   const relicService = requireCompiled("services/relicService.js");
   const relicDb = relicService.getRelicDatabase();
@@ -222,6 +231,7 @@ const urls = new Set();
 await loadOverlayFromDE();
 collectItemDatabaseUrls(urls);
 collectRelicDatabaseUrls(urls);
+collectCodexIconUrls(urls);
 
 const entries = [...urls].sort().map((sourceUrl) => {
   const parsed = new URL(sourceUrl);
