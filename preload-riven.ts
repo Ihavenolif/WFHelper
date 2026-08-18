@@ -19,6 +19,7 @@ import {
   RIVEN_SIMILAR_LISTINGS,
   RIVEN_RESCAN_REQUEST,
   RIVEN_RESCAN,
+  RIVEN_WEAPON_MISSING,
   OVERLAY_GET_THEME_VARS,
   OVERLAY_GET_DRAG_HINT,
   OVERLAY_DRAG_MOVE,
@@ -52,6 +53,7 @@ contextBridge.exposeInMainWorld("rivenOverlay", {
   onRescan: (cb: () => void) => onRivenIpc(RIVEN_RESCAN, () => cb()),
   onWeaponUpdate: (cb: (weapon: string) => void) =>
     onRivenIpc(RIVEN_WEAPON_UPDATE, (_event: unknown, weapon: unknown) => cb(weapon as string)),
+  onWeaponMissing: (cb: () => void) => onRivenIpc(RIVEN_WEAPON_MISSING, () => cb()),
   onThemeVars: (cb: (vars: unknown) => void) =>
     onRivenIpc(OVERLAY_THEME_VARS, (_event: unknown, vars: unknown) => cb(vars)),
   onInteractionMode: (cb: (payload: unknown) => void) =>

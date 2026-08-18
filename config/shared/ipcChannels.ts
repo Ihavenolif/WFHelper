@@ -118,6 +118,7 @@ export const RIVEN_BEST_ATTRIBUTES = "riven-best-attributes";
 export const RIVEN_SIMILAR_LISTINGS = "riven-similar-listings";
 export const RIVEN_RESCAN_REQUEST = "riven-rescan-request";
 export const RIVEN_RESCAN = "riven-rescan";
+export const RIVEN_WEAPON_MISSING = "riven-weapon-missing";
 
 export const TRADE_NOTIFICATION_SHOW = "trade-notification-show";
 export const TRADE_NOTIFICATION_DISMISS = "trade-notification-dismiss";

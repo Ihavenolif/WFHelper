@@ -41,6 +41,7 @@ import {
   RIVEN_WEAPON_UPDATE,
   RIVEN_RESCAN_REQUEST,
   RIVEN_RESCAN,
+  RIVEN_WEAPON_MISSING,
 } from "../config/shared/ipcChannels";
 
 const log = withScope("rivenOverlayIpc");
@@ -493,10 +494,19 @@ async function detectFitsInWeapon(capture: CaptureResult): Promise<void> {
   const token = _rivenSessionToken;
   try {
     const match = await readFitsInWeapon(capture.image);
-    if (!match || token !== _rivenSessionToken) return;
-    onFitsInWeapon(match);
+    if (token !== _rivenSessionToken) return;
+    if (match) {
+      onFitsInWeapon(match);
+      return;
+    }
   } catch (err) {
     log.warn("[RivenScan] fits-in label read failed:", String(err));
+    if (token !== _rivenSessionToken) return;
+  }
+  // The label was the last weapon source; without a weapon nothing can be
+  // graded, so tell the overlay why instead of showing bare stats silently.
+  if (!_rivenWeaponName || _rivenWeaponName === "Riven") {
+    sendToRivenWindows(RIVEN_WEAPON_MISSING);
   }
 }
 

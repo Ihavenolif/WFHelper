@@ -422,7 +422,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     }, 0);
     for (const [channel, payload] of replay) sendOverlayEvent(channel, payload);
     if (autoHideWasPending) scheduleOverlayAutoHide(lastAutoHideDelayMs);
-    onWindowRebuilt?.(freshWindow);
   }
 
   // Raising in the same breath as a re-show can lose the race against the map,
@@ -621,6 +620,9 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       pendingOverlayEvents.length = 0;
     });
     attachBoundsPersistence(createdWindow);
+    // Events sent while the page is still loading reach a renderer with no
+    // listeners and are lost; the owner replays them once the load finishes.
+    onWindowRebuilt?.(createdWindow);
   }
 
   function clearOverlayAutoHideTimer(): void {

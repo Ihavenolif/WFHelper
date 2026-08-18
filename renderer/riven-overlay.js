@@ -464,6 +464,7 @@ function onSessionStart(weapon) {
   _pendingListings = null;
 
   el("weapon-name").textContent = weapon || "\u2014";
+  setWeaponWarningVisible(false);
 
   const rollBadge = el("roll-badge");
   if (rollBadge) rollBadge.textContent = "Roll 0";
@@ -566,9 +567,15 @@ function onChoiceMade(side) {
   }
 }
 
+function setWeaponWarningVisible(visible) {
+  const warning = el("weapon-warning");
+  if (warning) warning.classList.toggle("is-hidden", !visible);
+}
+
 /* Manual rescan after a FITS IN variant switch: fresh values are coming for
    the current card, and the old roll panel's numbers no longer apply. */
 function onRescan() {
+  setWeaponWarningVisible(false);
   if (_isLeft) {
     showScanning();
     el("scanning-text").textContent = "Rescanning…";
@@ -634,6 +641,10 @@ document.addEventListener("DOMContentLoaded", () => {
   window.rivenOverlay.onSessionEnd(() => onSessionEnd());
   window.rivenOverlay.onWeaponUpdate((weapon) => {
     el("weapon-name").textContent = weapon || "\u2014";
+    if (weapon) setWeaponWarningVisible(false);
+  });
+  window.rivenOverlay.onWeaponMissing(() => {
+    if (_isLeft) setWeaponWarningVisible(true);
   });
   window.rivenOverlay.onInteractionMode((payload) => {
     setOverlayInteractiveMode(Boolean(payload?.interactive));

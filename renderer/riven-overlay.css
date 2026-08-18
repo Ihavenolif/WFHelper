@@ -478,6 +478,22 @@ body {
   display: block;
 }
 
+#weapon-warning {
+  margin: 8px 14px;
+  border: 1px solid color-mix(in oklab, var(--warn) 42%, transparent);
+  background: color-mix(in oklab, var(--warn) 10%, transparent);
+  color: var(--warn);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-size: 10.5px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+#weapon-warning.is-hidden {
+  display: none;
+}
+
 /* Best attributes */
 
 #best-attributes {
