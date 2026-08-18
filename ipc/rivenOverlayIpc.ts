@@ -9,7 +9,14 @@ import {
 import { applyOverlayZOrder, registerZOrderSubscriber } from "./overlay/zOrder";
 import * as rivenSession from "./overlay/rivenSession";
 import * as rivenScan from "./overlay/rivenScan";
+import {
+  readFitsInWeapon,
+  shouldApplyLabelWeapon,
+  type RivenWeaponSource,
+} from "./overlay/rivenWeaponLabel";
 import { looksLikeStaleCardRead } from "./overlay/rivenScanText";
+import type { CaptureResult } from "../services/screenCapture";
+import type { WeaponLabelMatch } from "../services/rivenData";
 import { sleep } from "../services/rewardScannerUtils";
 import * as rivenGrading from "../services/rivenGrading";
 import * as rivenDataSvc from "../services/rivenData";
@@ -32,6 +39,8 @@ import {
   RIVEN_BEST_ATTRIBUTES,
   RIVEN_SIMILAR_LISTINGS,
   RIVEN_WEAPON_UPDATE,
+  RIVEN_RESCAN_REQUEST,
+  RIVEN_RESCAN,
 } from "../config/shared/ipcChannels";
 
 const log = withScope("rivenOverlayIpc");
@@ -301,6 +310,11 @@ let _rivenNewRollStats: rivenScan.RivenStat[] = [];
 
 // Weapon name - starts as "Riven" placeholder, updated when cycle dialog reveals it
 let _rivenWeaponName = "";
+// Where the current name came from; the fits-in label read outranks refinements.
+let _rivenWeaponSource: RivenWeaponSource = "";
+// Bumped on every session boundary so a late async label read cannot apply
+// into (or replay events for) a session it was not captured in.
+let _rivenSessionToken = 0;
 
 function isRivenOverlayEnabled(): boolean {
   return isRivenOverlaySettingEnabled(ctx.overlaySettings);
@@ -387,9 +401,10 @@ function clearRivenScanTimers(): void {
 }
 
 // A detected weapon unblocks labels, grading, attributes, and market enrichment.
-function applyDetectedWeapon(detected: string, source: string): void {
-  log.info(`[RivenScan] weapon detected from ${source}: "${detected}"`);
+function applyDetectedWeapon(detected: string, source: RivenWeaponSource, via: string): void {
+  log.info(`[RivenScan] weapon detected from ${via}: "${detected}"`);
   _rivenWeaponName = detected;
+  _rivenWeaponSource = source;
   sendToRivenWindows(RIVEN_WEAPON_UPDATE, detected);
   sendWeaponEnrichment();
   // Grading for the already-displayed initial stats was skipped while the
@@ -401,7 +416,7 @@ function maybeDetectWeaponFromText(ocrText: string): void {
   if (!ocrText || (_rivenWeaponName && _rivenWeaponName !== "Riven")) return;
   const detected = rivenDataSvc.findWeaponInText(ocrText);
   if (!detected) return;
-  applyDetectedWeapon(detected, "OCR");
+  applyDetectedWeapon(detected, "ocr", "OCR");
 }
 
 // The diorama resource path identifies the weapon without localized text.
@@ -417,7 +432,10 @@ export function onRivenWeaponPath(weaponPath: string): void {
     if (
       rivenDataSvc.getRivenFamilySlug(name) === rivenDataSvc.getRivenFamilySlug(_rivenWeaponName)
     ) {
-      applyDetectedWeapon(name, "diorama load (refines OCR)");
+      // The label read is the live linked variant; a diorama echo of the
+      // variant linked at screen-open must not undo a switch made since.
+      if (_rivenWeaponSource === "label") return;
+      applyDetectedWeapon(name, "diorama", "diorama load (refines OCR)");
       return;
     }
     log.warn(
@@ -425,15 +443,52 @@ export function onRivenWeaponPath(weaponPath: string): void {
     );
     return;
   }
-  applyDetectedWeapon(name, "diorama load");
+  applyDetectedWeapon(name, "diorama", "diorama load");
+}
+
+// The FITS IN caption names the exact variant the riven is linked to - the one
+// whose disposition renders the card's displayed values.
+function onFitsInWeapon(match: WeaponLabelMatch): void {
+  if (match.name === _rivenWeaponName) {
+    _rivenWeaponSource = "label";
+    return;
+  }
+  const sameFamily =
+    !!_rivenWeaponName &&
+    _rivenWeaponName !== "Riven" &&
+    rivenDataSvc.getRivenFamilySlug(match.name) ===
+      rivenDataSvc.getRivenFamilySlug(_rivenWeaponName);
+  if (shouldApplyLabelWeapon(match, _rivenWeaponName, _rivenWeaponSource, sameFamily)) {
+    applyDetectedWeapon(match.name, "label", "fits-in label");
+    return;
+  }
+  log.warn(
+    `[RivenScan] fits-in label "${match.name}" differs from detected "${_rivenWeaponName}" - keeping the current weapon`,
+  );
+}
+
+// Runs strictly after the initial stats are published, on the same frame the
+// stats came from, so it adds nothing to the scan's critical path.
+async function detectFitsInWeapon(capture: CaptureResult): Promise<void> {
+  const token = _rivenSessionToken;
+  try {
+    const match = await readFitsInWeapon(capture.image);
+    if (!match || token !== _rivenSessionToken) return;
+    onFitsInWeapon(match);
+  } catch (err) {
+    log.warn("[RivenScan] fits-in label read failed:", String(err));
+  }
 }
 
 function triggerInitialScan(layout: rivenScan.InitialCardLayout = "reroll"): void {
   if (_rivenInitialScanTimer) clearTimeout(_rivenInitialScanTimer);
   _rivenInitialScanTimer = setTimeout(async () => {
     _rivenInitialScanTimer = null;
+    // The manual-rescan path aborts in-flight OCR first; arm scanning again
+    // here so the abort flag cannot gate the fresh scan.
+    rivenScan.resetRivenScanAbort();
     try {
-      const { stats, rawText, titleText } = await rivenScan.scanInitialCard(layout);
+      const { stats, rawText, titleText, capture } = await rivenScan.scanInitialCard(layout);
       _rivenInitialStats = stats;
 
       // Try to extract weapon name from OCR text if not already known
@@ -445,6 +500,9 @@ function triggerInitialScan(layout: rivenScan.InitialCardLayout = "reroll"): voi
         // If weapon name is already known, send grading immediately
         sendGradedInitialStats();
       }
+      // Chat previews have no FITS IN panel and chat text can contain weapon
+      // names, so the label read only runs on the reroll screen.
+      if (layout !== "chat" && capture) void detectFitsInWeapon(capture);
     } catch (err) {
       log.warn("[RivenScan] initial scan failed:", String(err));
       // Surface the failure in the overlay instead of leaving the spinner up.
@@ -525,6 +583,7 @@ function triggerRollScan(delayMs = ROLL_SCAN_DELAY_MS): void {
 export function onRivenSessionClose(): void {
   log.info("[OverlayRoute] trigger=riven-session-close");
   rollScanGeneration.invalidate();
+  _rivenSessionToken += 1;
   rivenScan.abortRivenScans();
   // Prevent delayed EE.log choice events from reopening a closed overlay.
   forceEndRivenSession();
@@ -533,6 +592,7 @@ export function onRivenSessionClose(): void {
   _rivenInitialStats = [];
   _rivenNewRollStats = [];
   _rivenWeaponName = "";
+  _rivenWeaponSource = "";
   _rivenInteractive = false;
   rivenSession.endSession(getRivenWindows());
   hideRivenWindows();
@@ -549,6 +609,8 @@ export function onRivenChatView(): void {
   _rivenInitialStats = [];
   _rivenNewRollStats = [];
   _rivenWeaponName = "";
+  _rivenWeaponSource = "";
+  _rivenSessionToken += 1;
   rivenScan.resetRivenScanAbort();
 
   // Create only the left window (or reuse if already exists)
@@ -584,6 +646,8 @@ export function onRivenSessionOpen(): void {
   _rivenInitialStats = [];
   _rivenNewRollStats = [];
   _rivenWeaponName = "";
+  _rivenWeaponSource = "";
+  _rivenSessionToken += 1;
   rivenScan.resetRivenScanAbort();
   createRivenOverlayWindows({ show: true });
   // Start (or restart) the session - resets roll count, clears panels.
@@ -604,8 +668,14 @@ export function onRivenRollPending(weapon: string, kuvaPerRoll: number): void {
   );
   // Do not restart the session here; that would wipe the scanned stats and roll count.
   const isFirstReveal = _rivenWeaponName === "" || _rivenWeaponName === "Riven";
-  if (weapon) {
+  // The dialog names the family; a label-read linked variant is more precise.
+  const keepLabelVariant =
+    !isFirstReveal &&
+    _rivenWeaponSource === "label" &&
+    rivenDataSvc.getRivenFamilySlug(weapon) === rivenDataSvc.getRivenFamilySlug(_rivenWeaponName);
+  if (weapon && !keepLabelVariant) {
     _rivenWeaponName = weapon;
+    _rivenWeaponSource = "dialog";
     forEachRivenWindow((win) => {
       if (!win.isDestroyed()) win.webContents.send(RIVEN_WEAPON_UPDATE, weapon);
     });
@@ -709,6 +779,7 @@ export function configureOverlaySettingsPersistence(persist: () => void): void {
 export function register(): void {
   onAuthorized(RIVEN_OVERLAY_CLOSE, assertRivenOverlayRendererSender, () => {
     rollScanGeneration.invalidate();
+    _rivenSessionToken += 1;
     rivenScan.abortRivenScans();
     clearRivenScanTimers();
     _rivenInteractive = false;
@@ -718,6 +789,23 @@ export function register(): void {
     rivenSession.endSession(getRivenWindows());
     hideRivenWindows();
     rivenLastEvents.clear();
+  });
+
+  // Redo the current-card scan on demand - after switching the linked variant
+  // via the FITS IN arrows, both the values and the weapon must be re-read.
+  onAuthorized(RIVEN_RESCAN_REQUEST, assertRivenOverlayRendererSender, () => {
+    if (!isAnyRivenWindowVisible()) return;
+    log.info("[OverlayRoute] trigger=riven-manual-rescan");
+    rollScanGeneration.invalidate();
+    // Discards a still-in-flight pre-rescan label read: resolving late, it
+    // would overwrite the fresh variant with the pre-switch one.
+    _rivenSessionToken += 1;
+    rivenScan.abortRivenScans();
+    clearRivenScanTimers();
+    _rivenHasRollResult = false;
+    _rivenNewRollStats = [];
+    sendToRivenWindows(RIVEN_RESCAN);
+    triggerInitialScan();
   });
 
   onAuthorized(

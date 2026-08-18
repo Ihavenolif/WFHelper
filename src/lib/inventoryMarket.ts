@@ -278,9 +278,9 @@ export function metricNeedsFromFilters(
 }
 
 /** Order ranks per key; RANKLESS_ORDER marks orders without a modRank. */
-export type OrderRankLookup = Record<string, number[]>;
+type OrderRankLookup = Record<string, number[]>;
 
-export const RANKLESS_ORDER = -1;
+const RANKLESS_ORDER = -1;
 
 export function buildOrderLookups(orders: WfmOrdersResult): {
   orderedNames: OrderRankLookup;

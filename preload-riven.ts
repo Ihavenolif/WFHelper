@@ -17,6 +17,8 @@ import {
   RIVEN_GRADING_ROLL,
   RIVEN_BEST_ATTRIBUTES,
   RIVEN_SIMILAR_LISTINGS,
+  RIVEN_RESCAN_REQUEST,
+  RIVEN_RESCAN,
   OVERLAY_GET_THEME_VARS,
   OVERLAY_GET_DRAG_HINT,
   OVERLAY_DRAG_MOVE,
@@ -32,6 +34,7 @@ installOverlayContentVisibility(ipcRenderer);
 contextBridge.exposeInMainWorld("rivenOverlay", {
   close: () => ipcRenderer.send(RIVEN_OVERLAY_CLOSE),
   openAuction: (auctionId: string) => ipcRenderer.send(RIVEN_OPEN_AUCTION, auctionId),
+  requestRescan: () => ipcRenderer.send(RIVEN_RESCAN_REQUEST),
   moveBy: (dx: number, dy: number) => ipcRenderer.send(OVERLAY_DRAG_MOVE, { dx, dy }),
   getDragHint: () => ipcRenderer.invoke(OVERLAY_GET_DRAG_HINT),
   onSessionStart: (cb: (weapon: string, kuvaPerRoll: number) => void) =>
@@ -46,6 +49,7 @@ contextBridge.exposeInMainWorld("rivenOverlay", {
   onChoiceMade: (cb: (side: unknown) => void) =>
     onRivenIpc(RIVEN_CHOICE_MADE, (_event: unknown, side: unknown) => cb(side)),
   onSessionEnd: (cb: () => void) => onRivenIpc(RIVEN_SESSION_END, () => cb()),
+  onRescan: (cb: () => void) => onRivenIpc(RIVEN_RESCAN, () => cb()),
   onWeaponUpdate: (cb: (weapon: string) => void) =>
     onRivenIpc(RIVEN_WEAPON_UPDATE, (_event: unknown, weapon: unknown) => cb(weapon as string)),
   onThemeVars: (cb: (vars: unknown) => void) =>

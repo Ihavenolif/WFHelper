@@ -34,6 +34,9 @@ function setOverlayInteractiveMode(interactive) {
   document.documentElement.classList.toggle("is-overlay-interactive", _overlayInteractiveMode);
   const closeButton = el("btn-close");
   if (closeButton) closeButton.classList.toggle("is-hidden", !_overlayInteractiveMode);
+  const rescanButton = el("btn-rescan");
+  if (rescanButton)
+    rescanButton.classList.toggle("is-hidden", !_overlayInteractiveMode || !_isLeft);
   renderInteractionHint();
   if (!_overlayInteractiveMode) {
     document.documentElement.classList.remove("is-overlay-dragging");
@@ -563,6 +566,18 @@ function onChoiceMade(side) {
   }
 }
 
+/* Manual rescan after a FITS IN variant switch: fresh values are coming for
+   the current card, and the old roll panel's numbers no longer apply. */
+function onRescan() {
+  if (_isLeft) {
+    showScanning();
+    el("scanning-text").textContent = "Rescanning…";
+  } else {
+    el("overall-grade").classList.add("is-hidden");
+    renderStats([]); // shows "Waiting for roll..."
+  }
+}
+
 function onSessionEnd() {
   hideScanning();
   _currentStatNamesLc = [];
@@ -596,6 +611,7 @@ document.addEventListener("DOMContentLoaded", () => {
     });
 
   el("btn-close").addEventListener("click", () => window.rivenOverlay.close());
+  el("btn-rescan").addEventListener("click", () => window.rivenOverlay.requestRescan());
   window.installOverlayDrag({
     isInteractive: () => _overlayInteractiveMode,
     moveBy: (dx, dy) => window.rivenOverlay.moveBy(dx, dy),
@@ -614,6 +630,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.rivenOverlay.onScanning(() => onScanning());
   window.rivenOverlay.onRollResult((payload) => onRollResult(payload));
   window.rivenOverlay.onChoiceMade((side) => onChoiceMade(side));
+  window.rivenOverlay.onRescan(() => onRescan());
   window.rivenOverlay.onSessionEnd(() => onSessionEnd());
   window.rivenOverlay.onWeaponUpdate((weapon) => {
     el("weapon-name").textContent = weapon || "\u2014";

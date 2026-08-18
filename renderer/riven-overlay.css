@@ -130,7 +130,8 @@ body {
   white-space: nowrap;
 }
 
-#btn-close {
+#btn-close,
+#btn-rescan {
   -webkit-app-region: no-drag;
   background: none;
   border: none;
@@ -145,13 +146,23 @@ body {
     background 0.15s;
 }
 
-#btn-close.is-hidden {
+#btn-close.is-hidden,
+#btn-rescan.is-hidden {
   display: none;
 }
 
 #btn-close:hover {
   color: var(--bad);
   background: rgba(255, 90, 90, 0.1);
+}
+
+#btn-rescan {
+  font-size: 15px;
+}
+
+#btn-rescan:hover {
+  color: var(--accent-bright);
+  background: rgba(120, 170, 255, 0.1);
 }
 
 /* Overall grade */

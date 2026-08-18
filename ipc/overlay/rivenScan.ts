@@ -36,6 +36,8 @@ interface InitialScanResult {
   rawText: string;
   titleText: string;
   footerText: string;
+  /** Frame the accepted OCR pass ran on; reused for the fits-in weapon read. */
+  capture: CaptureResult | null;
 }
 
 interface RivenScanProfile {
@@ -230,12 +232,14 @@ async function runRivenScanAttempt(
   const retryIsBetter = profile.acceptEqualRetry
     ? retryResult.stats.length >= result.stats.length
     : retryResult.stats.length > result.stats.length;
+  let resultCapture = capture;
   if (retryIsBetter) {
     log.info(`[RivenScan] ${profile.label}: retry improved to ${retryResult.stats.length} stats`);
     result = retryResult;
+    resultCapture = retryCapture;
   }
 
-  return { ...result, capture, elapsedMs: Date.now() - attemptStart };
+  return { ...result, capture: resultCapture, elapsedMs: Date.now() - attemptStart };
 }
 
 function formatStatsForLog(stats: RivenStat[]): string {
@@ -278,10 +282,11 @@ export async function scanInitialCard(
       rawText: result.text,
       titleText: result.titleText,
       footerText: result.footerText,
+      capture: result.capture,
     };
   } catch (err) {
     log.warn(`[RivenScan] ${profile.label} OCR failed:`, String(err));
-    return { stats: [], rawText: "", titleText: "", footerText: "" };
+    return { stats: [], rawText: "", titleText: "", footerText: "", capture: null };
   }
 }
 

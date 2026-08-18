@@ -556,6 +556,44 @@ export function findWeaponInText(text: string): string | null {
   return bestExact ?? bestCandidate?.name ?? null;
 }
 
+export interface WeaponLabelMatch {
+  name: string;
+  /** True for a byte-exact (normalized) hit; false for a distance-tolerant one. */
+  exact: boolean;
+}
+
+/** Matches whole OCR lines against the weapon list. The FITS IN caption holds
+ * nothing but the linked variant's name, so unlike findWeaponInText only a
+ * full-line hit counts; other captions (FITS IN, CANCEL) can never match. */
+export function findWeaponByLabelLine(lines: string[]): WeaponLabelMatch | null {
+  ensureBuilt();
+  let best: { name: string; exact: boolean; len: number } | null = null;
+  for (const raw of lines) {
+    const norm = normalizeWeaponOcrText(raw);
+    if (norm.length < 3) continue;
+
+    const exactName = _weaponDisplayNamesNormalized.get(norm);
+    if (exactName) {
+      if (!best || !best.exact || norm.length > best.len) {
+        best = { name: exactName, exact: true, len: norm.length };
+      }
+      continue;
+    }
+
+    // One misread letter is tolerable on long names; short ones must be exact.
+    if (norm.length < 8 || best?.exact) continue;
+    const maxDistance = norm.length >= 14 ? 2 : 1;
+    for (const [normalizedWeapon, displayName] of _weaponDisplayNamesNormalized) {
+      if (Math.abs(normalizedWeapon.length - norm.length) > maxDistance) continue;
+      if (levenshteinDistance(norm, normalizedWeapon) > maxDistance) continue;
+      if (!best || norm.length > best.len) {
+        best = { name: displayName, exact: false, len: norm.length };
+      }
+    }
+  }
+  return best ? { name: best.name, exact: best.exact } : null;
+}
+
 /** Variant suffixes to strip when deriving the riven weapon family name. */
 const VARIANT_SUFFIXES = [" Prime", " Wraith", " Vandal", " Prisma", " Dex"];
 const VARIANT_PREFIXES = ["MK1-", "Mk1-", "Kuva ", "Tenet "];
