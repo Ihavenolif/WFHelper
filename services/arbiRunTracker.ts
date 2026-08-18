@@ -1,6 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
 import zlib from "node:zlib";
+import { promisify } from "node:util";
 import { pipeline } from "node:stream";
 import { pipeline as pipelinePromise } from "node:stream/promises";
 import { app } from "electron";
@@ -408,9 +409,41 @@ function _salvageStalePartials(): void {
   }
 }
 
+const _gunzip = promisify(zlib.gunzip);
+let _backfillPromise: Promise<void> = Promise.resolve();
+
+/** Records saved before squad parsing existed re-read their stored log once.
+ * Only players are taken, so newer parser heuristics cannot rewrite old stats. */
+async function _backfillPlayers(): Promise<void> {
+  const pending = _runs.filter((r) => r.players === undefined);
+  if (pending.length === 0) return;
+  let found = 0;
+  for (const run of pending) {
+    // [] marks the record processed even when the log is gone or unreadable.
+    run.players = [];
+    const logPath = run.logFile ? _storedLogPath(run) : null;
+    if (!logPath || !fs.existsSync(logPath)) continue;
+    try {
+      const content = (await _gunzip(await fs.promises.readFile(logPath))).toString("utf-8");
+      const parser = createArbiParser();
+      for (const line of content.split(/\r?\n/)) parser.feedLine(line);
+      const players = parser.finalize()?.players ?? [];
+      if (players.length > 0) {
+        run.players = players;
+        found++;
+      }
+    } catch (err) {
+      log.warn(`[Arbi] Squad backfill failed for ${run.id}:`, normalizeErrorMessage(err));
+    }
+  }
+  _saveIndex();
+  log.info(`[Arbi] Squad names backfilled for ${found} of ${pending.length} stored run(s)`);
+}
+
 export function initArbiTracker(): void {
   _loadIndex();
   _salvageStalePartials();
+  _backfillPromise = _backfillPlayers();
   _initialized = true;
   log.info(`[Arbi] Tracker ready: ${_runs.length} run(s) loaded from index`);
 }
@@ -560,4 +593,10 @@ export function __resetArbiTrackerForTest(): void {
   _callbacks = { onRunSaved: null };
   _initialized = false;
   _trackingEnabled = true;
+  _backfillPromise = Promise.resolve();
+}
+
+/** Test hook: the squad backfill kicked off by init. */
+export function __arbiBackfillForTest(): Promise<void> {
+  return _backfillPromise;
 }

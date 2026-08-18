@@ -363,4 +363,42 @@ describe("arbiRunTracker", () => {
     const reloadedAgain = await freshTracker();
     expect(reloadedAgain.getRuns()[0]?.tags).toBeUndefined();
   });
+
+  it("backfills players on pre-squad records from the stored log, once", async () => {
+    const logsDir = path.join(tmpDir, "arbi-logs");
+    fs.mkdirSync(logsDir, { recursive: true });
+    const lines = [
+      missionLine(100, "Arbitration: Casta Defense (Ceres)"),
+      "105.000 Game [Info]: HostPlayer loadout loader finished.",
+      "112.000 Game [Info]: ClientOne loadout loader finished.",
+      droneLine(150),
+      rewardLine(400),
+      rewardLine(700),
+    ].join("\n");
+    fs.writeFileSync(path.join(logsDir, "2026-07-08_00-15-00.log.gz"), zlib.gzipSync(lines));
+    fs.writeFileSync(
+      path.join(tmpDir, "arbi-runs.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        runs: [
+          { id: "2026-07-08_00-15-00", logFile: "2026-07-08_00-15-00.log.gz", logSizeBytes: 10 },
+          { id: "2026-07-08_01-15-00", logFile: null, logSizeBytes: 0 },
+        ],
+      }),
+    );
+
+    const tracker = await freshTracker();
+    await tracker.__arbiBackfillForTest();
+    expect(tracker.getRuns()[0]?.players).toEqual(["HostPlayer", "ClientOne"]);
+    // No log to read from: marked processed with an empty list.
+    expect(tracker.getRuns()[1]?.players).toEqual([]);
+    const index = JSON.parse(fs.readFileSync(path.join(tmpDir, "arbi-runs.json"), "utf-8"));
+    expect(index.runs[0].players).toEqual(["HostPlayer", "ClientOne"]);
+
+    // A reload must not re-parse: names survive without the log file.
+    fs.rmSync(path.join(logsDir, "2026-07-08_00-15-00.log.gz"));
+    const reloaded = await freshTracker();
+    await reloaded.__arbiBackfillForTest();
+    expect(reloaded.getRuns()[0]?.players).toEqual(["HostPlayer", "ClientOne"]);
+  });
 });

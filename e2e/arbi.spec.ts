@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import zlib from "node:zlib";
 import {
   test,
   expect,
@@ -36,11 +37,53 @@ describeArbi("Arbitration schedule + post-run overlay", () => {
       "0.127 Sys [Diag]: Current time: Tue Jul  7 15:40:49 2026 [UTC: Tue Jul  7 21:40:49 2026]\r\n",
     );
 
+    // A pre-squad-parsing record plus its stored log: init must backfill players.
+    const userData = path.join(appData, "wfhelper");
+    const logsDir = path.join(userData, "arbi-logs");
+    fs.mkdirSync(logsDir, { recursive: true });
+    const oldRunLog = [
+      "100.000 Script [Info]: ThemedSquadOverlay.lua: Mission name: Arbitration: Casta Defense (Ceres)",
+      "105.000 Game [Info]: HostPlayer loadout loader finished.",
+      "112.000 Game [Info]: ClientOne loadout loader finished.",
+      "150.000 Sys [Info]: OnAgentCreated /Npc/CorpusEliteShieldDroneAgent7",
+      "400.000 Sys [Info]: Created /Lotus/Interface/DefenseReward.swf",
+      "700.000 Sys [Info]: Created /Lotus/Interface/DefenseReward.swf",
+    ].join("\r\n");
+    const gz = zlib.gzipSync(oldRunLog);
+    fs.writeFileSync(path.join(logsDir, "2026-07-08_00-15-00.log.gz"), gz);
+    const startedAt = new Date("2026-07-08T00:15:00").getTime();
+    fs.writeFileSync(
+      path.join(userData, "arbi-runs.json"),
+      JSON.stringify({
+        schemaVersion: 1,
+        runs: [
+          {
+            id: "2026-07-08_00-15-00",
+            startedAt,
+            endedAt: startedAt + 600_000,
+            missionName: "Arbitration: Casta Defense (Ceres)",
+            node: "Casta Defense (Ceres)",
+            missionType: "defense",
+            durationSec: 600,
+            rotations: 2,
+            drones: 1,
+            totalEnemies: 40,
+            vitusActual: null,
+            logFile: "2026-07-08_00-15-00.log.gz",
+            logSizeBytes: gz.length,
+            endReason: "mission-end",
+            source: "live",
+            stats: null,
+          },
+        ],
+      }),
+    );
+
     const env = { ...process.env } as Record<string, string>;
     delete env.ELECTRON_RUN_AS_NODE;
     env.WFHELPER_DISABLE_KEYBOARD_HOOK = "1";
     env.LOCALAPPDATA = localAppData;
-    env.WFHELPER_USER_DATA = path.join(appData, "wfhelper");
+    env.WFHELPER_USER_DATA = userData;
 
     app = await electron.launch({ args: ["--no-sandbox", "."], env });
     page = await mainWindow(app);
@@ -67,6 +110,14 @@ describeArbi("Arbitration schedule + post-run overlay", () => {
     // Shows either the fetched schedule ("N entries") or the offline state.
     await expect(page.locator("text=/\\d+ entries|Schedule unavailable/").first()).toBeVisible({
       timeout: 30_000,
+    });
+  });
+
+  test("backfills squad names onto a pre-update run and shows them", async () => {
+    await page.locator("#sidebar").getByText("Arbitrations", { exact: true }).click();
+    await page.locator("#content").getByText("Casta Defense (Ceres)").first().click();
+    await expect(page.locator("#content").getByText("HostPlayer, ClientOne").first()).toBeVisible({
+      timeout: 15_000,
     });
   });
 
