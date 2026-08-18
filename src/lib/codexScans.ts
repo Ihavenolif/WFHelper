@@ -5,7 +5,7 @@ export interface CodexRow {
   type: string;
   name: string;
   scanned: number;
-  /** Null when the wiki table does not know this enemy. */
+  /** Null when neither source states a requirement, so completion is unknowable. */
   required: number | null;
   complete: boolean | null;
   faction: string | null;
@@ -35,6 +35,9 @@ export const CODEX_FACTIONS: Array<{ key: string; label: string }> = [
 
 const ENEMY_IMAGE_BASE = "https://assets.wfhelper.com/enemies/";
 
+// DE's export states no reqScans; real profiles cap conservation counts at 20.
+const WILDLIFE_REQUIRED_SCANS = 20;
+
 /** Wiki rows carry a bare filename; export-sourced rows a full mirror URL. */
 export function enemyImageUrl(image: string | null): string | null {
   if (!image) return null;
@@ -42,59 +45,169 @@ export function enemyImageUrl(image: string | null): string | null {
   return `${ENEMY_IMAGE_BASE}${encodeURIComponent(image)}`;
 }
 
-// The profile reports Avatar paths while the wiki mostly stores Agent paths;
-// the shared stem identifies the enemy.
-const normalizeType = (type: string): string => type.replace(/(Avatar|Agent)$/i, "");
+const SUFFIX_RE = /(AvatarLeader|Avatar|Agent)$/i;
+
+const canonicalKey = (type: string): string =>
+  type
+    .replace(SUFFIX_RE, "")
+    .replace(/\/Avatars\//i, "/")
+    .toLowerCase();
+
+// The wiki stores Agent paths, the profile Avatar paths under an extra
+// /Avatars/ dir, but stripping can merge distinct entries (Lancer vs Trooper
+// Survivor). A scan feeds its strictest-level hit; shared keys are unusable.
+const KEY_LEVELS: Array<(type: string) => string> = [
+  (type) => type.toLowerCase(),
+  (type) => type.replace(SUFFIX_RE, "").toLowerCase(),
+  canonicalKey,
+];
+
+/** Leader avatars are the Eximus spawns, which the codex counts separately. */
+const isLeaderType = (type: string): boolean => /AvatarLeader$/i.test(type);
+
+const LEADER_SUFFIX = "#leader";
 
 function fallbackName(type: string): string {
   const tail = type.split("/").filter(Boolean).pop() || type;
-  return normalizeType(tail).replace(/([a-z])([A-Z])/g, "$1 $2");
+  return tail.replace(/(AvatarLeader|Avatar|Agent)$/i, "").replace(/([a-z])([A-Z])/g, "$1 $2");
 }
 
-/** Every known enemy joined with the profile's scan counts, unknown scanned
- * types appended - so never-seen enemies still show as 0 of N. */
+function makeRow(
+  type: string,
+  name: string,
+  scanned: number,
+  required: number | null,
+  faction: string | null,
+  image: string | null,
+): CodexRow {
+  return {
+    type,
+    name,
+    scanned,
+    required,
+    complete: required !== null ? scanned >= required : null,
+    faction,
+    image,
+  };
+}
+
+/** Every known entry joined with the profile's scan counts, unknown scanned
+ * types appended, so never-seen entries still show as 0 of N. */
 export function buildCodexRows(scans: CodexScanEntry[]): CodexRow[] {
-  const scannedByKey = new Map<string, number>();
+  // null: key claimed by two wiki entries, unusable at that level.
+  const wikiByLevel = KEY_LEVELS.map((level) => {
+    const map = new Map<string, string | null>();
+    for (const type of Object.keys(CODEX_SCAN_REQUIREMENTS)) {
+      const key = level(type);
+      map.set(key, map.has(key) ? null : type);
+    }
+    return map;
+  });
+  const resolveWikiType = (scanType: string): string | null => {
+    const base = isLeaderType(scanType) ? scanType.replace(/Leader$/i, "") : scanType;
+    for (const [index, level] of KEY_LEVELS.entries()) {
+      const hit = wikiByLevel[index].get(level(base));
+      if (hit) return hit;
+    }
+    return null;
+  };
+
+  const wikiScanned = new Map<string, number>();
+  const wikiLeaderScanned = new Map<string, number>();
+  const looseScanned = new Map<string, number>();
+  const unresolved: CodexScanEntry[] = [];
   for (const entry of scans) {
-    const key = normalizeType(entry.type);
-    scannedByKey.set(key, Math.max(scannedByKey.get(key) ?? 0, entry.count));
+    const leader = isLeaderType(entry.type);
+    const target = resolveWikiType(entry.type);
+    if (target) {
+      const counts = leader ? wikiLeaderScanned : wikiScanned;
+      counts.set(target, Math.max(counts.get(target) ?? 0, entry.count));
+      continue;
+    }
+    const key = canonicalKey(entry.type) + (leader ? LEADER_SUFFIX : "");
+    looseScanned.set(key, Math.max(looseScanned.get(key) ?? 0, entry.count));
+    unresolved.push(entry);
   }
 
   const rows: CodexRow[] = [];
-  const covered = new Set<string>();
   for (const [type, requirement] of Object.entries(CODEX_SCAN_REQUIREMENTS)) {
-    const key = normalizeType(type);
-    covered.add(key);
-    const scanned = scannedByKey.get(key) ?? 0;
-    rows.push({
-      type,
-      name: requirement.name,
-      scanned,
-      required: requirement.scans,
-      complete: scanned >= requirement.scans,
-      faction: requirement.faction,
-      image: requirement.image ?? null,
-    });
+    const image = requirement.image ?? null;
+    const row = (suffix: string, name: string, scanned: number): CodexRow =>
+      makeRow(type + suffix, name, scanned, requirement.scans, requirement.faction, image);
+    rows.push(row("", requirement.name, wikiScanned.get(type) ?? 0));
+    // The wiki lists no Eximus entries, but the codex gives every enemy that
+    // spawns them one, so derive it rather than dropping the leader's scans.
+    const leaderScanned = wikiLeaderScanned.get(type);
+    if (leaderScanned !== undefined) {
+      rows.push(row(LEADER_SUFFIX, `${requirement.name} Eximus`, leaderScanned));
+    }
   }
 
-  for (const entry of scans) {
-    const key = normalizeType(entry.type);
-    if (covered.has(key)) continue;
-    covered.add(key);
-    const extra = CODEX_EXTRA_INFO[entry.type];
-    const required = extra?.scans ?? null;
-    rows.push({
-      type: entry.type,
-      name: extra?.name || fallbackName(entry.type),
-      scanned: entry.count,
-      required,
-      complete: required !== null ? entry.count >= required : null,
-      faction: extra?.faction ?? null,
-      image: extra?.icon ?? null,
-    });
+  const wikiCovered = new Set<string>();
+  for (const type of Object.keys(CODEX_SCAN_REQUIREMENTS)) wikiCovered.add(canonicalKey(type));
+
+  // Male, female and base avatars are three keys for one codex entry, so extras
+  // collapse by display name; only same-requirement forms fold (Mytocardia
+  // Sac's large and small containers share a name).
+  interface ExtraGroup {
+    type: string;
+    name: string;
+    scanned: number;
+    leaderScanned: number | null;
+  }
+  const extrasCovered = new Set<string>();
+  const groups = new Map<string, ExtraGroup>();
+  for (const [type, extra] of Object.entries(CODEX_EXTRA_INFO)) {
+    const key = canonicalKey(type);
+    if (wikiCovered.has(key)) continue;
+    extrasCovered.add(key);
+    extrasCovered.add(key + LEADER_SUFFIX);
+    const name = extra.name || fallbackName(type);
+    const scanned = looseScanned.get(key) ?? 0;
+    const leaderScanned = looseScanned.get(key + LEADER_SUFFIX) ?? null;
+    const groupKey = `${extra.faction}|${name}|${extra.scans ?? ""}`;
+    const merged = groups.get(groupKey);
+    if (!merged) {
+      groups.set(groupKey, { type, name, scanned, leaderScanned });
+    } else {
+      merged.scanned = Math.max(merged.scanned, scanned);
+      if (leaderScanned !== null) {
+        merged.leaderScanned = Math.max(merged.leaderScanned ?? 0, leaderScanned);
+      }
+    }
+  }
+  for (const { type, name, scanned, leaderScanned } of groups.values()) {
+    const extra = CODEX_EXTRA_INFO[type];
+    const required = extra.scans ?? (extra.faction === "wildlife" ? WILDLIFE_REQUIRED_SCANS : null);
+    const icon = extra.icon ?? null;
+    rows.push(makeRow(type, name, scanned, required, extra.faction, icon));
+    if (leaderScanned !== null) {
+      rows.push(
+        makeRow(
+          type + LEADER_SUFFIX,
+          `${name} Eximus`,
+          leaderScanned,
+          required,
+          extra.faction,
+          icon,
+        ),
+      );
+    }
   }
 
-  return rows.sort((a, b) => a.name.localeCompare(b.name));
+  // Scanned types neither source claimed. Leaders keep their own bucket here
+  // too, or an unknown enemy's Eximus count would land on the base row.
+  const seen = new Set<string>();
+  for (const entry of unresolved) {
+    const leader = isLeaderType(entry.type);
+    const key = canonicalKey(entry.type) + (leader ? LEADER_SUFFIX : "");
+    if (extrasCovered.has(key) || seen.has(key)) continue;
+    seen.add(key);
+    const name = fallbackName(entry.type) + (leader ? " Eximus" : "");
+    rows.push(makeRow(entry.type, name, looseScanned.get(key) ?? entry.count, null, null, null));
+  }
+
+  return sortCodexRows(rows, "name");
 }
 
 /** Complete entries count as full progress, unknown requirements sort last. */
@@ -105,11 +218,11 @@ function progressOf(row: CodexRow): number {
 }
 
 export function sortCodexRows(rows: CodexRow[], sortBy: CodexSortKey): CodexRow[] {
+  const byName = (a: CodexRow, b: CodexRow): number => a.name.localeCompare(b.name);
   const sorted = [...rows];
-  if (sortBy === "scans") {
-    sorted.sort((a, b) => b.scanned - a.scanned || a.name.localeCompare(b.name));
-  } else if (sortBy === "progress") {
-    sorted.sort((a, b) => progressOf(b) - progressOf(a) || a.name.localeCompare(b.name));
-  }
+  if (sortBy === "scans") sorted.sort((a, b) => b.scanned - a.scanned || byName(a, b));
+  else if (sortBy === "progress")
+    sorted.sort((a, b) => progressOf(b) - progressOf(a) || byName(a, b));
+  else sorted.sort(byName);
   return sorted;
 }

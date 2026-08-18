@@ -26,6 +26,16 @@ test.describe("Mastery codex tab", () => {
         scans: [
           { type: "/Lotus/Types/Enemies/Grineer/AIWeek/BladeSawmanAvatar", count: 20 },
           { type: "/Lotus/Types/Enemies/FakeE2E/ShinyTestEnemyAvatar", count: 2 },
+          // Profile path with the /Avatars/ segment the wiki omits, plus its
+          // Eximus leader.
+          {
+            type: "/Lotus/Types/Enemies/Corpus/Venus/Avatars/VenusHeavyEliteSpacemanAvatar",
+            count: 3087,
+          },
+          {
+            type: "/Lotus/Types/Enemies/Corpus/Venus/Avatars/VenusHeavyEliteSpacemanAvatarLeader",
+            count: 192,
+          },
           {
             type: "/Lotus/Types/NeutralCreatures/Conservation/BirdOfPrey/CommonBirdOfPreyAvatar",
             count: 20,
@@ -60,19 +70,22 @@ test.describe("Mastery codex tab", () => {
     // Unknown types still show, prettified, without a requirement.
     await expect(list.getByText("Shiny Test Enemy", { exact: true })).toBeVisible();
 
-    // Profile-only types resolve through the DE export extras: conservation
-    // animals get their species name and a Wildlife faction chip.
-    await expect(list.getByText("Common Condroc", { exact: true })).toBeVisible();
-    const factionChips = page.locator('[data-tour="mastery-codex-factions"]');
-    await expect(factionChips.getByRole("button", { name: "Wildlife", exact: true })).toBeVisible();
-    await expect(
-      factionChips.getByRole("button", { name: "Fragments", exact: true }),
-    ).toBeVisible();
+    // Terra names, not raw Venus internals; the leader gets its own Eximus row.
+    await expect(list.getByText("Terra Elite Crewman", { exact: true })).toBeVisible();
+    await expect(list.getByText("Terra Elite Crewman Eximus", { exact: true })).toBeVisible();
+    await expect(list.getByText(/^Venus Heavy Elite/)).toHaveCount(0);
+
+    // Profile-only types resolve through the DE export extras; conservation
+    // animals get a species name, Wildlife chip and completion state.
+    const condroc = list.locator("div", { has: page.getByText("Common Condroc", { exact: true }) });
+    await expect(condroc.first()).toContainText("20 / 20");
+    const factions = page.locator('[data-tour="mastery-codex-factions"]');
+    await expect(factions.getByRole("button", { name: "Wildlife", exact: true })).toBeVisible();
+    await expect(factions.getByRole("button", { name: "Fragments", exact: true })).toBeVisible();
 
     await expect(page.getByText(/of \d+ enemies fully scanned/)).toBeVisible();
 
     // Faction chips: Corpus hides the Grineer Butcher, Grineer restores it.
-    const factions = page.locator('[data-tour="mastery-codex-factions"]');
     await factions.getByRole("button", { name: "Corpus", exact: true }).click();
     await expect(list.getByText("Butcher", { exact: true })).toHaveCount(0);
     await factions.getByRole("button", { name: "Grineer", exact: true }).click();

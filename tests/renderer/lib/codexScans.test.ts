@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import { buildCodexRows, sortCodexRows } from "../../../src/lib/codexScans";
-import { CODEX_SCAN_REQUIREMENTS } from "../../../src/data/codexScanRequirements";
+import { CODEX_EXTRA_INFO, CODEX_SCAN_REQUIREMENTS } from "../../../src/data/codexScanRequirements";
 
 const BUTCHER = "/Lotus/Types/Enemies/Grineer/AIWeek/BladeSawman";
+const TERRA_ELITE_CREWMAN = "/Lotus/Types/Enemies/Corpus/Venus/VenusHeavyEliteSpacemanAgent";
+// The profile files this one under an /Avatars/ directory the wiki omits.
+const TERRA_ELITE_CREWMAN_SCAN =
+  "/Lotus/Types/Enemies/Corpus/Venus/Avatars/VenusHeavyEliteSpacemanAvatar";
+const ROGUE_CONDROC =
+  "/Lotus/Types/NeutralCreatures/Conservation/BirdOfPrey/UncommonBirdOfPreyAvatar";
 
 describe("buildCodexRows", () => {
   it("ships a populated requirements table", () => {
@@ -21,11 +27,121 @@ describe("buildCodexRows", () => {
     expect(butcher).toMatchObject({ name: "Butcher", scanned: 20, required: 20, complete: true });
   });
 
+  it("matches through the profile's extra /Avatars/ directory", () => {
+    const rows = buildCodexRows([{ type: TERRA_ELITE_CREWMAN_SCAN, count: 3087 }]);
+    expect(rows.find((row) => row.type === TERRA_ELITE_CREWMAN)).toMatchObject({
+      name: "Terra Elite Crewman",
+      scanned: 3087,
+      complete: true,
+    });
+    // No leftover row under the raw internal name.
+    expect(rows.some((row) => row.name.startsWith("Venus Heavy Elite"))).toBe(false);
+  });
+
+  it("keeps tileset variants apart instead of folding them into the base", () => {
+    const rows = buildCodexRows([
+      { type: "/Lotus/Types/Enemies/Grineer/Desert/Avatars/RifleLancerAvatar", count: 9 },
+    ]);
+    expect(rows.find((row) => row.name === "Arid Lancer")?.scanned).toBe(9);
+    expect(rows.find((row) => row.name === "Lancer")?.scanned).toBe(0);
+  });
+
+  it("a scan feeds only the wiki entry it matches at the strictest level", () => {
+    // Both Nightwatch gunners share one loose stem; the /Avatars/ path is
+    // Bombard's own key, so Gunner must stay untouched.
+    const rows = buildCodexRows([
+      {
+        type: "/Lotus/Types/Enemies/Grineer/AIWeek/Avatars/NightwatchHeavyGunnerAvatar",
+        count: 3,
+      },
+    ]);
+    expect(rows.find((row) => row.name === "Nightwatch Bombard")).toMatchObject({
+      scanned: 3,
+      complete: true,
+    });
+    expect(rows.find((row) => row.name === "Nightwatch Gunner")).toMatchObject({
+      scanned: 0,
+      complete: false,
+    });
+  });
+
+  it("suffix twins that are different enemies never share one scan count", () => {
+    const rows = buildCodexRows([
+      {
+        type: "/Lotus/Types/Enemies/Grineer/InfestedMicroPlanet/GrineerShotgunSurvivorAvatar",
+        count: 10,
+      },
+    ]);
+    expect(rows.find((row) => row.name === "Trooper Survivor")).toMatchObject({
+      scanned: 10,
+      complete: true,
+    });
+    expect(rows.find((row) => row.name === "Lancer Survivor")).toMatchObject({ scanned: 0 });
+  });
+
+  it("same-name extras with different requirements stay separate rows", () => {
+    const rows = buildCodexRows([]);
+    const sacs = rows.filter((row) => row.name === "Mytocardia Sac");
+    expect(sacs.map((row) => row.required).sort((a, b) => (a ?? 0) - (b ?? 0))).toEqual([5, 12]);
+  });
+
+  it("an extras entry's leader scans surface as their own Eximus row", () => {
+    const rows = buildCodexRows([
+      { type: ROGUE_CONDROC, count: 20 },
+      { type: `${ROGUE_CONDROC}Leader`, count: 7 },
+    ]);
+    expect(rows.find((row) => row.name === "Rogue Condroc")?.scanned).toBe(20);
+    expect(rows.find((row) => row.name === "Rogue Condroc Eximus")?.scanned).toBe(7);
+  });
+
+  it("splits leader avatars into their own Eximus entry", () => {
+    const rows = buildCodexRows([
+      { type: `${BUTCHER}Avatar`, count: 20 },
+      { type: `${BUTCHER}AvatarLeader`, count: 3 },
+    ]);
+    expect(rows.find((row) => row.name === "Butcher")).toMatchObject({ scanned: 20 });
+    expect(rows.find((row) => row.name === "Butcher Eximus")).toMatchObject({
+      scanned: 3,
+      required: 20,
+      complete: false,
+    });
+  });
+
+  it("omits the Eximus row when the profile reports no leader scans", () => {
+    const rows = buildCodexRows([{ type: `${BUTCHER}Avatar`, count: 20 }]);
+    expect(rows.some((row) => row.name === "Butcher Eximus")).toBe(false);
+  });
+
   it("lists never-scanned enemies at zero", () => {
     const rows = buildCodexRows([]);
     const butcher = rows.find((row) => row.type === BUTCHER);
     expect(butcher).toMatchObject({ scanned: 0, complete: false });
     expect(rows.length).toBeGreaterThan(500);
+  });
+
+  it("seeds codex extras so unscanned fragments and wildlife still list", () => {
+    const rows = buildCodexRows([]);
+    expect(Object.keys(CODEX_EXTRA_INFO).length).toBeGreaterThan(500);
+    expect(rows.find((row) => row.name === "Rogue Condroc")).toMatchObject({
+      scanned: 0,
+      faction: "wildlife",
+      complete: false,
+    });
+    expect(rows.filter((row) => row.faction === "lore").length).toBeGreaterThan(100);
+  });
+
+  it("completes conservation rows, which DE's export gives no requirement", () => {
+    const rows = buildCodexRows([{ type: ROGUE_CONDROC, count: 20 }]);
+    expect(rows.find((row) => row.name === "Rogue Condroc")).toMatchObject({
+      scanned: 20,
+      required: 20,
+      complete: true,
+    });
+  });
+
+  it("collapses a creature's male, female and base avatars into one row", () => {
+    const rows = buildCodexRows([{ type: ROGUE_CONDROC, count: 20 }]);
+    expect(rows.filter((row) => row.name === "Rogue Condroc")).toHaveLength(1);
   });
 
   it("appends scanned enemies the table does not know with a readable name", () => {
@@ -37,6 +153,23 @@ describe("buildCodexRows", () => {
       required: null,
       complete: null,
     });
+  });
+
+  it("keeps an unknown enemy's leader scans off its base row", () => {
+    const rows = buildCodexRows([
+      { type: "/Lotus/Types/Enemies/New/UnknownBossAvatar", count: 2 },
+      { type: "/Lotus/Types/Enemies/New/UnknownBossAvatarLeader", count: 7 },
+    ]);
+    expect(rows.find((row) => row.name === "Unknown Boss")?.scanned).toBe(2);
+    expect(rows.find((row) => row.name === "Unknown Boss Eximus")?.scanned).toBe(7);
+  });
+
+  it("gives every row a unique key so keyed rendering cannot collide", () => {
+    const rows = buildCodexRows([
+      { type: `${BUTCHER}Avatar`, count: 20 },
+      { type: `${BUTCHER}AvatarLeader`, count: 3 },
+    ]);
+    expect(new Set(rows.map((row) => row.type)).size).toBe(rows.length);
   });
 
   it("sorts rows by display name", () => {
@@ -61,14 +194,19 @@ describe("sortCodexRows", () => {
   it("progress ranks partial completion above zero and unknown last", () => {
     const sorted = sortCodexRows(rows, "progress");
     const butcherIdx = sorted.findIndex((row) => row.name === "Butcher");
-    const unknownIdx = sorted.findIndex((row) => row.required === null);
     const zeroIdx = sorted.findIndex((row) => row.scanned === 0);
     expect(butcherIdx).toBeLessThan(zeroIdx);
-    expect(unknownIdx).toBe(sorted.length - 1);
+
+    const firstUnknown = sorted.findIndex((row) => row.required === null);
+    expect(firstUnknown).toBeGreaterThan(-1);
+    expect(sorted.slice(firstUnknown).every((row) => row.required === null)).toBe(true);
   });
 
-  it("name keeps the given alphabetical order", () => {
-    const sorted = sortCodexRows(rows, "name");
-    expect(sorted.map((row) => row.name)).toEqual(rows.map((row) => row.name));
+  it("name sorts alphabetically whatever order it is handed", () => {
+    const shuffled = sortCodexRows(rows, "scans");
+    const sorted = sortCodexRows(shuffled, "name");
+    expect(sorted.map((row) => row.name)).toEqual(
+      [...shuffled.map((row) => row.name)].sort((a, b) => a.localeCompare(b)),
+    );
   });
 });
