@@ -54,6 +54,14 @@ test.describe("Mastery codex tab", () => {
 
     await expect(page.getByText(/of \d+ enemies fully scanned/)).toBeVisible();
 
+    // Faction chips: Corpus hides the Grineer Butcher, Grineer restores it.
+    const factions = page.locator('[data-tour="mastery-codex-factions"]');
+    await factions.getByRole("button", { name: "Corpus", exact: true }).click();
+    await expect(list.getByText("Butcher", { exact: true })).toHaveCount(0);
+    await factions.getByRole("button", { name: "Grineer", exact: true }).click();
+    await expect(list.getByText("Butcher", { exact: true })).toBeVisible();
+    await factions.getByRole("button", { name: "All", exact: true }).click();
+
     await page.screenshot({ path: path.join("test-results", "codex-tab.png") });
 
     // Incomplete-only drops the finished and the unknown rows.

@@ -8,6 +8,32 @@ export interface CodexRow {
   /** Null when the wiki table does not know this enemy. */
   required: number | null;
   complete: boolean | null;
+  faction: string | null;
+  image: string | null;
+}
+
+export type CodexSortKey = "name" | "scans" | "progress";
+
+/** Wiki partition keys in the order the in-game codex lists factions. */
+export const CODEX_FACTIONS: Array<{ key: string; label: string }> = [
+  { key: "grineer", label: "Grineer" },
+  { key: "corpus", label: "Corpus" },
+  { key: "infestation", label: "Infested" },
+  { key: "orokin", label: "Orokin" },
+  { key: "sentient", label: "Sentient" },
+  { key: "narmer", label: "Narmer" },
+  { key: "themurmur", label: "The Murmur" },
+  { key: "techrot", label: "Techrot" },
+  { key: "scaldra", label: "Scaldra" },
+  { key: "anarchs", label: "Anarchs" },
+  { key: "stalker", label: "Stalker" },
+  { key: "unaffiliated", label: "Unaffiliated" },
+];
+
+const ENEMY_IMAGE_BASE = "https://assets.wfhelper.com/enemies/";
+
+export function enemyImageUrl(image: string | null): string | null {
+  return image ? `${ENEMY_IMAGE_BASE}${encodeURIComponent(image)}` : null;
 }
 
 // The profile reports Avatar paths while the wiki mostly stores Agent paths;
@@ -40,6 +66,8 @@ export function buildCodexRows(scans: CodexScanEntry[]): CodexRow[] {
       scanned,
       required: requirement.scans,
       complete: scanned >= requirement.scans,
+      faction: requirement.faction,
+      image: requirement.image ?? null,
     });
   }
 
@@ -53,8 +81,27 @@ export function buildCodexRows(scans: CodexScanEntry[]): CodexRow[] {
       scanned: entry.count,
       required: null,
       complete: null,
+      faction: null,
+      image: null,
     });
   }
 
   return rows.sort((a, b) => a.name.localeCompare(b.name));
+}
+
+/** Complete entries count as full progress, unknown requirements sort last. */
+function progressOf(row: CodexRow): number {
+  if (row.required === null) return -1;
+  if (row.required <= 0) return 1;
+  return Math.min(1, row.scanned / row.required);
+}
+
+export function sortCodexRows(rows: CodexRow[], sortBy: CodexSortKey): CodexRow[] {
+  const sorted = [...rows];
+  if (sortBy === "scans") {
+    sorted.sort((a, b) => b.scanned - a.scanned || a.name.localeCompare(b.name));
+  } else if (sortBy === "progress") {
+    sorted.sort((a, b) => progressOf(b) - progressOf(a) || a.name.localeCompare(b.name));
+  }
+  return sorted;
 }

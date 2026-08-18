@@ -28,6 +28,12 @@ export const en = {
   "codex.fetchFailed": "Could not fetch profile data from Warframe right now. Try again in a bit.",
   "codex.empty": "No enemies match the current filters.",
   "codex.colScans": "Scans",
+  "codex.noData": "No scan data yet - press Refresh to fetch it from Warframe.",
+  "codex.sortLabel": "Sort",
+  "codex.sortName": "Name",
+  "codex.sortScans": "Scans",
+  "codex.sortProgress": "Progress",
+  "codex.factionAll": "All",
 
   "view.world": "World",
   "view.market": "Market",

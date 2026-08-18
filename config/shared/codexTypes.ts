@@ -6,4 +6,4 @@ export interface CodexScanEntry {
 
 export type CodexScansResult =
   | { fetchedAt: number; scans: CodexScanEntry[] }
-  | { error: "no-account" | "fetch-failed" };
+  | { error: "no-account" | "fetch-failed" | "no-data" };

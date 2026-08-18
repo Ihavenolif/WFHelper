@@ -11,7 +11,8 @@ const log = withScope("codexProfile");
 
 const PROFILE_FILE = "codex-profile.json";
 const CACHE_FILE = "codex-scans.json";
-const CACHE_TTL_MS = 10 * 60_000;
+// Sync is manual-only (refresh button); the floor just absorbs double-clicks.
+const REFRESH_MIN_INTERVAL_MS = 60_000;
 const MAX_PROFILE_BYTES = 40_000_000;
 const FETCH_TIMEOUT_MS = 20_000;
 
@@ -35,7 +36,7 @@ function _loadAccountId(): string | null {
       _accountId = raw.accountId;
     }
   } catch {
-    // first run - the id arrives with the next inventory fetch
+    // first run; the id arrives with the next inventory fetch
   }
   return _accountId;
 }
@@ -118,9 +119,10 @@ function _loadDiskCache(): void {
   }
 }
 
-export async function getCodexScans(force = false): Promise<CodexScansResult> {
+export async function getCodexScans(refresh = false): Promise<CodexScansResult> {
   _loadDiskCache();
-  if (!force && _cache && Date.now() - _cache.fetchedAt < CACHE_TTL_MS) return _cache;
+  if (!refresh) return _cache ?? { error: "no-data" };
+  if (_cache && Date.now() - _cache.fetchedAt < REFRESH_MIN_INTERVAL_MS) return _cache;
 
   const accountId = _loadAccountId();
   if (!accountId) return _cache ?? { error: "no-account" };
