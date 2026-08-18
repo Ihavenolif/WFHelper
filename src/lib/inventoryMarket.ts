@@ -277,25 +277,30 @@ export function metricNeedsFromFilters(
   };
 }
 
+/** Order ranks per key; RANKLESS_ORDER marks orders without a modRank. */
+export type OrderRankLookup = Record<string, number[]>;
+
+export const RANKLESS_ORDER = -1;
+
 export function buildOrderLookups(orders: WfmOrdersResult): {
-  orderedNames: Record<string, true>;
-  orderedSlugs: Record<string, true>;
+  orderedNames: OrderRankLookup;
+  orderedSlugs: OrderRankLookup;
 } {
-  const merged = [...orders.sell, ...orders.buy];
-  const orderedNames = Object.fromEntries(
-    merged
-      .map((order) => normalizeMarketName(order.itemName || ""))
-      .filter(Boolean)
-      .map((name) => [name, true]),
-  ) as Record<string, true>;
+  const orderedNames: OrderRankLookup = {};
+  const orderedSlugs: OrderRankLookup = {};
+  const mark = (lookup: OrderRankLookup, key: string, modRank: unknown): void => {
+    if (!key) return;
+    const rank =
+      typeof modRank === "number" && Number.isFinite(modRank)
+        ? Math.max(0, Math.floor(modRank))
+        : RANKLESS_ORDER;
+    (lookup[key] ??= []).push(rank);
+  };
 
-  const orderedSlugs = Object.fromEntries(
-    merged
-      .map((order) => (order.itemUrlName || "").trim().toLowerCase())
-      .filter(Boolean)
-      .map((slug) => [slug, true]),
-  ) as Record<string, true>;
-
+  for (const order of [...orders.sell, ...orders.buy]) {
+    mark(orderedNames, normalizeMarketName(order.itemName || ""), order.modRank);
+    mark(orderedSlugs, (order.itemUrlName || "").trim().toLowerCase(), order.modRank);
+  }
   return { orderedNames, orderedSlugs };
 }
 
@@ -303,8 +308,8 @@ export function buildBaseInventoryItems(
   parsedItems: ParsedItem[],
   activeTab: InventoryFilterTab,
   wfmLookup: WfmItemsLookup,
-  orderedNames: Record<string, true>,
-  orderedSlugs: Record<string, true>,
+  orderedNames: OrderRankLookup,
+  orderedSlugs: OrderRankLookup,
   relicDb?: RelicDatabase | null,
 ): InventoryBaseItem[] {
   // DE exports cannot distinguish sellable sets such as Shedu from junk such as
@@ -392,9 +397,16 @@ export function buildBaseInventoryItems(
           ? Math.max(0, Math.min(Math.floor(item.rank), rankCap))
           : 0;
 
+      const orderRanks = [
+        ...(orderedNames[normalizeMarketName(displayName)] ?? []),
+        ...((marketSlug && orderedSlugs[marketSlug]) || []),
+      ];
+      // Rank-split rows only match orders for their own rank; a rank-less
+      // order (parts, sets) marks every row of the item.
       const orderPlaced =
-        Boolean(orderedNames[normalizeMarketName(displayName)]) ||
-        (marketSlug ? Boolean(orderedSlugs[marketSlug]) : false);
+        orderRanks.length > 0 &&
+        (!isRankedListingItem ||
+          orderRanks.some((rank) => rank === RANKLESS_ORDER || rank === resolvedRank));
 
       return {
         ...item,

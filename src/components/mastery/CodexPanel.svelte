@@ -130,43 +130,47 @@
     <div class="empty-state"><p>{$tr("codex.empty")}</p></div>
   {:else}
     <div
-      class="grid grid-cols-1 gap-1.5 sm:grid-cols-2 xl:grid-cols-3"
+      class="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-6"
       data-tour="mastery-codex-list"
     >
       {#each filtered as row (row.type)}
         {@const imageUrl = brokenImages.has(row.type) ? null : enemyImageUrl(row.image)}
-        <div
-          class="flex items-center gap-2.5 rounded border border-border bg-bg-surface px-2.5 py-1.5"
-        >
-          {#if imageUrl}
-            <img
-              class="h-9 w-9 shrink-0 rounded object-cover object-top"
-              src={imageUrl}
-              alt=""
-              loading="lazy"
-              on:error={() => markBroken(row.type)}
-            />
-          {:else}
-            <div
-              class="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-bg-raised text-sm font-bold text-text-muted"
+        <div class="overflow-hidden rounded border border-border bg-bg-surface" title={row.type}>
+          <div class="relative flex h-28 items-center justify-center bg-bg-raised">
+            {#if imageUrl}
+              <img
+                class="h-full w-full object-contain p-1"
+                src={imageUrl}
+                alt=""
+                loading="lazy"
+                on:error={() => markBroken(row.type)}
+              />
+            {:else}
+              <span class="text-3xl font-bold text-text-muted">{row.name.slice(0, 1)}</span>
+            {/if}
+            {#if row.complete}
+              <span
+                class="absolute right-1 top-1 rounded bg-success/15 px-1.5 py-0.5 text-xs font-bold text-success"
+                aria-hidden="true">✓</span
+              >
+            {/if}
+          </div>
+          <div class="grid gap-0.5 border-t border-border px-2 py-1.5">
+            <span
+              class="truncate text-xs font-bold uppercase tracking-wide text-text-primary"
+              title={row.name}>{row.name}</span
             >
-              {row.name.slice(0, 1)}
-            </div>
-          {/if}
-          <span class="min-w-0 flex-1 truncate text-sm text-text-primary" title={row.type}
-            >{row.name}</span
-          >
-          <span
-            class="shrink-0 text-sm font-semibold {row.complete
-              ? 'text-success'
-              : row.complete === false
-                ? 'text-text-secondary'
-                : 'text-text-muted'}"
-            title={$tr("codex.colScans")}
-          >
-            {row.scanned}{row.required !== null ? ` / ${row.required}` : ""}
-            {#if row.complete}<span aria-hidden="true">✓</span>{/if}
-          </span>
+            <span
+              class="text-xs font-semibold {row.complete
+                ? 'text-success'
+                : row.complete === false
+                  ? 'text-text-secondary'
+                  : 'text-text-muted'}"
+              title={$tr("codex.colScans")}
+            >
+              {row.scanned}{row.required !== null ? ` / ${row.required}` : ""}
+            </span>
+          </div>
         </div>
       {/each}
     </div>

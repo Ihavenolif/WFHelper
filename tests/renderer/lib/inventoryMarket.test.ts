@@ -3,12 +3,14 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   buildBaseInventoryItems,
   buildInventoryViewItems,
+  buildOrderLookups,
   getLookupByName,
   metricNeedsFromFilters,
   shouldHydrateMetrics,
   type InventoryBaseItem,
   type ItemMetrics,
 } from "../../../src/lib/inventoryMarket.js";
+import type { WfmOrder } from "../../../src/types/market.js";
 import type { RelicDatabase } from "../../../src/types/relics.js";
 import { setCachedPrice } from "../../../src/lib/wfm/priceCache.js";
 import {
@@ -148,6 +150,33 @@ describe("inventoryMarket view mapping", () => {
     expect(mapped.wtbRmax).toBe(21);
 
     clearOrderSummaryCache();
+  });
+
+  it("marks only the matching rank row for ranked orders", () => {
+    const r0 = makeBaseItem({ name: "Frost Jaw", rank: 0, marketSlug: "frost_jaw" });
+    const r3 = makeBaseItem({ name: "Frost Jaw", rank: 3, marketSlug: "frost_jaw" });
+    const { orderedNames, orderedSlugs } = buildOrderLookups({
+      sell: [{ id: "o1", itemName: "Frost Jaw", itemUrlName: "frost_jaw", modRank: 0 } as WfmOrder],
+      buy: [],
+    });
+
+    const rows = buildBaseInventoryItems([r0, r3], "mods", {}, orderedNames, orderedSlugs);
+    expect(rows.map((row) => [row.rank, row.orderPlaced])).toEqual([
+      [0, true],
+      [3, false],
+    ]);
+  });
+
+  it("marks every rank row for rank-less orders", () => {
+    const r0 = makeBaseItem({ name: "Frost Jaw", rank: 0, marketSlug: "frost_jaw" });
+    const r3 = makeBaseItem({ name: "Frost Jaw", rank: 3, marketSlug: "frost_jaw" });
+    const { orderedNames, orderedSlugs } = buildOrderLookups({
+      sell: [{ id: "o1", itemName: "Frost Jaw", itemUrlName: "frost_jaw" } as WfmOrder],
+      buy: [],
+    });
+
+    const rows = buildBaseInventoryItems([r0, r3], "mods", {}, orderedNames, orderedSlugs);
+    expect(rows.every((row) => row.orderPlaced)).toBe(true);
   });
 
   it("hydrates ducats by default on all-parts tab", () => {
