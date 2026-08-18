@@ -9,6 +9,7 @@
 
   export let item: InventoryViewItem;
   export let showDucats = true;
+  export let canExpand = true;
 
   const dispatch = createEventDispatcher<{
     select: InventoryViewItem;
@@ -81,15 +82,17 @@
   on:keydown={(event) => (event.key === "Enter" || event.key === " ") && selectCard()}
   bind:this={cardEl}
 >
-  <button
-    type="button"
-    class="expand-link absolute top-1.5 right-1.5 z-10 inline-flex items-center rounded border border-border bg-black/45 px-1.5 py-0.5 font-display text-xs font-semibold text-text-secondary opacity-0 transition-[opacity,color,border-color] duration-100 group-hover:opacity-100 hover:text-accent hover:border-accent-dim"
-    title="Open item details"
-    aria-label="Open details for {item.name}"
-    on:click|stopPropagation={() => dispatch("expand", item)}
-  >
-    Details
-  </button>
+  {#if canExpand}
+    <button
+      type="button"
+      class="expand-link absolute top-1.5 right-1.5 z-10 inline-flex items-center rounded border border-border bg-black/45 px-1.5 py-0.5 font-display text-xs font-semibold text-text-secondary opacity-0 transition-[opacity,color,border-color] duration-100 group-hover:opacity-100 hover:text-accent hover:border-accent-dim"
+      title="Open item details"
+      aria-label="Open details for {item.name}"
+      on:click|stopPropagation={() => dispatch("expand", item)}
+    >
+      Details
+    </button>
+  {/if}
   <div class="item-img-wrap">
     <ItemImage
       src={item.displayImageUrl}

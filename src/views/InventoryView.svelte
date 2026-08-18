@@ -149,6 +149,9 @@
     }
   }
 
+  // Rows without a parsed backing (generated set rows) have no detail modal.
+  $: detailKeys = new Set($parsedItems.map((entry) => entry.internalName));
+
   function handleItemExpand(event: CustomEvent<InventoryViewItem>): void {
     const parsed = $parsedItems.find((entry) => entry.internalName === event.detail.internalName);
     // Base items predate hydration - carry the slug so the modal prices by it.
@@ -407,6 +410,7 @@
         <InventoryGrid
           items={filtered}
           {showDucats}
+          {detailKeys}
           on:select={handleItemSelect}
           on:visible={handleItemVisible}
           on:expand={handleItemExpand}

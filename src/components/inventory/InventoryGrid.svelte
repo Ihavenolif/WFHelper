@@ -6,6 +6,8 @@
 
   export let items: InventoryViewItem[] = [];
   export let showDucats = true;
+  /** Internal names the detail modal can actually open; null = no gating. */
+  export let detailKeys: Set<string> | null = null;
 
   const dispatch = createEventDispatcher<{
     select: InventoryViewItem;
@@ -40,6 +42,7 @@
       <InventoryCard
         {item}
         {showDucats}
+        canExpand={!detailKeys || detailKeys.has(item.internalName)}
         on:select={handleSelect}
         on:visible={handleVisible}
         on:expand={handleExpand}
