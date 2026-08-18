@@ -182,6 +182,15 @@ function unfocusHideFocused(pollFocused: boolean): boolean {
 }
 
 // Focus on one of our own windows (F7 drag, main app) does not count as away.
+// The OS foreground pid is the authority on Windows: Electron's getFocusedWindow
+// wedges on a stale window after blur()+setFocusable(false) ends interactive
+// mode, which held the panels on screen through a real alt-tab for a minute.
+function isOwnWindowForeground(): boolean {
+  const own = warframeStatus.isOwnProcessForeground();
+  if (own !== null) return own;
+  return !!BrowserWindow.getFocusedWindow();
+}
+
 function syncRivenWindowZOrder(warframeFocused: boolean): void {
   if (process.platform === "win32" || process.platform === "linux") {
     const focusedForHide = unfocusHideFocused(warframeFocused);
@@ -192,7 +201,7 @@ function syncRivenWindowZOrder(warframeFocused: boolean): void {
       _rivenUnfocusHidden = [];
       log.info("[ZOrder] riven panels restored - Warframe refocused");
       for (const controller of restore) controller.showOverlayWindowInactive();
-    } else if (!focusedForHide && !_rivenInteractive && !BrowserWindow.getFocusedWindow()) {
+    } else if (!focusedForHide && !_rivenInteractive && !isOwnWindowForeground()) {
       const visible = rivenWindowEntries()
         .filter(({ controller }) => controller.isOverlayWindowVisible())
         .map(({ controller }) => controller);
@@ -214,6 +223,15 @@ function syncRivenWindowZOrder(warframeFocused: boolean): void {
 
 function toggleRivenInteractiveMode(): void {
   _rivenInteractive = !_rivenInteractive;
+  // Entering interactive mode while hidden by an alt-tab means the user wants
+  // the panels now - restore them instead of toggling an invisible window.
+  if (_rivenInteractive && _rivenHiddenByUnfocus) {
+    const restore = _rivenUnfocusHidden;
+    _rivenHiddenByUnfocus = false;
+    _rivenUnfocusHidden = [];
+    log.info("[ZOrder] riven panels restored - interactive mode requested");
+    for (const controller of restore) controller.showOverlayWindowInactive();
+  }
   rivenLeftWindowsController.setOverlayInteractiveMode(_rivenInteractive);
   rivenRightWindowsController.setOverlayInteractiveMode(_rivenInteractive);
   sendToRivenWindows(OVERLAY_INTERACTION_MODE, { interactive: _rivenInteractive });
@@ -310,6 +328,8 @@ let _rivenNewRollStats: rivenScan.RivenStat[] = [];
 
 // Weapon name - starts as "Riven" placeholder, updated when cycle dialog reveals it
 let _rivenWeaponName = "";
+// Card layout of the running session, so a manual rescan reuses the right crop.
+let _rivenScanLayout: rivenScan.InitialCardLayout = "reroll";
 // Where the current name came from; the fits-in label read outranks refinements.
 let _rivenWeaponSource: RivenWeaponSource = "";
 // Bumped on every session boundary so a late async label read cannot apply
@@ -481,6 +501,7 @@ async function detectFitsInWeapon(capture: CaptureResult): Promise<void> {
 }
 
 function triggerInitialScan(layout: rivenScan.InitialCardLayout = "reroll"): void {
+  _rivenScanLayout = layout;
   if (_rivenInitialScanTimer) clearTimeout(_rivenInitialScanTimer);
   _rivenInitialScanTimer = setTimeout(async () => {
     _rivenInitialScanTimer = null;
@@ -500,9 +521,9 @@ function triggerInitialScan(layout: rivenScan.InitialCardLayout = "reroll"): voi
         // If weapon name is already known, send grading immediately
         sendGradedInitialStats();
       }
-      // Chat previews have no FITS IN panel and chat text can contain weapon
-      // names, so the label read only runs on the reroll screen.
-      if (layout !== "chat" && capture) void detectFitsInWeapon(capture);
+      // The chat-linked item-details view carries the same FITS IN panel; the
+      // whole-line weapon match discards any stray chat text in the crop.
+      if (capture) void detectFitsInWeapon(capture);
     } catch (err) {
       log.warn("[RivenScan] initial scan failed:", String(err));
       // Surface the failure in the overlay instead of leaving the spinner up.
@@ -805,7 +826,7 @@ export function register(): void {
     _rivenHasRollResult = false;
     _rivenNewRollStats = [];
     sendToRivenWindows(RIVEN_RESCAN);
-    triggerInitialScan();
+    triggerInitialScan(_rivenScanLayout);
   });
 
   onAuthorized(

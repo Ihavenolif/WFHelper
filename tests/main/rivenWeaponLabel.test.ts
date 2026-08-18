@@ -48,6 +48,8 @@ describe("findWeaponByLabelLine", () => {
     expect(
       findWeaponByLabelLine(["FITS IN", "SHOW RANKED", "CANCEL", "Remaining Kuva 89528"]),
     ).toBeNull();
+    // The chat-linked item-details view shows EXIT instead of the roll buttons.
+    expect(findWeaponByLabelLine(["FITS IN", "EXIT"])).toBeNull();
     expect(findWeaponByLabelLine(["+72,7% Fire Rate (x2 for Bows)"])).toBeNull();
     expect(findWeaponByLabelLine([])).toBeNull();
   });

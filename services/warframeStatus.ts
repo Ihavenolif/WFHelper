@@ -208,6 +208,26 @@ async function getForegroundWindowInfo(): Promise<{
   }
 }
 
+/** Whether the OS foreground window belongs to this process (win32 only, else
+ * null). Electron's getFocusedWindow can wedge on a stale window after a
+ * focused overlay is made unfocusable; the foreground pid is the authority. */
+export function isOwnProcessForeground(): boolean | null {
+  if (process.platform !== "win32") return null;
+  try {
+    if (!ensureWin32()) return null;
+    const win32 = _win32!;
+    const windowHandle = win32.GetForegroundWindow();
+    if (!windowHandle) return null;
+    foregroundPidBuffer.fill(0);
+    win32.GetWindowThreadProcessId(windowHandle, foregroundPidBuffer);
+    const pid = foregroundPidBuffer.readUInt32LE(0);
+    if (pid <= 0) return null;
+    return pid === process.pid;
+  } catch {
+    return null;
+  }
+}
+
 function getDisplayIdForBounds(bounds: WindowBounds | null): string | null {
   if (!bounds || bounds.width <= 0 || bounds.height <= 0) return null;
 
