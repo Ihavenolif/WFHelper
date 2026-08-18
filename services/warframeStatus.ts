@@ -304,8 +304,8 @@ function noteGeometrySource(source: string, bounds: WindowBounds): WindowBounds 
   return bounds;
 }
 
-/** X11-only focus read for the overlay unfocus-hide; the status poll stays
- * permissive (running == focused). Null = unknowable, callers treat as focused. */
+/** X11-only focus read for the overlay unfocus-hide, which the permissive
+ * status poll cannot answer. Null = unknowable, callers treat as focused. */
 export function isWarframeWindowFocusedLinux(): boolean | null {
   if (!process.env.DISPLAY) return null;
   return isWindowFocusedByTitle(WARFRAME_WINDOW_TITLE_RE);

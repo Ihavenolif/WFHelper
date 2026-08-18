@@ -80,7 +80,7 @@ const rivenWindowBaseOptions = {
   backgroundColor: "#060a12",
   preloadFileName: "preload-riven.js",
   hasShadow: false,
-  onWindowRebuilt: (window: InstanceType<typeof BrowserWindow>) => replayRivenEvents(window),
+  onWindowCreated: (window: InstanceType<typeof BrowserWindow>) => replayRivenEvents(window),
 };
 
 const rivenLeftWindowsController = createOverlayWindowsController({
@@ -160,10 +160,18 @@ export function isAnyRivenWindowVisible(): boolean {
 let _rivenHiddenByUnfocus = false;
 let _rivenUnfocusHidden: ReturnType<typeof createOverlayWindowsController>[] = [];
 
-function hideRivenWindows(): void {
-  // A real close also cancels a pending unfocus restore.
+/** Drops the pending unfocus restore, optionally showing the panels it held. */
+function clearUnfocusHide(reason: string | null): void {
+  const restore = _rivenUnfocusHidden;
   _rivenHiddenByUnfocus = false;
   _rivenUnfocusHidden = [];
+  if (!reason || restore.length === 0) return;
+  log.info(`[ZOrder] riven panels restored - ${reason}`);
+  for (const controller of restore) controller.showOverlayWindowInactive();
+}
+
+function hideRivenWindows(): void {
+  clearUnfocusHide(null);
   for (const { controller } of rivenWindowEntries()) controller.hideOverlayWindow();
 }
 
@@ -173,9 +181,9 @@ function forEachRivenWindow(fn: (win: InstanceType<typeof BrowserWindow>) => voi
   }
 }
 
-// Alt-tab hides the panels until the game refocuses. The linux status poll is
-// permissive (running == focused), so X11 is asked directly; anything
-// unknowable (no libX11, native-wayland game) reads as focused = never hide.
+// Alt-tab hides the panels until the game refocuses. The status poll is too
+// permissive on linux to drive that, so X11 is asked directly; unknowable
+// (no libX11, native-wayland game) reads as focused = never hide.
 function unfocusHideFocused(pollFocused: boolean): boolean {
   if (process.platform === "win32") return pollFocused;
   if (process.platform !== "linux") return true;
@@ -183,9 +191,6 @@ function unfocusHideFocused(pollFocused: boolean): boolean {
 }
 
 // Focus on one of our own windows (F7 drag, main app) does not count as away.
-// The OS foreground pid is the authority on Windows: Electron's getFocusedWindow
-// wedges on a stale window after blur()+setFocusable(false) ends interactive
-// mode, which held the panels on screen through a real alt-tab for a minute.
 function isOwnWindowForeground(): boolean {
   const own = warframeStatus.isOwnProcessForeground();
   if (own !== null) return own;
@@ -197,11 +202,7 @@ function syncRivenWindowZOrder(warframeFocused: boolean): void {
     const focusedForHide = unfocusHideFocused(warframeFocused);
     if (_rivenHiddenByUnfocus) {
       if (!focusedForHide) return;
-      const restore = _rivenUnfocusHidden;
-      _rivenHiddenByUnfocus = false;
-      _rivenUnfocusHidden = [];
-      log.info("[ZOrder] riven panels restored - Warframe refocused");
-      for (const controller of restore) controller.showOverlayWindowInactive();
+      clearUnfocusHide("Warframe refocused");
     } else if (!focusedForHide && !_rivenInteractive && !isOwnWindowForeground()) {
       const visible = rivenWindowEntries()
         .filter(({ controller }) => controller.isOverlayWindowVisible())
@@ -226,13 +227,7 @@ function toggleRivenInteractiveMode(): void {
   _rivenInteractive = !_rivenInteractive;
   // Entering interactive mode while hidden by an alt-tab means the user wants
   // the panels now - restore them instead of toggling an invisible window.
-  if (_rivenInteractive && _rivenHiddenByUnfocus) {
-    const restore = _rivenUnfocusHidden;
-    _rivenHiddenByUnfocus = false;
-    _rivenUnfocusHidden = [];
-    log.info("[ZOrder] riven panels restored - interactive mode requested");
-    for (const controller of restore) controller.showOverlayWindowInactive();
-  }
+  if (_rivenInteractive) clearUnfocusHide("interactive mode requested");
   rivenLeftWindowsController.setOverlayInteractiveMode(_rivenInteractive);
   rivenRightWindowsController.setOverlayInteractiveMode(_rivenInteractive);
   sendToRivenWindows(OVERLAY_INTERACTION_MODE, { interactive: _rivenInteractive });
@@ -331,8 +326,10 @@ let _rivenNewRollStats: rivenScan.RivenStat[] = [];
 let _rivenWeaponName = "";
 // Card layout of the running session, so a manual rescan reuses the right crop.
 let _rivenScanLayout: rivenScan.InitialCardLayout = "reroll";
-// Where the current name came from; the fits-in label read outranks refinements.
+// Where the current name came from, and whether a label read produced it
+// verbatim. An exact label is the screen's own answer, so nothing overrides it.
 let _rivenWeaponSource: RivenWeaponSource = "";
+let _rivenWeaponLabelExact = false;
 // Bumped on every session boundary so a late async label read cannot apply
 // into (or replay events for) a session it was not captured in.
 let _rivenSessionToken = 0;
@@ -422,10 +419,16 @@ function clearRivenScanTimers(): void {
 }
 
 // A detected weapon unblocks labels, grading, attributes, and market enrichment.
-function applyDetectedWeapon(detected: string, source: RivenWeaponSource, via: string): void {
+function applyDetectedWeapon(
+  detected: string,
+  source: RivenWeaponSource,
+  via: string,
+  labelExact = false,
+): void {
   log.info(`[RivenScan] weapon detected from ${via}: "${detected}"`);
   _rivenWeaponName = detected;
   _rivenWeaponSource = source;
+  _rivenWeaponLabelExact = labelExact;
   sendToRivenWindows(RIVEN_WEAPON_UPDATE, detected);
   sendWeaponEnrichment();
   // Grading for the already-displayed initial stats was skipped while the
@@ -453,8 +456,8 @@ export function onRivenWeaponPath(weaponPath: string): void {
     if (
       rivenDataSvc.getRivenFamilySlug(name) === rivenDataSvc.getRivenFamilySlug(_rivenWeaponName)
     ) {
-      // The label read is the live linked variant; a diorama echo of the
-      // variant linked at screen-open must not undo a switch made since.
+      // A diorama echo of the variant linked at screen-open must not undo a
+      // switch the label already caught.
       if (_rivenWeaponSource === "label") return;
       applyDetectedWeapon(name, "diorama", "diorama load (refines OCR)");
       return;
@@ -467,11 +470,10 @@ export function onRivenWeaponPath(weaponPath: string): void {
   applyDetectedWeapon(name, "diorama", "diorama load");
 }
 
-// The FITS IN caption names the exact variant the riven is linked to - the one
-// whose disposition renders the card's displayed values.
 function onFitsInWeapon(match: WeaponLabelMatch): void {
   if (match.name === _rivenWeaponName) {
     _rivenWeaponSource = "label";
+    _rivenWeaponLabelExact = match.exact;
     return;
   }
   const sameFamily =
@@ -480,7 +482,7 @@ function onFitsInWeapon(match: WeaponLabelMatch): void {
     rivenDataSvc.getRivenFamilySlug(match.name) ===
       rivenDataSvc.getRivenFamilySlug(_rivenWeaponName);
   if (shouldApplyLabelWeapon(match, _rivenWeaponName, _rivenWeaponSource, sameFamily)) {
-    applyDetectedWeapon(match.name, "label", "fits-in label");
+    applyDetectedWeapon(match.name, "label", "fits-in label", match.exact);
     return;
   }
   log.warn(
@@ -624,6 +626,7 @@ export function onRivenSessionClose(): void {
   _rivenNewRollStats = [];
   _rivenWeaponName = "";
   _rivenWeaponSource = "";
+  _rivenWeaponLabelExact = false;
   _rivenInteractive = false;
   rivenSession.endSession(getRivenWindows());
   hideRivenWindows();
@@ -641,8 +644,11 @@ export function onRivenChatView(): void {
   _rivenNewRollStats = [];
   _rivenWeaponName = "";
   _rivenWeaponSource = "";
+  _rivenWeaponLabelExact = false;
   _rivenSessionToken += 1;
-  rivenScan.resetRivenScanAbort();
+  // This path shows the left panel itself; leaving an unfocus restore armed
+  // would have the z-order poll bring the hidden right panel back with it.
+  clearUnfocusHide(null);
 
   // Create only the left window (or reuse if already exists)
   const existLeft = ctx.rivenOverlayLeftWindow;
@@ -678,8 +684,8 @@ export function onRivenSessionOpen(): void {
   _rivenNewRollStats = [];
   _rivenWeaponName = "";
   _rivenWeaponSource = "";
+  _rivenWeaponLabelExact = false;
   _rivenSessionToken += 1;
-  rivenScan.resetRivenScanAbort();
   createRivenOverlayWindows({ show: true });
   // Start (or restart) the session - resets roll count, clears panels.
   // Weapon name is "Riven" placeholder until the first cycle dialog reveals it.
@@ -699,14 +705,18 @@ export function onRivenRollPending(weapon: string, kuvaPerRoll: number): void {
   );
   // Do not restart the session here; that would wipe the scanned stats and roll count.
   const isFirstReveal = _rivenWeaponName === "" || _rivenWeaponName === "Riven";
-  // The dialog names the family; a label-read linked variant is more precise.
+  // The dialog only names the family, so it never overwrites an exact label
+  // read, nor a fuzzy one that already agrees on the family.
   const keepLabelVariant =
     !isFirstReveal &&
     _rivenWeaponSource === "label" &&
-    rivenDataSvc.getRivenFamilySlug(weapon) === rivenDataSvc.getRivenFamilySlug(_rivenWeaponName);
+    (_rivenWeaponLabelExact ||
+      rivenDataSvc.getRivenFamilySlug(weapon) ===
+        rivenDataSvc.getRivenFamilySlug(_rivenWeaponName));
   if (weapon && !keepLabelVariant) {
     _rivenWeaponName = weapon;
     _rivenWeaponSource = "dialog";
+    _rivenWeaponLabelExact = false;
     forEachRivenWindow((win) => {
       if (!win.isDestroyed()) win.webContents.send(RIVEN_WEAPON_UPDATE, weapon);
     });

@@ -33,7 +33,7 @@ describe("findWeaponByLabelLine", () => {
 
   it("tolerates one misread letter on long names only", () => {
     expect(findWeaponByLabelLine(["Kuva Sobck"])).toEqual({ name: "Kuva Sobek", exact: false });
-    // Short names must be exact - "Lat0" could be too many things.
+    // Short names must be exact; "Lat0" could be too many things.
     expect(findWeaponByLabelLine(["Lat0"])).toBeNull();
   });
 
@@ -77,11 +77,16 @@ describe("shouldApplyLabelWeapon", () => {
     ).toBe(true);
   });
 
-  it("across families only an exact read outranks a fuzzy OCR-title guess", () => {
-    expect(shouldApplyLabelWeapon(exact, "Hema", "ocr", false)).toBe(true);
-    expect(shouldApplyLabelWeapon(fuzzy, "Hema", "ocr", false)).toBe(false);
-    expect(shouldApplyLabelWeapon(exact, "Hema", "diorama", false)).toBe(false);
-    expect(shouldApplyLabelWeapon(exact, "Hema", "dialog", false)).toBe(false);
+  it("an exact read outranks every other source, across families too", () => {
+    for (const source of ["ocr", "diorama", "dialog", ""] as const) {
+      expect(shouldApplyLabelWeapon(exact, "Hema", source, false)).toBe(true);
+    }
+  });
+
+  it("a fuzzy read across families only displaces a card-title OCR guess", () => {
+    expect(shouldApplyLabelWeapon(fuzzy, "Hema", "ocr", false)).toBe(true);
+    expect(shouldApplyLabelWeapon(fuzzy, "Hema", "diorama", false)).toBe(false);
+    expect(shouldApplyLabelWeapon(fuzzy, "Hema", "dialog", false)).toBe(false);
   });
 });
 

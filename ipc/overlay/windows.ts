@@ -81,7 +81,7 @@ type OverlayWindowsControllerOptions = {
   /** Skip click-through entirely for windows that are meant to stay clickable. */
   neverClickThrough?: boolean;
   /** Restore content the controller does not send itself after a rebuild. */
-  onWindowRebuilt?: (window: import("electron").BrowserWindow) => void;
+  onWindowCreated?: (window: import("electron").BrowserWindow) => void;
   platform?: NodeJS.Platform;
   isNativeWayland?: () => boolean;
 };
@@ -145,7 +145,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     onWindowBoundsChanged,
     persistBoundsWhenPassive = false,
     neverClickThrough = false,
-    onWindowRebuilt,
+    onWindowCreated,
     platform = process.platform,
     isNativeWayland = linuxIsNativeWayland,
   } = options;
@@ -622,7 +622,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     attachBoundsPersistence(createdWindow);
     // Events sent while the page is still loading reach a renderer with no
     // listeners and are lost; the owner replays them once the load finishes.
-    onWindowRebuilt?.(createdWindow);
+    onWindowCreated?.(createdWindow);
   }
 
   function clearOverlayAutoHideTimer(): void {

@@ -7,10 +7,9 @@ import { findWeaponByLabelLine, type WeaponLabelMatch } from "../../services/riv
 
 const log = withScope("rivenScan");
 
-// The FITS IN panel (lower-right of the reroll screen) captions the exact
-// linked variant, whose disposition the card values are rendered at. Generous
-// region: the panel is edge-anchored so its fractions drift with aspect ratio;
-// whole-line weapon matching discards every other caption that lands inside.
+// The FITS IN caption (lower-right of the reroll screen) names the variant the
+// riven is linked to, i.e. the disposition in use. Generous crop: the panel is
+// edge-anchored, so its fractions drift with aspect ratio.
 const RIVEN_FITS_IN_CROP = { x: 0.7, y: 0.55, width: 0.3, height: 0.45 };
 
 // Label text is ~20px at 1080p; the strip reader's row-height windows assume
@@ -19,9 +18,9 @@ const REFERENCE_CONTENT_HEIGHT = 1080;
 
 export type RivenWeaponSource = "" | "dialog" | "ocr" | "diorama" | "label";
 
-/** Whether a fits-in label read replaces the currently detected weapon. The
- * label is the live linked variant, so within a family it always wins; across
- * families only an exact read outranks a fuzzy card-title guess. */
+/** Whether a fits-in label read replaces the currently detected weapon. An
+ * exact read outranks every other source; a fuzzy one is a guess, and only
+ * wins inside the family or over card-title OCR. */
 export function shouldApplyLabelWeapon(
   match: WeaponLabelMatch,
   currentName: string,
@@ -30,8 +29,8 @@ export function shouldApplyLabelWeapon(
 ): boolean {
   if (!currentName || currentName === "Riven") return true;
   if (match.name === currentName) return false;
-  if (sameFamily) return true;
-  return match.exact && currentSource === "ocr";
+  if (match.exact || sameFamily) return true;
+  return currentSource === "ocr";
 }
 
 export async function readWeaponLabelFromPanelPng(

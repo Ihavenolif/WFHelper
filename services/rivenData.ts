@@ -562,12 +562,12 @@ export interface WeaponLabelMatch {
   exact: boolean;
 }
 
-/** Matches whole OCR lines against the weapon list. The FITS IN caption holds
- * nothing but the linked variant's name, so unlike findWeaponInText only a
- * full-line hit counts; other captions (FITS IN, CANCEL) can never match. */
+/** Matches whole OCR lines against the weapon list. The panel caption holds
+ * nothing but a weapon name, so unlike findWeaponInText only a full-line hit
+ * counts; that is what keeps FITS IN, CANCEL and stat rows from ever matching. */
 export function findWeaponByLabelLine(lines: string[]): WeaponLabelMatch | null {
   ensureBuilt();
-  let best: { name: string; exact: boolean; len: number } | null = null;
+  let best: { name: string; exact: boolean; len: number; distance: number } | null = null;
   for (const raw of lines) {
     const norm = normalizeWeaponOcrText(raw);
     if (norm.length < 3) continue;
@@ -575,7 +575,7 @@ export function findWeaponByLabelLine(lines: string[]): WeaponLabelMatch | null 
     const exactName = _weaponDisplayNamesNormalized.get(norm);
     if (exactName) {
       if (!best || !best.exact || norm.length > best.len) {
-        best = { name: exactName, exact: true, len: norm.length };
+        best = { name: exactName, exact: true, len: norm.length, distance: 0 };
       }
       continue;
     }
@@ -585,9 +585,16 @@ export function findWeaponByLabelLine(lines: string[]): WeaponLabelMatch | null 
     const maxDistance = norm.length >= 14 ? 2 : 1;
     for (const [normalizedWeapon, displayName] of _weaponDisplayNamesNormalized) {
       if (Math.abs(normalizedWeapon.length - norm.length) > maxDistance) continue;
-      if (levenshteinDistance(norm, normalizedWeapon) > maxDistance) continue;
-      if (!best || norm.length > best.len) {
-        best = { name: displayName, exact: false, len: norm.length };
+      const distance = levenshteinDistance(norm, normalizedWeapon);
+      if (distance > maxDistance) continue;
+      // Closest read first, then the longest line; a one-letter miss must not
+      // lose to a two-letter miss found earlier in the map.
+      if (
+        !best ||
+        distance < best.distance ||
+        (distance === best.distance && norm.length > best.len)
+      ) {
+        best = { name: displayName, exact: false, len: norm.length, distance };
       }
     }
   }
