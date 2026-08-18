@@ -320,7 +320,7 @@
 
       <div
         class="shared-chip-group"
-        title="Owned amount - hide single copies so you don't sell your only one"
+        title="Owned amount: hide single copies so you don't sell your only one"
       >
         <span class="shared-chip-label">Amount</span>
         <div class="filter-tabs">

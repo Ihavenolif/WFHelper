@@ -27,7 +27,7 @@
     dbEntry?.imageUrl ||
     (typeof entry.imageOverride === "string" ? entry.imageOverride : null);
 
-  $: title = `${entry.item || "Unknown"}${entry.ducats ? ` - ${entry.ducats} duc` : ""}${
+  $: title = `${entry.item || "Unknown"}${entry.ducats ? ` · ${entry.ducats} duc` : ""}${
     entry.credits ? ` / ${entry.credits.toLocaleString()} cr` : ""
   }`;
 

@@ -23,7 +23,7 @@
   ];
 
   const ACCESS_LABELS = {
-    owned: "Owned - level it",
+    owned: "Owned: level it",
     claimable: "Ready to claim",
     building: "Crafting",
     buildable: "Can build",
@@ -180,11 +180,11 @@
                 owned {item.relevantRelicCount === 1 ? "relic" : "relics"}
               </span>
               <span class="mt-1 block text-xs text-text-muted">
-                {item.category} - {ownedPartTypes(item)}/{item.components.length} parts owned
+                {item.category} · {ownedPartTypes(item)}/{item.components.length} parts owned
               </span>
             {:else}
               <span class="block text-xs text-text-secondary">
-                {item.category} - {ACCESS_LABELS[item.access]}
+                {item.category} · {ACCESS_LABELS[item.access]}
               </span>
               <span class="mt-1 block text-xs text-text-muted">
                 {#if item.access === "owned"}Level {item.rank}/{item.maxRank}{:else if item.components.length > 0}{ownedPartTypes(

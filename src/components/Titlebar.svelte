@@ -36,10 +36,10 @@
     if (!status) return "WF data unknown";
     if (status.running) return "WF data refreshing...";
     if (status.inventoryLastModified) {
-      return `WF data ${isOld ? "old" : "OK"} - ${formatHelperTime(status.inventoryLastModified)}`;
+      return `WF data ${isOld ? "old" : "OK"} · ${formatHelperTime(status.inventoryLastModified)}`;
     }
     if (!status.exeFound) return "WF helper not found";
-    if (status.lastRunReason === "access-denied") return "WF running as admin - unreadable";
+    if (status.lastRunReason === "access-denied") return "WF running as admin, unreadable";
     if (status.lastRunReason === "not-logged-in") return "Waiting for WF login...";
     if (status.lastRunReason === "token-not-found") return "WF login token not found";
     if (status.lastRunReason === "game-not-running") return "Start Warframe to load data";
@@ -49,7 +49,7 @@
   function helperTooltip(status: HelperStatus | null): string {
     if (!status?.exeFound) return "warframe-api-helper not found";
     if (status.lastRunReason === "access-denied") {
-      return "Warframe appears to run as administrator - WFHelper cannot read it. Restart the game without admin rights.";
+      return "Warframe appears to run as administrator, so WFHelper cannot read it. Restart the game without admin rights.";
     }
     if (status.lastRunReason === "not-logged-in") {
       return "Warframe is running but not logged in. Data loads automatically about a minute after login.";

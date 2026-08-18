@@ -4,11 +4,11 @@ Unofficial Warframe companion app for Windows, with a Linux beta. Reads your
 inventory, prices it with live warframe.market data, scans relic rewards on
 screen and tracks your arbitration runs straight from EE.log.
 
-**[wfhelper.com](https://wfhelper.com)** — download, the full feature tour, and FAQ.
+**[wfhelper.com](https://wfhelper.com)**: download, the full feature tour, and FAQ.
 
 ![WFHelper inventory with live warframe.market prices](.github/screenshots/inventory.png)
 
-<sub>Shown in the midnight-blue theme — 10 are built in, or build your own.</sub>
+<sub>Shown in the midnight-blue theme. 10 themes are built in, or build your own.</sub>
 
 ## Features
 

@@ -396,7 +396,7 @@
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(message);
         markCopied(key);
-        setFeedback("Whisper copied - paste it in the in-game chat.");
+        setFeedback("Whisper copied. Paste it in the in-game chat.");
         return;
       }
       setFeedback("Clipboard unavailable in this environment.");

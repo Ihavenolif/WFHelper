@@ -261,7 +261,7 @@
       statusText.set("Running warframe-api-helper...");
       await invoke("runHelperNow");
       await refreshRunnerStatus();
-      statusText.set("Helper finished - waiting for inventory...");
+      statusText.set("Helper finished, waiting for inventory...");
     } catch {
       statusText.set("Failed to run helper");
     }
@@ -349,8 +349,8 @@
   const dummyLabels: Record<PlacementKey, string> = {
     reward: "RELIC REWARDS",
     planner: "RELIC PLANNER",
-    rivenLeft: "RIVEN - CURRENT",
-    rivenRight: "RIVEN - NEW ROLL",
+    rivenLeft: "RIVEN: CURRENT",
+    rivenRight: "RIVEN: NEW ROLL",
     arbiSummary: "ARBITRATION SUMMARY",
   };
 
