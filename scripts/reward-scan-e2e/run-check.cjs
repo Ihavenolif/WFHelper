@@ -129,14 +129,16 @@ const SCREENS = [
     },
   },
   {
+    // taller-than-16:9 frame; gates the centred 16:9 canvas y-correction.
+    // the "2 X" quantity prefix survives per-reader, so both forms pass.
     file: "real-full-4p-16x10.png",
     fixture: true,
-    info: "16:10-ish crop of unknown source resolution - ratios do not apply cleanly",
+    readers: ["onnx", "both"],
     expect: {
-      0: "Forma Blueprint",
-      1: "Forma Blueprint",
-      2: "Forma Blueprint",
-      3: "Forma Blueprint",
+      0: ["Forma Blueprint", "2X Forma Blueprint"],
+      1: ["Forma Blueprint", "2X Forma Blueprint"],
+      2: ["Forma Blueprint", "2X Forma Blueprint"],
+      3: ["Forma Blueprint", "2X Forma Blueprint"],
     },
   },
 ];
@@ -264,11 +266,12 @@ async function buildClientCroppedSims(outDir) {
         );
 
         for (const [slot, expected] of Object.entries(screen.expect)) {
+          const accepted = Array.isArray(expected) ? expected : [expected];
           const actual = bySlot.get(Number(slot)) || null;
-          const ok = actual === expected;
+          const ok = accepted.includes(actual);
           const tag = screen.info ? "INFO" : ok ? "PASS" : "FAIL";
           console.log(
-            `${tag}: ${screen.file} [${reader}] slot ${Number(slot) + 1} ${expected} -> ${actual ?? "(none)"}`,
+            `${tag}: ${screen.file} [${reader}] slot ${Number(slot) + 1} ${accepted.join(" | ")} -> ${actual ?? "(none)"}`,
           );
           if (!ok && !screen.info)
             failures.push(`${screen.file}[${reader}] slot ${Number(slot) + 1}`);

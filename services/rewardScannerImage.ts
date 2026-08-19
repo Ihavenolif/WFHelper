@@ -134,8 +134,12 @@ export function cropRewardBand(
   const topRatio = clampNumber(band?.top, 0.0, 0.95, 0.38);
   const maxHeightRatio = Math.max(0.05, 1.0 - topRatio);
   const heightRatio = clampNumber(band?.height, 0.05, maxHeightRatio, 0.36);
-  const top = Math.floor(height * topRatio);
-  const cropHeight = Math.max(24, Math.floor(height * heightRatio));
+  // Band presets were measured on 16:9; map them onto taller frames the same
+  // way the slot layouts are (16:9 canvas centred in the frame).
+  const { scaleY } = aspectScaleFor(nativeImage);
+  const scaledTop = 0.5 + (topRatio - 0.5) * scaleY;
+  const top = Math.floor(height * scaledTop);
+  const cropHeight = Math.max(24, Math.floor(height * heightRatio * scaleY));
   return nativeImage.crop({ x: 0, y: top, width, height: cropHeight });
 }
 
@@ -294,28 +298,47 @@ const FIXED_REWARD_LAYOUTS: Readonly<
   ],
 });
 
-// Ratios were measured on 16:9. The panel scales with frame HEIGHT and is centred,
-// so on wider screens they crop too wide - rescale x about the centre.
+// Ratios were measured on 16:9, so rescale the off axis about the centre: x on
+// wider frames (98e22b5, a real 21:9 report), y on taller ones (16:10, 4:3).
 const REFERENCE_ASPECT = 16 / 9;
 
-function horizontalScaleFor(nativeImage: NativeImage): number {
-  if (!nativeImage || typeof nativeImage.getSize !== "function") return 1;
+interface AspectScale {
+  scaleX: number;
+  scaleY: number;
+}
+
+function aspectScaleFor(nativeImage: NativeImage): AspectScale {
+  if (!nativeImage || typeof nativeImage.getSize !== "function") {
+    return { scaleX: 1, scaleY: 1 };
+  }
   const { width, height } = nativeImage.getSize();
-  if (!(width > 0) || !(height > 0)) return 1;
+  if (!(width > 0) || !(height > 0)) return { scaleX: 1, scaleY: 1 };
   const referenceWidth = height * REFERENCE_ASPECT;
-  return referenceWidth < width ? referenceWidth / width : 1;
+  const referenceHeight = width / REFERENCE_ASPECT;
+  return {
+    scaleX: referenceWidth < width ? referenceWidth / width : 1,
+    scaleY: referenceHeight < height ? referenceHeight / height : 1,
+  };
+}
+
+function aspectCorrectRect<T extends { x: number; y: number; width: number; height: number }>(
+  rect: T,
+  scale: AspectScale,
+): { x: number; y: number; width: number; height: number } {
+  return {
+    x: 0.5 + (rect.x - 0.5) * scale.scaleX,
+    y: 0.5 + (rect.y - 0.5) * scale.scaleY,
+    width: rect.width * scale.scaleX,
+    height: rect.height * scale.scaleY,
+  };
 }
 
 function aspectCorrectLayout(
   layout: ReadonlyArray<{ x: number; y: number; width: number; height: number }>,
-  scaleX: number,
+  scale: AspectScale,
 ): Array<{ x: number; y: number; width: number; height: number }> {
-  if (scaleX >= 1) return layout.map((slot) => ({ ...slot }));
-  return layout.map((slot) => ({
-    ...slot,
-    x: 0.5 + (slot.x - 0.5) * scaleX,
-    width: slot.width * scaleX,
-  }));
+  if (scale.scaleX >= 1 && scale.scaleY >= 1) return layout.map((slot) => ({ ...slot }));
+  return layout.map((slot) => aspectCorrectRect(slot, scale));
 }
 
 function smoothColumns(values: number[]): number[] {
@@ -417,11 +440,11 @@ function detectFixedRewardSlotLayouts(nativeImage: NativeImage): RewardSlotLayou
     }));
   }
 
-  const scaleX = horizontalScaleFor(nativeImage);
+  const scale = aspectScaleFor(nativeImage);
   for (const [countKey, layout] of Object.entries(FIXED_REWARD_LAYOUTS)) {
     const count = Number(countKey);
     // Sample the same rects the crops use, or a wide frame scores the gaps.
-    const scaled = aspectCorrectLayout(layout, scaleX);
+    const scaled = aspectCorrectLayout(layout, scale);
     const activities = scaled.map((slot) => computeSlotActivity(nativeImage, slot));
     const activeCount = activities.filter((score) => score >= 0.22).length;
     const avgScore =
@@ -473,9 +496,10 @@ function detectRewardSlotLayout(nativeImage: NativeImage): RewardSlotLayout {
   const fixedLayout = detectFixedRewardSlotLayout(nativeImage);
   if (fixedLayout) return fixedLayout;
 
+  const layoutRegion = aspectCorrectRect(SLOT_LAYOUT_REGION, aspectScaleFor(nativeImage));
   let region: NativeImage;
   try {
-    region = cropRect(nativeImage, SLOT_LAYOUT_REGION);
+    region = cropRect(nativeImage, layoutRegion);
   } catch {
     return { count: 0, confidence: 0, slots: [] };
   }
@@ -526,10 +550,10 @@ function detectRewardSlotLayout(nativeImage: NativeImage): RewardSlotLayout {
 
   const slots: RewardSlotRect[] = runs.map((run, index) => {
     const runWidth = Math.max(32, run.end - run.start + 1);
-    const xRatio = SLOT_LAYOUT_REGION.x + (run.start / width) * SLOT_LAYOUT_REGION.width;
-    const widthRatio = (runWidth / width) * SLOT_LAYOUT_REGION.width;
-    const yRatio = SLOT_LAYOUT_REGION.y;
-    const heightRatio = SLOT_LAYOUT_REGION.height;
+    const xRatio = layoutRegion.x + (run.start / width) * layoutRegion.width;
+    const widthRatio = (runWidth / width) * layoutRegion.width;
+    const yRatio = layoutRegion.y;
+    const heightRatio = layoutRegion.height;
 
     return {
       index,
