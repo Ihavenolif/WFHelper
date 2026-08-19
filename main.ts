@@ -104,6 +104,7 @@ import type { TradeMatchPayload, TradeNotificationStatus } from "./config/shared
 import * as apiHelperRunner from "./services/apiHelperRunner";
 import * as inventorySync from "./services/inventorySync";
 import { disposeLinuxStreamCapture } from "./services/linuxStreamCapture";
+import { loadMainWindowState, saveMainWindowState } from "./services/mainWindowState";
 import { isTradeNotificationOverlayEnabled } from "./config/runtime/overlaySettings";
 import { WIN_APP_USER_MODEL_ID } from "./config/shared/appMeta";
 
@@ -151,12 +152,18 @@ if (!hasSingleInstanceLock) {
   });
 }
 
+const MAIN_WINDOW_MIN_SIZE = { width: 900, height: 600 };
+
 function createWindow(): void {
+  const savedState = loadMainWindowState(MAIN_WINDOW_MIN_SIZE);
   ctx.mainWindow = new BrowserWindow({
     width: 1280,
     height: 820,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: MAIN_WINDOW_MIN_SIZE.width,
+    minHeight: MAIN_WINDOW_MIN_SIZE.height,
+    ...(savedState
+      ? { x: savedState.x, y: savedState.y, width: savedState.width, height: savedState.height }
+      : {}),
     show: false,
     backgroundColor: "#060a12",
     icon: path.join(app.getAppPath(), "assets", "logo.ico"),
@@ -187,6 +194,7 @@ function createWindow(): void {
     if (mainWindowShowTimer) clearTimeout(mainWindowShowTimer);
     mainWindowShowTimer = null;
     if (via !== "ready-to-show") log.warn(`[Main] window shown via ${via} fallback`);
+    if (savedState?.maximized) mainWindow.maximize();
     mainWindow.show();
   };
   const scheduleShow = (delayMs: number, via: string): void => {
@@ -208,6 +216,20 @@ function createWindow(): void {
   // Zoom resets on navigation, so re-apply on load; on move, to re-fit per display.
   ctx.mainWindow.webContents.on("did-finish-load", applyMainWindowZoom);
   ctx.mainWindow.on("moved", applyMainWindowZoom);
+
+  // Debounced saves cover crashes; close catches the final position.
+  let stateSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  const queueStateSave = (): void => {
+    if (stateSaveTimer) clearTimeout(stateSaveTimer);
+    stateSaveTimer = setTimeout(() => saveMainWindowState(mainWindow), 1000);
+  };
+  mainWindow.on("move", queueStateSave);
+  mainWindow.on("resize", queueStateSave);
+  mainWindow.on("close", () => {
+    if (stateSaveTimer) clearTimeout(stateSaveTimer);
+    stateSaveTimer = null;
+    saveMainWindowState(mainWindow);
+  });
 
   // Block page reload shortcuts (Ctrl+R, Ctrl+Shift+R, F5) to prevent breaking app state.
   ctx.mainWindow.webContents.on(
