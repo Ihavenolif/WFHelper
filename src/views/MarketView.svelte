@@ -513,6 +513,10 @@
     await fetchOrders({ clearSelection: true });
   }
 
+  function selectAllVisible(): void {
+    marketSelected.set(new Set(filteredOrderRows.map((order) => order.id)));
+  }
+
   function toggleSelect(id: string, checked: boolean): void {
     mutateMarketSelected((selected) => {
       if (checked) selected.add(id);
@@ -803,21 +807,24 @@
         sortOptions={isRivensTab ? RIVEN_CONTRACT_SORT_OPTIONS : MARKET_SORT_OPTIONS}
       />
 
-      {#if !isRivensTab && $marketSelected.size > 0}
+      {#if !isRivensTab && (filteredOrderRows.length > 0 || $marketSelected.size > 0)}
         <div
           class="flex flex-wrap items-center gap-1.5 mb-2.5 rounded-lg border border-border bg-bg-surface px-2.5 py-2"
         >
           <span class="mr-1.5 text-xs text-text-secondary">{$marketSelected.size} selected</span>
-          <button class="btn-sm btn-secondary" on:click={() => bulkSetVisible(true)}
-            >Set Visible</button
-          >
-          <button class="btn-sm btn-secondary" on:click={() => bulkSetVisible(false)}
-            >Set Hidden</button
-          >
-          <button class="btn-sm btn-danger" on:click={bulkDelete}>Delete Selected</button>
-          <button class="btn-sm btn-secondary" on:click={() => marketSelected.set(new Set())}
-            >Clear</button
-          >
+          <button class="btn-sm btn-secondary" on:click={selectAllVisible}>Select All</button>
+          {#if $marketSelected.size > 0}
+            <button class="btn-sm btn-secondary" on:click={() => bulkSetVisible(true)}
+              >Set Visible</button
+            >
+            <button class="btn-sm btn-secondary" on:click={() => bulkSetVisible(false)}
+              >Set Hidden</button
+            >
+            <button class="btn-sm btn-danger" on:click={bulkDelete}>Delete Selected</button>
+            <button class="btn-sm btn-secondary" on:click={() => marketSelected.set(new Set())}
+              >Unselect All</button
+            >
+          {/if}
         </div>
       {/if}
 
