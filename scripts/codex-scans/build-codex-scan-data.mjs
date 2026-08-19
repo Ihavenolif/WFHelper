@@ -92,20 +92,87 @@ function deIconMirror(iconPath) {
   return { sourceUrl, mirrorUrl: `${MIRROR_BASE}/icons/${hash}${ext}` };
 }
 
+// Lore fragment artwork exists only on the wiki; each set page lists
+// {{Fragments}} blocks pairing the codex display name with a file name.
+const FRAGMENT_PAGES = [
+  "Fragments/Cephalon",
+  "Fragments/Fish",
+  "Fragments/Glass",
+  "Fragments/Ghoul",
+  "Fragments/Revenant",
+  "Fragments/Solaris United",
+  "Fragments/Partnership",
+  "Fragments/The Tenets",
+  "Fragments/Duviri",
+  "Fragments/Albrecht",
+  "Fragments/Isleweaver",
+];
+// Solaris blocks are numbered 1..5 per vendor; the file name carries the
+// vendor while the codex names them "<vendor> Mem Fragment N/5".
+const SOLARIS_VENDORS = {
+  Eudico: "Eudico",
+  Legs: "Legs",
+  LittleDuck: "Little Duck's",
+  RudeZuud: "Rude Zuud's",
+  Smokefinger: "Smokefinger's",
+  TheBusiness: "The Business'",
+  Ticker: "Ticker's",
+};
+const normFragmentName = (name) =>
+  name.toLowerCase().replace(/[‘’]/g, "'").replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
+const fragmentImageByName = new Map();
+for (const page of FRAGMENT_PAGES) {
+  const url = `https://wiki.warframe.com/w/${encodeURI(page)}?action=raw`;
+  const res = await fetch(url, { headers: { "User-Agent": "WFHelper data build" } });
+  if (!res.ok) {
+    console.warn(`skip ${page}: HTTP ${res.status}`);
+    continue;
+  }
+  const text = await res.text();
+  for (const block of text.split(/\{\{Fragments\s*\n/).slice(1)) {
+    let name = block.match(/(?:^|\|)\s*fragment\s*=\s*([^\n|]+)/)?.[1]?.trim();
+    const image = block.match(/(?:^|\|)\s*image\s*=\s*([^\n|]+)/)?.[1]?.trim();
+    if (!image) continue;
+    const solaris = /^Frag_SU(\w+)_0*(\d+)\.png$/.exec(image);
+    if (solaris && SOLARIS_VENDORS[solaris[1]]) {
+      name = `${SOLARIS_VENDORS[solaris[1]]} Mem Fragment ${solaris[2]}/5`;
+    }
+    if (!name) continue;
+    const key = normFragmentName(name);
+    if (!fragmentImageByName.has(key)) fragmentImageByName.set(key, image);
+  }
+}
+console.log(`wiki fragment artwork: ${fragmentImageByName.size} names`);
+
+// Albrecht entries carry a set prefix the wiki page titles drop.
+function wikiFragmentImage(name) {
+  if (!name) return null;
+  const key = normFragmentName(name);
+  const direct = fragmentImageByName.get(key);
+  if (direct) return direct;
+  const dash = key.indexOf(" - ");
+  return dash >= 0 ? (fragmentImageByName.get(key.slice(dash + 3)) ?? null) : null;
+}
+
 const extras = new Map();
 const codexIconSources = new Set();
-function addExtra(key, rawName, icon, faction, reqScans) {
+const fragmentImagesUsed = new Set();
+function resolveName(rawName) {
+  return typeof rawName === "string" && rawName.startsWith("/")
+    ? (dictEn[rawName] || "").replace(/<[^>]+>/g, "").trim() || null
+    : rawName || null;
+}
+
+function addExtra(key, rawName, icon, faction, reqScans, wikiImage = null) {
   if (all.has(key) || extras.has(key)) return;
-  const name =
-    typeof rawName === "string" && rawName.startsWith("/")
-      ? (dictEn[rawName] || "").replace(/<[^>]+>/g, "").trim() || null
-      : rawName || null;
+  const name = resolveName(rawName);
   const resolved = icon ? deIconMirror(icon) : null;
   if (!name && !resolved) return;
   if (resolved) codexIconSources.add(resolved.sourceUrl);
+  if (!resolved && wikiImage) fragmentImagesUsed.add(wikiImage);
   extras.set(key, {
     name,
-    icon: resolved ? resolved.mirrorUrl : null,
+    icon: resolved ? resolved.mirrorUrl : wikiImage,
     faction,
     scans: Number.isFinite(reqScans) && reqScans > 0 ? reqScans : null,
   });
@@ -120,10 +187,22 @@ const CODEX_SECTION_FACTION = {
   songs: "lore",
   fighterFrames: "objects",
 };
+// A completed fragment unlocks a ship decoration with the same display name
+// carrying the artwork DE leaves off the codex entry; borrow its icon.
+const resourceIconByName = new Map();
+for (const item of Object.values(readPep("ExportResources.json"))) {
+  if (!item.icon) continue;
+  const name = resolveName(item.name);
+  if (!name) continue;
+  resourceIconByName.set(name, resourceIconByName.has(name) ? null : item.icon);
+}
 for (const [section, sectionEntries] of Object.entries(readPep("ExportCodex.json"))) {
   const faction = CODEX_SECTION_FACTION[section] || "objects";
   for (const [key, item] of Object.entries(sectionEntries || {})) {
-    addExtra(key, item.name, item.icon, faction, item.reqScans);
+    const icon = item.icon ?? resourceIconByName.get(resolveName(item.name)) ?? null;
+    const wikiImage =
+      section === "loreFragments" && !icon ? wikiFragmentImage(resolveName(item.name)) : null;
+    addExtra(key, item.name, icon, faction, item.reqScans, wikiImage);
   }
 }
 
@@ -158,7 +237,8 @@ const body =
   lines.join("\n") +
   `\n};\n\n` +
   `// Profile-only scan types (not in the wiki enemy modules): display name,\n` +
-  `// mirrored DE icon and, when DE states one, the required scan count.\n` +
+  `// icon (mirrored DE url, or a wiki artwork file served from /enemies/)\n` +
+  `// and, when DE states one, the required scan count.\n` +
   `export const CODEX_EXTRA_INFO: Record<\n` +
   `  string,\n` +
   `  { name?: string; icon?: string; faction: string; scans?: number }\n` +
@@ -170,7 +250,9 @@ fs.writeFileSync(OUT_FILE, banner + body);
 
 // Sidecars for the icon mirror: wiki image filenames the table references, and
 // the DE texture source URLs the extras need mirrored.
-const images = [...new Set(sorted.map((e) => e.image).filter(Boolean))].sort();
+const images = [
+  ...new Set([...sorted.map((e) => e.image), ...fragmentImagesUsed].filter(Boolean)),
+].sort();
 const IMAGES_FILE = path.join(process.cwd(), "scripts", "icon-mirror", "enemy-images.json");
 fs.writeFileSync(IMAGES_FILE, JSON.stringify(images, null, 2) + "\n");
 const CODEX_ICONS_FILE = path.join(process.cwd(), "scripts", "icon-mirror", "codex-icon-urls.json");
