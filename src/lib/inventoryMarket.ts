@@ -43,6 +43,8 @@ export interface InventoryViewItem extends InventoryBaseItem {
   ducats: number | null;
   ducatonator: number | null;
   displayImageUrl: string | null;
+  /** Mod or arcane falling back to DE art because no WFM icon resolved. */
+  usesFallbackArt: boolean;
   equippedSummary: string | null;
 }
 
@@ -490,9 +492,11 @@ export function buildInventoryViewItems(
         : null;
 
     const iconFromMeta = formatWfmAssetUrl(metric?.thumb || metric?.icon || null);
-    const displayImageUrl = isRankedGroup(item.inventoryGroup)
+    const isRanked = isRankedGroup(item.inventoryGroup);
+    const displayImageUrl = isRanked
       ? item.marketThumb || iconFromMeta || item.imageUrl || null
       : item.imageUrl || item.marketThumb || iconFromMeta || null;
+    const usesFallbackArt = isRanked && !item.marketThumb && !iconFromMeta;
 
     const equippedInList = Array.isArray(item.equippedIn) ? item.equippedIn : [];
     const equippedSummary =
@@ -512,6 +516,7 @@ export function buildInventoryViewItems(
       ducats,
       ducatonator,
       displayImageUrl,
+      usesFallbackArt,
       equippedSummary,
     };
   });

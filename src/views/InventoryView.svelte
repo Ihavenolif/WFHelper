@@ -36,6 +36,8 @@
     recordRankedHotsetEntry,
   } from "../lib/wfm/rankedHotset.js";
   import { getInventoryHydrationController } from "../stores/inventoryHydration.js";
+  import { ARCANE_STAND_IN_ART } from "../data/arcaneStandInArt.js";
+  import { devMode, degradedIcons } from "../stores/devMode.js";
   import { sharedFilters, updateSharedFilters } from "../stores/filters.js";
   import { activeItem } from "../stores/modals.js";
   import { isRankedGroup } from "../../config/shared/numeric.js";
@@ -81,6 +83,7 @@
   };
 
   let filter: InventoryFilterTab = restoreFilterTab();
+  let missingIconsOnly = false;
   let showFilterPanel = false;
   // Full Sets lists sellable spares; this folds in the sets still missing parts.
   let showIncompleteSets = false;
@@ -318,6 +321,16 @@
   $: partMastery = buildPartMasteryResolver($itemDb, $masteryData);
   $: masteredTabItems = attachPartMasteryFlags(searchableTabItems, partMastery);
   $: filtered = applySharedFiltersAndSort(masteredTabItems, $inventoryFilters);
+  $: visibleItems =
+    $devMode && missingIconsOnly
+      ? filtered.filter(
+          (item) =>
+            !item.displayImageUrl ||
+            item.usesFallbackArt ||
+            ARCANE_STAND_IN_ART.has(item.internalName) ||
+            $degradedIcons.has(item.name),
+        )
+      : filtered;
   $: resourceList =
     $inventoryData && Object.keys($itemDb).length > 0
       ? parseResources($inventoryData, $itemDb)
@@ -340,7 +353,7 @@
   }
 
   $: filteredResources = filterAndSortResources(resourceList, $inventoryFilters);
-  $: filteredTotalCount = filter === "resources" ? filteredResources.length : filtered.length;
+  $: filteredTotalCount = filter === "resources" ? filteredResources.length : visibleItems.length;
   function countActiveAdvancedFilters(state: SharedFiltersState): number {
     let active = 0;
     if (state.orderPlaced !== "all") active++;
@@ -408,8 +421,20 @@
             Show incomplete sets
           </label>
         {/if}
+        {#if $devMode}
+          <label
+            class="mb-2 flex w-fit cursor-pointer items-center gap-2 text-xs text-text-secondary"
+          >
+            <input
+              type="checkbox"
+              class="accent-[color:var(--accent)]"
+              bind:checked={missingIconsOnly}
+            />
+            Missing icons (dev)
+          </label>
+        {/if}
         <InventoryGrid
-          items={filtered}
+          items={visibleItems}
           {showDucats}
           {detailKeys}
           on:select={handleItemSelect}

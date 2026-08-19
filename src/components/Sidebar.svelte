@@ -1,27 +1,16 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-
   import { currentView } from "../stores/app.js";
   import { invoke, send } from "../lib/ipc.js";
   import { tr } from "../lib/i18n.js";
   import { NAV_ICON_URLS } from "../lib/assetUrls.js";
   import { persistedBoolean } from "../lib/persistence.js";
+  import { devMode } from "../stores/devMode.js";
   import { hiddenTabs } from "../stores/sidebarTabs.js";
   import { resetTourAutoStart } from "../stores/tour.js";
   import type { MessageKey } from "../lib/i18n.js";
 
   const collapsed = persistedBoolean("sidebar.collapsed", false);
-  let showDevTools = import.meta.env.DEV;
-
-  onMount(() => {
-    invoke("getAppRuntimeInfo")
-      .then((info) => {
-        showDevTools = !info.isPackaged;
-      })
-      .catch(() => {
-        showDevTools = import.meta.env.DEV;
-      });
-  });
+  $: showDevTools = $devMode;
 
   function toggleCollapsed(): void {
     collapsed.update((value) => !value);

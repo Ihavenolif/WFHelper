@@ -1,5 +1,6 @@
 <script lang="ts">
   import { FORMA_ICON_URL } from "../lib/assetUrls.js";
+  import { reportDegradedIcon } from "../stores/devMode.js";
 
   export let src: string | null = null;
   export let alt = "";
@@ -34,6 +35,8 @@
   $: mergedPlaceholderClass = `${placeholderBase} ${cls}`.trim();
 
   function onError(event: Event): void {
+    // Every branch below is a degradation, the Forma swap included.
+    if (alt) reportDegradedIcon(alt);
     const img = event.currentTarget as HTMLImageElement | null;
     if (isFormaIcon && !useFormaFallback && img && !img.src.endsWith("Forma.webp")) {
       useFormaFallback = true;

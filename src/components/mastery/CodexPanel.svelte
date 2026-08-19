@@ -1,6 +1,14 @@
+<script lang="ts" context="module">
+  import { SvelteSet } from "svelte/reactivity";
+
+  // Survives tab switches so failed loads and the audit toggle are not
+  // forgotten every time the panel remounts.
+  const brokenImages = new SvelteSet<string>();
+  let missingIconsDefault = false;
+</script>
+
 <script lang="ts">
   import { onMount } from "svelte";
-  import { SvelteSet } from "svelte/reactivity";
 
   import { tr } from "../../lib/i18n.js";
   import { invoke } from "../../lib/ipc.js";
@@ -12,6 +20,7 @@
     type CodexRow,
     type CodexSortKey,
   } from "../../lib/codexScans.js";
+  import { devMode } from "../../stores/devMode.js";
   import SearchBox from "../SearchBox.svelte";
 
   let rows: CodexRow[] = [];
@@ -20,9 +29,14 @@
   let loading = false;
   let search = "";
   let incompleteOnly = false;
+  let missingIconsOnly: boolean = missingIconsDefault;
   let factionFilter = "all";
   let sortBy: CodexSortKey = "name";
-  let brokenImages = new SvelteSet<string>();
+
+  function setMissingIconsOnly(value: boolean): void {
+    missingIconsOnly = value;
+    missingIconsDefault = value;
+  }
 
   async function load(refresh = false): Promise<void> {
     if (loading) return;
@@ -48,7 +62,7 @@
   });
 
   function markBroken(type: string): void {
-    brokenImages = new SvelteSet(brokenImages).add(type);
+    brokenImages.add(type);
   }
 
   $: shownFactions = CODEX_FACTIONS.filter((faction) =>
@@ -59,6 +73,9 @@
     rows.filter((row) => {
       if (factionFilter !== "all" && row.faction !== factionFilter) return false;
       if (incompleteOnly && row.complete !== false) return false;
+      if (missingIconsOnly && enemyImageUrl(row.image) !== null && !brokenImages.has(row.type)) {
+        return false;
+      }
       if (query && !row.name.toLowerCase().includes(query)) return false;
       return true;
     }),
@@ -81,6 +98,17 @@
       <input type="checkbox" bind:checked={incompleteOnly} />
       {$tr("codex.incompleteOnly")}
     </label>
+    {#if $devMode}
+      <!-- Icon-coverage audit; broken images join the set as their loads fail. -->
+      <label class="flex cursor-pointer items-center gap-1.5 text-sm text-text-secondary">
+        <input
+          type="checkbox"
+          checked={missingIconsOnly}
+          on:change={(e) => setMissingIconsOnly(e.currentTarget.checked)}
+        />
+        Missing icons
+      </label>
+    {/if}
     <div class="shared-select-group">
       <span class="shared-chip-label">{$tr("codex.sortLabel")}</span>
       <select class="shared-filter-select" bind:value={sortBy}>

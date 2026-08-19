@@ -94,6 +94,7 @@ describe("inventoryMarket view mapping", () => {
     expect(mapped.displayImageUrl).toBe(
       "https://warframe.market/static/assets/sample_market_thumb.png",
     );
+    expect(mapped.usesFallbackArt).toBe(false);
   });
 
   it("falls back to market thumb/meta icon when local icon is missing", () => {
@@ -115,6 +116,7 @@ describe("inventoryMarket view mapping", () => {
     expect(mapped.displayImageUrl).toBe(
       "https://warframe.market/static/assets/sample_meta_icon.png",
     );
+    expect(mapped.usesFallbackArt).toBe(false);
   });
 
   it("falls back to local item icon when market sources are unavailable", () => {
@@ -134,6 +136,7 @@ describe("inventoryMarket view mapping", () => {
 
     const [mapped] = buildInventoryViewItems([item], metrics);
     expect(mapped.displayImageUrl).toBe("https://cdn.warframestat.us/img/sample_local.jpg");
+    expect(mapped.usesFallbackArt).toBe(true);
   });
 
   it("uses cached ranked order summaries when metrics are not yet hydrated", () => {
