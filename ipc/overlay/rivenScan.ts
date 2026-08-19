@@ -1,6 +1,6 @@
 import { withScope } from "../../services/logger";
 import { captureScreenFast, type CaptureResult } from "../../services/screenCapture";
-import { detectGameContentRect } from "../../services/rewardScannerImage";
+import { canvasContentRect } from "../../services/rewardScannerImage";
 import { sleep } from "../../services/rewardScannerUtils";
 import {
   abortRivenScanWaits,
@@ -109,11 +109,11 @@ function pinCaptureDisplay(capture: CaptureResult): void {
 
 function logCapture(profile: RivenScanProfile, capture: CaptureResult): void {
   const imgSize = capture.image.getSize?.() ?? { width: "?", height: "?" };
-  // Note when letterbox detection trimmed the frame - a dark scene edge shaved
-  // here shifts every fraction-based crop and is invisible in the log otherwise.
+  // A shaved crop base shifts every fraction-based crop and is otherwise
+  // invisible in the log, so name it when bar trim or the 16:9 clamp bites.
   let contentNote = "";
   try {
-    const content = detectGameContentRect(capture.image);
+    const content = canvasContentRect(capture.image);
     if (
       content.x !== 0 ||
       content.y !== 0 ||

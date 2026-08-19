@@ -94,6 +94,20 @@ export function detectGameContentRect(nativeImage: NativeImage): GameContentRect
   return { x: pillar, y: letter, width: contentW, height: contentH };
 }
 
+// Menus sit on a centred 16:9 canvas, so a barless non-16:9 render needs the
+// crop base clamped to it. The x half is 98e22b5, shipped since v1.1.0.
+export function canvasContentRect(nativeImage: NativeImage): GameContentRect {
+  const content = detectGameContentRect(nativeImage);
+  const canvasWidth = Math.min(content.width, Math.round((content.height * 16) / 9));
+  const canvasHeight = Math.min(content.height, Math.round((content.width * 9) / 16));
+  return {
+    x: content.x + Math.floor((content.width - canvasWidth) / 2),
+    y: content.y + Math.floor((content.height - canvasHeight) / 2),
+    width: canvasWidth,
+    height: canvasHeight,
+  };
+}
+
 const OCR_ENHANCE: Readonly<{
   upscaleFactor: number;
   maxWidth: number;

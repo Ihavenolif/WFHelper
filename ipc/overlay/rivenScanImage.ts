@@ -1,6 +1,6 @@
 import { captureScreenFast, type CaptureResult } from "../../services/screenCapture";
 import type { NativeImage } from "electron";
-import { cropRectContent, detectGameContentRect } from "../../services/rewardScannerImage";
+import { canvasContentRect, cropRectContent } from "../../services/rewardScannerImage";
 import { clamp01, computeMeanAndStd, sleep } from "../../services/rewardScannerUtils";
 
 export interface RivenScanCropRect {
@@ -81,7 +81,7 @@ interface RivenStatImageCrop {
 }
 
 function cropRivenCardImage(image: NativeImage, rect: RivenScanCropRect): NativeImage {
-  return cropRectContent(image, rect, detectGameContentRect(image));
+  return cropRectContent(image, rect, canvasContentRect(image));
 }
 
 export function cropRivenStatImage(
@@ -346,7 +346,7 @@ export async function waitForRivenUiReady(
   let lastMetrics: RivenTextMetrics | null = null;
   let lastFrameHash = "";
   let lastScreenshot: CaptureResult | null = null;
-  let cachedContentRect: ReturnType<typeof detectGameContentRect> | null = null;
+  let cachedContentRect: ReturnType<typeof canvasContentRect> | null = null;
 
   while (Date.now() - startedAt < timeoutMs) {
     if (_rivenScanAborted) break;
@@ -366,7 +366,7 @@ export async function waitForRivenUiReady(
     let roughCrop: NativeImage;
     try {
       if (!cachedContentRect) {
-        cachedContentRect = detectGameContentRect(screenshot.image);
+        cachedContentRect = canvasContentRect(screenshot.image);
       }
       roughCrop = cropRectContent(screenshot.image, rect, cachedContentRect);
     } catch {

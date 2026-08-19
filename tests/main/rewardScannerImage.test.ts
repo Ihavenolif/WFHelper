@@ -3,6 +3,7 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 import {
   binarizeRewardRegion,
+  canvasContentRect,
   detectConsoleOpen,
   detectGameContentRect,
   detectRewardSlotLayoutCandidates,
@@ -139,6 +140,31 @@ describe("detectGameContentRect", () => {
   it("rejects a one-sided dark scene band at the top", () => {
     const img = makeFakeNativeImage(480, 270, (_x, y) => (y < 60 ? BLACK : BRIGHT));
     expect(detectGameContentRect(img)).toEqual({ x: 0, y: 0, width: 480, height: 270 });
+  });
+});
+
+describe("canvasContentRect", () => {
+  const BRIGHT: [number, number, number, number] = [160, 160, 160, 255];
+  const BLACK: [number, number, number, number] = [4, 4, 4, 255];
+
+  it("is identity on a 16:9 frame", () => {
+    const img = makeFakeNativeImage(480, 270, () => BRIGHT);
+    expect(canvasContentRect(img)).toEqual({ x: 0, y: 0, width: 480, height: 270 });
+  });
+
+  it("clamps a barless 16:10 render to the centred 16:9 canvas", () => {
+    const img = makeFakeNativeImage(480, 300, () => BRIGHT);
+    expect(canvasContentRect(img)).toEqual({ x: 0, y: 15, width: 480, height: 270 });
+  });
+
+  it("matches the bar-trimmed rect when the same frame is letterboxed", () => {
+    const img = makeFakeNativeImage(480, 300, (_x, y) => (y < 15 || y >= 285 ? BLACK : BRIGHT));
+    expect(canvasContentRect(img)).toEqual({ x: 0, y: 15, width: 480, height: 270 });
+  });
+
+  it("clamps a barless ultrawide render to the centred 16:9 canvas", () => {
+    const img = makeFakeNativeImage(480, 216, () => BRIGHT);
+    expect(canvasContentRect(img)).toEqual({ x: 48, y: 0, width: 384, height: 216 });
   });
 });
 
