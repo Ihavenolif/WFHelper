@@ -552,11 +552,12 @@
 
 <section class="view active">
   {#if step === "overlays"}
+    <!-- mt/mb-auto centre the pair when it fits and keep it scrollable when not. -->
     <div
-      class="fixed inset-0 z-40 flex flex-col items-center justify-center gap-4 bg-bg-deep px-6 py-5"
+      class="fixed inset-0 z-40 flex flex-col items-center gap-4 overflow-y-auto bg-bg-deep px-6 py-5"
     >
       <div
-        class="relative min-h-0 overflow-hidden rounded-xl border border-border-strong bg-black"
+        class="relative mt-auto min-h-0 overflow-hidden rounded-xl border border-border-strong bg-black"
         style="aspect-ratio: {placementArea.width} / {placementArea.height}; width: min(100%, calc((100vh - 230px) * {(
           placementArea.width / Math.max(1, placementArea.height)
         ).toFixed(4)}));"
@@ -651,7 +652,9 @@
         {/if}
       </div>
 
-      <div class="w-[560px] max-w-full shrink-0 rounded-xl border border-border bg-bg-surface p-4">
+      <div
+        class="mb-auto w-[560px] max-w-full shrink-0 rounded-xl border border-border bg-bg-surface p-4"
+      >
         <div class="mb-1 flex items-center justify-between gap-3">
           <h2 class="m-0 font-display text-base font-bold tracking-[0.02em]">
             {placementStep.title}

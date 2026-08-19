@@ -19,12 +19,12 @@
   }
   #content.setup-active {
     display: flex;
-    align-items: center;
-    justify-content: center;
   }
-  /* Flex centering shrinks the view to fit; full width lets the wizard's max-w apply. */
+  /* Auto margins centre the wizard when it fits; unlike align/justify-center
+     an overflowing wizard stays scrollable instead of clipping at the top. */
   #content.setup-active > .view {
     width: 100%;
+    margin: auto;
   }
   .view {
     display: block;
