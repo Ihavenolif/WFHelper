@@ -423,6 +423,29 @@ describe("inventory parsing", () => {
     expect(arcane?.leveledUp).toBe(true);
   });
 
+  it("sums combinedAmount across leveled and unleveled copies of a mod", () => {
+    const bite = "/Lotus/Upgrades/Mods/Bite";
+    const db: Record<string, ItemDbEntry> = {
+      [bite]: { name: "Bite", category: "Mods" },
+    };
+
+    const data: RawInventoryData = {
+      Upgrades: [
+        { ItemType: bite, ItemCount: 1, UpgradeData: { CurrentRank: 5, MaxRank: 5 } },
+        { ItemType: bite, ItemCount: 1 },
+      ],
+    };
+
+    const items = parseInventory(data, db);
+    const rows = items.filter((item) => item.internalName === bite);
+
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.amount).toBe(1);
+      expect(row.combinedAmount).toBe(2);
+    }
+  });
+
   it("hides focus upgrades and routes upgrade arcanes correctly", () => {
     const db: Record<string, ItemDbEntry> = {
       "/Lotus/Upgrades/Focus/Tactic/Residual/MeleeXpFocusUpgrade": {

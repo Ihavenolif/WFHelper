@@ -130,6 +130,8 @@ export interface ParsedItem {
   platinum?: number | null;
   ducats?: number | null;
   amount?: number | null;
+  /** Copies across all rank variants of a mod/arcane; rows stay rank-split. */
+  combinedAmount?: number | null;
   ducatonator?: number | null;
   completeSets?: number | boolean | null;
   /** Incomplete-set progress: distinct part types still to farm, and owned/total. */

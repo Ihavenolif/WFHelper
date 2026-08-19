@@ -37,6 +37,7 @@ interface FilterableItem {
   platinum?: number | null;
   ducats?: number | null;
   amount?: number | null;
+  combinedAmount?: number | null;
   ducatonator?: number | null;
   completeSets?: number | boolean | null;
   missingParts?: number | null;
@@ -216,9 +217,11 @@ export function matchesSharedFilters(item: FilterableItem, filters: SharedFilter
     return false;
   }
 
+  // The Leveled Up filter already separates the ranks, so this one counts them.
+  const filterAmount = typeof item.combinedAmount === "number" ? item.combinedAmount : item.amount;
   if (
     filters.minimumAmount > 0 &&
-    (typeof item.amount !== "number" || item.amount < filters.minimumAmount)
+    (typeof filterAmount !== "number" || filterAmount < filters.minimumAmount)
   ) {
     return false;
   }

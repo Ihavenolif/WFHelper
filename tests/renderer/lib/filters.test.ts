@@ -70,6 +70,16 @@ describe("shared filters", () => {
     expect(matchesSharedFilters(prime, defaultFilters())).toBe(true);
   });
 
+  it("prefers combinedAmount over amount for the minimum amount filter", () => {
+    const filters: SharedFiltersState = { ...defaultFilters(), minimumAmount: 2 };
+
+    expect(matchesSharedFilters({ name: "Bite", amount: 1, combinedAmount: 2 }, filters)).toBe(
+      true,
+    );
+    expect(matchesSharedFilters({ name: "Bite", amount: 1 }, filters)).toBe(false);
+    expect(matchesSharedFilters({ name: "Serration", amount: 3 }, filters)).toBe(true);
+  });
+
   it("sorts by name with direction", () => {
     const items = [{ name: "B" }, { name: "A" }, { name: "C" }];
 
