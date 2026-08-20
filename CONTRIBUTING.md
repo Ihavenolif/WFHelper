@@ -15,26 +15,34 @@ pnpm run dev          # Electron + Vite dev loop
 
 ## Before you open a PR
 
-Run the same gates CI and the pre-push hook run — all must pass:
+Run the core validation suite before opening a pull request:
 
 ```
-pnpm run check         # svelte-check
-pnpm run typecheck     # tsc (renderer + main + tests)
-pnpm run lint          # eslint (renderer + main + worker)
-pnpm run format:check  # prettier
-pnpm test              # vitest
-pnpm run build         # production build
+pnpm run format:check    # prettier
+pnpm run typecheck       # tsc (renderer + main + tests)
+pnpm run check           # svelte-check; tsc does not look inside .svelte files
+pnpm run lint            # eslint (renderer + main + worker)
+pnpm run audit:deadcode  # knip + dead production exports
+pnpm test                # vitest
+pnpm run build           # production build
 ```
 
-`pnpm run format` auto-fixes formatting. The pre-push hook runs the gate suite;
-please don't bypass it with `--no-verify`. For worker changes also run
-`pnpm run backend:test`.
+The pre-push hook also verifies the ONNX models, typechecks and tests the Worker,
+and audits production dependencies. On Windows it runs the Electron DBWIN harness
+and Playwright suite as well. CI covers the same areas across its Linux and Windows
+jobs; dependency auditing is skipped on pull requests and runs on branch pushes.
+
+`pnpm run format` auto-fixes formatting. Please do not bypass the pre-push checks
+with `--no-verify`.
 
 ## Conventions
 
 - Commit messages: `[tag] - short lowercase summary` (e.g. `[fix] - relic modal blur`).
 - Keep `services/` as CommonJS unless a migration is already in progress.
 - Renderer imports use relative paths with a `.js` suffix.
+- New Svelte components use runes (`$state`, `$derived`, `$props`). A component
+  must use one idiom. Any rune enables runes mode, where `$:` is a compile error.
+  Existing `$:` components are fine; migrate one only during a substantial rewrite.
 - IPC contract changes touch `src/types/ipc.ts`, `preload.ts`, `src/lib/ipc.ts`,
   and the handler together; every handler uses the sender guards in
   `ipc/ipcSecurity.ts`.

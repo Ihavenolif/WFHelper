@@ -39,6 +39,10 @@ In-game overlays (Warframe in Borderless mode):
 Notifications: in-game whispers, warframe.market DMs and arbitration windows can
 raise Windows notifications while you play.
 
+> **Use English for Warframe's interface.** Relic and riven OCR recognizes only
+> English item names. WFHelper's display language is separate and can be changed
+> in Settings.
+
 ## Install
 
 Download the latest `WFHelper-<version>-Setup.exe` from
