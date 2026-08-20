@@ -1,23 +1,12 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 
 import {
   closeElectronTestHarness,
   launchElectronTestHarness,
+  overlayWindow,
+  setDisplayLanguage,
   type ElectronTestHarness,
 } from "./electronTestHarness";
-
-// The planner window is warmed on boot from the same file, so the reward window
-// is the one without a mode parameter.
-async function rewardOverlayPage(harness: ElectronTestHarness): Promise<Page> {
-  for (let attempt = 0; attempt < 60; attempt += 1) {
-    for (const win of harness.app.windows()) {
-      const url = win.url();
-      if (url.includes("renderer/overlay.html") && !url.includes("planner")) return win;
-    }
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error("reward overlay window never appeared");
-}
 
 test("the reward overlay speaks the stored language and follows a live switch", async () => {
   test.setTimeout(180_000);
@@ -29,7 +18,9 @@ test("the reward overlay speaks the stored language and follows a live switch", 
     const { page } = harness;
 
     await page.evaluate(() => window.api.simulateRelicTrigger());
-    const overlay = await rewardOverlayPage(harness);
+    // The planner window is warmed on boot from the same file, so the reward
+    // window is the one without a mode parameter.
+    const overlay = await overlayWindow(harness, "renderer/overlay.html", "planner");
 
     await expect(overlay.locator("#scanning-text")).toHaveText("Lese Belohnungsbildschirm...", {
       timeout: 30_000,
@@ -38,11 +29,7 @@ test("the reward overlay speaks the stored language and follows a live switch", 
     await expect(overlay.locator('.reward-slot[data-slot="0"] .slot-player')).toHaveText("Platz 1");
     expect(await overlay.title()).toBe("Relikt-Overlay");
 
-    await page.locator("#sidebar").getByText("Einstellungen", { exact: true }).click();
-    await page
-      .locator("label.settings-control-row", { hasText: "Anzeigesprache" })
-      .locator("select")
-      .selectOption("en");
+    await setDisplayLanguage(page, "Einstellungen", "Anzeigesprache", "en");
 
     // Same window, no reload: main pushes the new messages to every open overlay.
     await expect(overlay.locator("#scanning-text")).toHaveText("Reading reward screen...", {

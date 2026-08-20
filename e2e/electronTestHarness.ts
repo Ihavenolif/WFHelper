@@ -86,6 +86,36 @@ export async function launchElectronTestHarness(
   }
 }
 
+/** Sidebar label, so the caller passes the word in the language on screen now. */
+export async function setDisplayLanguage(
+  page: Page,
+  settingsLabel: string,
+  selectLabel: string,
+  code: string,
+): Promise<void> {
+  await page.locator("#sidebar").getByText(settingsLabel, { exact: true }).click();
+  await page
+    .locator("label.settings-control-row", { hasText: selectLabel })
+    .locator("select")
+    .selectOption(code);
+}
+
+/** Opens the overlay window whose URL contains `match`, once main has made it. */
+export async function overlayWindow(
+  harness: ElectronTestHarness,
+  match: string,
+  reject?: string,
+): Promise<Page> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    for (const win of harness.app.windows()) {
+      const url = win.url();
+      if (url.includes(match) && (!reject || !url.includes(reject))) return win;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`overlay window ${match} never appeared`);
+}
+
 export function writeHarnessInventory(harness: ElectronTestHarness, inventory: unknown): void {
   fs.writeFileSync(path.join(harness.helperDir, "inventory.json"), JSON.stringify(inventory));
 }
