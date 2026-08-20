@@ -493,11 +493,10 @@ export function buildInventoryViewItems(
         : null;
 
     const iconFromMeta = formatWfmAssetUrl(metric?.thumb || metric?.icon || null);
-    const isRanked = isRankedGroup(item.inventoryGroup);
-    const displayImageUrl = isRanked
+    const displayImageUrl = isRankedListingItem
       ? item.marketThumb || iconFromMeta || item.imageUrl || null
       : item.imageUrl || item.marketThumb || iconFromMeta || null;
-    const usesFallbackArt = isRanked && !item.marketThumb && !iconFromMeta;
+    const usesFallbackArt = isRankedListingItem && !item.marketThumb && !iconFromMeta;
 
     const equippedInList = Array.isArray(item.equippedIn) ? item.equippedIn : [];
     const equippedSummary =

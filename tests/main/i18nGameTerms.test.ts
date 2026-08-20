@@ -13,25 +13,21 @@ function officialDict(locale: string): Record<string, string> {
   return JSON.parse(fs.readFileSync(path.join(DICT_DIR, `dict.${locale}.json`), "utf8"));
 }
 
+const OFFICIAL_EN = officialDict("en");
+const OFFICIAL_DE = officialDict("de");
+
 type Term = {
-  /** The English word as it appears in our own copy. */
   en: string;
-  /** The German we use. `stem` covers its inflected forms. */
   de: string;
   stem?: string;
-  /** Only for plurals the default pattern cannot reach, such as Bounties. */
   enPattern?: RegExp;
-  /** Set when we knowingly differ from Digital Extremes, with the reason. */
   ownChoice?: string;
 };
 
 const englishPattern = (term: Term): RegExp =>
   term.enPattern ?? new RegExp(`\\b${term.en}(s|es)?\\b`, "i");
 
-// Digital Extremes ships German for most of these in
-// warframe-public-export-plus/dict.de.json. Matching it is the default because
-// it is what a German player reads in the game, but it is not binding: set
-// ownChoice to overrule it, and the test then holds you to your word instead.
+// Match Digital Extremes by default; ownChoice records deliberate differences.
 const TERMS: Term[] = [
   { en: "Arbitration", de: "Arbitration", ownChoice: "German players say the English word" },
   { en: "Relic", de: "Relikt" },
@@ -66,13 +62,11 @@ const UNPINNED: Term[] = [
 ];
 
 function shippedGerman(term: Term): Set<string> {
-  const officialEn = officialDict("en");
-  const officialDe = officialDict("de");
   const needle = term.en.toLowerCase();
   const shipped = new Set<string>();
-  for (const [key, value] of Object.entries(officialEn)) {
-    if (typeof value === "string" && value.trim().toLowerCase() === needle && officialDe[key]) {
-      shipped.add(officialDe[key].trim());
+  for (const [key, value] of Object.entries(OFFICIAL_EN)) {
+    if (typeof value === "string" && value.trim().toLowerCase() === needle && OFFICIAL_DE[key]) {
+      shipped.add(OFFICIAL_DE[key].trim());
     }
   }
   return shipped;
@@ -99,9 +93,7 @@ describe("german game terminology", () => {
   });
 
   it("uses each term the same way everywhere", () => {
-    // Preference-neutral: whatever word a term settles on, every German string
-    // whose English mentions that term has to use it. Half-migrated wording is
-    // the failure this catches, not disagreement with Digital Extremes.
+    // Catch half-migrated wording after a German term is chosen.
     const inconsistent: string[] = [];
 
     for (const term of [...TERMS, ...UNPINNED]) {

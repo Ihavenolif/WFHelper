@@ -217,7 +217,6 @@ export function matchesSharedFilters(item: FilterableItem, filters: SharedFilter
     return false;
   }
 
-  // The Leveled Up filter already separates the ranks, so this one counts them.
   const filterAmount = typeof item.combinedAmount === "number" ? item.combinedAmount : item.amount;
   if (
     filters.minimumAmount > 0 &&

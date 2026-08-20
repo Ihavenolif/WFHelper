@@ -218,7 +218,6 @@ export function parseInventory(
     }
   }
 
-  // Sets count per rank-split row; the Amount filter counts across ranks.
   const ownedCounts = new Map<string, number>();
   const combinedTotals = new Map<string, number>();
   for (const [instanceKey, item] of itemMap) {

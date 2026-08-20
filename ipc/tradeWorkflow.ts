@@ -16,13 +16,11 @@ export function handleConfirmedTrade(trade: ParsedLogTrade): void {
   const event = tradeTracker.recordTradeFromLog(trade);
   if (!event) return;
 
-  // Push trade to renderer in real-time
   const win = ctx.mainWindow;
   if (win && !win.isDestroyed()) {
     win.webContents.send(TRADE_RECORDED, { trade: event, wfmMatches: [] });
   }
 
-  // Always report the auto-close outcome.
   void (async () => {
     const notify = (status: TradeNotificationStatus, match?: TradeMatchPayload | null) => {
       if (!isTradeNotificationOverlayEnabled(ctx.overlaySettings)) return;
