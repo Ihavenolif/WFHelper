@@ -1,5 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+import type { ArbiRunRecord } from "../config/shared/arbiTypes";
+
 import {
   closeElectronTestHarness,
   launchElectronTestHarness,
@@ -25,24 +27,24 @@ test.describe("Riven, arbitration and trade windows follow the language", () => 
     await closeElectronTestHarness(harness);
   });
 
-  // Playwright evaluates in the main process but outside module scope, so `require`
-  // is undefined there; process.mainModule is the only loader in reach.
   async function callMain(moduleName: string, fn: string, ...args: unknown[]): Promise<void> {
     await harness.app.evaluate(
-      ({ app }, { moduleName: name, fn: method, args: payload }) => {
-        const main = process.mainModule as unknown as {
-          require: (id: string) => Record<string, (...values: unknown[]) => void>;
+      async ({ app }, { moduleName: name, fn: method, args: payload }) => {
+        const moduleApi = process.getBuiltinModule("module") as {
+          createRequire: (filename: string) => (id: string) => Record<string, unknown>;
         };
-        main.require(`${app.getAppPath()}/.electron-build/ipc/${name}`)[method](...payload);
+        const load = moduleApi.createRequire(`${app.getAppPath()}/.electron-build/main.js`);
+        const loaded = load(`./ipc/${name}.js`);
+        const target = loaded[method];
+        if (typeof target !== "function") throw new Error(`missing main export ${name}.${method}`);
+        target(...payload);
       },
       { moduleName, fn, args },
     );
   }
 
   async function switchTo(code: "de" | "en"): Promise<void> {
-    const settings = code === "en" ? "Einstellungen" : "Settings";
-    const label = code === "en" ? "Anzeigesprache" : "Display language";
-    await setDisplayLanguage(harness.page, settings, label, code);
+    await setDisplayLanguage(harness.page, code);
   }
 
   test("the riven overlay opens in German and follows a live switch", async () => {
@@ -52,6 +54,9 @@ test.describe("Riven, arbitration and trade windows follow the language", () => 
 
     await expect(left.locator("#panel-label")).toHaveText("Aktuell", { timeout: 30_000 });
     await expect(right.locator("#panel-label")).toHaveText("Neuer Wurf");
+    await expect(left.locator("#stats-container")).toHaveClass(/is-hidden/);
+    await expect(left.locator("#scanning-text")).toHaveText("Scanne aktuelle Werte...");
+    await expect(right.locator("#stats-list")).toHaveText("Warte auf Wurf...");
     await expect(left.locator("#btn-rescan")).toHaveAttribute(
       "title",
       "Karte und verknüpfte Waffe neu scannen",
@@ -84,7 +89,7 @@ test.describe("Riven, arbitration and trade windows follow the language", () => 
       durationSec: 1800,
       rotations: 6,
       drones: 12,
-      totalEnemies: 900,
+      totalEnemies: 12_345,
       vitusActual: null,
       logFile: null,
       logSizeBytes: 0,
@@ -102,8 +107,9 @@ test.describe("Riven, arbitration and trade windows follow the language", () => 
         preciseStartSec: 0,
         lastActivitySec: 1800,
         saturationBuckets: [{ minCount: 15, label: "15+", seconds: 765, pct: 42.5 }],
+        waves: null,
       },
-    });
+    } satisfies ArbiRunRecord);
 
     const arbi = await overlayWindow(harness, "arbi-overlay.html");
 
@@ -117,6 +123,8 @@ test.describe("Riven, arbitration and trade windows follow the language", () => 
     await expect(arbi.locator('[data-i18n="overlay.arbi.saturation"]')).toHaveText(
       "Zeit bei 15+ Gegnern",
     );
+    await expect(arbi.locator("#kpi-vitus")).toHaveText("14,2 ±3,1");
+    await expect(arbi.locator("#kpi-kills")).toHaveText("12.345");
 
     await switchTo("en");
 
@@ -127,6 +135,8 @@ test.describe("Riven, arbitration and trade windows follow the language", () => 
     await expect(arbi.locator('[data-i18n="overlay.arbi.saturation"]')).toHaveText(
       "Time at 15+ Enemies",
     );
+    await expect(arbi.locator("#kpi-vitus")).toHaveText("14.2 ±3.1");
+    await expect(arbi.locator("#kpi-kills")).toHaveText("12,345");
 
     await switchTo("de");
   });
@@ -158,7 +168,6 @@ test.describe("Riven, arbitration and trade windows follow the language", () => 
     expect(await toast.title()).toBe("Handelsbenachrichtigung");
 
     await switchTo("en");
-    // The toast redraws from its stored payload, so the live push is enough.
     await expect(toast.locator("#trade-label")).toHaveText("Listing Closed", { timeout: 30_000 });
     await expect(toast.locator("#trade-badge")).toHaveText("Sale");
     expect(await toast.title()).toBe("Trade Notification");

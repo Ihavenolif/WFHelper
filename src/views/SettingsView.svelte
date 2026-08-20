@@ -141,8 +141,7 @@
     }
   }
 
-  // One normalizer feeds both the form and the saved payload, so a new
-  // OverlaySettings field only has to be listed here once.
+  // Normalizes editable fields for form initialization and saved payloads.
   function normalizeOverlayForm(s: OverlaySettingsFormInput) {
     return {
       autoTriggerEnabled: !!s.autoTriggerEnabled,
@@ -361,7 +360,7 @@
           </p>
         </div>
         <div class="mt-2.5 grid gap-1">
-          <label class="settings-control-row">
+          <label class="settings-control-row" data-setting="language">
             <span>{$tr("settings.languageRow")}</span>
             <ThemedSelect bind:value={languageChoice}>
               {#each LOCALE_OPTIONS as option}
@@ -752,7 +751,7 @@
         </div>
 
         <div class="mt-2.5 grid gap-1">
-          <label class="settings-control-row">
+          <label class="settings-control-row" data-setting="relicRewardsOverlay">
             <span>{$tr("settings.relicRewardsOverlay")}</span>
             <input
               type="checkbox"
@@ -762,7 +761,7 @@
             />
           </label>
 
-          <label class="settings-control-row">
+          <label class="settings-control-row" data-setting="relicRecommendationOverlay">
             <span>{$tr("settings.relicRecommendationOverlay")}</span>
             <input
               type="checkbox"
@@ -772,7 +771,7 @@
             />
           </label>
 
-          <label class="settings-control-row">
+          <label class="settings-control-row" data-setting="tradeNotificationOverlay">
             <span>{$tr("settings.tradeDetectedOverlay")}</span>
             <input
               type="checkbox"
@@ -782,7 +781,7 @@
             />
           </label>
 
-          <label class="settings-control-row">
+          <label class="settings-control-row" data-setting="rivenOverlay">
             <span>{$tr("settings.rivenOverlay")}</span>
             <input
               type="checkbox"
@@ -792,7 +791,7 @@
             />
           </label>
 
-          <label class="settings-control-row">
+          <label class="settings-control-row" data-setting="arbiSummaryOverlay">
             <span>{$tr("settings.arbiSummaryOverlay")}</span>
             <input
               type="checkbox"

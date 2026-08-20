@@ -25,6 +25,7 @@ import {
   OVERLAY_MESSAGES,
   OVERLAY_GET_DRAG_HINT,
   OVERLAY_DRAG_MOVE,
+  OVERLAY_READY,
 } from "./config/shared/ipcChannels";
 
 const onRivenIpc = (
@@ -39,6 +40,7 @@ contextBridge.exposeInMainWorld("rivenOverlay", {
   openAuction: (auctionId: string) => ipcRenderer.send(RIVEN_OPEN_AUCTION, auctionId),
   requestRescan: () => ipcRenderer.send(RIVEN_RESCAN_REQUEST),
   moveBy: (dx: number, dy: number) => ipcRenderer.send(OVERLAY_DRAG_MOVE, { dx, dy }),
+  ready: () => ipcRenderer.send(OVERLAY_READY),
   getDragHint: () => ipcRenderer.invoke(OVERLAY_GET_DRAG_HINT),
   onSessionStart: (cb: (weapon: string, kuvaPerRoll: number) => void) =>
     onRivenIpc(RIVEN_SESSION_START, (_event: unknown, weapon: unknown, kuvaPerRoll: unknown) =>

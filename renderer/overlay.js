@@ -639,6 +639,12 @@ function startOverlay() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  let bootstrapped = false;
+  const finishBootstrap = (loaded) => {
+    if (!loaded || bootstrapped) return;
+    bootstrapped = true;
+    startOverlay();
+  };
   window.overlayTheme.loadThemeFromStorageFallback();
   void window.overlay
     .getThemeVars()
@@ -675,7 +681,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.overlay.onThemeVars((vars) => {
     window.overlayTheme.applyThemeVars(vars);
   });
-  window.overlay.onMessages((messages) => window.overlayI18n.apply(messages));
+  window.overlay.onMessages((messages) => finishBootstrap(window.overlayI18n.apply(messages)));
   window.overlay.onInteractionMode((payload) => {
     setOverlayInteractiveMode(Boolean(payload?.interactive));
     showPlannerHint(
@@ -699,5 +705,5 @@ document.addEventListener("DOMContentLoaded", () => {
 
   window.overlayI18n.onApply(renderDynamicText);
   // Scan results only flow after ready(), so the first paint is already localized.
-  void window.overlayI18n.load(() => window.overlay.getMessages()).then(startOverlay);
+  void window.overlayI18n.load(() => window.overlay.getMessages()).then(finishBootstrap);
 });

@@ -6,8 +6,6 @@ import {
   type ElectronTestHarness,
 } from "./electronTestHarness";
 
-// Guards the settings form <-> saved payload round-trip: the form is one
-// normalized draft object, so a dropped field would silently stop persisting.
 test.describe("Overlay settings persistence", () => {
   test.setTimeout(180_000);
 
@@ -23,17 +21,14 @@ test.describe("Overlay settings persistence", () => {
     await closeElectronTestHarness(harness);
   });
 
-  const TOGGLES = ["Relic rewards overlay", "Riven overlay", "Arbitration post-run summary"];
+  const TOGGLES = ["relicRewardsOverlay", "rivenOverlay", "arbiSummaryOverlay"];
 
-  function toggle(label: string) {
-    return page
-      .locator("#content .view.active label.settings-control-row")
-      .filter({ hasText: label })
-      .locator("input[type=checkbox]");
+  function toggle(key: string) {
+    return page.locator(`[data-setting="${key}"] input[type=checkbox]`);
   }
 
   async function openOverlayTab(): Promise<void> {
-    await page.locator("#sidebar").getByText("Settings", { exact: true }).click();
+    await page.locator('#sidebar [data-view="settings"]').click();
     await page.locator('[data-tour-tab="overlay"]').click();
     await page.waitForTimeout(300);
   }
@@ -42,8 +37,8 @@ test.describe("Overlay settings persistence", () => {
     await openOverlayTab();
 
     const before: boolean[] = [];
-    for (const label of TOGGLES) {
-      const box = toggle(label);
+    for (const key of TOGGLES) {
+      const box = toggle(key);
       await expect(box).toHaveCount(1);
       before.push(await box.isChecked());
       await box.click();

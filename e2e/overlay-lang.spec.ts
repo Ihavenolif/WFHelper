@@ -29,7 +29,7 @@ test("the reward overlay speaks the stored language and follows a live switch", 
     await expect(overlay.locator('.reward-slot[data-slot="0"] .slot-player')).toHaveText("Platz 1");
     expect(await overlay.title()).toBe("Relikt-Overlay");
 
-    await setDisplayLanguage(page, "Einstellungen", "Anzeigesprache", "en");
+    await setDisplayLanguage(page, "en");
 
     // Same window, no reload: main pushes the new messages to every open overlay.
     await expect(overlay.locator("#scanning-text")).toHaveText("Reading reward screen...", {

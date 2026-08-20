@@ -13,7 +13,7 @@
   import { CREDITS_ICON_URL } from "../../lib/assetUrls.js";
   import { invoke, send } from "../../lib/ipc.js";
   import { isIpcError } from "../../lib/ipcGuards.js";
-  import { locale, tr, type MessageKey } from "../../lib/i18n.js";
+  import { locale, tr as translate, type MessageKey } from "../../lib/i18n.js";
   import { useInterval } from "../../lib/timers.js";
   import {
     clearOrderBookCache,
@@ -378,13 +378,13 @@
     const rankSuffix = ranked && entry.rank != null ? ` (Rank ${entry.rank})` : "";
     const itemText = `${selected.name}${rankSuffix}${quantitySuffix}`;
     if (side === "sell") {
-      return $tr("common.whisperBuy", {
+      return $translate("common.whisperBuy", {
         user: entry.userName,
         item: itemText,
         platinum: entry.platinum,
       });
     }
-    return $tr("common.whisperSell", {
+    return $translate("common.whisperSell", {
       user: entry.userName,
       item: itemText,
       platinum: entry.platinum,
@@ -483,7 +483,7 @@
         <input
           class="min-w-0 flex-1 border-0 bg-transparent px-3.5 py-2.5 text-base text-text-primary outline-none placeholder:text-text-muted"
           type="text"
-          placeholder={$tr("browse.searchPlaceholder")}
+          placeholder={$translate("browse.searchPlaceholder")}
           bind:value={query}
           bind:this={searchEl}
           on:input={() => (showSuggestions = true)}
@@ -496,7 +496,7 @@
           <button
             type="button"
             class="flex cursor-pointer items-center border-0 bg-transparent px-2 text-base leading-none text-text-muted hover:text-text-primary"
-            aria-label={$tr("common.clearSearch")}
+            aria-label={$translate("common.clearSearch")}
             on:mousedown|preventDefault={clearSearch}>&times;</button
           >
         {/if}
@@ -549,14 +549,16 @@
         ? 'border-accent/50 bg-accent-glow text-accent'
         : 'border-border bg-bg-soft text-text-secondary hover:text-text-primary'}"
       disabled={!selected}
-      title={currentSaved ? $tr("browse.alreadySaved") : $tr("browse.saveItem")}
+      title={currentSaved ? $translate("browse.alreadySaved") : $translate("browse.saveItem")}
       on:click={saveCurrent}>★</button
     >
   </div>
 
   {#if $savedStore.length > 0}
     <div class="mx-auto flex w-[min(640px,100%)] flex-wrap items-center gap-1.5">
-      <span class="text-xs uppercase tracking-[0.05em] text-text-muted">{$tr("common.saved")}</span>
+      <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+        >{$translate("common.saved")}</span
+      >
       {#each $savedStore as saved (saved)}
         <span
           class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm {selected &&
@@ -567,13 +569,13 @@
           <button
             type="button"
             class="cursor-pointer border-0 bg-transparent p-0 text-inherit hover:text-text-primary"
-            title={$tr("browse.openItem")}
+            title={$translate("browse.openItem")}
             on:click={() => applySaved(saved)}>{saved}</button
           >
           <button
             type="button"
             class="cursor-pointer border-0 bg-transparent p-0 text-inherit opacity-60 hover:opacity-100"
-            title={$tr("browse.removeSavedItem")}
+            title={$translate("browse.removeSavedItem")}
             on:click={() => removeSavedSearch("marketBrowse", saved)}>×</button
           >
         </span>
@@ -585,7 +587,7 @@
     <div
       class="mx-auto w-[min(640px,100%)] rounded-lg border border-accent-dim bg-accent-glow px-3 py-2 text-center text-xs font-semibold text-accent-bright"
     >
-      {$tr(feedbackKey)}
+      {$translate(feedbackKey)}
     </div>
   {/if}
 
@@ -593,7 +595,7 @@
     <div
       class="mx-auto w-[min(640px,100%)] rounded-xl border border-dashed border-border bg-bg-soft px-4 py-8 text-center text-sm text-text-secondary"
     >
-      {$tr("browse.emptyHint")}
+      {$translate("browse.emptyHint")}
     </div>
   {:else}
     <div
@@ -617,27 +619,27 @@
         </h3>
         <div class="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
           <span class={owned.total > 0 ? "font-semibold text-success" : ""}
-            >{$tr("browse.owned", { count: owned.total })}{owned.ranks.length > 0
+            >{$translate("browse.owned", { count: owned.total })}{owned.ranks.length > 0
               ? ` (${owned.ranks.map((entry) => `${entry.count}x R${entry.rank}`).join(", ")})`
               : ""}</span
           >
           {#if tradingTax != null}
             <span class="inline-flex items-center gap-1"
-              >{$tr("browse.tradingTax")}
+              >{$translate("browse.tradingTax")}
               {tradingTax.toLocaleString($locale)}<img
                 src={CREDITS_ICON_URL}
-                alt={$tr("common.credits")}
+                alt={$translate("common.credits")}
                 class="h-3.5 w-3.5 object-contain"
               /></span
             >
           {/if}
-          {#if ranked}<span>{$tr("browse.maxRank", { rank: effectiveMaxRank })}</span>{/if}
+          {#if ranked}<span>{$translate("browse.maxRank", { rank: effectiveMaxRank })}</span>{/if}
           <button type="button" class="link-btn" on:click={openOnWarframeMarket}
-            >{$tr("common.openOnWarframeMarket")}</button
+            >{$translate("common.openOnWarframeMarket")}</button
           >
           {#if orderBook && !loading}
             <span class="text-text-muted"
-              >{formatUpdatedLabel($tr, orderBook.timestamp ?? null, nowTimestamp)}</span
+              >{formatUpdatedLabel($translate, orderBook.timestamp ?? null, nowTimestamp)}</span
             >
           {/if}
         </div>
@@ -645,17 +647,19 @@
       <div class="flex flex-wrap items-center gap-1.5">
         {#if selectedDbEntry}
           <button class="btn-secondary btn-sm" on:click={openDetails}
-            >{$tr("common.details")}</button
+            >{$translate("common.details")}</button
           >
         {/if}
         <WikiButton wikiUrl={selectedDbEntry?.wikiaUrl ?? null} fallbackName={selected.name} />
         <button class="btn-success btn-sm" on:click={() => void openPostOrder("sell")}
-          >{$tr("common.postWts")}</button
+          >{$translate("common.postWts")}</button
         >
         <button class="btn-danger btn-sm" on:click={() => void openPostOrder("buy")}
-          >{$tr("common.postWtb")}</button
+          >{$translate("common.postWtb")}</button
         >
-        <button class="btn-secondary btn-sm" on:click={refresh}>{$tr("common.refresh")}</button>
+        <button class="btn-secondary btn-sm" on:click={refresh}
+          >{$translate("common.refresh")}</button
+        >
       </div>
     </div>
 
@@ -663,12 +667,12 @@
       <button
         class="filter-tab"
         class:active={contentView === "orders"}
-        on:click={() => (contentView = "orders")}>{$tr("browse.tabOrders")}</button
+        on:click={() => (contentView = "orders")}>{$translate("browse.tabOrders")}</button
       >
       <button
         class="filter-tab"
         class:active={contentView === "stats"}
-        on:click={() => (contentView = "stats")}>{$tr("browse.tabStatistics")}</button
+        on:click={() => (contentView = "stats")}>{$translate("browse.tabStatistics")}</button
       >
     </div>
 
@@ -678,72 +682,72 @@
       <div class="flex flex-wrap items-end gap-x-4 gap-y-2">
         <div class="grid gap-1">
           <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
-            >{$tr("common.orderType")}</span
+            >{$translate("common.orderType")}</span
           >
           <div class="filter-tabs">
             <button
               class="filter-tab browse-side-sell"
               class:active={side === "sell"}
-              on:click={() => setSide("sell")}>{$tr("browse.sellers")}</button
+              on:click={() => setSide("sell")}>{$translate("browse.sellers")}</button
             >
             <button
               class="filter-tab browse-side-buy"
               class:active={side === "buy"}
-              on:click={() => setSide("buy")}>{$tr("browse.buyers")}</button
+              on:click={() => setSide("buy")}>{$translate("browse.buyers")}</button
             >
           </div>
         </div>
         <div class="grid gap-1">
           <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
-            >{$tr("browse.status")}</span
+            >{$translate("browse.status")}</span
           >
           <div class="filter-tabs">
             <button
               class="filter-tab"
               class:active={statusFilter === "ingame"}
-              on:click={() => (statusFilter = "ingame")}>{$tr("common.inGame")}</button
+              on:click={() => (statusFilter = "ingame")}>{$translate("common.inGame")}</button
             >
             <button
               class="filter-tab"
               class:active={statusFilter === "onsite"}
-              on:click={() => (statusFilter = "onsite")}>{$tr("browse.onSite")}</button
+              on:click={() => (statusFilter = "onsite")}>{$translate("browse.onSite")}</button
             >
             <button
               class="filter-tab"
               class:active={statusFilter === "all"}
-              on:click={() => (statusFilter = "all")}>{$tr("common.all")}</button
+              on:click={() => (statusFilter = "all")}>{$translate("common.all")}</button
             >
           </div>
         </div>
         {#if ranked}
           <div class="grid gap-1">
             <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
-              >{$tr("common.rank")}</span
+              >{$translate("common.rank")}</span
             >
             <div class="filter-tabs">
               <button
                 class="filter-tab"
                 class:active={rankFilter === "all"}
-                on:click={() => setRankFilter("all")}>{$tr("common.all")}</button
+                on:click={() => setRankFilter("all")}>{$translate("common.all")}</button
               >
               <button
                 class="filter-tab"
                 class:active={rankFilter === "maxed"}
-                on:click={() => setRankFilter("maxed")}>{$tr("browse.maxed")}</button
+                on:click={() => setRankFilter("maxed")}>{$translate("browse.maxed")}</button
               >
             </div>
           </div>
         {/if}
         <div class="grid gap-1">
           <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
-            >{$tr("common.price")}</span
+            >{$translate("common.price")}</span
           >
           <div class="flex items-center gap-1.5">
             <input
               class="browse-price-input"
               type="number"
               min="0"
-              placeholder={$tr("common.min")}
+              placeholder={$translate("common.min")}
               bind:value={minPrice}
             />
             <span class="text-xs text-text-muted">-</span>
@@ -751,7 +755,7 @@
               class="browse-price-input"
               type="number"
               min="0"
-              placeholder={$tr("common.max")}
+              placeholder={$translate("common.max")}
               bind:value={maxPrice}
             />
           </div>
@@ -762,25 +766,25 @@
         <div
           class="rounded-xl border border-dashed border-border bg-bg-soft px-4 py-6 text-center text-sm text-text-secondary"
         >
-          {$tr("common.loadingListings")}
+          {$translate("common.loadingListings")}
         </div>
       {:else if errorKey}
         <div
           class="rounded-xl border border-dashed border-danger/40 bg-bg-soft px-4 py-6 text-center text-sm text-danger"
         >
-          {$tr(errorKey)}
+          {$translate(errorKey)}
         </div>
       {:else if noData || !orderBook}
         <div
           class="rounded-xl border border-dashed border-border bg-bg-soft px-4 py-6 text-center text-sm text-text-secondary"
         >
-          {$tr("browse.noListings")}
+          {$translate("browse.noListings")}
         </div>
       {:else if rows.length === 0}
         <div
           class="rounded-xl border border-dashed border-border bg-bg-soft px-4 py-6 text-center text-sm text-text-secondary"
         >
-          {side === "sell" ? $tr("browse.noOrdersSell") : $tr("browse.noOrdersBuy")}
+          {side === "sell" ? $translate("browse.noOrdersSell") : $translate("browse.noOrdersBuy")}
         </div>
       {:else}
         <div class="overflow-hidden rounded-xl border border-border">
@@ -789,13 +793,15 @@
               <tr
                 class="bg-bg-raised text-left text-xs uppercase tracking-[0.05em] text-text-muted [&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold"
               >
-                <th>{$tr("browse.col.qty")}</th>
-                <th>{$tr("browse.col.user")}</th>
-                <th>{$tr("browse.status")}</th>
-                {#if ranked}<th class="text-right">{$tr("common.rank")}</th>{/if}
-                <th class="text-right">{$tr("browse.col.unitPrice")}</th>
+                <th>{$translate("browse.col.qty")}</th>
+                <th>{$translate("browse.col.user")}</th>
+                <th>{$translate("browse.status")}</th>
+                {#if ranked}<th class="text-right">{$translate("common.rank")}</th>{/if}
+                <th class="text-right">{$translate("browse.col.unitPrice")}</th>
                 <th class="text-right"
-                  >{side === "sell" ? $tr("browse.col.buy") : $tr("browse.col.sell")}</th
+                  >{side === "sell"
+                    ? $translate("browse.col.buy")
+                    : $translate("browse.col.sell")}</th
                 >
               </tr>
             </thead>
@@ -825,7 +831,7 @@
                       <button
                         type="button"
                         class="link-btn font-semibold"
-                        title={$tr("browse.openProfile")}
+                        title={$translate("browse.openProfile")}
                         on:click={() => openProfile(entry)}>{entry.userName}</button
                       >
                     </div>
@@ -837,7 +843,7 @@
                         ? 'text-success'
                         : entry.status === 'online'
                           ? 'text-info'
-                          : 'text-text-muted'}">{$tr(statusLabelKey(entry.status))}</span
+                          : 'text-text-muted'}">{$translate(statusLabelKey(entry.status))}</span
                     >
                   </td>
                   {#if ranked}
@@ -856,8 +862,8 @@
                       title={buildWhisper(entry)}
                       on:click={() => void copyWhisper(entry, rowKey)}
                       >{copiedKey === rowKey
-                        ? $tr("common.copied")
-                        : $tr("browse.copyWhisper")}</button
+                        ? $translate("common.copied")
+                        : $translate("browse.copyWhisper")}</button
                     >
                   </td>
                 </tr>
@@ -867,11 +873,11 @@
         </div>
         <div class="text-center text-xs text-text-muted">
           {side === "sell"
-            ? $tr("browse.showingSell", { shown: rows.length, total: filteredRows.length })
-            : $tr("browse.showingBuy", { shown: rows.length, total: filteredRows.length })}
+            ? $translate("browse.showingSell", { shown: rows.length, total: filteredRows.length })
+            : $translate("browse.showingBuy", { shown: rows.length, total: filteredRows.length })}
           {#if filteredRows.length > rows.length}
             <button class="link-btn" on:click={() => (rowLimit += MAX_ROWS)}
-              >{$tr("browse.showMore", {
+              >{$translate("browse.showMore", {
                 n: Math.min(MAX_ROWS, filteredRows.length - rows.length),
               })}</button
             >

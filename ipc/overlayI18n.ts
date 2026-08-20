@@ -107,11 +107,16 @@ export function setOverlayLocale(code: unknown): string | null {
   return next;
 }
 
-export function overlayMessages(): Record<string, string> {
+interface OverlayMessageBundle {
+  locale: string;
+  messages: Record<string, string>;
+}
+
+export function overlayMessages(): OverlayMessageBundle {
   const dictionary = DICTIONARIES[activeLocale] ?? en;
   const messages: Record<string, string> = {};
   for (const key of OVERLAY_MESSAGE_KEYS) {
     messages[key] = dictionary[key] ?? en[key];
   }
-  return messages;
+  return { locale: activeLocale, messages };
 }

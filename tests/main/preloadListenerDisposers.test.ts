@@ -1,6 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { RELIC_REWARD_TRIGGER, RIVEN_ROLL_RESULT } from "../../config/shared/ipcChannels";
+import {
+  OVERLAY_READY,
+  RELIC_REWARD_TRIGGER,
+  RIVEN_ROLL_RESULT,
+} from "../../config/shared/ipcChannels";
 
 type Listener = (event: unknown, ...args: unknown[]) => void;
 type ExposedApi = Record<string, unknown>;
@@ -76,6 +80,7 @@ describe("overlay preload listener disposers", () => {
 
     const rivenOverlay = mock.exposed.get("rivenOverlay") as {
       onRollResult: (callback: (payload: unknown) => void) => () => void;
+      ready: () => void;
     };
     const callback = vi.fn();
     const dispose = rivenOverlay.onRollResult(callback);
@@ -83,9 +88,11 @@ describe("overlay preload listener disposers", () => {
     mock.emit(RIVEN_ROLL_RESULT, { roll: 1 });
     dispose();
     mock.emit(RIVEN_ROLL_RESULT, { roll: 2 });
+    rivenOverlay.ready();
 
     expect(callback).toHaveBeenCalledTimes(1);
     expect(callback).toHaveBeenCalledWith({ roll: 1 });
     expect(mock.electron.ipcRenderer.removeListener).toHaveBeenCalledTimes(1);
+    expect(mock.electron.ipcRenderer.send).toHaveBeenCalledWith(OVERLAY_READY);
   });
 });

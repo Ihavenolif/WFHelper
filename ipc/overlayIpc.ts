@@ -390,7 +390,8 @@ function register(): void {
     const senderId = event.sender.id;
     const rewardReady = rewardOverlayIpc.rewardWindowsController.markRendererReady(senderId);
     const plannerReady = rewardOverlayIpc.plannerWindowsController.markRendererReady(senderId);
-    if (!rewardReady && !plannerReady) {
+    const rivenReady = rivenOverlayIpc.markRivenRendererReady(senderId);
+    if (!rewardReady && !plannerReady && !rivenReady) {
       log.warn(`[OverlayWindow] ready signal from unknown overlay sender ${senderId}`);
     }
   });

@@ -657,6 +657,13 @@ function startOverlay() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  let bootstrapped = false;
+  const finishBootstrap = (loaded) => {
+    if (!loaded || bootstrapped) return;
+    bootstrapped = true;
+    startOverlay();
+    window.rivenOverlay.ready();
+  };
   window.overlayTheme.loadThemeFromStorageFallback();
   void window.rivenOverlay
     .getThemeVars()
@@ -678,7 +685,7 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   window.rivenOverlay.onThemeVars((vars) => window.overlayTheme.applyThemeVars(vars));
-  window.rivenOverlay.onMessages((messages) => window.overlayI18n.apply(messages));
+  window.rivenOverlay.onMessages((messages) => finishBootstrap(window.overlayI18n.apply(messages)));
   window.rivenOverlay.onSessionStart((weapon) => onSessionStart(weapon));
   window.rivenOverlay.onInitialStats((stats) => onInitialStats(stats));
   window.rivenOverlay.onScanning(() => onScanning());
@@ -711,5 +718,5 @@ document.addEventListener("DOMContentLoaded", () => {
   window.rivenOverlay.onSimilarListings((listings) => renderSimilarListings(listings));
 
   window.overlayI18n.onApply(renderDynamicText);
-  void window.overlayI18n.load(() => window.rivenOverlay.getMessages()).then(startOverlay);
+  void window.overlayI18n.load(() => window.rivenOverlay.getMessages()).then(finishBootstrap);
 });

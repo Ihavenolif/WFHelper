@@ -3,6 +3,7 @@ import { test, expect } from "@playwright/test";
 import {
   closeElectronTestHarness,
   launchElectronTestHarness,
+  setDisplayLanguage,
   type ElectronTestHarness,
 } from "./electronTestHarness";
 
@@ -13,15 +14,10 @@ test("language dropdown flips the UI to German live", async () => {
     harness = await launchElectronTestHarness("wfh-lang-e2e-");
     const { page } = harness;
 
-    await page.locator("#sidebar").getByText("Settings", { exact: true }).click();
+    await page.locator('#sidebar [data-view="settings"]').click();
     await expect(page.getByText("Display language", { exact: true })).toBeVisible();
 
-    // Scoped to its own row - "first select" silently moves to another control
-    // as soon as one is added above it.
-    await page
-      .locator("label.settings-control-row", { hasText: "Display language" })
-      .locator("select")
-      .selectOption("de");
+    await setDisplayLanguage(page, "de");
     await expect(
       page.locator("#sidebar").getByText("Einstellungen", { exact: true }),
     ).toBeVisible();
@@ -32,7 +28,7 @@ test("language dropdown flips the UI to German live", async () => {
       timeout: 30_000,
     });
 
-    await page.locator("#sidebar").getByText("Inventar", { exact: true }).click();
+    await page.locator('#sidebar [data-view="inventory"]').click();
     await expect(page.getByText("Keine Items gefunden", { exact: true })).toBeVisible();
   } finally {
     await closeElectronTestHarness(harness);

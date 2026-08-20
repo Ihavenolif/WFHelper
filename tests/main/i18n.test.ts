@@ -132,7 +132,7 @@ describe("overlay messages", () => {
 
   it("names only keys English defines", () => {
     setOverlayLocale("en");
-    const unknown = Object.keys(overlayMessages()).filter((key) => !(key in en));
+    const unknown = Object.keys(overlayMessages().messages).filter((key) => !(key in en));
 
     expect(unknown).toEqual([]);
   });
@@ -140,7 +140,8 @@ describe("overlay messages", () => {
   it("resolves a non-empty string for every key in every locale", () => {
     for (const code of locales) {
       setOverlayLocale(code);
-      const messages = overlayMessages();
+      const { locale, messages } = overlayMessages();
+      expect(locale).toBe(code);
       expect(Object.keys(messages).length).toBeGreaterThan(0);
       const blank = Object.entries(messages)
         .filter(([, value]) => typeof value !== "string" || !value.trim())
@@ -153,19 +154,19 @@ describe("overlay messages", () => {
 
   it("serves the active locale and falls back to English for an unknown one", () => {
     setOverlayLocale("de");
-    expect(overlayMessages()["overlay.riven.waitingForRoll"]).toBe(
+    expect(overlayMessages().messages["overlay.riven.waitingForRoll"]).toBe(
       de["overlay.riven.waitingForRoll"],
     );
 
     setOverlayLocale("kr");
-    expect(overlayMessages()["overlay.riven.waitingForRoll"]).toBe(
+    expect(overlayMessages().messages["overlay.riven.waitingForRoll"]).toBe(
       en["overlay.riven.waitingForRoll"],
     );
   });
 
   it("carries every key the overlay windows ask for", () => {
     setOverlayLocale("en");
-    const served = new Set(Object.keys(overlayMessages()));
+    const served = new Set(Object.keys(overlayMessages().messages));
     const asked = overlayKeysReferenced();
 
     expect([...asked].filter((key) => !served.has(key))).toEqual([]);
@@ -178,6 +179,6 @@ describe("overlay messages", () => {
     setOverlayLocale("en");
     const asked = overlayKeysReferenced();
 
-    expect(Object.keys(overlayMessages()).filter((key) => !asked.has(key))).toEqual([]);
+    expect(Object.keys(overlayMessages().messages).filter((key) => !asked.has(key))).toEqual([]);
   });
 });

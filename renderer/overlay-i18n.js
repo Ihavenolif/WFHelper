@@ -1,5 +1,6 @@
 (function () {
   let messages = {};
+  let locale = "en";
   const listeners = new Set();
 
   function interpolate(template, params) {
@@ -29,10 +30,15 @@
   }
 
   function apply(next) {
-    if (!next || typeof next !== "object") return;
-    messages = next;
+    if (!next || typeof next !== "object") return false;
+    const nextMessages = next.messages;
+    if (!nextMessages || typeof nextMessages !== "object") return false;
+    messages = nextMessages;
+    if (typeof next.locale === "string" && next.locale) locale = next.locale;
+    document.documentElement.lang = locale;
     applyMarkup();
     for (const listener of listeners) listener();
+    return true;
   }
 
   /** Re-runs cb on every language change so text built in JS follows along. */
@@ -47,9 +53,13 @@
       .then(fetchMessages)
       .then(apply)
       .catch(function () {
-        // best effort; the markup still carries its English defaults
+        return false;
       });
   }
 
-  window.overlayI18n = { t, apply, onApply, load };
+  function getLocale() {
+    return locale;
+  }
+
+  window.overlayI18n = { t, apply, onApply, load, getLocale };
 })();

@@ -44,19 +44,25 @@ function renderSummary() {
   const std = Number(data.expectedVitusStd);
   const vitusEl = el("kpi-vitus");
   vitusEl.textContent = "";
-  vitusEl.appendChild(document.createTextNode(Number.isFinite(mean) ? mean.toFixed(1) : "-"));
+  const locale = window.overlayI18n.getLocale();
+  const oneDecimal = { minimumFractionDigits: 1, maximumFractionDigits: 1 };
+  vitusEl.appendChild(
+    document.createTextNode(Number.isFinite(mean) ? mean.toLocaleString(locale, oneDecimal) : "-"),
+  );
   if (Number.isFinite(std) && std > 0) {
     const sub = document.createElement("span");
     sub.className = "kpi-sub";
-    sub.textContent = ` ±${std.toFixed(1)}`;
+    sub.textContent = ` ±${std.toLocaleString(locale, oneDecimal)}`;
     vitusEl.appendChild(sub);
   }
 
-  el("kpi-drones").textContent = (Number(data.drones) || 0).toLocaleString();
-  el("kpi-kills").textContent = (Number(data.totalEnemies) || 0).toLocaleString();
+  el("kpi-drones").textContent = (Number(data.drones) || 0).toLocaleString(locale);
+  el("kpi-kills").textContent = (Number(data.totalEnemies) || 0).toLocaleString(locale);
 
   const pct = Number(data.pctTimeAt15Plus);
-  el("kpi-saturation").textContent = Number.isFinite(pct) ? `${pct.toFixed(1)}%` : "-";
+  el("kpi-saturation").textContent = Number.isFinite(pct)
+    ? `${pct.toLocaleString(locale, oneDecimal)}%`
+    : "-";
 }
 
 function onSummaryData(data) {
@@ -67,6 +73,12 @@ function onSummaryData(data) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  let bootstrapped = false;
+  const finishBootstrap = (loaded) => {
+    if (!loaded || bootstrapped) return;
+    bootstrapped = true;
+    window.arbiSummary.ready();
+  };
   window.overlayTheme.loadThemeFromStorageFallback();
   void window.arbiSummary
     .getThemeVars()
@@ -90,10 +102,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
   window.arbiSummary.onData(onSummaryData);
   window.arbiSummary.onThemeVars(window.overlayTheme.applyThemeVars);
-  window.arbiSummary.onMessages((messages) => window.overlayI18n.apply(messages));
+  window.arbiSummary.onMessages((messages) => finishBootstrap(window.overlayI18n.apply(messages)));
   // Header and KPI values are rebuilt from the stored run on a language change.
   window.overlayI18n.onApply(renderSummary);
-  void window.overlayI18n
-    .load(() => window.arbiSummary.getMessages())
-    .then(() => window.arbiSummary.ready());
+  void window.overlayI18n.load(() => window.arbiSummary.getMessages()).then(finishBootstrap);
 });

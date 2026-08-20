@@ -143,16 +143,31 @@
 
   // Listen for IPC events from main. The preload script is the only loader
   // that produces this window, so the bridge is always installed.
+  let messagesLoaded = false;
+  let pendingShow = null;
+  let pendingRepResult = null;
+
+  function flushPending() {
+    if (pendingShow) showNotification(pendingShow);
+    if (pendingRepResult) showRepResult(pendingRepResult);
+    pendingShow = null;
+    pendingRepResult = null;
+  }
+
   window.tradeNotificationApi.onShow(function (payload) {
-    showNotification(payload);
+    if (messagesLoaded) showNotification(payload);
+    else pendingShow = payload;
   });
 
   window.tradeNotificationApi.onRepResult(function (payload) {
-    showRepResult(payload);
+    if (messagesLoaded) showRepResult(payload);
+    else pendingRepResult = payload;
   });
 
   window.tradeNotificationApi.onMessages(function (messages) {
-    window.overlayI18n.apply(messages);
+    if (!window.overlayI18n.apply(messages)) return;
+    messagesLoaded = true;
+    flushPending();
   });
 
   // Repaint without restarting the dismiss timer the toast is already running on.
@@ -161,7 +176,13 @@
     if (lastRepResult) renderRepResult(lastRepResult);
   });
 
-  void window.overlayI18n.load(function () {
-    return window.tradeNotificationApi.getMessages();
-  });
+  void window.overlayI18n
+    .load(function () {
+      return window.tradeNotificationApi.getMessages();
+    })
+    .then(function (loaded) {
+      if (!loaded) return;
+      messagesLoaded = true;
+      flushPending();
+    });
 })();

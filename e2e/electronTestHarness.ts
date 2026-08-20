@@ -86,21 +86,11 @@ export async function launchElectronTestHarness(
   }
 }
 
-/** Sidebar label, so the caller passes the word in the language on screen now. */
-export async function setDisplayLanguage(
-  page: Page,
-  settingsLabel: string,
-  selectLabel: string,
-  code: string,
-): Promise<void> {
-  await page.locator("#sidebar").getByText(settingsLabel, { exact: true }).click();
-  await page
-    .locator("label.settings-control-row", { hasText: selectLabel })
-    .locator("select")
-    .selectOption(code);
+export async function setDisplayLanguage(page: Page, code: string): Promise<void> {
+  await page.locator('#sidebar [data-view="settings"]').click();
+  await page.locator('[data-setting="language"] select').selectOption(code);
 }
 
-/** Opens the overlay window whose URL contains `match`, once main has made it. */
 export async function overlayWindow(
   harness: ElectronTestHarness,
   match: string,
