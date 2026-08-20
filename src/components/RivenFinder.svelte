@@ -7,6 +7,7 @@
   import ThemedSelect from "./ThemedSelect.svelte";
   import { isActiveOrderStatus } from "../../config/shared/wfmOrders.js";
   import type { RivenBestAttributes, WfmRivenListing, RivenStatOption } from "../types/ipc.js";
+  import { tr, type MessageKey } from "../lib/i18n.js";
 
   interface AttrSlot {
     positive: boolean;
@@ -51,6 +52,14 @@
   interface ScoredListing {
     listing: WfmRivenListing;
     similarity: number;
+  }
+
+  function sellerStatusKey(status: string): MessageKey {
+    if (status === "ingame") return "common.inGame";
+    if (status === "online") return "common.online";
+    if (status === "offline") return "common.offline";
+    if (status === "invisible") return "common.invisible";
+    return "common.unknown";
   }
 
   /** Map a wfmUrlName to its display name for comparison */
@@ -215,11 +224,13 @@
   <!-- Left panel: Weapon info + best attributes -->
   <div class="flex flex-col gap-3">
     <div class="flex flex-col gap-1.5">
-      <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted">Weapon</span>
+      <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
+        >{$tr("rivens.finder.weapon")}</span
+      >
       <div class="relative">
         <ThemedInput
           type="text"
-          placeholder="Type weapon name..."
+          placeholder={$tr("rivens.finder.weaponPlaceholder")}
           bind:value={weaponSearch}
           onFocus={handleWeaponFocus}
           onInput={handleWeaponInput}
@@ -244,7 +255,7 @@
     {#if bestAttrs}
       <div class="flex flex-col gap-1.5">
         <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
-          >Best Positives</span
+          >{$tr("rivens.finder.bestPositives")}</span
         >
         <div class="flex flex-wrap gap-1">
           {#each bestAttrs.positives as attr}
@@ -258,7 +269,7 @@
 
       <div class="flex flex-col gap-1.5">
         <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
-          >Best Negatives</span
+          >{$tr("rivens.finder.bestNegatives")}</span
         >
         <div class="flex flex-wrap gap-1">
           {#each bestAttrs.negatives as attr}
@@ -276,7 +287,7 @@
   <div class="flex flex-col gap-3">
     <div class="flex flex-col gap-1.5">
       <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
-        >Attributes</span
+        >{$tr("common.attributes")}</span
       >
       <div class="flex flex-col gap-1.5">
         {#each attrSlots as slot}
@@ -291,7 +302,11 @@
                 : 'text-[#ff7a7a]'}">{slot.positive ? "+" : "−"}</span
             >
             <ThemedSelect bind:value={slot.selectedStat} className="flex-1 min-w-0">
-              <option value="">{slot.positive ? "Any positive" : "Any negative"}</option>
+              <option value=""
+                >{slot.positive
+                  ? $tr("rivens.finder.anyPositive")
+                  : $tr("rivens.finder.anyNegative")}</option
+              >
               {#each statOptions as opt}
                 <option value={opt.wfmUrlName}>{opt.displayName}</option>
               {/each}
@@ -304,7 +319,7 @@
                 class="w-[14px] h-[14px] accent-accent cursor-pointer"
                 bind:checked={slot.required}
               />
-              <span>Req</span>
+              <span>{$tr("rivens.finder.req")}</span>
             </label>
           </div>
         {/each}
@@ -312,14 +327,18 @@
     </div>
 
     <div class="flex flex-col gap-1.5">
-      <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted">Filters</span>
+      <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
+        >{$tr("common.filters")}</span
+      >
       <div class="flex flex-col gap-1.5">
         <div class="flex items-center gap-1.5">
-          <span class="font-display text-xs text-text-secondary min-w-14 shrink-0">Price</span>
+          <span class="font-display text-xs text-text-secondary min-w-14 shrink-0"
+            >{$tr("common.price")}</span
+          >
           <ThemedInput
             type="number"
             className="w-20 py-1 text-xs"
-            placeholder="Min"
+            placeholder={$tr("common.min")}
             bind:value={priceMin}
             min="0"
           />
@@ -327,17 +346,19 @@
           <ThemedInput
             type="number"
             className="w-20 py-1 text-xs"
-            placeholder="Max"
+            placeholder={$tr("common.max")}
             bind:value={priceMax}
             min="0"
           />
         </div>
         <div class="flex items-center gap-1.5">
-          <span class="font-display text-xs text-text-secondary min-w-14 shrink-0">Rerolls</span>
+          <span class="font-display text-xs text-text-secondary min-w-14 shrink-0"
+            >{$tr("common.rerolls")}</span
+          >
           <ThemedInput
             type="number"
             className="w-20 py-1 text-xs"
-            placeholder="Min"
+            placeholder={$tr("common.min")}
             bind:value={rerollsMin}
             min="0"
           />
@@ -345,17 +366,19 @@
           <ThemedInput
             type="number"
             className="w-20 py-1 text-xs"
-            placeholder="Max"
+            placeholder={$tr("common.max")}
             bind:value={rerollsMax}
             min="0"
           />
         </div>
         <div class="flex items-center gap-1.5">
-          <span class="font-display text-xs text-text-secondary min-w-14 shrink-0">Similarity</span>
+          <span class="font-display text-xs text-text-secondary min-w-14 shrink-0"
+            >{$tr("rivens.finder.similarity")}</span
+          >
           <ThemedInput
             type="number"
             className="w-20 py-1 text-xs"
-            placeholder="Min %"
+            placeholder={$tr("rivens.finder.minPercent")}
             bind:value={minSimilarity}
             min="0"
             max="100"
@@ -370,7 +393,7 @@
             class="w-[14px] h-[14px] accent-accent cursor-pointer"
             bind:checked={requireNegative}
           />
-          <span>Require negative stat</span>
+          <span>{$tr("rivens.finder.requireNegative")}</span>
         </label>
         <label
           class="flex items-center gap-1.5 font-display text-xs text-text-secondary cursor-pointer select-none mt-0.5"
@@ -380,7 +403,7 @@
             class="w-[14px] h-[14px] accent-accent cursor-pointer"
             bind:checked={onlineIngameOnly}
           />
-          <span>Online/In-game only</span>
+          <span>{$tr("common.onlineInGameOnly")}</span>
         </label>
         <label
           class="flex items-center gap-1.5 font-display text-xs text-text-secondary cursor-pointer select-none mt-0.5"
@@ -390,7 +413,7 @@
             class="w-[14px] h-[14px] accent-accent cursor-pointer"
             bind:checked={hideOnePlat}
           />
-          <span>Hide 1p listings</span>
+          <span>{$tr("rivens.finder.hideOnePlat")}</span>
         </label>
       </div>
     </div>
@@ -399,22 +422,29 @@
       active={true}
       disabled={!selectedWeapon || searching}
       className="self-start px-6 py-2 text-sm"
-      onClick={doSearch}>{searching ? "Searching..." : "Search WFM"}</ThemedButton
+      onClick={doSearch}
+      >{searching ? $tr("common.searching") : $tr("rivens.finder.searchWfm")}</ThemedButton
     >
   </div>
 </div>
 
 <!-- Results -->
 {#if searching}
-  <div class="text-center py-8 text-sm text-text-muted">Searching warframe.market auctions...</div>
+  <div class="text-center py-8 text-sm text-text-muted">{$tr("rivens.finder.searchingWfm")}</div>
 {:else if hasSearched && filteredResults.length === 0}
   <div class="text-center py-8 text-sm text-text-muted">
-    No auctions found{rawResults.length > 0 ? " matching filters" : ""}
+    {rawResults.length > 0
+      ? $tr("rivens.finder.noAuctionsFiltered")
+      : $tr("rivens.finder.noAuctions")}
   </div>
 {:else if filteredResults.length > 0}
   <div class="flex items-baseline gap-3 mb-2">
-    <span class="font-display text-sm font-semibold text-text-secondary">Similar rivens:</span>
-    <span class="text-xs text-text-muted">{filteredResults.length} results</span>
+    <span class="font-display text-sm font-semibold text-text-secondary"
+      >{$tr("rivens.finder.similarRivens")}</span
+    >
+    <span class="text-xs text-text-muted"
+      >{$tr("rivens.finder.resultsCount", { count: filteredResults.length })}</span
+    >
   </div>
   <div
     class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-2 max-h-[600px] overflow-y-auto"
@@ -435,7 +465,7 @@
         </div>
         {#if listing.sellerStatus}
           <span class="font-display text-xs uppercase tracking-[0.04em] text-text-muted"
-            >{listing.sellerStatus === "ingame" ? "In game" : listing.sellerStatus}</span
+            >{$tr(sellerStatusKey(listing.sellerStatus))}</span
           >
         {/if}
         <div class="flex flex-col gap-0">
@@ -455,7 +485,7 @@
             class="py-1 px-1.5 border border-border rounded bg-bg-raised text-accent-bright font-display text-xs font-bold cursor-pointer transition-all duration-150 text-center uppercase tracking-[0.03em] whitespace-nowrap hover:bg-accent-bright hover:text-bg-base hover:border-accent-bright"
             onclick={() => openAuction(listing.id)}
           >
-            Open on WFM ↗
+            {$tr("rivens.finder.openOnWfm")}
           </button>
         </div>
       </ThemedPanel>

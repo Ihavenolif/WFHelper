@@ -3,6 +3,7 @@
   import { appUpdateState } from "../stores/updates.js";
   import { addToast } from "../stores/toasts.js";
   import { invoke } from "../lib/ipc.js";
+  import { tr } from "../lib/i18n.js";
   import UpdateModal from "./UpdateModal.svelte";
 
   import { normalizeErrorMessage } from "../../config/shared/errors.js";
@@ -11,6 +12,8 @@
   let showChangelog = false;
   /** Version the changelog already popped for, so it opens once per update. */
   let autoOpenedVersion: string | null = null;
+
+  $: statusLabel = $statusText ? $tr($statusText.key, $statusText.params) : "";
 
   // available / downloading / downloaded all mean "there is an update": the pill
   // turns green and opens the changelog instead of re-checking the feed.
@@ -33,30 +36,38 @@
   $: updateButtonDisabled = updateActionPending || $appUpdateState.status === "checking";
   $: updateButtonText =
     $appUpdateState.status === "checking"
-      ? "Checking…"
+      ? $tr("statusbar.checking")
       : $appUpdateState.status === "available"
-        ? "Update available"
+        ? $tr("statusbar.updateAvailable")
         : $appUpdateState.status === "downloading"
-          ? `Downloading ${Math.round($appUpdateState.percent || 0)}%`
+          ? $tr("statusbar.downloading", { percent: Math.round($appUpdateState.percent || 0) })
           : $appUpdateState.status === "downloaded"
-            ? "Restart to update"
-            : "Check updates";
+            ? $tr("statusbar.restartToUpdate")
+            : $tr("statusbar.checkUpdates");
 
   async function runCheck(): Promise<void> {
     updateActionPending = true;
     try {
       const result = await invoke("checkForAppUpdates");
       if (!result.ok && result.message) {
-        addToast({ level: "warning", title: "Update Check", message: result.message });
+        addToast({
+          level: "warning",
+          title: $tr("statusbar.updateCheckTitle"),
+          message: result.message,
+        });
       } else if (result.state.status === "not-available") {
         addToast({
           level: "info",
-          title: "Up To Date",
-          message: "You already have the latest version.",
+          title: $tr("statusbar.upToDateTitle"),
+          message: $tr("statusbar.upToDateMessage"),
         });
       }
     } catch (err) {
-      addToast({ level: "error", title: "Update Error", message: normalizeErrorMessage(err) });
+      addToast({
+        level: "error",
+        title: $tr("statusbar.updateErrorTitle"),
+        message: normalizeErrorMessage(err),
+      });
     } finally {
       updateActionPending = false;
     }
@@ -67,10 +78,18 @@
     try {
       const result = await invoke("downloadAppUpdate");
       if (!result.ok && result.message) {
-        addToast({ level: "warning", title: "Update Download", message: result.message });
+        addToast({
+          level: "warning",
+          title: $tr("statusbar.updateDownloadTitle"),
+          message: result.message,
+        });
       }
     } catch (err) {
-      addToast({ level: "error", title: "Update Error", message: normalizeErrorMessage(err) });
+      addToast({
+        level: "error",
+        title: $tr("statusbar.updateErrorTitle"),
+        message: normalizeErrorMessage(err),
+      });
     } finally {
       updateActionPending = false;
     }
@@ -83,12 +102,16 @@
       if (!result.ok) {
         addToast({
           level: "warning",
-          title: "Update Install",
-          message: result.message || "No downloaded update is ready.",
+          title: $tr("statusbar.updateInstallTitle"),
+          message: result.message || $tr("statusbar.noUpdateReady"),
         });
       }
     } catch (err) {
-      addToast({ level: "error", title: "Update Error", message: normalizeErrorMessage(err) });
+      addToast({
+        level: "error",
+        title: $tr("statusbar.updateErrorTitle"),
+        message: normalizeErrorMessage(err),
+      });
     } finally {
       updateActionPending = false;
     }
@@ -109,12 +132,12 @@
   class="flex h-[var(--statusbar-height)] select-none items-center justify-between border-t border-border bg-bg-deep px-3.5 text-[12px] text-text-muted"
 >
   <span class="flex min-w-0 items-center gap-2">
-    <span class="truncate">{$statusText}</span>
+    <span class="truncate">{statusLabel}</span>
   </span>
   <button
     class="update-pill ml-auto mr-2 shrink-0 whitespace-nowrap font-body"
     class:is-update={hasUpdate}
-    title={$appUpdateState.message || "Check for app updates"}
+    title={$appUpdateState.message || $tr("statusbar.checkForUpdates")}
     on:click={onUpdateButton}
     disabled={updateButtonDisabled}
   >
@@ -123,7 +146,7 @@
     {/if}
     {updateButtonText}
   </button>
-  <span class="shrink-0 text-[10px] opacity-50" title="App version"
+  <span class="shrink-0 text-[10px] opacity-50" title={$tr("statusbar.appVersionTitle")}
     >v{import.meta.env.VITE_APP_VERSION || "?"}</span
   >
 </footer>

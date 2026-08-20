@@ -17,24 +17,25 @@
 
   const surfaceOptions: Array<{ value: ThemeSurfaceStyle; labelKey: MessageKey }> = [
     { value: "full", labelKey: "appearance.surfaceFull" },
-    { value: "border", labelKey: "appearance.surfaceBorder" },
+    { value: "border", labelKey: "common.border" },
     { value: "minimal", labelKey: "appearance.surfaceMinimal" },
   ];
 
   const relicCardOptions: Array<{ value: RelicCardStyle; labelKey: MessageKey }> = [
-    { value: "ornate", labelKey: "appearance.relicCardsOrnate" },
+    { value: "ornate", labelKey: "common.detailed" },
     { value: "plain", labelKey: "appearance.relicCardsPlain" },
   ];
 
-  const densityOptions: ReadonlyArray<{ value: UiDensity; label: string }> = [
-    { value: "compact", label: "Cards" },
-    { value: "row", label: "Rows" },
+  const densityOptions: Array<{ value: UiDensity; labelKey: MessageKey }> = [
+    { value: "compact", labelKey: "appearance.densityCards" },
+    { value: "row", labelKey: "appearance.densityRows" },
   ];
 
   $: effects = $themeSettings.effects;
   $: cornerSegOptions = cornerOptions.map((o) => ({ value: o.value, label: $tr(o.labelKey) }));
   $: surfaceSegOptions = surfaceOptions.map((o) => ({ value: o.value, label: $tr(o.labelKey) }));
   $: relicSegOptions = relicCardOptions.map((o) => ({ value: o.value, label: $tr(o.labelKey) }));
+  $: densitySegOptions = densityOptions.map((o) => ({ value: o.value, label: $tr(o.labelKey) }));
 </script>
 
 <div class="appearance-section">
@@ -67,7 +68,7 @@
     <ThemedControlCard>
       <GlassBlurControl>
         <span class="text-text-secondary text-xs font-medium">
-          {$tr("appearance.glass")}
+          {$tr("common.glassBlur")}
           <span class="block text-xs text-text-muted font-normal mt-0.5"
             >{$tr("appearance.glassHint")}</span
           >
@@ -89,15 +90,15 @@
     <ThemedControlCard>
       <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
         <span class="min-w-0 text-text-secondary text-xs font-medium">
-          Market list density
+          {$tr("appearance.marketListDensity")}
           <span class="block text-xs text-text-muted font-normal mt-0.5">
-            How Warframe.market orders and riven contracts are displayed.
+            {$tr("appearance.marketListDensityHint")}
           </span>
         </span>
         <span class="shrink-0">
           <SegmentedControl
             value={$marketDensity}
-            options={densityOptions}
+            options={densitySegOptions}
             onChange={(v) => marketDensity.set(v)}
           />
         </span>

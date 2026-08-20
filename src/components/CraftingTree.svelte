@@ -7,6 +7,7 @@
   import { CREDITS_ICON_URL } from "../lib/assetUrls.js";
   import CraftingTreeNodeCard from "./CraftingTreeNode.svelte";
   import ItemImage from "./ItemImage.svelte";
+  import { tr } from "../lib/i18n.js";
 
   export let tree: CraftingTreeNode;
   export let onOpenItem: ((uniqueName: string) => void) | null = null;
@@ -158,7 +159,7 @@
   <div class="flex items-center justify-between px-2 py-1.5 border-b border-white/[0.08] shrink-0">
     <div class="flex items-center gap-4">
       <label class="flex items-center gap-2 text-xs text-text-secondary cursor-pointer select-none">
-        Hide completed:
+        {$tr("crafting.hideCompleted")}
         <button
           type="button"
           class="relative inline-block w-9 h-[18px] rounded-full transition-colors duration-150 {hideCompleted
@@ -166,7 +167,7 @@
             : 'bg-white/[0.15]'}"
           on:click={() => (hideCompleted = !hideCompleted)}
           aria-pressed={hideCompleted}
-          aria-label="Hide completed"
+          aria-label={$tr("crafting.hideCompletedAria")}
         >
           <span
             class="absolute top-[2px] left-[2px] h-3.5 w-3.5 rounded-full bg-white transition-transform duration-150 {hideCompleted
@@ -176,7 +177,7 @@
         </button>
       </label>
       <label class="flex items-center gap-2 text-xs text-text-secondary cursor-pointer select-none">
-        Hide blueprints:
+        {$tr("crafting.hideBlueprints")}
         <button
           type="button"
           class="relative inline-block w-9 h-[18px] rounded-full transition-colors duration-150 {hideBlueprints
@@ -184,7 +185,7 @@
             : 'bg-white/[0.15]'}"
           on:click={() => (hideBlueprints = !hideBlueprints)}
           aria-pressed={hideBlueprints}
-          aria-label="Hide blueprints"
+          aria-label={$tr("crafting.hideBlueprintsAria")}
         >
           <span
             class="absolute top-[2px] left-[2px] h-3.5 w-3.5 rounded-full bg-white transition-transform duration-150 {hideBlueprints
@@ -198,7 +199,7 @@
       <button
         class="rounded px-1.5 py-0.5 text-xs text-text-muted transition-colors duration-150 hover:bg-surface-hover hover:text-text-primary"
         on:click={resetView}
-        title="Fit to view">↺</button
+        title={$tr("crafting.fitToView")}>↺</button
       >
       <span class="w-10 text-center text-xs tabular-nums text-text-muted"
         >{Math.round(scale * 100)}%</span
@@ -234,14 +235,14 @@
             <span
               class="font-display text-xs font-semibold uppercase tracking-[0.08em] text-text-secondary"
             >
-              Used for crafting:
+              {$tr("crafting.usedFor")}
             </span>
             <div class="flex flex-wrap items-start justify-center gap-3 max-w-[680px]">
               {#each usedFor as usage (usage.uniqueName)}
                 <button
                   type="button"
                   class="flex w-16 cursor-pointer flex-col items-center gap-1 rounded-lg border border-border bg-bg-raised/80 px-3 py-2 text-inherit transition-colors duration-150 hover:border-accent-dim hover:bg-surface-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
-                  title="Open {usage.name}"
+                  title={$tr("common.open", { name: usage.name })}
                   on:pointerdown|stopPropagation
                   on:click={() => openUsedFor(usage.uniqueName)}
                 >
@@ -268,10 +269,10 @@
     <div class="grid gap-x-6 gap-y-1" style="grid-template-columns: 1fr auto;">
       <div class="max-h-36 overflow-y-auto pr-1">
         <div class="font-display font-semibold text-text-secondary uppercase tracking-wider mb-0.5">
-          Blueprints needed:
+          {$tr("crafting.blueprintsNeeded")}
         </div>
         {#if missingBlueprints.length === 0}
-          <span class="text-success">No blueprints missing</span>
+          <span class="text-success">{$tr("crafting.noBlueprintsMissing")}</span>
         {:else}
           {#each missingBlueprints as bp (bp.uniqueName)}
             <div class="text-text-muted">{bp.name} ({bp.owned}/{bp.count})</div>
@@ -280,10 +281,10 @@
         <div
           class="font-display font-semibold text-text-secondary uppercase tracking-wider mt-1.5 mb-0.5"
         >
-          Resources needed:
+          {$tr("crafting.resourcesNeeded")}
         </div>
         {#if missingResources.length === 0}
-          <span class="text-success">No resources missing</span>
+          <span class="text-success">{$tr("crafting.noResourcesMissing")}</span>
         {:else}
           {#each missingResources as res (res.uniqueName)}
             <div class="text-text-muted">{res.name} ({res.owned}/{res.count})</div>
@@ -293,18 +294,17 @@
       <div class="flex flex-col items-end justify-end">
         <div class="px-3 py-1.5 text-xs text-text-secondary">
           <div class="flex items-center gap-1">
-            Total <img src={CREDITS_ICON_URL} alt="credits" class="h-4 w-4 inline-block" />:
+            {$tr("common.total")}
+            <img src={CREDITS_ICON_URL} alt={$tr("common.credits")} class="h-4 w-4 inline-block" />:
             <strong class="text-text-primary">{creditsLabel}</strong>
           </div>
           <div>
-            Min. time: <strong class="text-text-primary"
-              >{formatBuildTime(summary.minBuildTime)}</strong
-            >
+            {$tr("crafting.minTime")}
+            <strong class="text-text-primary">{formatBuildTime(summary.minBuildTime)}</strong>
           </div>
           <div>
-            Max. time: <strong class="text-text-primary"
-              >{formatBuildTime(summary.maxBuildTime)}</strong
-            >
+            {$tr("crafting.maxTime")}
+            <strong class="text-text-primary">{formatBuildTime(summary.maxBuildTime)}</strong>
           </div>
         </div>
       </div>

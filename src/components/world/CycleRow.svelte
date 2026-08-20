@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { tr } from "../../lib/i18n.js";
+
   // Planet-cycle row: icon, state badge, time remaining, optional alert toggle.
   type CycleAlertKey = "earth" | "cetus" | "vallis" | "cambion" | "duviri";
 
@@ -35,7 +37,9 @@
   </div>
 
   <span class="flex shrink-0 items-center gap-1">
-    <span class="whitespace-nowrap text-xs text-text-secondary">{nextLabel} in</span>
+    <span class="whitespace-nowrap text-xs text-text-secondary"
+      >{$tr("world.nextLabelIn", { nextLabel })}</span
+    >
     <span
       class="font-display text-sm tracking-[0.02em] whitespace-nowrap text-text-primary"
       class:world-timer-urgent={urgent}>{time}</span
@@ -50,7 +54,9 @@
                data-[active]:opacity-100 data-[active]:text-warning
                data-[active]:border-warning/40 data-[active]:bg-warning/10"
         data-active={alertOn || undefined}
-        title={alertOn ? `Disable ${alertKey} notification` : `Enable ${alertKey} notification`}
+        title={alertOn
+          ? $tr("world.disableNotification", { key: alertKey })
+          : $tr("world.enableNotification", { key: alertKey })}
         on:click={() => onToggleAlert?.(alertKey)}
         aria-pressed={alertOn}
       >

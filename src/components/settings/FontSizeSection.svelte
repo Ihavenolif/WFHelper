@@ -43,7 +43,7 @@
   <div class="appearance-section-head">
     <h4 class="appearance-section-label">{$tr("appearance.fontSizes")}</h4>
     <button class="btn-secondary btn-sm" on:click={() => themeSettings.resetFontSizes()}>
-      {$tr("appearance.resetFontSizes")}
+      {$tr("common.reset")}
     </button>
   </div>
 

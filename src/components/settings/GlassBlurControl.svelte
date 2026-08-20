@@ -1,5 +1,6 @@
 <script lang="ts">
   import { themeSettings } from "../../stores/theme.js";
+  import { tr } from "../../lib/i18n.js";
   import { GLASS_BLUR_MAX_PX, GLASS_BLUR_MIN_PX } from "../../config/themeDefaults.js";
 
   export let labelClass = "flex cursor-pointer items-center justify-between gap-2.5";
@@ -24,7 +25,7 @@
       max={GLASS_BLUR_MAX_PX}
       step="1"
       class="w-full accent-accent"
-      aria-label="Glass blur strength"
+      aria-label={$tr("appearance.glassBlurStrength")}
       value={effects.glassBlurPx}
       on:input={(e) =>
         themeSettings.setEffects({

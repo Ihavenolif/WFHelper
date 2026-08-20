@@ -9,3 +9,8 @@
 *.ico binary
 *.wav binary
 *.onnx binary
+
+# Message catalogues are data, not code: keep them out of the language stats so
+# a repo with many locales still reads as a TypeScript project. Diffs stay
+# normal on purpose, because the German copy is reviewed by hand.
+src/i18n/*.json linguist-detectable=false

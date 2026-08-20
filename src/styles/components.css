@@ -874,6 +874,8 @@
     font-size: 0.64rem;
     font-weight: 700;
     letter-spacing: 0.05em;
+    /* Caps live here, not in the dictionary, so one key serves both cases. */
+    text-transform: uppercase;
   }
   .detail-tag.prime {
     background: rgba(212, 168, 67, 0.2);

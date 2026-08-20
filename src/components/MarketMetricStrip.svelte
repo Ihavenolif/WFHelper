@@ -1,5 +1,6 @@
 <script lang="ts">
   import { PLATINUM_ICON_URL, STAT_ICON_URLS } from "../lib/assetUrls.js";
+  import { tr } from "../lib/i18n.js";
 
   type MetricValue = number | string | null | undefined;
   type MetricState = "has-value" | "loading" | "no-data";
@@ -47,7 +48,7 @@
       platinum,
       'plat',
     )}"
-    title="Platinum"
+    title={$tr("common.platinum")}
   >
     <img src={PLAT_ICON} alt="" class="{iconSizeClass} object-contain shrink-0" />
     {valueLabel(platinum)}
@@ -59,7 +60,7 @@
         ducats,
         'ducat',
       )}"
-      title="Ducats"
+      title={$tr("common.ducats")}
     >
       <img src={DUCAT_ICON} alt="" class="{iconSizeClass} object-contain shrink-0" />
       {valueLabel(ducats)}
@@ -70,7 +71,7 @@
         ratio,
         'ducat',
       )}"
-      title="Ducats per platinum"
+      title={$tr("market.ducatsPerPlatinum")}
     >
       <img src={DUCAT_ICON} alt="" class="{iconSizeClass} object-contain shrink-0" />
       <span aria-hidden="true" class="text-text-muted text-[0.8em]">/</span>

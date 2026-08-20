@@ -1,5 +1,6 @@
 <script lang="ts">
   import { openOnWfm } from "../lib/priceLoader.js";
+  import { tr } from "../lib/i18n.js";
 
   export let text: string;
   export let slug: string | null;
@@ -14,7 +15,7 @@
       <br />
       <button
         class="mt-1.5 rounded-md border border-accent-dim bg-accent-glow px-2 py-1 font-display text-xs font-semibold text-accent"
-        on:click={() => openOnWfm(slug)}>Open on warframe.market</button
+        on:click={() => openOnWfm(slug)}>{$tr("common.openOnWarframeMarket")}</button
       >
     {/if}
   </div>

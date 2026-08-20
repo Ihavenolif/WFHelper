@@ -57,7 +57,7 @@ test.describe("Market tab (fixture mode)", () => {
     env.WFHELPER_USER_DATA = path.join(sandboxDir, "user-data");
     env.WFHELPER_WFM_FIXTURES = fixturePath;
 
-    app = await electron.launch({ args: ["--no-sandbox", "."], env });
+    app = await electron.launch({ args: ["--no-sandbox", "--lang=en-US", "."], env });
     page = await mainWindow(app);
 
     // Renderer errors only surface in the CI log if we forward them.
@@ -69,7 +69,10 @@ test.describe("Market tab (fixture mode)", () => {
     // Fresh sandbox starts on the setup view; flag it done and reload.
     // Cold CI runners need the same generous boot timeouts as smoke.spec.
     await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
-    await page.evaluate(() => localStorage.setItem("setup-completed-v2", "1"));
+    await page.evaluate(() => {
+      localStorage.setItem("setup-completed-v2", "1");
+      localStorage.setItem("app-language", "en");
+    });
     await page.reload();
     try {
       await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });

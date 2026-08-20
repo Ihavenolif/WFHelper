@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Invasion } from "../../types/world.js";
+  import { locale, tr } from "../../lib/i18n.js";
 
   export let inv: Invasion;
 
@@ -11,7 +12,11 @@
     return "";
   }
 
-  function rewardLabel(side: Invasion["attacker"] | Invasion["defender"]): string {
+  function rewardLabel(
+    t: typeof $tr,
+    localeCode: string,
+    side: Invasion["attacker"] | Invasion["defender"],
+  ): string {
     const r = side.reward;
     if (!r) return "";
     if (r.countedItems?.length > 0) {
@@ -20,7 +25,8 @@
         .join(", ");
     }
     if (r.items?.length > 0) return r.items.join(", ");
-    if (r.credits > 0) return `${r.credits.toLocaleString()} Credits`;
+    if (r.credits > 0)
+      return t("world.creditsAmount", { amount: r.credits.toLocaleString(localeCode) });
     return "";
   }
 
@@ -48,14 +54,16 @@
 
     <span
       class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap
-             text-right text-accent">{rewardLabel(inv.attacker)}</span
+             text-right text-accent">{rewardLabel($tr, $locale, inv.attacker)}</span
     >
 
-    <span class="shrink-0 text-base font-bold uppercase text-text-muted opacity-45">VS</span>
+    <span class="shrink-0 text-base font-bold uppercase text-text-muted opacity-45"
+      >{$tr("world.vs")}</span
+    >
 
     <span
       class="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap
-             text-left text-accent">{rewardLabel(inv.defender)}</span
+             text-left text-accent">{rewardLabel($tr, $locale, inv.defender)}</span
     >
 
     <span

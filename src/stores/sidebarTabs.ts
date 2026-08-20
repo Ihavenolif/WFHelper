@@ -6,15 +6,15 @@ import type { MessageKey } from "../lib/i18n.js";
 // Tabs the user can hide. Inventory and Settings are deliberately absent: one is
 // the default landing view, the other is how you get the rest back.
 export const TOGGLEABLE_TABS: ReadonlyArray<{ view: string; labelKey: MessageKey }> = [
-  { view: "foundry", labelKey: "nav.foundry" },
-  { view: "mastery", labelKey: "nav.mastery" },
-  { view: "stats", labelKey: "nav.stats" },
-  { view: "world", labelKey: "nav.world" },
-  { view: "market", labelKey: "nav.market" },
-  { view: "relics", labelKey: "nav.relics" },
-  { view: "wiki", labelKey: "nav.wiki" },
-  { view: "rivens", labelKey: "nav.rivens" },
-  { view: "arbi", labelKey: "nav.arbi" },
+  { view: "foundry", labelKey: "common.foundry" },
+  { view: "mastery", labelKey: "common.mastery" },
+  { view: "stats", labelKey: "common.stats" },
+  { view: "world", labelKey: "common.world" },
+  { view: "market", labelKey: "common.market" },
+  { view: "relics", labelKey: "common.relics" },
+  { view: "wiki", labelKey: "common.wiki" },
+  { view: "rivens", labelKey: "common.rivens" },
+  { view: "arbi", labelKey: "common.arbitrations" },
 ];
 
 export const tabVisibility: Record<string, Writable<boolean>> = Object.fromEntries(

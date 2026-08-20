@@ -5,6 +5,7 @@
   import ThemedPanel from "../ThemedPanel.svelte";
   import { masteryXpToRank } from "../../../config/shared/masteryXp.js";
   import { readStorage, writeStorage } from "../../lib/persistence.js";
+  import { tr } from "../../lib/i18n.js";
   import type { MasteryRoadmap, MasteryRoadmapRecommendation } from "../../lib/masteryRoadmap.js";
 
   type RoadmapMode = "easy" | "relics" | "platinum";
@@ -16,20 +17,20 @@
   export let totalXp: number | null = null;
   export let onOpen: (item: MasteryRoadmapRecommendation) => void;
 
-  const MODE_TABS = [
-    { key: "easy", label: "Easy" },
-    { key: "relics", label: "From Relics" },
-    { key: "platinum", label: "With Platinum" },
+  $: MODE_TABS = [
+    { key: "easy", label: $tr("mastery.roadmap.easy") },
+    { key: "relics", label: $tr("mastery.roadmap.fromRelics") },
+    { key: "platinum", label: $tr("mastery.roadmap.withPlatinum") },
   ];
 
-  const ACCESS_LABELS = {
-    owned: "Owned: level it",
-    claimable: "Ready to claim",
-    building: "Crafting",
-    buildable: "Can build",
-    relics: "From owned relics",
-    platinum: "Buy on Market",
-  } as const;
+  $: ACCESS_LABELS = {
+    owned: $tr("mastery.roadmap.accessOwned"),
+    claimable: $tr("mastery.roadmap.accessClaimable"),
+    building: $tr("mastery.roadmap.accessBuilding"),
+    buildable: $tr("common.canBuild"),
+    relics: $tr("mastery.roadmap.accessRelics"),
+    platinum: $tr("mastery.roadmap.accessPlatinum"),
+  };
 
   function restoreMode(): RoadmapMode {
     const raw = readStorage(MODE_TAB_KEY);
@@ -90,38 +91,60 @@
 <div class="grid gap-3" data-tour="mastery-roadmap">
   <div class="grid gap-2 min-[900px]:grid-cols-2 min-[1400px]:grid-cols-4">
     <ThemedPanel className="p-3">
-      <span class="block text-xs uppercase tracking-[0.08em] text-text-muted">Easy mastery</span>
-      <strong class="font-display text-2xl text-success">+{easyXp.toLocaleString()} XP</strong>
+      <span class="block text-xs uppercase tracking-[0.08em] text-text-muted"
+        >{$tr("mastery.roadmap.easyMastery")}</span
+      >
+      <strong class="font-display text-2xl text-success"
+        >{$tr("mastery.roadmap.xpAmount", { amount: easyXp.toLocaleString() })}</strong
+      >
       <span class="block text-xs text-text-secondary">
-        {roadmap.easy.length} items owned or available through Foundry{#if easyPotentialRank != null}
-          - potential MR {easyPotentialRank}{/if}
+        {#if easyPotentialRank != null}{$tr("mastery.roadmap.easyDescWithRank", {
+            count: roadmap.easy.length,
+            rank: easyPotentialRank,
+          })}{:else}{$tr("mastery.roadmap.easyDesc", { count: roadmap.easy.length })}{/if}
       </span>
     </ThemedPanel>
     <ThemedPanel className="p-3">
       <span class="block text-xs uppercase tracking-[0.08em] text-text-muted"
-        >From owned relics</span
+        >{$tr("mastery.roadmap.accessRelics")}</span
       >
-      <strong class="font-display text-2xl text-accent">+{relicXp.toLocaleString()} XP</strong>
+      <strong class="font-display text-2xl text-accent"
+        >{$tr("mastery.roadmap.xpAmount", { amount: relicXp.toLocaleString() })}</strong
+      >
       <span class="block text-xs text-text-secondary">
-        {roadmap.relics.length} items with every missing part available
+        {$tr("mastery.roadmap.relicsDesc", { count: roadmap.relics.length })}
       </span>
     </ThemedPanel>
     <ThemedPanel className="p-3">
-      <span class="block text-xs uppercase tracking-[0.08em] text-text-muted">Buyable mastery</span>
-      <strong class="font-display text-2xl text-info">+{buyableXp.toLocaleString()} XP</strong>
+      <span class="block text-xs uppercase tracking-[0.08em] text-text-muted"
+        >{$tr("mastery.roadmap.buyableMastery")}</span
+      >
+      <strong class="font-display text-2xl text-info"
+        >{$tr("mastery.roadmap.xpAmount", { amount: buyableXp.toLocaleString() })}</strong
+      >
       <span class="block text-xs text-text-secondary">
-        {roadmap.platinum.length} recommendations with snapshot prices
+        {$tr("mastery.roadmap.buyableDesc", { count: roadmap.platinum.length })}
       </span>
     </ThemedPanel>
     <ThemedPanel className="p-3">
-      <span class="block text-xs uppercase tracking-[0.08em] text-text-muted">Best value</span>
+      <span class="block text-xs uppercase tracking-[0.08em] text-text-muted"
+        >{$tr("mastery.roadmap.bestValue")}</span
+      >
       {#if bestValue}
         <strong class="block truncate font-display text-lg text-accent">{bestValue.name}</strong>
-        <span class="block text-xs text-text-secondary">
-          {Math.round(bestValue.xpPerPlatinum ?? 0).toLocaleString()} XP/p at {bestValue.estimatedCost}p
-        </span>
+        <!-- Gated on a real price: "at 0p" would read as a genuine quote. -->
+        {#if bestValue.estimatedCost != null}
+          <span class="block text-xs text-text-secondary">
+            {$tr("mastery.roadmap.xpPerPlatAt", {
+              xp: Math.round(bestValue.xpPerPlatinum ?? 0).toLocaleString(),
+              cost: bestValue.estimatedCost,
+            })}
+          </span>
+        {/if}
       {:else}
-        <strong class="font-display text-lg text-text-muted">No priced items</strong>
+        <strong class="font-display text-lg text-text-muted"
+          >{$tr("mastery.roadmap.noPricedItems")}</strong
+        >
       {/if}
     </ThemedPanel>
   </div>
@@ -132,20 +155,22 @@
       <div class="ml-auto flex flex-wrap items-center justify-end gap-2 pb-2">
         <SearchBox value={search} onValueChange={(value) => (search = value)} />
         <label class="shared-filter-sort">
-          <span>Category</span>
+          <span>{$tr("mastery.roadmap.categoryLabel")}</span>
           <select class="shared-filter-select" bind:value={category}>
-            <option value="all">All</option>
+            <option value="all">{$tr("common.all")}</option>
             {#each categories as option}
               <option value={option}>{option}</option>
             {/each}
           </select>
         </label>
         <label class="shared-filter-sort">
-          <span>Sort</span>
+          <span>{$tr("common.sort")}</span>
           <select class="shared-filter-select" bind:value={sort}>
-            <option value="recommended">Recommended</option>
-            <option value="xp">Most mastery XP</option>
-            {#if mode === "platinum"}<option value="price">Lowest price</option>{/if}
+            <option value="recommended">{$tr("common.recommended")}</option>
+            <option value="xp">{$tr("mastery.roadmap.sortMostXp")}</option>
+            {#if mode === "platinum"}<option value="price"
+                >{$tr("mastery.roadmap.sortLowestPrice")}</option
+              >{/if}
           </select>
         </label>
       </div>
@@ -153,7 +178,7 @@
   </div>
 
   {#if visible.length === 0}
-    <div class="empty-state"><p>No roadmap items match these filters</p></div>
+    <div class="empty-state"><p>{$tr("mastery.roadmap.noItemsMatch")}</p></div>
   {:else}
     <div class="grid gap-2 min-[900px]:grid-cols-2">
       {#each visible as item (`${item.uniqueName || item.internalName}-${item.access}`)}
@@ -174,33 +199,55 @@
             {#if item.access === "relics"}
               <span
                 class="block text-xs font-semibold text-success"
-                title="Chance of collecting every missing part by opening each relevant owned relic once"
+                title={$tr("mastery.roadmap.relicChanceTitle")}
               >
-                {formatProbability(item.relicProbability)} chance with {item.relevantRelicCount}
-                owned {item.relevantRelicCount === 1 ? "relic" : "relics"}
+                {item.relevantRelicCount === 1
+                  ? $tr("mastery.roadmap.chanceWithOneRelic", {
+                      prob: formatProbability(item.relicProbability),
+                      count: item.relevantRelicCount,
+                    })
+                  : $tr("mastery.roadmap.chanceWithRelics", {
+                      prob: formatProbability(item.relicProbability),
+                      count: item.relevantRelicCount,
+                    })}
               </span>
               <span class="mt-1 block text-xs text-text-muted">
-                {item.category} · {ownedPartTypes(item)}/{item.components.length} parts owned
+                {$tr("mastery.roadmap.partsOwnedLine", {
+                  category: item.category,
+                  owned: ownedPartTypes(item),
+                  total: item.components.length,
+                })}
               </span>
             {:else}
               <span class="block text-xs text-text-secondary">
-                {item.category} · {ACCESS_LABELS[item.access]}
+                {$tr("mastery.roadmap.categoryAccessLine", {
+                  category: item.category,
+                  access: ACCESS_LABELS[item.access],
+                })}
               </span>
               <span class="mt-1 block text-xs text-text-muted">
-                {#if item.access === "owned"}Level {item.rank}/{item.maxRank}{:else if item.components.length > 0}{ownedPartTypes(
-                    item,
-                  )}/{item.components.length} parts owned{:else}Not owned{/if}
+                {#if item.access === "owned"}{$tr("mastery.roadmap.levelLine", {
+                    rank: item.rank,
+                    maxRank: item.maxRank,
+                  })}{:else if item.components.length > 0}{$tr("mastery.roadmap.partsOwnedShort", {
+                    owned: ownedPartTypes(item),
+                    total: item.components.length,
+                  })}{:else}{$tr("mastery.notOwned")}{/if}
               </span>
             {/if}
           </span>
           <span class="grid justify-items-end gap-1 text-right">
             <strong class="font-display text-base text-accent"
-              >+{item.masteryXpRemaining.toLocaleString()} XP</strong
+              >{$tr("mastery.roadmap.xpAmount", {
+                amount: item.masteryXpRemaining.toLocaleString(),
+              })}</strong
             >
             {#if item.estimatedCost != null && item.access === "platinum"}
               <span class="text-sm font-semibold text-info">{item.estimatedCost}p</span>
               <span class="text-[0.68rem] text-text-muted">
-                {Math.round(item.xpPerPlatinum ?? 0).toLocaleString()} XP/p
+                {$tr("mastery.roadmap.xpPerPlat", {
+                  xp: Math.round(item.xpPerPlatinum ?? 0).toLocaleString(),
+                })}
               </span>
             {/if}
           </span>

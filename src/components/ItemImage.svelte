@@ -1,6 +1,7 @@
 <script lang="ts">
   import { FORMA_ICON_URL } from "../lib/assetUrls.js";
   import { reportDegradedIcon } from "../stores/devMode.js";
+  import { tr } from "../lib/i18n.js";
 
   export let src: string | null = null;
   export let alt = "";
@@ -55,7 +56,7 @@
 {#if effectiveSrc && !failed}
   <img class={mergedImageClass} src={effectiveSrc} {alt} loading="lazy" on:error={onError} />
 {:else}
-  <div class={mergedPlaceholderClass} title="No image available">
+  <div class={mergedPlaceholderClass} title={$tr("common.noImageAvailable")}>
     <svg
       class={placeholderIconBase}
       viewBox="0 0 24 24"

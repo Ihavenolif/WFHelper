@@ -2,6 +2,7 @@
   import { createEventDispatcher } from "svelte";
 
   import InventoryCard from "./InventoryCard.svelte";
+  import { tr } from "../../lib/i18n.js";
   import type { InventoryViewItem } from "../../lib/inventoryMarket.js";
 
   export let items: InventoryViewItem[] = [];
@@ -35,7 +36,7 @@
         <circle cx="11" cy="11" r="7" />
         <line x1="21" y1="21" x2="16.65" y2="16.65" />
       </svg>
-      <p>No items found</p>
+      <p>{$tr("inventory.noItemsFound")}</p>
     </div>
   {:else}
     {#each items as item (item.internalName)}

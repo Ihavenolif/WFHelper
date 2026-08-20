@@ -2,6 +2,7 @@
   import { SvelteMap } from "svelte/reactivity";
 
   import { WFM_HEADERS } from "../../../config/shared/wfm.js";
+  import { locale, tr, type LocaleCode } from "../../lib/i18n.js";
 
   export let slug: string | null = null;
 
@@ -93,20 +94,6 @@
   const MIN_WIDTH = 480;
   const FALLBACK_WIDTH = 900;
   const X_LABEL_SPACING = 150;
-  const MONTHS = [
-    "Jan",
-    "Feb",
-    "Mar",
-    "Apr",
-    "May",
-    "Jun",
-    "Jul",
-    "Aug",
-    "Sep",
-    "Oct",
-    "Nov",
-    "Dec",
-  ];
 
   const cache = new SvelteMap<string, StatBuckets>();
 
@@ -257,7 +244,9 @@
   $: ranks = collectRanks(buckets);
   $: entries = buckets ? buckets[period] : [];
   $: visible = ranks.length > 1 ? entries.filter((entry) => entry.rank === activeRank) : entries;
-  $: chart = visible.length > 1 ? buildChart(visible, period, chartWidth) : null;
+  $: monthNames = shortMonthNames($locale);
+  $: chart =
+    visible.length > 1 ? buildChart(visible, period, chartWidth, monthNames, $locale) : null;
   $: hovered =
     chart && hoverIndex != null && hoverIndex < visible.length
       ? {
@@ -268,7 +257,13 @@
       : null;
   $: tooltipStyle = hovered && chart ? tooltipOffset(hovered.marker.x, chart.width) : "";
 
-  function buildChart(rows: StatEntry[], span: Period, width: number): ChartModel {
+  function buildChart(
+    rows: StatEntry[],
+    span: Period,
+    width: number,
+    months: string[],
+    code: LocaleCode,
+  ): ChartModel {
     const plotW = width - MARGIN.left - MARGIN.right;
     const step = plotW / (rows.length - 1);
     const xAt = (index: number): number => MARGIN.left + index * step;
@@ -332,7 +327,7 @@
       const index = Math.round((i / (labelCount - 1)) * (rows.length - 1));
       xLabels.push({
         x: xAt(index),
-        label: formatStamp(rows[index].time, span),
+        label: formatStamp(rows[index].time, span, months),
         anchor: i === 0 ? "start" : i === labelCount - 1 ? "end" : "middle",
       });
     }
@@ -351,12 +346,12 @@
       priceTicks: niceTicks(domainLow, domainHigh, 5).map((value) => ({
         value,
         offset: priceY(value),
-        label: formatPlat(value),
+        label: formatPlat(value, code),
       })),
       volumeTicks: niceTicks(0, peakVolume, 3).map((value) => ({
         value,
         offset: volumeY(value),
-        label: formatPlat(value),
+        label: formatPlat(value, code),
       })),
       xLabels,
       bars,
@@ -466,19 +461,29 @@
     return value.toFixed(1);
   }
 
-  function formatPlat(value: number): string {
-    return Number.isInteger(value) ? String(value) : value.toFixed(1);
+  // Mid-month local dates keep the label off a timezone-shifted month boundary.
+  function shortMonthNames(code: LocaleCode): string[] {
+    const format = new Intl.DateTimeFormat(code, { month: "short" });
+    return Array.from({ length: 12 }, (_, index) => format.format(new Date(2024, index, 15)));
   }
 
-  function formatStamp(time: number, span: Period): string {
+  function formatPlat(value: number, code: LocaleCode): string {
+    const digits = Number.isInteger(value) ? 0 : 1;
+    return value.toLocaleString(code, {
+      minimumFractionDigits: digits,
+      maximumFractionDigits: digits,
+    });
+  }
+
+  function formatStamp(time: number, span: Period, months: string[]): string {
     const date = new Date(time);
     if (span === "48hours") return `${String(date.getHours()).padStart(2, "0")}:00`;
-    return `${MONTHS[date.getMonth()]} ${date.getDate()}`;
+    return `${months[date.getMonth()]} ${date.getDate()}`;
   }
 
-  function formatHoverStamp(time: number, span: Period): string {
+  function formatHoverStamp(time: number, span: Period, months: string[]): string {
     const date = new Date(time);
-    const day = `${MONTHS[date.getMonth()]} ${date.getDate()}`;
+    const day = `${months[date.getMonth()]} ${date.getDate()}`;
     if (span === "48hours") return `${day}, ${String(date.getHours()).padStart(2, "0")}:00`;
     return day;
   }
@@ -487,29 +492,31 @@
 <div class="grid gap-3">
   <div class="flex flex-wrap items-end gap-x-4 gap-y-2">
     <div class="grid gap-1">
-      <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Period</span>
+      <span class="text-xs uppercase tracking-[0.05em] text-text-muted">{$tr("browse.period")}</span
+      >
       <div class="filter-tabs">
         <button
           class="filter-tab"
           class:active={period === "48hours"}
-          on:click={() => setPeriod("48hours")}>48 Hours</button
+          on:click={() => setPeriod("48hours")}>{$tr("browse.hours48")}</button
         >
         <button
           class="filter-tab"
           class:active={period === "90days"}
-          on:click={() => setPeriod("90days")}>90 Days</button
+          on:click={() => setPeriod("90days")}>{$tr("browse.days90")}</button
         >
       </div>
     </div>
     {#if ranks.length > 1}
       <div class="grid gap-1">
-        <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Rank</span>
+        <span class="text-xs uppercase tracking-[0.05em] text-text-muted">{$tr("common.rank")}</span
+        >
         <div class="filter-tabs">
           {#each ranks as value (value)}
             <button
               class="filter-tab"
               class:active={activeRank === value}
-              on:click={() => setRank(value)}>Rank {value}</button
+              on:click={() => setRank(value)}>{$tr("browse.rankValue", { value })}</button
             >
           {/each}
         </div>
@@ -521,44 +528,44 @@
     <div
       class="rounded-xl border border-dashed border-border bg-bg-soft px-4 py-6 text-center text-sm text-text-secondary"
     >
-      Loading statistics...
+      {$tr("browse.loadingStats")}
     </div>
   {:else if state === "error"}
     <div
       class="grid justify-items-center gap-2 rounded-xl border border-dashed border-danger/40 bg-bg-soft px-4 py-6 text-center text-sm text-danger"
     >
-      <span>Failed to load statistics. Try again.</span>
-      <button class="btn-secondary btn-sm" on:click={retry}>Retry</button>
+      <span>{$tr("browse.statsFailed")}</span>
+      <button class="btn-secondary btn-sm" on:click={retry}>{$tr("common.retry")}</button>
     </div>
   {:else if !chart}
     <div
       class="rounded-xl border border-dashed border-border bg-bg-soft px-4 py-6 text-center text-sm text-text-secondary"
     >
-      No trade statistics for this item.
+      {$tr("browse.noStats")}
     </div>
   {:else}
     <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-text-secondary">
       <label class="inline-flex cursor-pointer items-center gap-1.5">
         <input type="checkbox" class="accent-accent" bind:checked={showCandles} />
         <span class="inline-block h-2.5 w-2 rounded-sm" style="background: var(--success)"></span>
-        Candle chart
+        {$tr("browse.candleChart")}
       </label>
       <label class="inline-flex cursor-pointer items-center gap-1.5">
         <input type="checkbox" class="accent-accent" bind:checked={showMedian} />
         <span class="inline-block h-[3px] w-4 rounded-full" style="background: var(--accent)"
         ></span>
-        Median
+        {$tr("common.median")}
       </label>
       <label class="inline-flex cursor-pointer items-center gap-1.5">
         <input type="checkbox" class="accent-accent" bind:checked={showMovingAvg} />
         <span class="inline-block h-[2px] w-4 rounded-full" style="background: var(--info)"></span>
-        Moving avg
+        {$tr("browse.movingAvg")}
       </label>
       <label class="inline-flex cursor-pointer items-center gap-1.5">
         <input type="checkbox" class="accent-accent" bind:checked={showAvgPrice} />
         <span class="inline-block h-[2px] w-4 rounded-full" style="background: var(--danger)"
         ></span>
-        Average price
+        {$tr("browse.avgPrice")}
       </label>
       <label class="inline-flex cursor-pointer items-center gap-1.5">
         <input type="checkbox" class="accent-accent" bind:checked={showDonchian} />
@@ -566,7 +573,7 @@
           class="inline-block h-2.5 w-4 rounded-sm border"
           style="background: color-mix(in oklab, var(--info) 14%, transparent); border-color: color-mix(in oklab, var(--info) 40%, transparent)"
         ></span>
-        Donchian channel
+        {$tr("browse.donchianChannel")}
       </label>
     </div>
 
@@ -580,16 +587,16 @@
           viewBox="0 0 {chart.width} {H}"
           class="block"
           role="img"
-          aria-label="Price and volume history"
+          aria-label={$tr("browse.chartAriaLabel")}
           on:mousemove={trackHover}
           on:mouseleave={clearHover}
         >
           <rect x="0" y="0" width={chart.width} height={H} fill="transparent" />
           <text x={MARGIN.left} y={MARGIN.top - 7} font-size="10" fill="var(--text-muted)"
-            >Platinum</text
+            >{$tr("common.platinum")}</text
           >
           <text x={MARGIN.left} y={VOLUME_TOP - 7} font-size="10" fill="var(--text-muted)"
-            >Volume</text
+            >{$tr("browse.volume")}</text
           >
 
           {#each chart.priceTicks as tick (tick.value)}
@@ -755,26 +762,40 @@
             style={tooltipStyle}
           >
             <div class="font-semibold text-accent">
-              {formatHoverStamp(hovered.entry.time, period)}
+              {formatHoverStamp(hovered.entry.time, period, monthNames)}
             </div>
             {#if showMedian}
-              <div class="text-text-secondary">Median: {formatPlat(hovered.entry.median)}p</div>
+              <div class="text-text-secondary">
+                {$tr("browse.tooltipMedian", {
+                  value: `${formatPlat(hovered.entry.median, $locale)}p`,
+                })}
+              </div>
             {/if}
             {#if showMovingAvg && hovered.entry.movingAvg != null}
               <div class="text-text-secondary">
-                Moving avg: {formatPlat(hovered.entry.movingAvg)}
+                {$tr("browse.tooltipMovingAvg", {
+                  value: formatPlat(hovered.entry.movingAvg, $locale),
+                })}
               </div>
             {/if}
             {#if showAvgPrice}
-              <div class="text-text-secondary">Avg: {formatPlat(hovered.entry.avgPrice)}</div>
+              <div class="text-text-secondary">
+                {$tr("common.avg", { value: formatPlat(hovered.entry.avgPrice, $locale) })}
+              </div>
             {/if}
             {#if showCandles}
               <div class="text-text-secondary">
-                O {formatPlat(hovered.entry.openPrice)} · C {formatPlat(hovered.entry.closedPrice)} ·
-                H {formatPlat(hovered.entry.maxPrice)} · L {formatPlat(hovered.entry.minPrice)}
+                {$tr("browse.tooltipCandle", {
+                  open: formatPlat(hovered.entry.openPrice, $locale),
+                  close: formatPlat(hovered.entry.closedPrice, $locale),
+                  high: formatPlat(hovered.entry.maxPrice, $locale),
+                  low: formatPlat(hovered.entry.minPrice, $locale),
+                })}
               </div>
             {/if}
-            <div class="text-text-secondary">Volume: {hovered.entry.volume} sold</div>
+            <div class="text-text-secondary">
+              {$tr("browse.tooltipVolume", { value: hovered.entry.volume })}
+            </div>
           </div>
         {/if}
       </div>

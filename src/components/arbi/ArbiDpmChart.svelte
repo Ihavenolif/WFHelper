@@ -101,7 +101,7 @@
           text-anchor="end"
           fill="currentColor"
           class="text-text-primary"
-          font-size="11">AVG: {avg.toFixed(1)}</text
+          font-size="11">{$tr("common.avg", { value: avg.toFixed(1) })}</text
         >
         {#each points as p, i (p.rotation)}
           <circle cx={p.x} cy={p.y} r="2.5" fill="var(--accent)" />

@@ -2,6 +2,7 @@
   import { onMount } from "svelte";
 
   import { invoke, send } from "../lib/ipc.js";
+  import { locale, tr, type MessageKey } from "../lib/i18n.js";
   import { useInterval } from "../lib/timers.js";
   import { APP_LOGO_URL } from "../lib/assetUrls.js";
   import { themeSettings } from "../stores/theme.js";
@@ -18,12 +19,12 @@
   let helperStatus: HelperStatus | null = null;
 
   // Show just the clock time, plus the date once the data is over a day old.
-  function formatHelperTime(ms: number | null): string {
+  function formatHelperTime(ms: number | null, localeCode: string): string {
     if (!ms) return "";
     const d = new Date(ms);
     const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
     if (Date.now() - ms > DAY_MS) {
-      return `${d.toLocaleDateString(undefined, { month: "short", day: "numeric" })}, ${time}`;
+      return `${d.toLocaleDateString(localeCode, { month: "short", day: "numeric" })}, ${time}`;
     }
     return time;
   }
@@ -32,35 +33,34 @@
     Boolean(helperStatus?.inventoryLastModified) &&
     Date.now() - Number(helperStatus?.inventoryLastModified) > INVENTORY_OLD_MS;
 
-  function computeHelperStatusText(status: HelperStatus | null, isOld: boolean): string {
-    if (!status) return "WF data unknown";
-    if (status.running) return "WF data refreshing...";
+  function helperStatusMessage(
+    status: HelperStatus | null,
+    isOld: boolean,
+    localeCode: string,
+  ): { key: MessageKey; params?: Record<string, string | number> } {
+    if (!status) return { key: "titlebar.status.unknown" };
+    if (status.running) return { key: "titlebar.status.refreshing" };
     if (status.inventoryLastModified) {
-      return `WF data ${isOld ? "old" : "OK"} · ${formatHelperTime(status.inventoryLastModified)}`;
+      const time = formatHelperTime(status.inventoryLastModified, localeCode);
+      return { key: isOld ? "titlebar.status.old" : "titlebar.status.ok", params: { time } };
     }
-    if (!status.exeFound) return "WF helper not found";
-    if (status.lastRunReason === "access-denied") return "WF running as admin, unreadable";
-    if (status.lastRunReason === "not-logged-in") return "Waiting for WF login...";
-    if (status.lastRunReason === "token-not-found") return "WF login token not found";
-    if (status.lastRunReason === "game-not-running") return "Start Warframe to load data";
-    return "WF data missing";
+    if (!status.exeFound) return { key: "titlebar.status.helperNotFound" };
+    if (status.lastRunReason === "access-denied") return { key: "titlebar.status.accessDenied" };
+    if (status.lastRunReason === "not-logged-in") return { key: "titlebar.status.waitingLogin" };
+    if (status.lastRunReason === "token-not-found") return { key: "titlebar.status.tokenNotFound" };
+    if (status.lastRunReason === "game-not-running") {
+      return { key: "titlebar.status.gameNotRunning" };
+    }
+    return { key: "titlebar.status.dataMissing" };
   }
 
-  function helperTooltip(status: HelperStatus | null): string {
-    if (!status?.exeFound) return "warframe-api-helper not found";
-    if (status.lastRunReason === "access-denied") {
-      return "Warframe appears to run as administrator, so WFHelper cannot read it. Restart the game without admin rights.";
-    }
-    if (status.lastRunReason === "not-logged-in") {
-      return "Warframe is running but not logged in. Data loads automatically about a minute after login.";
-    }
-    if (status.lastRunReason === "token-not-found") {
-      return "Warframe is logged in but the login token was not found in game memory. Restart the game; if this keeps happening, report it on Discord.";
-    }
-    if (status.lastRunReason === "game-not-running") {
-      return "Start Warframe and log in - data is fetched automatically.";
-    }
-    return "warframe-api-helper active";
+  function helperTooltipKey(status: HelperStatus | null): MessageKey {
+    if (!status?.exeFound) return "titlebar.tooltip.helperNotFound";
+    if (status.lastRunReason === "access-denied") return "titlebar.tooltip.accessDenied";
+    if (status.lastRunReason === "not-logged-in") return "titlebar.tooltip.notLoggedIn";
+    if (status.lastRunReason === "token-not-found") return "titlebar.tooltip.tokenNotFound";
+    if (status.lastRunReason === "game-not-running") return "titlebar.tooltip.gameNotRunning";
+    return "titlebar.tooltip.active";
   }
 
   function computeHelperDotClass(status: HelperStatus | null, isOld: boolean): string {
@@ -70,7 +70,9 @@
     return "bg-[#f87171]";
   }
 
-  $: helperStatusText = computeHelperStatusText(helperStatus, helperInventoryIsOld);
+  $: statusMessage = helperStatusMessage(helperStatus, helperInventoryIsOld, $locale);
+  $: helperStatusText = $tr(statusMessage.key, statusMessage.params);
+  $: helperTooltipText = $tr(helperTooltipKey(helperStatus));
   $: helperDotClass = computeHelperDotClass(helperStatus, helperInventoryIsOld);
   $: helperDotPulse = helperStatus?.running ?? false;
 
@@ -91,13 +93,17 @@
   class="z-50 flex h-[var(--titlebar-height)] select-none items-center justify-between border-b border-border bg-bg-deep app-region-drag"
 >
   <div class="flex min-w-0 items-center gap-2 pl-3.5">
-    <img src={logoUrl || APP_LOGO_URL} alt="Logo" class="h-4 w-4 object-contain" />
+    <img
+      src={logoUrl || APP_LOGO_URL}
+      alt={$tr("titlebar.logoAlt")}
+      class="h-4 w-4 object-contain"
+    />
     <span class="shrink-0 font-display text-xs font-semibold tracking-wide text-text-secondary">
       {appName}
     </span>
     <span
       class="inline-flex min-w-0 items-center gap-1 rounded border border-white/15 bg-white/5 px-2 py-0.5 text-[10px] text-text-muted"
-      title={helperTooltip(helperStatus)}
+      title={helperTooltipText}
     >
       <span
         class="inline-block h-1.5 w-1.5 rounded-full {helperDotClass} {helperDotPulse
@@ -112,7 +118,7 @@
   <div class="app-region-no-drag flex">
     <button
       class="flex h-[var(--titlebar-height)] w-[var(--size-titlebar-control)] cursor-pointer items-center justify-center border-0 bg-transparent text-text-secondary transition-[color,background-color] duration-150 hover:bg-bg-hover hover:text-text-primary"
-      title="Minimize"
+      title={$tr("titlebar.minimize")}
       on:click={() => send("window-minimize")}
     >
       <svg class="h-3 w-3" viewBox="0 0 12 12"
@@ -121,7 +127,7 @@
     </button>
     <button
       class="flex h-[var(--titlebar-height)] w-[var(--size-titlebar-control)] cursor-pointer items-center justify-center border-0 bg-transparent text-text-secondary transition-[color,background-color] duration-150 hover:bg-bg-hover hover:text-text-primary"
-      title="Maximize"
+      title={$tr("titlebar.maximize")}
       on:click={() => send("window-maximize")}
     >
       <svg class="h-3 w-3" viewBox="0 0 12 12"
@@ -138,7 +144,7 @@
     </button>
     <button
       class="flex h-[var(--titlebar-height)] w-[var(--size-titlebar-control)] cursor-pointer items-center justify-center border-0 bg-transparent text-text-secondary transition-[color,background-color] duration-150 hover:bg-danger hover:text-white"
-      title="Close"
+      title={$tr("common.close")}
       on:click={() => send("window-close")}
     >
       <svg class="h-3 w-3" viewBox="0 0 12 12">

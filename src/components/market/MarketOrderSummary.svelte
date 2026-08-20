@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { tr } from "../../lib/i18n.js";
+
   export let isRankedListing = false;
   export let summaryRank: number | null = null;
   export let wtsLabel = "-";
@@ -18,7 +20,7 @@
     </span>
   {:else}
     <span class="market-summary-line">
-      <small>Median</small>
+      <small>{$tr("common.median")}</small>
       <strong>{medianLabel}</strong>
     </span>
   {/if}

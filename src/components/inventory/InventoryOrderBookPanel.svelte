@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy } from "svelte";
 
+  import { tr, type MessageKey } from "../../lib/i18n.js";
   import ItemImage from "../ItemImage.svelte";
   import InventoryOrderBookSide from "./InventoryOrderBookSide.svelte";
   import { activeItem } from "../../stores/modals.js";
@@ -31,18 +32,18 @@
   type OrderSide = OrderType;
   type SideSort = "best" | "price_low" | "price_high" | "quantity_high" | "name_asc";
 
-  const SELL_SORT_OPTIONS: Array<{ value: SideSort; label: string }> = [
-    { value: "best", label: "Best price" },
-    { value: "price_high", label: "Price high to low" },
-    { value: "quantity_high", label: "Quantity high to low" },
-    { value: "name_asc", label: "Name A to Z" },
+  const SELL_SORT_OPTIONS: Array<{ value: SideSort; labelKey: MessageKey }> = [
+    { value: "best", labelKey: "orderbook.sort.bestPrice" },
+    { value: "price_high", labelKey: "orderbook.sort.priceHighToLow" },
+    { value: "quantity_high", labelKey: "orderbook.sort.quantityHighToLow" },
+    { value: "name_asc", labelKey: "orderbook.sort.nameAsc" },
   ];
 
-  const BUY_SORT_OPTIONS: Array<{ value: SideSort; label: string }> = [
-    { value: "best", label: "Best offer" },
-    { value: "price_low", label: "Price low to high" },
-    { value: "quantity_high", label: "Quantity high to low" },
-    { value: "name_asc", label: "Name A to Z" },
+  const BUY_SORT_OPTIONS: Array<{ value: SideSort; labelKey: MessageKey }> = [
+    { value: "best", labelKey: "orderbook.sort.bestOffer" },
+    { value: "price_low", labelKey: "orderbook.sort.priceLowToHigh" },
+    { value: "quantity_high", labelKey: "orderbook.sort.quantityHighToLow" },
+    { value: "name_asc", labelKey: "orderbook.sort.nameAsc" },
   ];
 
   const AUTO_REFRESH_MS = 45_000;
@@ -213,7 +214,7 @@
     }
     setAgeTick(false);
     resetAutoRefresh(slugToLoad, rankToLoad);
-    errorMessage = "Failed to load listings. Try again.";
+    errorMessage = $tr("common.failedToLoadListingsTryAgain");
   }
 
   function setFeedback(message: string): void {
@@ -286,15 +287,21 @@
     return rows;
   }
 
-  function formatUpdatedLabel(timestamp: number | null | undefined, nowMs: number): string {
-    if (!timestamp || timestamp <= 0) return "Updated recently";
+  type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
+
+  function formatUpdatedLabel(
+    t: Translate,
+    timestamp: number | null | undefined,
+    nowMs: number,
+  ): string {
+    if (!timestamp || timestamp <= 0) return t("common.updatedRecently");
     const ageSec = Math.max(0, Math.floor((nowMs - timestamp) / 1000));
-    if (ageSec < 5) return "Updated just now";
-    if (ageSec < 60) return `Updated ${ageSec}s ago`;
+    if (ageSec < 5) return t("common.updatedJustNow");
+    if (ageSec < 60) return t("common.updatedSAgo", { sec: ageSec });
     const ageMin = Math.floor(ageSec / 60);
-    if (ageMin < 60) return `Updated ${ageMin}m ago`;
+    if (ageMin < 60) return t("common.updatedMAgo", { min: ageMin });
     const ageHr = Math.floor(ageMin / 60);
-    return `Updated ${ageHr}h ago`;
+    return t("common.updatedHAgo", { hr: ageHr });
   }
 
   function buildWhisper(entry: OrderBookEntry, side: OrderSide): string {
@@ -303,9 +310,17 @@
     const rankSuffix = isRankedListingItem ? ` (Rank ${entry.rank ?? 0})` : "";
     const itemText = `${item.name}${rankSuffix}${quantitySuffix}`;
     if (side === "sell") {
-      return `/w ${entry.userName} Hi! I want to buy: ${itemText} for ${entry.platinum} platinum.`;
+      return $tr("common.whisperBuy", {
+        user: entry.userName,
+        item: itemText,
+        platinum: entry.platinum,
+      });
     }
-    return `/w ${entry.userName} Hi! I want to sell: ${itemText} for ${entry.platinum} platinum.`;
+    return $tr("common.whisperSell", {
+      user: entry.userName,
+      item: itemText,
+      platinum: entry.platinum,
+    });
   }
 
   async function copyWhisper(entry: OrderBookEntry, side: OrderSide): Promise<void> {
@@ -315,12 +330,12 @@
     try {
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(message);
-        setFeedback("Whisper copied.");
+        setFeedback($tr("orderbook.whisperCopied"));
         return;
       }
-      setFeedback("Clipboard unavailable in this environment.");
+      setFeedback($tr("common.clipboardUnavailableInThisEnvironment"));
     } catch {
-      setFeedback("Failed to copy whisper.");
+      setFeedback($tr("common.failedToCopyWhisper"));
     }
   }
 
@@ -346,17 +361,17 @@
 
     const session = await invoke("wfmGetSession");
     if (!session.loggedIn) {
-      setFeedback("Sign in on the Market tab first.");
+      setFeedback($tr("orderbook.signInFirst"));
       return;
     }
 
     const lookup = await invoke("wfmLookupItemBySlug", currentSlug);
     if (isLookupError(lookup)) {
-      setFeedback(lookup.error || "Unable to prepare order for this item.");
+      setFeedback(lookup.error || $tr("orderbook.prepareOrderFailed"));
       return;
     }
     if (!isLookupItem(lookup)) {
-      setFeedback("Unable to prepare order for this item.");
+      setFeedback($tr("orderbook.prepareOrderFailed"));
       return;
     }
 
@@ -377,17 +392,19 @@
   class="sticky top-2.5 flex flex-col gap-2.5 rounded-lg border border-border bg-bg-surface p-2.5 min-[1101px]:max-h-[calc(100vh-var(--titlebar-height)-var(--statusbar-height)-1.25rem)] min-[1101px]:overflow-y-auto max-[1100px]:fixed max-[1100px]:right-2.5 max-[1100px]:top-[calc(var(--titlebar-height)+0.625rem)] max-[1100px]:bottom-[calc(var(--statusbar-height)+0.625rem)] max-[1100px]:z-40 max-[1100px]:w-[min(360px,calc(100vw-5rem))] max-[1100px]:overflow-y-auto"
 >
   <div class="flex justify-between items-center gap-1.5">
-    <h3 class="m-0 font-display text-base text-text-primary">Market Listings</h3>
+    <h3 class="m-0 font-display text-base text-text-primary">{$tr("orderbook.title")}</h3>
     <div class="flex gap-1.5">
       {#if currentSlug}
-        <button class="btn-secondary btn-sm" on:click={refresh}>Refresh</button>
-        <button class="btn-secondary btn-sm" on:click={openOnWarframeMarket}>Open WFM</button>
+        <button class="btn-secondary btn-sm" on:click={refresh}>{$tr("common.refresh")}</button>
+        <button class="btn-secondary btn-sm" on:click={openOnWarframeMarket}
+          >{$tr("orderbook.openWfm")}</button
+        >
       {/if}
       {#if onClose}
         <button
           class="btn-secondary btn-sm !px-2"
-          aria-label="Close market listings"
-          title="Close"
+          aria-label={$tr("orderbook.closeListings")}
+          title={$tr("common.close")}
           on:click={onClose}>&times;</button
         >
       {/if}
@@ -401,7 +418,7 @@
     <div
       class="rounded-lg border border-dashed border-border bg-bg-soft px-2 py-2 text-xs text-text-secondary"
     >
-      Select an item to view WTS/WTB listings.
+      {$tr("orderbook.selectItemPrompt")}
     </div>
   {:else}
     <div class="grid grid-cols-[52px_minmax(0,1fr)] gap-2 items-center">
@@ -421,21 +438,21 @@
             <button
               type="button"
               class="shrink-0 cursor-pointer rounded border border-border-subtle bg-transparent px-1.5 py-0.5 text-xs text-text-secondary transition-colors duration-150 hover:border-accent hover:text-accent"
-              title="Open {parentEntry.name}"
+              title={$tr("common.open", { name: parentEntry.name })}
               on:click={openParentItem}
             >
-              Part of: {parentEntry.name}
+              {$tr("common.partOf", { name: parentEntry.name })}
             </button>
           {/if}
         </div>
         <div class="flex items-center justify-between gap-2 text-xs text-text-secondary">
           <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap">
             x{item.amount} · {item.categoryLabel}{#if requestRank != null}
-              · Viewing R{requestRank}{/if}
+              {$tr("orderbook.viewingRank", { rank: requestRank })}{/if}
           </span>
           {#if orderBook && !loading && !errorMessage && !noData}
             <span class="shrink-0 text-text-muted"
-              >{formatUpdatedLabel(orderBook.timestamp ?? null, nowTimestamp)}</span
+              >{formatUpdatedLabel($tr, orderBook.timestamp ?? null, nowTimestamp)}</span
             >
           {/if}
         </div>
@@ -446,13 +463,13 @@
       <div
         class="rounded-lg border border-dashed border-border bg-bg-soft px-2 py-2 text-xs text-text-secondary"
       >
-        No market slug available for this item.
+        {$tr("orderbook.noSlug")}
       </div>
     {:else if loading}
       <div
         class="rounded-lg border border-dashed border-border bg-bg-soft px-2 py-2 text-xs text-text-secondary"
       >
-        Loading listings...
+        {$tr("common.loadingListings")}
       </div>
     {:else if errorMessage}
       <div
@@ -464,24 +481,30 @@
       <div
         class="rounded-lg border border-dashed border-border bg-bg-soft px-2 py-2 text-xs text-text-secondary"
       >
-        No active listings found.
+        {$tr("orderbook.noActiveListings")}
       </div>
     {:else}
       <div class="grid grid-cols-3 gap-1.5 max-[800px]:grid-cols-2">
         <div class="grid gap-0.5 rounded-lg border border-border bg-bg-soft px-2 py-1.5">
-          <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Best WTS</span>
+          <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+            >{$tr("orderbook.bestWts")}</span
+          >
           <strong class="font-display text-xs text-success"
             >{bestSell != null ? `${bestSell}p` : "-"}</strong
           >
         </div>
         <div class="grid gap-0.5 rounded-lg border border-border bg-bg-soft px-2 py-1.5">
-          <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Best WTB</span>
+          <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+            >{$tr("orderbook.bestWtb")}</span
+          >
           <strong class="font-display text-xs text-danger"
             >{bestBuy != null ? `${bestBuy}p` : "-"}</strong
           >
         </div>
         <div class="grid gap-0.5 rounded-lg border border-border bg-bg-soft px-2 py-1.5">
-          <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Spread</span>
+          <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+            >{$tr("orderbook.spread")}</span
+          >
           <strong class="font-display text-xs text-text-primary"
             >{spread != null ? `${spread}p` : "-"}</strong
           >
@@ -493,33 +516,41 @@
       >
         <label class="inline-flex items-center gap-1.5 text-xs text-text-secondary select-none">
           <input type="checkbox" class="accent-accent" bind:checked={onlineIngameOnly} />
-          <span>Online/In-game only</span>
+          <span>{$tr("common.onlineInGameOnly")}</span>
         </label>
         <div class="grid gap-1.5">
           {#if isRankedListingItem}
             <label class="grid gap-1">
-              <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Rank view</span>
+              <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+                >{$tr("orderbook.rankView")}</span
+              >
               <select class="inventory-orderbook-select" bind:value={selectedRank}>
                 {#each rankOptions as rankOption (rankOption)}
-                  <option value={rankOption}>R{rankOption}</option>
+                  <option value={rankOption}
+                    >{$tr("orderbook.rankOption", { rank: rankOption })}</option
+                  >
                 {/each}
               </select>
             </label>
           {/if}
           <div class="grid grid-cols-2 gap-1.5">
             <label class="grid gap-1">
-              <span class="text-xs uppercase tracking-[0.05em] text-text-muted">WTS sort</span>
+              <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+                >{$tr("orderbook.wtsSort")}</span
+              >
               <select class="inventory-orderbook-select" bind:value={sellSort}>
                 {#each SELL_SORT_OPTIONS as option (option.value)}
-                  <option value={option.value}>{option.label}</option>
+                  <option value={option.value}>{$tr(option.labelKey)}</option>
                 {/each}
               </select>
             </label>
             <label class="grid gap-1">
-              <span class="text-xs uppercase tracking-[0.05em] text-text-muted">WTB sort</span>
+              <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+                >{$tr("orderbook.wtbSort")}</span
+              >
               <select class="inventory-orderbook-select" bind:value={buySort}>
                 {#each BUY_SORT_OPTIONS as option (option.value)}
-                  <option value={option.value}>{option.label}</option>
+                  <option value={option.value}>{$tr(option.labelKey)}</option>
                 {/each}
               </select>
             </label>
@@ -529,10 +560,10 @@
 
       <div class="grid grid-cols-2 gap-1.5 max-[800px]:grid-cols-1">
         <button class="btn-success btn-sm" on:click={() => void openPostOrder("sell")}
-          >Post WTS</button
+          >{$tr("common.postWts")}</button
         >
         <button class="btn-danger btn-sm" on:click={() => void openPostOrder("buy")}
-          >Post WTB</button
+          >{$tr("common.postWtb")}</button
         >
       </div>
 

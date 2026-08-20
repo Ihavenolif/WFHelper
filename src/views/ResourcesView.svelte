@@ -1,5 +1,6 @@
 <script lang="ts">
   import { formatNumber } from "../lib/format.js";
+  import { tr } from "../lib/i18n.js";
   import ItemImage from "../components/ItemImage.svelte";
   import type { Resource } from "../types/inventory.js";
 
@@ -10,7 +11,7 @@
   <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
     {#if resources.length === 0}
       <div class="empty-state col-span-full">
-        <p>No resources found</p>
+        <p>{$tr("resources.noResourcesFound")}</p>
       </div>
     {:else}
       {#each resources as r}

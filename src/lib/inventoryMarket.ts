@@ -1,3 +1,4 @@
+import type { MessageKey } from "./i18n.js";
 import type { SharedFiltersState } from "../types/filters.js";
 import type { ParsedItem, InventoryGroup, PartType } from "../types/inventory.js";
 import type { WfmItemsLookup } from "../types/ipc.js";
@@ -77,16 +78,16 @@ export interface MetricNeeds {
   network?: boolean;
 }
 
-export const INVENTORY_FILTERS: Array<{ key: InventoryFilterTab; label: string }> = [
-  { key: "all_parts", label: "All Parts" },
-  { key: "relics", label: "Relics" },
-  { key: "mods", label: "Mods" },
-  { key: "arcanes", label: "Arcanes" },
+export const INVENTORY_FILTERS: Array<{ key: InventoryFilterTab; labelKey: MessageKey }> = [
+  { key: "all_parts", labelKey: "inventory.tab.allParts" },
+  { key: "relics", labelKey: "common.relics" },
+  { key: "mods", labelKey: "inventory.tab.mods" },
+  { key: "arcanes", labelKey: "inventory.tab.arcanes" },
   // No incomplete_sets tab: those live on the Mastery page, plus a Full Sets toggle.
-  { key: "full_sets", label: "Full Sets" },
-  { key: "equipment", label: "Equipment" },
-  { key: "resources", label: "Resources" },
-  { key: "misc", label: "Misc" },
+  { key: "full_sets", labelKey: "inventory.tab.fullSets" },
+  { key: "equipment", labelKey: "inventory.tab.equipment" },
+  { key: "resources", labelKey: "nav.resources" },
+  { key: "misc", labelKey: "inventory.tab.misc" },
 ];
 
 function lookupNameCandidates(itemName: string): string[] {

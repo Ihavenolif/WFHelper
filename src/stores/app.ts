@@ -1,5 +1,6 @@
 import { writable } from "svelte/store";
 import { readStorage } from "../lib/persistence.js";
+import type { MessageKey } from "../lib/i18n.js";
 
 // The v2 key reruns setup after the 0.2.0 overhaul. Bump only when a future
 // overhaul must rerun it again.
@@ -10,4 +11,10 @@ function getInitialView(): string {
 }
 
 export const currentView = writable<string>(getInitialView());
-export const statusText = writable<string>("No inventory loaded");
+
+type StatusMessage = {
+  key: MessageKey;
+  params?: Record<string, string | number>;
+};
+
+export const statusText = writable<StatusMessage | null>({ key: "app.noInventoryLoaded" });

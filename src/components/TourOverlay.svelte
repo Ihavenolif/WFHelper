@@ -6,6 +6,7 @@
   import { setRelicFilter } from "../stores/relics.js";
   import { hiddenTabs } from "../stores/sidebarTabs.js";
   import { endTour } from "../stores/tour.js";
+  import { tr } from "../lib/i18n.js";
 
   const TOUR_TAB_STORAGE_KEYS = [
     "wf_inventory_tab",
@@ -28,150 +29,127 @@
     prepare?: () => void;
   }
 
-  function clickContentButton(label: string): void {
-    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>("#content button"));
-    buttons.find((b) => b.textContent?.trim() === label)?.click();
+  const INVENTORY_TAB_KEYS: readonly string[] = [
+    "all_parts",
+    "relics",
+    "mods",
+    "arcanes",
+    "full_sets",
+    "equipment",
+    "resources",
+    "misc",
+  ];
+
+  // Tab buttons expose data-tour-tab so the tour never matches translated label text.
+  function selectTourTab(selector: string, tab: string): void {
+    document.querySelector<HTMLButtonElement>(`${selector} [data-tour-tab="${tab}"]`)?.click();
   }
 
-  function selectTourTab(selector: string, label: string, startsWith = false): void {
-    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>(`${selector} button`));
-    buttons
-      .find((button) => {
-        const text = button.textContent?.trim() ?? "";
-        return startsWith ? text.startsWith(label) : text === label;
-      })
-      ?.click();
+  function prepareTab(storageKey: string, tab: string, selector: string): void {
+    localStorage.setItem(storageKey, tab);
+    selectTourTab(selector, tab);
   }
 
-  function prepareTab(storageKey: string, value: string, selector: string, label: string): void {
-    localStorage.setItem(storageKey, value);
-    selectTourTab(selector, label);
-  }
-
-  const steps: TourStep[] = [
+  let steps!: TourStep[];
+  $: steps = [
     {
       view: "inventory",
       target: '[data-tour="inventory-grid"]',
-      text: "Inventory shows your tradable items and current warframe.market prices. Click a card to view orders or list the item.",
+      text: $tr("tour.step1.body"),
       interactive: true,
-      prepare: () =>
-        prepareTab("wf_inventory_tab", "all_parts", '[data-tour="inventory-tabs"]', "All Parts"),
+      prepare: () => prepareTab("wf_inventory_tab", "all_parts", '[data-tour="inventory-tabs"]'),
     },
     {
       view: "inventory",
       target: '[data-tour="inventory-tabs"]',
-      text: "Use these tabs to switch item types. Full Sets shows every set you can sell as a complete set.",
+      text: $tr("tour.step2.body"),
       interactive: true,
     },
     {
       view: "foundry",
-      text: "Foundry shows builds you can start, builds in progress, and items ready to claim. Pinned recipes stay at the top.",
+      text: $tr("tour.step3.body"),
     },
     {
       view: "mastery",
-      text: "Mastery tracks your rank progress and the items you have not mastered.",
+      text: $tr("tour.step4.body"),
       prepare: () =>
-        prepareTab(
-          "wf_mastery_view_tab",
-          "collection",
-          '[data-tour="mastery-view-tabs"]',
-          "Collection",
-        ),
+        prepareTab("wf_mastery_view_tab", "collection", '[data-tour="mastery-view-tabs"]'),
     },
     {
       view: "mastery",
       target: '[data-tour="filter-bar"]',
-      text: "Press Ctrl+F to search. Filters can be combined. Use the arrow next to Sort to change direction.",
+      text: $tr("tour.step5.body"),
       interactive: true,
       prepare: () =>
-        prepareTab(
-          "wf_mastery_view_tab",
-          "collection",
-          '[data-tour="mastery-view-tabs"]',
-          "Collection",
-        ),
+        prepareTab("wf_mastery_view_tab", "collection", '[data-tour="mastery-view-tabs"]'),
     },
     {
       view: "mastery",
       target: '[data-tour="mastery-roadmap"]',
-      text: "MR Roadmap suggests what to master next. Easy uses owned and Foundry items. From Relics uses your relics. With Platinum compares XP per platinum.",
+      text: $tr("tour.step6.body"),
       interactive: true,
       prepare: () =>
-        prepareTab(
-          "wf_mastery_view_tab",
-          "roadmap",
-          '[data-tour="mastery-view-tabs"]',
-          "MR Roadmap",
-        ),
+        prepareTab("wf_mastery_view_tab", "roadmap", '[data-tour="mastery-view-tabs"]'),
     },
     {
       view: "stats",
-      text: "Stats tracks resources and trades detected in EE.log. You can also import AlecaFrame history.",
+      text: $tr("tour.step7.body"),
     },
     {
       view: "world",
-      text: "World shows cycles, fissures, invasions, bounties, and Circuit rotations. Cycle alerts are optional.",
-      prepare: () => {
-        localStorage.setItem("world-tab", "world");
-        clickContentButton("World");
-      },
+      text: $tr("tour.step8.body"),
+      prepare: () => prepareTab("world-tab", "world", "#content"),
     },
     {
       view: "world",
       target: '[data-tour="arbi-schedule"]',
-      text: "Filter the arbitration schedule by node or save a preset. Click a bell to get a notification before that arbitration starts.",
+      text: $tr("tour.step9.body"),
       interactive: true,
-      prepare: () => {
-        localStorage.setItem("world-tab", "arbis");
-        clickContentButton("Arbitrations");
-      },
+      prepare: () => prepareTab("world-tab", "arbis", "#content"),
     },
     {
       view: "relics",
       target: '[data-tour="relic-filters"]',
-      text: "Relics can show your collection or the full catalog. Search by reward, find relics with unowned items, and compare expected value.",
+      text: $tr("tour.step10.body"),
       interactive: true,
     },
     {
       view: "market",
-      text: "View and manage your warframe.market orders here. Completed trades can close matching orders automatically.",
+      text: $tr("tour.step11.body"),
       prepare: () => setMarketViewState({ typeTab: "sell" }),
     },
     {
       view: "market",
       target: '[data-tour="market-browse"]',
-      text: "Browse shows public buy and sell orders without signing in. You can copy a whisper or create your own order.",
+      text: $tr("tour.step12.body"),
       interactive: true,
       prepare: () => setMarketViewState({ typeTab: "browse" }),
     },
     {
       view: "rivens",
       target: '[data-tour="riven-view-tabs"]',
-      text: "Use these tabs for unveiled Rivens, veiled Rivens, and Riven Finder. Click an owned Riven to see its grades. Riven Finder searches market listings by weapon and stats.",
+      text: $tr("tour.step13.body"),
       interactive: true,
-      prepare: () => {
-        localStorage.setItem("wf_rivens_tab", "unveiled");
-        selectTourTab('[data-tour="riven-view-tabs"]', "Unveiled", true);
-      },
+      prepare: () => prepareTab("wf_rivens_tab", "unveiled", '[data-tour="riven-view-tabs"]'),
     },
     {
       view: "arbi",
-      text: "Arbitration runs are recorded automatically. Open a run for details or import an EE.log file.",
+      text: $tr("tour.step14.body"),
     },
     {
       view: "wiki",
-      text: "Search for an item to see where it drops.",
+      text: $tr("tour.step15.body"),
       interactive: true,
     },
     {
       view: "settings",
-      text: "Configure the relic, Riven, trade, and arbitration overlays here.",
-      prepare: () => clickContentButton("Overlays"),
+      text: $tr("tour.step16.body"),
+      prepare: () => selectTourTab("#content", "overlay"),
     },
     {
       view: "settings",
-      text: "Choose which tabs and notifications you want. You can restart this tour here.",
-      prepare: () => clickContentButton("General"),
+      text: $tr("tour.step17.body"),
+      prepare: () => selectTourTab("#content", "general"),
     },
   ];
 
@@ -256,20 +234,10 @@
     setRelicFilter({ tierFilter: relicTab ?? "all" });
 
     if ($currentView === "inventory") {
-      const labels: Record<string, string> = {
-        all_parts: "All Parts",
-        relics: "Relics",
-        mods: "Mods",
-        arcanes: "Arcanes",
-        full_sets: "Full Sets",
-        equipment: "Equipment",
-        resources: "Resources",
-        misc: "Misc",
-      };
-      selectTourTab(
-        '[data-tour="inventory-tabs"]',
-        labels[saved.wf_inventory_tab ?? "all_parts"] ?? "All Parts",
-      );
+      const inventoryTab = INVENTORY_TAB_KEYS.includes(saved.wf_inventory_tab ?? "")
+        ? (saved.wf_inventory_tab ?? "all_parts")
+        : "all_parts";
+      selectTourTab('[data-tour="inventory-tabs"]', inventoryTab);
     } else if ($currentView === "mastery") {
       const roadmapMode =
         saved.wf_mastery_roadmap_tab === "relics" || saved.wf_mastery_roadmap_tab === "platinum"
@@ -277,27 +245,20 @@
           : "easy";
       selectTourTab(
         '[data-tour="mastery-view-tabs"]',
-        saved.wf_mastery_view_tab === "roadmap" ? "MR Roadmap" : "Collection",
+        saved.wf_mastery_view_tab === "roadmap" ? "roadmap" : "collection",
       );
       await tick();
-      selectTourTab(
-        '[data-tour="mastery-roadmap"]',
-        {
-          easy: "Easy",
-          relics: "From Relics",
-          platinum: "With Platinum",
-        }[roadmapMode],
-      );
+      selectTourTab('[data-tour="mastery-roadmap"]', roadmapMode);
     } else if ($currentView === "rivens") {
-      const label =
+      const rivenTab =
         saved.wf_rivens_tab === "finder"
-          ? "Riven Finder"
+          ? "finder"
           : saved.wf_rivens_tab === "veiled"
-            ? "Veiled"
-            : "Unveiled";
-      selectTourTab('[data-tour="riven-view-tabs"]', label, true);
+            ? "veiled"
+            : "unveiled";
+      selectTourTab('[data-tour="riven-view-tabs"]', rivenTab);
     } else if ($currentView === "world") {
-      clickContentButton(saved["world-tab"] === "arbis" ? "Arbitrations" : "World");
+      selectTourTab("#content", saved["world-tab"] === "arbis" ? "arbis" : "world");
     }
 
     for (const [key, value] of savedTabPreferences) {
@@ -449,21 +410,25 @@
     style="left: {cardX}px; top: {cardY}px; width: {CARD_W}px;"
   >
     <div class="flex items-center justify-between gap-3">
-      <span class="font-display text-xs font-bold tracking-widest text-accent">FEATURE TOUR</span>
+      <span class="font-display text-xs font-bold tracking-widest text-accent"
+        >{$tr("tour.featureTour")}</span
+      >
       <span class="text-xs text-text-muted">{index + 1} / {tourSteps.length}</span>
     </div>
     <p class="m-0 text-sm leading-snug text-text-primary">{step.text}</p>
     {#if step.interactive}
-      <p class="m-0 text-xs font-semibold text-accent">You can use the highlighted area now.</p>
+      <p class="m-0 text-xs font-semibold text-accent">{$tr("tour.interactiveHint")}</p>
     {/if}
     <div class="mt-1 flex items-center justify-between">
-      <button class="btn-secondary btn-sm" on:click={() => void finishTour()}>Skip tour</button>
+      <button class="btn-secondary btn-sm" on:click={() => void finishTour()}
+        >{$tr("tour.skip")}</button
+      >
       <div class="flex gap-2">
         {#if index > 0}
-          <button class="btn-secondary btn-sm" on:click={backStep}>Back</button>
+          <button class="btn-secondary btn-sm" on:click={backStep}>{$tr("common.back")}</button>
         {/if}
         <button class="btn-primary btn-sm" on:click={nextStep}>
-          {index >= tourSteps.length - 1 ? "Done" : "Next"}
+          {index >= tourSteps.length - 1 ? $tr("tour.done") : $tr("common.next")}
         </button>
       </div>
     </div>

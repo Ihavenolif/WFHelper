@@ -9,6 +9,7 @@
     <button
       class="flex items-center whitespace-nowrap border-0 border-b-[3px] border-b-transparent bg-transparent px-4 py-2 -mb-px font-display text-base text-[#8a8c95] transition-[border-color,color] duration-150 hover:text-[#b0b2ba] data-[active]:border-b-white data-[active]:text-white"
       data-active={activeKey === option.key || undefined}
+      data-tour-tab={option.key}
       on:click={() => onSelect(option.key)}
     >
       {option.label}

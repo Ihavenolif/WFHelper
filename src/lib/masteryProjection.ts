@@ -1,6 +1,10 @@
 import { masteryXpToRank } from "../../config/shared/masteryXp.js";
+import type { MessageKey } from "./i18n.js";
+
+export type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
 
 export function masteryProjectionSubtext(
+  t: Translate,
   currentRank: number,
   totalXp: number,
   readyXp: number,
@@ -10,15 +14,17 @@ export function masteryProjectionSubtext(
   const bankedRank = Math.max(currentRank, masteryXpToRank(totalXp));
   const projectedRank = Math.max(bankedRank, masteryXpToRank(totalXp + readyXp));
   const formattedReadyXp = readyXp.toLocaleString();
+  const banked =
+    bankedRank > currentRank ? t("mastery.projection.banked", { rank: bankedRank }) : null;
 
   if (projectedRank > bankedRank) {
-    const bankedPrefix = bankedRank > currentRank ? `Banked XP supports MR ${bankedRank} · ` : "";
-    return `${bankedPrefix}Foundry raises potential to MR ${projectedRank} (+${formattedReadyXp} XP)`;
+    const raised = t("mastery.projection.foundryRaises", {
+      rank: projectedRank,
+      xp: formattedReadyXp,
+    });
+    return banked ? `${banked} · ${raised}` : raised;
   }
 
-  if (bankedRank > currentRank) {
-    return `Banked XP supports MR ${bankedRank} · ${formattedReadyXp} XP ready in Foundry`;
-  }
-
-  return `${formattedReadyXp} XP ready in Foundry`;
+  const ready = t("mastery.projection.readyInFoundry", { xp: formattedReadyXp });
+  return banked ? `${banked} · ${ready}` : ready;
 }

@@ -2,6 +2,8 @@
   import { onDestroy, onMount } from "svelte";
 
   import { onInventoryLoaded } from "../lib/actions.js";
+  import { tr } from "../lib/i18n.js";
+  import type { MessageKey } from "../lib/i18n.js";
   import { PRESET_KEYS, THEME_PRESETS } from "../config/themePresets.js";
   import { currentView, SETUP_COMPLETED_KEY, statusText } from "../stores/app.js";
   import { themeSettings } from "../stores/theme.js";
@@ -44,15 +46,15 @@
   let pendingInventoryData: unknown = null;
   let uiScale = 1;
 
-  const surfaceOptions: Array<{ value: ThemeSurfaceStyle; label: string }> = [
-    { value: "full", label: "Full" },
-    { value: "border", label: "Border" },
-    { value: "minimal", label: "Minimal" },
+  const surfaceOptions: Array<{ value: ThemeSurfaceStyle; labelKey: MessageKey }> = [
+    { value: "full", labelKey: "appearance.surfaceFull" },
+    { value: "border", labelKey: "common.border" },
+    { value: "minimal", labelKey: "appearance.surfaceMinimal" },
   ];
-  const cornerOptions: Array<{ value: ThemeCornerStyle; label: string }> = [
-    { value: "sharp", label: "Sharp" },
-    { value: "soft", label: "Soft" },
-    { value: "round", label: "Round" },
+  const cornerOptions: Array<{ value: ThemeCornerStyle; labelKey: MessageKey }> = [
+    { value: "sharp", labelKey: "appearance.cornerSharp" },
+    { value: "soft", labelKey: "appearance.cornerSoft" },
+    { value: "round", labelKey: "appearance.cornerRound" },
   ];
   // balanced starter picks (2 neutral, 1 light, 1 showpiece); full list in Settings > Appearance
   const SETUP_THEME_KEYS = [
@@ -76,7 +78,7 @@
         step = "done";
       } else if (p.stage === "error") {
         step = "error";
-        errorMessage = p.error || "Download failed";
+        errorMessage = p.error || $tr("setup.downloadFailedGeneric");
       }
     });
 
@@ -88,7 +90,7 @@
         return;
       }
       try {
-        await acceptInventoryData(data, "Live inventory update failed");
+        await acceptInventoryData(data, $tr("setup.liveInventoryUpdateFailed"));
       } catch {
         // The user can still choose a file import source on this screen.
       }
@@ -180,7 +182,7 @@
     }
     if (step === "downloading") {
       step = "error";
-      errorMessage = result.error || "Download failed. Check your internet connection.";
+      errorMessage = result.error || $tr("setup.downloadFailedConnection");
     }
   }
 
@@ -198,12 +200,9 @@
     loadingApi = true;
     try {
       const data = await invoke("openInventoryFile", "manual");
-      await acceptInventoryData(
-        data,
-        "That file does not look like an inventory JSON export. AlecaFrame stats/trade exports are not inventory imports.",
-      );
+      await acceptInventoryData(data, $tr("setup.importJsonFailedMsg"));
     } catch (error) {
-      errorMessage = `Inventory import failed: ${(error as Error).message}`;
+      errorMessage = $tr("setup.importJsonFailedPrefix", { message: (error as Error).message });
       step = "error";
     } finally {
       loadingApi = false;
@@ -214,12 +213,9 @@
     loadingApi = true;
     try {
       const data = await invoke("openAlecaFrameInventoryFile");
-      await acceptInventoryData(
-        data,
-        "Choose AlecaFrame lastData.dat from %LOCALAPPDATA%\\AlecaFrame.",
-      );
+      await acceptInventoryData(data, $tr("setup.importAlecaHint"));
     } catch (error) {
-      errorMessage = `AlecaFrame import failed: ${(error as Error).message}`;
+      errorMessage = $tr("setup.importAlecaFailedPrefix", { message: (error as Error).message });
       step = "error";
     } finally {
       loadingApi = false;
@@ -228,7 +224,7 @@
 
   async function loadApiHelper(preferPicker = false): Promise<void> {
     loadingApi = true;
-    statusText.set("Loading inventory.json from warframe-api-helper...");
+    statusText.set({ key: "setup.status.loadingInventory" });
     try {
       let data: unknown = null;
       let loadError: string | null = null;
@@ -244,11 +240,14 @@
         loadError = getLoadErrorMessage(data);
       }
 
-      await acceptInventoryData(data, loadError || "Failed to load inventory JSON");
+      await acceptInventoryData(data, loadError || $tr("setup.loadInventoryJsonFailed"));
       await refreshHelperStatus();
     } catch (error) {
       if (!destroyed) {
-        statusText.set(`Inventory load error: ${(error as Error).message}`);
+        statusText.set({
+          key: "setup.status.loadError",
+          params: { message: (error as Error).message },
+        });
         errorMessage = (error as Error).message;
       }
     } finally {
@@ -258,12 +257,12 @@
 
   async function triggerHelperRun(): Promise<void> {
     try {
-      statusText.set("Running warframe-api-helper...");
+      statusText.set({ key: "setup.status.runningHelper" });
       await invoke("runHelperNow");
       await refreshRunnerStatus();
-      statusText.set("Helper finished, waiting for inventory...");
+      statusText.set({ key: "setup.status.helperFinished" });
     } catch {
-      statusText.set("Failed to run helper");
+      statusText.set({ key: "setup.status.helperRunFailed" });
     }
   }
 
@@ -303,7 +302,7 @@
     const data = pendingInventoryData;
     pendingInventoryData = null;
     try {
-      await acceptInventoryData(data, "Live inventory update failed");
+      await acceptInventoryData(data, $tr("setup.liveInventoryUpdateFailed"));
     } catch {
       // bad payload - stay on the source step and let the user pick manually
     }
@@ -317,41 +316,41 @@
   const overlayPlacementSteps: Array<{
     key: "reward" | "planner" | "riven" | "arbiSummary";
     dummies: PlacementKey[];
-    title: string;
-    text: string;
+    titleKey: MessageKey;
+    textKey: MessageKey;
   }> = [
     {
       key: "reward",
       dummies: ["reward"],
-      title: "Relic reward overlay",
-      text: "Pops up when your squad opens relics and prices every reward. Drag the panel to where it should sit over your game.",
+      titleKey: "setup.overlay.reward.title",
+      textKey: "setup.overlay.reward.text",
     },
     {
       key: "planner",
       dummies: ["planner"],
-      title: "Relic planner overlay",
-      text: "Ranks your owned relics on the relic selection screen. Drag it into place.",
+      titleKey: "setup.overlay.planner.title",
+      textKey: "setup.overlay.planner.text",
     },
     {
       key: "riven",
       dummies: ["rivenLeft", "rivenRight"],
-      title: "Riven scanner overlay",
-      text: "Compares old and new roll while you reroll rivens. Drag both panels into place.",
+      titleKey: "setup.overlay.riven.title",
+      textKey: "setup.overlay.riven.text",
     },
     {
       key: "arbiSummary",
       dummies: ["arbiSummary"],
-      title: "Arbitration summary",
-      text: "Shows your run stats when an arbitration ends. Drag it into place.",
+      titleKey: "common.arbitrationSummary",
+      textKey: "setup.overlay.arbiSummary.text",
     },
   ];
 
-  const dummyLabels: Record<PlacementKey, string> = {
-    reward: "RELIC REWARDS",
-    planner: "RELIC PLANNER",
-    rivenLeft: "RIVEN: CURRENT",
-    rivenRight: "RIVEN: NEW ROLL",
-    arbiSummary: "ARBITRATION SUMMARY",
+  const dummyLabelKeys: Record<PlacementKey, MessageKey> = {
+    reward: "setup.dummy.rewardLabel",
+    planner: "setup.dummy.plannerLabel",
+    rivenLeft: "setup.dummy.rivenLeftLabel",
+    rivenRight: "setup.dummy.rivenRightLabel",
+    arbiSummary: "common.arbitrationSummary",
   };
 
   let overlayStepIndex = 0;
@@ -538,8 +537,12 @@
   }
 
   $: placementStep = overlayPlacementSteps[overlayStepIndex];
+  $: placementTitle = $tr(placementStep.titleKey);
+  $: placementText = $tr(placementStep.textKey);
   $: previewScale = previewW > 0 && placementArea.width > 0 ? previewW / placementArea.width : 0;
   $: stepScale = placementScales[placementStep.dummies[0]] ?? 1;
+  $: surfaceSegOptions = surfaceOptions.map((o) => ({ value: o.value, label: $tr(o.labelKey) }));
+  $: cornerSegOptions = cornerOptions.map((o) => ({ value: o.value, label: $tr(o.labelKey) }));
   $: effects = $themeSettings.effects;
   $: activePresetKey = PRESET_KEYS.includes($themeSettings.activePreset)
     ? $themeSettings.activePreset
@@ -592,10 +595,10 @@
               >
                 <span
                   class="truncate font-display text-[10px] font-bold tracking-widest text-accent"
-                  >{dummyLabels[key]}</span
+                  >{$tr(dummyLabelKeys[key])}</span
                 >
                 <span class="shrink-0 text-[9px] uppercase tracking-wider text-text-muted"
-                  >drag me</span
+                  >{$tr("setup.overlay.dragMe")}</span
                 >
               </div>
               <div class="min-h-0 flex-1 p-1.5 opacity-80">
@@ -657,19 +660,18 @@
       >
         <div class="mb-1 flex items-center justify-between gap-3">
           <h2 class="m-0 font-display text-base font-bold tracking-[0.02em]">
-            {placementStep.title}
+            {placementTitle}
           </h2>
           <span class="shrink-0 text-xs text-text-muted"
             >{overlayStepIndex + 1} / {overlayPlacementSteps.length}</span
           >
         </div>
-        <p class="m-0 text-sm leading-snug text-text-secondary">{placementStep.text}</p>
+        <p class="m-0 text-sm leading-snug text-text-secondary">{placementText}</p>
         <p class="m-0 mt-1.5 text-xs leading-snug text-text-muted">
-          Saved instantly. In game you can move overlays any time: unlock with the hotkey shown on
-          them, then drag with either mouse button.
+          {$tr("setup.overlay.hint")}
         </p>
         <div class="mt-2.5 flex items-center gap-3">
-          <span class="shrink-0 text-xs text-text-muted">Size</span>
+          <span class="shrink-0 text-xs text-text-muted">{$tr("setup.overlay.sizeLabel")}</span>
           <input
             type="range"
             min="0.75"
@@ -687,13 +689,19 @@
           >
         </div>
         <div class="mt-3 flex items-center justify-between">
-          <button class="btn-secondary btn-sm" on:click={finishOverlaysStep}>Skip</button>
+          <button class="btn-secondary btn-sm" on:click={finishOverlaysStep}
+            >{$tr("setup.skip")}</button
+          >
           <div class="flex gap-2">
             {#if overlayStepIndex > 0}
-              <button class="btn-secondary btn-sm" on:click={overlayBack}>Back</button>
+              <button class="btn-secondary btn-sm" on:click={overlayBack}
+                >{$tr("common.back")}</button
+              >
             {/if}
             <button class="btn-primary btn-sm" on:click={overlayNext}>
-              {overlayStepIndex === overlayPlacementSteps.length - 1 ? "Finish" : "Next"}
+              {overlayStepIndex === overlayPlacementSteps.length - 1
+                ? $tr("setup.finish")
+                : $tr("common.next")}
             </button>
           </div>
         </div>
@@ -707,7 +715,7 @@
         class="setup-left flex w-[190px] shrink-0 flex-col items-center border-r border-border bg-gradient-to-b from-bg-deep to-bg-raised px-4 pb-6 pt-7"
       >
         <div class="setup-logo">
-          <img src={APP_LOGO_URL} alt="App Logo" class="h-14 w-14 object-contain" />
+          <img src={APP_LOGO_URL} alt={$tr("setup.appLogoAlt")} class="h-14 w-14 object-contain" />
         </div>
         <div class="mt-8 flex w-full flex-col gap-4">
           <div
@@ -721,7 +729,8 @@
                 'configure',
                 step,
               )}"
-            ></span> Configure
+            ></span>
+            {$tr("setup.step.configure")}
           </div>
           <div
             class="flex items-center gap-2 text-xs transition-colors duration-200 {stepTextClass(
@@ -734,7 +743,8 @@
                 'inventory',
                 step,
               )}"
-            ></span> Inventory Source
+            ></span>
+            {$tr("setup.step.inventorySource")}
           </div>
           <div
             class="flex items-center gap-2 text-xs transition-colors duration-200 {stepTextClass(
@@ -747,7 +757,8 @@
                 'overlays',
                 step,
               )}"
-            ></span> Overlays
+            ></span>
+            {$tr("common.overlays")}
           </div>
           <div
             class="flex items-center gap-2 text-xs transition-colors duration-200 {stepTextClass(
@@ -760,7 +771,8 @@
                 'done',
                 step,
               )}"
-            ></span> Finish
+            ></span>
+            {$tr("setup.step.finish")}
           </div>
         </div>
       </div>
@@ -769,7 +781,7 @@
         <div class="setup-content flex-1">
           {#if step === "configure"}
             <h2 class="mb-3 font-display text-lg font-bold tracking-[0.02em]">
-              Welcome to WFHelper
+              {$tr("setup.welcomeTitle")}
             </h2>
 
             <div class="grid gap-3">
@@ -779,11 +791,10 @@
                 <div class="mb-2 flex items-start justify-between gap-3">
                   <div>
                     <h3 class="m-0 font-display text-sm font-semibold text-text-primary">
-                      App size
+                      {$tr("common.appSize")}
                     </h3>
                     <p class="mt-0.5 text-xs leading-snug text-text-muted">
-                      Already fitted to your display - drag if this looks too small or too big.
-                      Changeable later in Settings &gt; Appearance.
+                      {$tr("setup.appSize.hint")}
                     </p>
                   </div>
                 </div>
@@ -797,7 +808,7 @@
                     on:change={commitUiScale}
                     class="h-1.5 flex-1 cursor-pointer"
                     style="accent-color: var(--accent);"
-                    aria-label="App size"
+                    aria-label={$tr("common.appSize")}
                   />
                   <span class="w-10 shrink-0 text-right text-xs text-text-muted"
                     >{Math.round(uiScale * 100)}%</span
@@ -811,10 +822,10 @@
                 <div class="mb-2 flex items-start justify-between gap-3">
                   <div>
                     <h3 class="m-0 font-display text-sm font-semibold text-text-primary">
-                      Pick a look
+                      {$tr("setup.theme.title")}
                     </h3>
                     <p class="mt-0.5 text-xs leading-snug text-text-muted">
-                      Applies instantly - just a starting point.
+                      {$tr("setup.theme.hint")}
                     </p>
                   </div>
                 </div>
@@ -857,7 +868,7 @@
                   {/each}
                 </div>
                 <p class="m-0 mt-2 text-xs text-text-muted">
-                  All themes and full customization: Settings &gt; Appearance.
+                  {$tr("setup.theme.footer")}
                 </p>
               </div>
 
@@ -875,16 +886,16 @@
                 <div class="mb-2 flex items-start justify-between gap-3">
                   <div>
                     <h3 class="m-0 font-display text-sm font-semibold text-text-primary">
-                      UI style
+                      {$tr("setup.uiStyle.title")}
                     </h3>
                     <p class="mt-0.5 text-xs leading-snug text-text-muted">
-                      Uses the same setting as Appearance.
+                      {$tr("setup.uiStyle.hint")}
                     </p>
                   </div>
                 </div>
                 <SegmentedControl
                   value={effects.surfaceStyle}
-                  options={surfaceOptions}
+                  options={surfaceSegOptions}
                   onChange={(surfaceStyle) => themeSettings.setEffects({ surfaceStyle })}
                 />
               </div>
@@ -895,16 +906,16 @@
                 <div class="mb-2 flex items-start justify-between gap-3">
                   <div>
                     <h3 class="m-0 font-display text-sm font-semibold text-text-primary">
-                      Border style
+                      {$tr("setup.borderStyle.title")}
                     </h3>
                     <p class="mt-0.5 text-xs leading-snug text-text-muted">
-                      Choose how sharp or rounded app controls should feel.
+                      {$tr("setup.borderStyle.hint")}
                     </p>
                   </div>
                 </div>
                 <SegmentedControl
                   value={effects.cornerStyle}
-                  options={cornerOptions}
+                  options={cornerSegOptions}
                   onChange={(cornerStyle) => themeSettings.setEffects({ cornerStyle })}
                 />
               </div>
@@ -917,10 +928,10 @@
                 >
                   <div>
                     <h3 class="m-0 font-display text-sm font-semibold text-text-primary">
-                      Glass blur
+                      {$tr("common.glassBlur")}
                     </h3>
                     <p class="mt-0.5 text-xs leading-snug text-text-muted">
-                      Frosted-glass panels. Uses real blur on larger panels only.
+                      {$tr("setup.glassBlur.hint")}
                     </p>
                   </div>
                 </GlassBlurControl>
@@ -928,56 +939,51 @@
             </div>
           {:else if step === "inventory"}
             <h2 class="mb-3 font-display text-lg font-bold tracking-[0.02em]">
-              Choose Inventory Source
+              {$tr("setup.inventory.title")}
             </h2>
             <p class="mb-2.5 text-sm leading-[1.55] text-text-secondary">
-              Load your account inventory from the helper, an existing JSON export, or AlecaFrame's
-              encrypted cache.
+              {$tr("setup.inventory.desc")}
             </p>
 
             {#if helperStatus === "not_found" && runnerStatus?.exeFound}
               <div class="mb-3 rounded-lg border border-warning bg-warning/10 px-3 py-3">
                 <span
                   class="mb-1 inline-block rounded bg-warning px-2 py-0.5 font-display text-xs font-bold tracking-widest text-black"
-                  >WAITING FOR DATA</span
+                  >{$tr("setup.waiting.badge")}</span
                 >
                 <h3 class="font-display text-sm font-semibold text-text-primary">
-                  Go in-game to generate inventory data
+                  {$tr("setup.waiting.title")}
                 </h3>
                 <p class="mt-0.5 text-xs leading-snug text-text-secondary">
-                  The helper is installed. Log into Warframe and your data loads automatically
-                  within a couple of minutes.
+                  {$tr("setup.waiting.desc")}
                 </p>
                 {#if runnerStatus?.lastRunReason === "access-denied"}
                   <p class="mt-1 text-xs font-semibold leading-snug text-warning">
-                    Warframe appears to run as administrator - WFHelper cannot read it. Restart the
-                    game (and Steam/launcher) without "Run as administrator".
+                    {$tr("setup.waiting.accessDenied")}
                   </p>
                 {:else if runnerStatus?.lastRunReason === "not-logged-in"}
                   <p class="mt-1 text-xs leading-snug text-text-secondary">
-                    Warframe is running but not logged in yet - finish logging in and this picks it
-                    up on its own.
+                    {$tr("setup.waiting.notLoggedIn")}
                   </p>
                 {:else if runnerStatus?.lastRunReason === "token-not-found"}
                   <p class="mt-1 text-xs font-semibold leading-snug text-warning">
-                    Warframe is logged in, but the login token was not found in game memory. Restart
-                    the game; if this keeps happening, report it on Discord.
+                    {$tr("setup.waiting.tokenNotFound")}
                   </p>
                 {:else if runnerStatus?.lastRunReason === "game-not-running"}
                   <p class="mt-1 text-xs leading-snug text-text-secondary">
-                    Warframe is not running - start the game and log in.
+                    {$tr("setup.waiting.gameNotRunning")}
                   </p>
                 {/if}
                 <div class="mt-2 flex gap-2">
                   <button
                     class="btn-primary btn-sm"
                     disabled={loadingApi}
-                    on:click={triggerHelperRun}>Run helper now</button
+                    on:click={triggerHelperRun}>{$tr("setup.runHelperNow")}</button
                   >
                   <button
                     class="btn-secondary btn-sm"
                     disabled={loadingApi}
-                    on:click={() => loadApiHelper(true)}>Browse for JSON</button
+                    on:click={() => loadApiHelper(true)}>{$tr("setup.browseForJson")}</button
                   >
                 </div>
               </div>
@@ -991,24 +997,25 @@
                 on:click={() => (inventorySource = "helper")}
               >
                 <div class="flex items-center justify-between gap-3">
+                  <!-- The executable's real name on GitHub Releases; never localised. -->
                   <span class="font-display text-sm font-semibold">warframe-api-helper</span>
                   <span
                     class="rounded bg-success/15 px-2 py-0.5 font-display text-xs font-bold tracking-widest text-success"
-                    >RECOMMENDED</span
+                    >{$tr("common.recommended")}</span
                   >
                 </div>
                 <div class="mt-1 text-xs leading-snug">
-                  Use the pinned helper executable and load its inventory.json snapshot.
+                  {$tr("setup.source.helper.desc")}
                 </div>
                 <div class="mt-2 text-xs text-text-muted">
                   {#if helperStatus === "checking"}
-                    Checking for inventory.json...
+                    {$tr("setup.source.helper.checking")}
                   {:else if helperStatus === "found"}
-                    Found: {helperPath}
+                    {$tr("setup.source.helper.found", { path: helperPath ?? "" })}
                   {:else if runnerStatus?.exeFound}
-                    Helper is installed and ready to run.
+                    {$tr("setup.source.helper.ready")}
                   {:else}
-                    Helper is not installed yet.
+                    {$tr("setup.source.helper.notInstalled")}
                   {/if}
                 </div>
               </button>
@@ -1019,9 +1026,11 @@
                 aria-pressed={inventorySource === "json"}
                 on:click={() => (inventorySource = "json")}
               >
-                <span class="font-display text-sm font-semibold">Import inventory JSON</span>
+                <span class="font-display text-sm font-semibold"
+                  >{$tr("setup.source.json.name")}</span
+                >
                 <div class="mt-1 text-xs leading-snug">
-                  Open an existing inventory.json created by warframe-api-helper.
+                  {$tr("setup.source.json.desc")}
                 </div>
               </button>
 
@@ -1031,17 +1040,20 @@
                 aria-pressed={inventorySource === "aleca"}
                 on:click={() => (inventorySource = "aleca")}
               >
-                <span class="font-display text-sm font-semibold">Import AlecaFrame cache</span>
+                <span class="font-display text-sm font-semibold"
+                  >{$tr("setup.source.aleca.name")}</span
+                >
                 <div class="mt-1 text-xs leading-snug">
-                  Decrypt lastData.dat from %LOCALAPPDATA%\AlecaFrame and load its embedded
-                  inventory payload.
+                  {$tr("setup.source.aleca.desc")}
                 </div>
               </button>
             </div>
           {:else if step === "downloading"}
-            <h2 class="mb-3 font-display text-lg font-bold tracking-[0.02em]">Downloading...</h2>
+            <h2 class="mb-3 font-display text-lg font-bold tracking-[0.02em]">
+              {$tr("setup.downloading.title")}
+            </h2>
             <p class="mb-2.5 text-sm leading-[1.55] text-text-secondary">
-              Fetching warframe-api-helper from GitHub Releases.
+              {$tr("setup.downloading.desc")}
             </p>
             <div class="my-4">
               <div class="h-2 overflow-hidden rounded border border-border bg-bg-raised">
@@ -1056,16 +1068,17 @@
               </div>
             </div>
             <p class="!mt-4 !text-xs !text-text-muted">
-              Please wait - this should only take a moment.
+              {$tr("setup.downloading.wait")}
             </p>
           {:else if step === "done"}
-            <h2 class="mb-3 font-display text-lg font-bold tracking-[0.02em]">Setup Complete</h2>
+            <h2 class="mb-3 font-display text-lg font-bold tracking-[0.02em]">
+              {$tr("setup.done.title")}
+            </h2>
             <p class="mb-2.5 text-sm leading-[1.55] text-text-secondary">
-              warframe-api-helper is ready to use.
+              {$tr("setup.done.ready")}
             </p>
             <p class="mb-2.5 text-sm leading-[1.55] text-text-secondary">
-              Run Warframe, then the helper can refresh inventory data in the background every 10
-              minutes.
+              {$tr("setup.done.background")}
             </p>
             <div class="my-4 flex justify-center text-success">
               <svg
@@ -1081,47 +1094,49 @@
               </svg>
             </div>
             <p class="!mt-4 !text-xs !text-text-muted">
-              Click <strong>Next</strong> to position your in-game overlays.
+              {$tr("setup.done.clickHint", { button: $tr("common.next") })}
             </p>
           {:else if step === "error"}
             <h2 class="mb-3 font-display text-lg font-bold tracking-[0.02em]">
-              Setup Needs Attention
+              {$tr("setup.error.title")}
             </h2>
             <p class="mb-2.5 text-sm font-semibold leading-[1.55] text-danger">{errorMessage}</p>
             <p class="mb-2.5 text-sm leading-[1.55] text-text-secondary">
-              You can retry this setup path or skip and configure inventory loading later.
+              {$tr("setup.error.desc")}
             </p>
           {/if}
         </div>
 
         <div class="mt-2 flex justify-end gap-2 border-t border-border pt-4">
           {#if step === "configure"}
-            <button class="btn-secondary btn-sm" on:click={skip}>Skip</button>
-            <button class="btn-primary btn-sm" on:click={continueFromConfigure}>Next</button>
+            <button class="btn-secondary btn-sm" on:click={skip}>{$tr("setup.skip")}</button>
+            <button class="btn-primary btn-sm" on:click={continueFromConfigure}
+              >{$tr("common.next")}</button
+            >
           {:else if step === "inventory"}
-            <button class="btn-secondary btn-sm" on:click={skip}>Skip</button>
+            <button class="btn-secondary btn-sm" on:click={skip}>{$tr("setup.skip")}</button>
             <button
               class="btn-primary btn-sm"
               disabled={loadingApi}
               on:click={useSelectedInventorySource}
             >
               {#if loadingApi}
-                Loading...
+                {$tr("common.loading")}
               {:else if inventorySource === "helper"}
-                {runnerStatus?.exeFound ? "Load Helper Data" : "Install Helper"}
+                {runnerStatus?.exeFound ? $tr("setup.loadHelperData") : $tr("setup.installHelper")}
               {:else if inventorySource === "json"}
-                Import JSON
+                {$tr("setup.importJsonButton")}
               {:else if inventorySource === "aleca"}
-                Import AlecaFrame
+                {$tr("setup.importAlecaButton")}
               {/if}
             </button>
           {:else if step === "downloading"}
             <span></span>
           {:else if step === "done"}
-            <button class="btn-primary btn-sm" on:click={finish}>Next</button>
+            <button class="btn-primary btn-sm" on:click={finish}>{$tr("common.next")}</button>
           {:else if step === "error"}
-            <button class="btn-secondary btn-sm" on:click={skip}>Skip</button>
-            <button class="btn-primary btn-sm" on:click={retry}>Retry</button>
+            <button class="btn-secondary btn-sm" on:click={skip}>{$tr("setup.skip")}</button>
+            <button class="btn-primary btn-sm" on:click={retry}>{$tr("common.retry")}</button>
           {/if}
         </div>
       </div>

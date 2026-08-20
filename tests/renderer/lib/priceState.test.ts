@@ -1,12 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { PriceState } from "../../../src/lib/priceLoader.js";
+
 const loadItemPriceMock = vi.hoisted(() =>
   vi.fn<
     (
       name: string,
       lookup: Record<string, { url_name: string }>,
       isTradable: boolean,
-    ) => Promise<{ text: string; slug: string | null }>
+    ) => Promise<{ messageKey: string | null; slug: string | null }>
   >(),
 );
 
@@ -34,10 +36,13 @@ describe("createPriceLoader", () => {
 
   it("tries a fallback full name when the first lookup has no listing slug", async () => {
     loadItemPriceMock
-      .mockResolvedValueOnce({ text: "No listing found.", slug: null })
-      .mockResolvedValueOnce({ text: "~15 platinum (48h median)", slug: "trinity_prime_chassis" });
+      .mockResolvedValueOnce({ messageKey: "market.noListingFound", slug: null })
+      .mockResolvedValueOnce({
+        messageKey: "market.priceMedian48h",
+        slug: "trinity_prime_chassis",
+      });
 
-    const states: Array<{ text: string; slug: string | null }> = [];
+    const states: PriceState[] = [];
     const loader = createPriceLoader((state) => states.push(state));
 
     await loader.load("Trinity Prime Chassis Blueprint", {}, true, {
@@ -53,26 +58,29 @@ describe("createPriceLoader", () => {
     );
     expect(loadItemPriceMock).toHaveBeenNthCalledWith(2, "Trinity Prime Chassis", {}, true);
     expect(states[states.length - 1]).toEqual({
-      text: "~15 platinum (48h median)",
+      messageKey: "market.priceMedian48h",
       slug: "trinity_prime_chassis",
     });
   });
 
   it("ignores stale async results after a newer load starts", async () => {
-    const oldResult = deferred<{ text: string; slug: string | null }>();
+    const oldResult = deferred<{ messageKey: string | null; slug: string | null }>();
     loadItemPriceMock.mockImplementation((name) => {
       if (name === "Old Item") return oldResult.promise;
-      return Promise.resolve({ text: "New price", slug: "new_item" });
+      return Promise.resolve({ messageKey: "market.noListingFound", slug: "new_item" });
     });
 
-    const states: Array<{ text: string; slug: string | null }> = [];
+    const states: PriceState[] = [];
     const loader = createPriceLoader((state) => states.push(state));
 
     const oldLoad = loader.load("Old Item", {}, true);
     await loader.load("New Item", {}, true);
-    oldResult.resolve({ text: "Old price", slug: "old_item" });
+    oldResult.resolve({ messageKey: "market.itemNotTradable", slug: "old_item" });
     await oldLoad;
 
-    expect(states[states.length - 1]).toEqual({ text: "New price", slug: "new_item" });
+    expect(states[states.length - 1]).toEqual({
+      messageKey: "market.noListingFound",
+      slug: "new_item",
+    });
   });
 });

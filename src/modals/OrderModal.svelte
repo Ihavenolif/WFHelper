@@ -8,6 +8,7 @@
   import ThemedButton from "../components/ThemedButton.svelte";
   import ThemedInput from "../components/ThemedInput.svelte";
   import SegmentedControl from "../components/SegmentedControl.svelte";
+  import { tr } from "../lib/i18n.js";
   import type {
     WfmLookupItem,
     WfmOrder,
@@ -19,9 +20,10 @@
   const ITEM_SEARCH_MIN_CHARS = 2;
   const ITEM_SEARCH_LIMIT = 15;
   const ITEM_SEARCH_DEBOUNCE_MS = 250;
-  const ORDER_TYPE_OPTIONS: Array<{ value: OrderType; label: string }> = [
-    { value: "sell", label: "Sell" },
-    { value: "buy", label: "Buy" },
+
+  $: orderTypeOptions = [
+    { value: "sell" as OrderType, label: $tr("orderModal.sell") },
+    { value: "buy" as OrderType, label: $tr("orderModal.buy") },
   ];
 
   let itemSearchQuery = "";
@@ -151,11 +153,11 @@
     const qty = parseInt(String(quantity), 10);
 
     if (!Number.isFinite(plat) || plat < 1) {
-      errorMsg = "Price must be at least 1 platinum.";
+      errorMsg = $tr("orderModal.priceMin");
       return;
     }
     if (!Number.isFinite(qty) || qty < 1) {
-      errorMsg = "Quantity must be at least 1.";
+      errorMsg = $tr("orderModal.quantityMin");
       return;
     }
 
@@ -170,7 +172,7 @@
         result = await tradeInvoke("wfmUpdateOrder", order.id, updates);
       } else {
         if (!itemSelected) {
-          errorMsg = "Please select an item.";
+          errorMsg = $tr("orderModal.selectItemRequired");
           submitting = false;
           return;
         }
@@ -216,18 +218,21 @@
 
 {#if state}
   <ModalShell
-    ariaLabel={isEdit ? "Edit Order" : "New Order"}
+    ariaLabel={isEdit ? $tr("orderModal.editOrder") : $tr("orderModal.newOrder")}
     onClose={close}
     initialFocus={() => (isEdit ? platinumEl : searchEl)}
   >
     <div class="detail-panel order-modal-panel">
-      <button type="button" class="detail-close" aria-label="Close order dialog" on:click={close}
-        >&times;</button
+      <button
+        type="button"
+        class="detail-close"
+        aria-label={$tr("orderModal.closeDialog")}
+        on:click={close}>&times;</button
       >
 
       <div class="detail-header order-modal-header">
         <div class="detail-title-area">
-          <h2>{isEdit ? "Edit Order" : "New Order"}</h2>
+          <h2>{isEdit ? $tr("orderModal.editOrder") : $tr("orderModal.newOrder")}</h2>
         </div>
       </div>
 
@@ -237,7 +242,7 @@
           {#if !isEdit}
             <div class="grid gap-1 mb-2">
               <label for="order-item-search" class="text-sm font-medium text-text-secondary"
-                >Item</label
+                >{$tr("common.item")}</label
               >
               {#if itemSelected}
                 <div
@@ -256,7 +261,7 @@
                   <span>{itemSelected.item_name}</span>
                   <button
                     type="button"
-                    aria-label="Clear selected item"
+                    aria-label={$tr("orderModal.clearItem")}
                     class="ml-auto border-0 bg-transparent text-base leading-none text-text-muted hover:text-text-primary"
                     on:click={clearItem}>&times;</button
                   >
@@ -269,7 +274,7 @@
                     bind:value={itemSearchQuery}
                     bind:el={searchEl}
                     onInput={onSearchInput}
-                    placeholder="Search items..."
+                    placeholder={$tr("orderModal.searchItemsPlaceholder")}
                     autocomplete="off"
                     className="w-full"
                     searchFocusTarget
@@ -310,11 +315,11 @@
               class="grid gap-1 mb-2 rounded-[var(--radius-lg)] border border-border px-2.5 py-2"
             >
               <legend class="px-1 font-display text-xs font-semibold text-text-secondary"
-                >Order Type</legend
+                >{$tr("common.orderType")}</legend
               >
               <SegmentedControl
                 value={orderType}
-                options={ORDER_TYPE_OPTIONS}
+                options={orderTypeOptions}
                 onChange={(value) => (orderType = value)}
               />
             </fieldset>
@@ -323,7 +328,7 @@
           <!-- Price -->
           <div class="grid gap-1 mb-2">
             <label for="order-platinum" class="text-sm font-medium text-text-secondary"
-              >Price (platinum)</label
+              >{$tr("common.pricePlatinum")}</label
             >
             <div class="flex items-stretch gap-1.5">
               <ThemedInput
@@ -333,26 +338,30 @@
                 max="99999"
                 bind:value={platinum}
                 bind:el={platinumEl}
-                placeholder="e.g. 50"
+                placeholder={$tr("orderModal.pricePlaceholder")}
                 required
                 className="w-full"
               />
               <button
                 type="button"
                 class="btn-secondary w-9 shrink-0 px-0 text-base font-bold"
-                aria-label="Decrease price by 1"
+                aria-label={$tr("orderModal.decreasePrice")}
                 on:click={() => stepPlatinum(-1)}>&minus;</button
               >
               <button
                 type="button"
                 class="btn-secondary w-9 shrink-0 px-0 text-base font-bold"
-                aria-label="Increase price by 1"
+                aria-label={$tr("orderModal.increasePrice")}
                 on:click={() => stepPlatinum(1)}>+</button
               >
             </div>
             {#if hint}
               <div class="text-xs text-text-secondary">
-                Market: lowest sell {hint.wts} &middot; highest buy {hint.wtb} &middot; median {hint.median}
+                {$tr("orderModal.marketHint", {
+                  wts: hint.wts,
+                  wtb: hint.wtb,
+                  median: hint.median,
+                })}
               </div>
             {/if}
           </div>
@@ -360,7 +369,7 @@
           <!-- Quantity -->
           <div class="grid gap-1 mb-2">
             <label for="order-quantity" class="text-sm font-medium text-text-secondary"
-              >Quantity</label
+              >{$tr("common.quantity")}</label
             >
             <div class="flex items-stretch gap-1.5">
               <ThemedInput
@@ -375,13 +384,13 @@
               <button
                 type="button"
                 class="btn-secondary w-9 shrink-0 px-0 text-base font-bold"
-                aria-label="Decrease quantity by 1"
+                aria-label={$tr("orderModal.decreaseQuantity")}
                 on:click={() => stepQuantity(-1)}>&minus;</button
               >
               <button
                 type="button"
                 class="btn-secondary w-9 shrink-0 px-0 text-base font-bold"
-                aria-label="Increase quantity by 1"
+                aria-label={$tr("orderModal.increaseQuantity")}
                 on:click={() => stepQuantity(1)}>+</button
               >
             </div>
@@ -389,7 +398,9 @@
 
           {#if showRankField}
             <div class="grid gap-1 mb-2">
-              <label for="order-rank" class="text-sm font-medium text-text-secondary">Rank</label>
+              <label for="order-rank" class="text-sm font-medium text-text-secondary"
+                >{$tr("common.rank")}</label
+              >
               <ThemedInput
                 id="order-rank"
                 type="number"
@@ -403,7 +414,7 @@
           <!-- Visibility -->
           <div class="flex items-center justify-between gap-2.5 mb-2">
             <label for="order-visible" class="text-sm font-medium text-text-secondary"
-              >Visible on site</label
+              >{$tr("orderModal.visibleOnSite")}</label
             >
             <label class="relative inline-block w-[42px] h-[22px]">
               <input
@@ -423,15 +434,15 @@
           {/if}
 
           <div class="mt-3 flex justify-end gap-2">
-            <ThemedButton type="button" onClick={close}>Cancel</ThemedButton>
+            <ThemedButton type="button" onClick={close}>{$tr("orderModal.cancel")}</ThemedButton>
             <button type="submit" class="btn-primary" disabled={submitting}>
               {submitting
                 ? isEdit
-                  ? "Saving..."
-                  : "Creating..."
+                  ? $tr("common.saving")
+                  : $tr("orderModal.creating")
                 : isEdit
-                  ? "Save Changes"
-                  : "Create Order"}
+                  ? $tr("orderModal.saveChanges")
+                  : $tr("orderModal.createOrder")}
             </button>
           </div>
         </form>

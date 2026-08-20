@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tr, type MessageKey } from "../../lib/i18n.js";
   import type { OrderBookEntry } from "../../lib/wfm/orderBook.js";
   import type { OrderType } from "../../types/market.js";
 
@@ -8,19 +9,19 @@
   export let copyWhisper: (entry: OrderBookEntry, side: OrderType) => void | Promise<void>;
   export let openSellerProfile: (entry: OrderBookEntry) => void;
 
-  $: title = side === "sell" ? "WTS" : "WTB";
-  $: emptyLabel = side === "sell" ? "No sell orders" : "No buy orders";
+  $: title = side === "sell" ? $tr("orderbook.wts") : $tr("orderbook.wtb");
+  $: emptyLabel = side === "sell" ? $tr("orderbook.noSellOrders") : $tr("orderbook.noBuyOrders");
 
   function rowKey(entry: OrderBookEntry, index: number): string {
     return `${entry.userName}:${entry.rank ?? "na"}:${entry.platinum}:${entry.quantity}:${index}`;
   }
 
-  function statusLabel(status: string | null): string {
-    if (status === "ingame") return "In game";
-    if (status === "online") return "Online";
-    if (status === "offline") return "Offline";
-    if (status === "invisible") return "Invisible";
-    return "Unknown";
+  function statusLabelKey(status: string | null): MessageKey {
+    if (status === "ingame") return "common.inGame";
+    if (status === "online") return "common.online";
+    if (status === "offline") return "common.offline";
+    if (status === "invisible") return "common.invisible";
+    return "common.unknown";
   }
 </script>
 
@@ -70,7 +71,7 @@
               class:inventory-orderbook-status-unknown={!entry.status ||
                 !["ingame", "online", "offline", "invisible"].includes(entry.status)}
             >
-              {statusLabel(entry.status)}
+              {$tr(statusLabelKey(entry.status))}
             </span>
             <span class="inventory-orderbook-qty font-display text-xs text-text-secondary"
               >x{entry.quantity}</span
@@ -85,13 +86,13 @@
               class="btn-secondary btn-sm flex-1 min-h-7 px-2 py-1 text-xs"
               on:click={() => void copyWhisper(entry, side)}
             >
-              Whisper
+              {$tr("orderbook.whisper")}
             </button>
             <button
               class="btn-secondary btn-sm flex-1 min-h-7 px-2 py-1 text-xs"
               on:click={() => openSellerProfile(entry)}
             >
-              Profile
+              {$tr("orderbook.profile")}
             </button>
           </div>
         </div>

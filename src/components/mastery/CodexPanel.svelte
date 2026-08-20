@@ -10,7 +10,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
 
-  import { tr } from "../../lib/i18n.js";
+  import { locale, tr } from "../../lib/i18n.js";
   import { invoke } from "../../lib/ipc.js";
   import {
     CODEX_FACTIONS,
@@ -83,7 +83,7 @@
   );
   $: doneCount = rows.filter((row) => row.complete === true).length;
   $: knownCount = rows.filter((row) => row.complete !== null).length;
-  $: updatedLabel = fetchedAt ? new Date(fetchedAt).toLocaleTimeString() : null;
+  $: updatedLabel = fetchedAt ? new Date(fetchedAt).toLocaleTimeString($locale) : null;
 </script>
 
 <div class="grid gap-3">
@@ -99,28 +99,27 @@
       {$tr("codex.incompleteOnly")}
     </label>
     {#if $devMode}
-      <!-- Icon-coverage audit; broken images join the set as their loads fail. -->
       <label class="flex cursor-pointer items-center gap-1.5 text-sm text-text-secondary">
         <input
           type="checkbox"
           checked={missingIconsOnly}
           on:change={(e) => setMissingIconsOnly(e.currentTarget.checked)}
         />
-        Missing icons
+        {$tr("codex.missingIcons")}
       </label>
     {/if}
     <div class="shared-select-group">
-      <span class="shared-chip-label">{$tr("codex.sortLabel")}</span>
+      <span class="shared-chip-label">{$tr("common.sort")}</span>
       <select class="shared-filter-select" bind:value={sortBy}>
-        <option value="name">{$tr("codex.sortName")}</option>
-        <option value="scans">{$tr("codex.sortScans")}</option>
+        <option value="name">{$tr("common.name")}</option>
+        <option value="scans">{$tr("common.scans")}</option>
         <option value="progress">{$tr("codex.sortProgress")}</option>
       </select>
     </div>
     <div class="ml-auto flex items-center gap-2 text-xs text-text-muted">
       {#if updatedLabel}<span>{$tr("codex.updated", { when: updatedLabel })}</span>{/if}
       <button class="btn-secondary btn-sm" disabled={loading} on:click={() => void load(true)}>
-        {loading ? $tr("codex.refreshing") : $tr("codex.refresh")}
+        {loading ? $tr("codex.refreshing") : $tr("common.refresh")}
       </button>
     </div>
   </div>
@@ -131,7 +130,7 @@
         class="filter-tab"
         data-active={factionFilter === "all" || undefined}
         class:active={factionFilter === "all"}
-        on:click={() => (factionFilter = "all")}>{$tr("codex.factionAll")}</button
+        on:click={() => (factionFilter = "all")}>{$tr("common.all")}</button
       >
       {#each shownFactions as faction (faction.key)}
         <button
@@ -194,7 +193,7 @@
                 : row.complete === false
                   ? 'text-text-secondary'
                   : 'text-text-muted'}"
-              title={$tr("codex.colScans")}
+              title={$tr("common.scans")}
             >
               {row.scanned}{row.required !== null ? ` / ${row.required}` : ""}
             </span>

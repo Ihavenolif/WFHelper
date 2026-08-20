@@ -1,9 +1,4 @@
-import { loadItemPrice, loadItemPriceBySlug } from "./priceLoader.js";
-
-interface PriceState {
-  text: string;
-  slug: string | null;
-}
+import { loadItemPrice, loadItemPriceBySlug, type PriceState } from "./priceLoader.js";
 
 export function createPriceLoader(assign: (state: PriceState) => void): {
   clear: () => void;
@@ -19,7 +14,7 @@ export function createPriceLoader(assign: (state: PriceState) => void): {
   return {
     clear(): void {
       token++;
-      assign({ text: "", slug: null });
+      assign({ messageKey: null, slug: null });
     },
     async load(
       name: string,
@@ -32,7 +27,7 @@ export function createPriceLoader(assign: (state: PriceState) => void): {
       } = {},
     ): Promise<void> {
       const currentToken = ++token;
-      assign({ text: "Loading price...", slug: null });
+      assign({ messageKey: "market.loadingPrice", slug: null });
 
       // Hydrated slug first - some items trade under a different WFM name.
       if (options.preferredSlug) {
@@ -53,7 +48,7 @@ export function createPriceLoader(assign: (state: PriceState) => void): {
         );
       }
       if (currentToken !== token) return;
-      assign({ text: result.text, slug: result.slug });
+      assign(result);
     },
   };
 }

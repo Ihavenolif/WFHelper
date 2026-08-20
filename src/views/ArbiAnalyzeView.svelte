@@ -216,7 +216,7 @@
             />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="uppercase tracking-wide text-text-muted">{$tr("arbi.filter.type")}</span>
+            <span class="uppercase tracking-wide text-text-muted">{$tr("common.type")}</span>
             <select
               class="rounded border border-border bg-bg-raised px-2 py-1 text-text-primary outline-none focus:border-accent"
               bind:value={filterType}
@@ -253,14 +253,14 @@
             />
           </label>
           <label class="flex flex-col gap-1">
-            <span class="uppercase tracking-wide text-text-muted">{$tr("arbi.filter.source")}</span>
+            <span class="uppercase tracking-wide text-text-muted">{$tr("common.source")}</span>
             <select
               class="rounded border border-border bg-bg-raised px-2 py-1 text-text-primary outline-none focus:border-accent"
               bind:value={filterSource}
             >
               <option value="all">{$tr("arbi.filter.allSources")}</option>
-              <option value="live">{$tr("arbi.source.live")}</option>
-              <option value="imported">{$tr("arbi.source.imported")}</option>
+              <option value="live">{$tr("common.live")}</option>
+              <option value="imported">{$tr("common.imported")}</option>
             </select>
           </label>
           {#if allTags.length > 0}
@@ -298,7 +298,7 @@
             class="flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-accent/40 bg-accent/5 px-3 py-2 text-xs"
           >
             <span class="font-semibold text-text-primary"
-              >{$tr("arbi.selectedCount", { count: String(selectedIds.size) })}</span
+              >{$tr("common.selected", { count: String(selectedIds.size) })}</span
             >
             <input
               class="w-36 rounded border border-border bg-bg-raised px-2 py-1 text-text-primary outline-none focus:border-info"
@@ -318,7 +318,7 @@
               type="button"
               class="cursor-pointer rounded border border-danger/40 px-2 py-1 text-danger transition-colors hover:bg-danger/10 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={massBusy}
-              on:click={massDelete}>{$tr("arbi.massDelete")}</button
+              on:click={massDelete}>{$tr("common.deleteSelected")}</button
             >
             <button
               type="button"

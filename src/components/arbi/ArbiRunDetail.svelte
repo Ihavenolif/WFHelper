@@ -56,7 +56,7 @@
       },
       {
         key: "duration",
-        label: $tr("arbi.kpi.duration"),
+        label: $tr("common.duration"),
         value: formatDuration(run.durationSec),
         subtext: `${run.rotations} rot.`,
       },
@@ -190,14 +190,14 @@
         <span class="text-lg font-bold leading-tight text-text-primary">{run.node}</span>
         <span class="text-xs text-text-muted">
           {formatRunDate(run.startedAt)} · {typeLabel} · {endReasonLabel}
-          {#if run.source === "imported"}· {$tr("arbi.source.imported")}{/if}
+          {#if run.source === "imported"}· {$tr("common.imported")}{/if}
           {#if (run.players ?? []).length > 0}· {(run.players ?? []).join(", ")}{/if}
         </span>
       </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
       <ThemedButton onClick={copyImage} disabled={copyState === "busy"}>
-        {copyState === "done" ? $tr("arbi.copiedImage") : $tr("arbi.copyImage")}
+        {copyState === "done" ? $tr("common.copied") : $tr("arbi.copyImage")}
       </ThemedButton>
       <ThemedButton onClick={saveImage} disabled={saveBusy}>{$tr("arbi.saveImage")}</ThemedButton>
       {#if run.logFile}
@@ -212,7 +212,7 @@
 
   <div class="flex flex-wrap items-center gap-2">
     <span class="text-xs font-semibold uppercase tracking-wide text-text-muted"
-      >{$tr("arbi.tags.label")}</span
+      >{$tr("common.tags")}</span
     >
     {#each tags as tag (tag)}
       <span

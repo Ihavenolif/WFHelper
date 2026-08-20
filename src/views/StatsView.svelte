@@ -105,7 +105,7 @@
     if (!file) return;
     input.value = "";
 
-    importStatus = "Reading...";
+    importStatus = $tr("stats.importReading");
     importError = false;
 
     try {
@@ -115,14 +115,14 @@
       try {
         parsed = JSON.parse(text);
       } catch {
-        importStatus = "Invalid JSON file.";
+        importStatus = $tr("stats.invalidJsonFile");
         importError = true;
         return;
       }
 
       const normalized = normalizeAlecaFrameStats(parsed);
       if (normalized.length === 0) {
-        importStatus = "No valid daily entries found in file.";
+        importStatus = $tr("stats.noValidEntries");
         importError = true;
         return;
       }
@@ -131,13 +131,16 @@
       let statMsg = "";
       if (result.ok) {
         if (result.count === 0) {
-          statMsg = "No new stat entries.";
+          statMsg = $tr("stats.noNewEntries");
         } else {
-          statMsg = `Imported/updated ${result.count} day${result.count === 1 ? "" : "s"}.`;
+          statMsg =
+            result.count === 1
+              ? $tr("stats.importedDay", { count: result.count })
+              : $tr("stats.importedDays", { count: result.count });
           history = await invoke("getStatsHistory");
         }
       } else {
-        importStatus = "Stats import failed.";
+        importStatus = $tr("stats.statsImportFailed");
         importError = true;
         return;
       }
@@ -147,7 +150,11 @@
       if (importedTrades.length > 0) {
         const tradeResult = await invoke("importTradeLog", importedTrades);
         if (tradeResult.ok && tradeResult.count > 0) {
-          tradeMsg = ` ${tradeResult.count} trade${tradeResult.count === 1 ? "" : "s"} imported.`;
+          tradeMsg = ` ${
+            tradeResult.count === 1
+              ? $tr("stats.importedTradeSingular", { count: tradeResult.count })
+              : $tr("stats.importedTradePlural", { count: tradeResult.count })
+          }`;
           trades = await invoke("getTradeLog");
         }
       }
@@ -155,7 +162,7 @@
       importStatus = statMsg + tradeMsg;
       importError = false;
     } catch (err: unknown) {
-      importStatus = err instanceof Error ? err.message : "Import failed.";
+      importStatus = err instanceof Error ? err.message : $tr("stats.importFailedGeneric");
       importError = true;
     }
   }
@@ -195,19 +202,19 @@
   }
 
   const SESSION_SECTIONS: SessionSection[] = [
-    { key: "platDelta", labelKey: "stats.platinum", currentKey: "currentPlat" },
-    { key: "ducatsDelta", labelKey: "stats.ducats", currentKey: "currentDucats" },
+    { key: "platDelta", labelKey: "common.platinum", currentKey: "currentPlat" },
+    { key: "ducatsDelta", labelKey: "common.ducats", currentKey: "currentDucats" },
     { key: "ayaDelta", labelKey: "stats.aya", currentKey: "currentAya" },
-    { key: "creditsDelta", labelKey: "stats.credits", currentKey: "currentCredits" },
+    { key: "creditsDelta", labelKey: "common.credits", currentKey: "currentCredits" },
     { key: "endoDelta", labelKey: "stats.endo", currentKey: "currentEndo" },
     { key: "vitusDelta", labelKey: "stats.vitus", currentKey: "currentVitus" },
   ];
 
   const CHART_SECTIONS: Array<{ key: ChartKey; labelKey: MessageKey }> = [
-    { key: "platDelta", labelKey: "stats.platinum" },
-    { key: "ducatsDelta", labelKey: "stats.ducats" },
+    { key: "platDelta", labelKey: "common.platinum" },
+    { key: "ducatsDelta", labelKey: "common.ducats" },
     { key: "ayaDelta", labelKey: "stats.aya" },
-    { key: "creditsDelta", labelKey: "stats.credits" },
+    { key: "creditsDelta", labelKey: "common.credits" },
     { key: "endoDelta", labelKey: "stats.endo" },
     { key: "vitusDelta", labelKey: "stats.vitus" },
     { key: "relicsOpened", labelKey: "stats.relicsOpened" },
@@ -288,7 +295,7 @@
   let expandedKey: ChartKey | null = null;
 
   function expandedChartTitle(key: ChartKey): MessageKey {
-    return (CHART_SECTIONS.find((s) => s.key === key)?.labelKey ?? "stats.title") as MessageKey;
+    return (CHART_SECTIONS.find((s) => s.key === key)?.labelKey ?? "common.stats") as MessageKey;
   }
 
   function navigateExpanded(dir: -1 | 1): void {
@@ -346,17 +353,17 @@
             active={showValue}
             onClick={() => {
               showValue = !showValue;
-            }}>Value</ThemedButton
+            }}>{$tr("stats.valueLabel")}</ThemedButton
           >
           <ThemedButton
             active={showChange}
             onClick={() => {
               showChange = !showChange;
-            }}>Change</ThemedButton
+            }}>{$tr("stats.changeLabel")}</ThemedButton
           >
           <button
             type="button"
-            aria-label="Close expanded chart"
+            aria-label={$tr("stats.closeExpandedChartAria")}
             class="border-none bg-transparent text-text-muted cursor-pointer text-base leading-none px-1.5 py-0.5 rounded-[var(--radius-md)] transition-[color,background] duration-150 hover:text-text-primary hover:bg-bg-raised"
             on:click={() => {
               expandedKey = null;
@@ -369,12 +376,12 @@
         <button
           class="absolute top-1/2 -translate-y-1/2 z-10 bg-bg-raised border border-border rounded-[var(--radius-md)] text-text-muted text-2xl py-1 px-[10px] cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-bg-surface left-2"
           on:click={() => navigateExpanded(-1)}
-          title="Previous">‹</button
+          title={$tr("stats.previousTitle")}>‹</button
         >
         <button
           class="absolute top-1/2 -translate-y-1/2 z-10 bg-bg-raised border border-border rounded-[var(--radius-md)] text-text-muted text-2xl py-1 px-[10px] cursor-pointer transition-[color,background] duration-150 hover:text-text-primary hover:bg-bg-surface right-2"
           on:click={() => navigateExpanded(1)}
-          title="Next">›</button
+          title={$tr("common.next")}>›</button
         >
         <div class="flex-1 min-h-0 flex relative">
           {#if exYTicks.length > 0}
@@ -501,21 +508,21 @@
 
 <section class="view active">
   <div class="view-header">
-    <h2>{$tr("stats.title")}</h2>
+    <h2>{$tr("common.stats")}</h2>
     <div class="ml-auto flex flex-wrap items-center gap-2">
       <ThemedButton
         active={showValue}
         onClick={() => {
           showValue = !showValue;
         }}
-        title="Toggle absolute value line on charts">Value</ThemedButton
+        title={$tr("stats.toggleValueTitle")}>{$tr("stats.valueLabel")}</ThemedButton
       >
       <ThemedButton
         active={showChange}
         onClick={() => {
           showChange = !showChange;
         }}
-        title="Toggle daily change bars on charts">Change</ThemedButton
+        title={$tr("stats.toggleChangeTitle")}>{$tr("stats.changeLabel")}</ThemedButton
       >
       <label class="flex items-center gap-1.5 whitespace-nowrap text-xs text-text-muted">
         {$tr("stats.timeframe")}:
@@ -525,21 +532,18 @@
           {/each}
         </ThemedSelect>
       </label>
-      <ThemedButton
-        onClick={handleSaveStats}
-        title="Save current stats, history, and trade log as JSON"
-      >
-        Save Stats JSON
+      <ThemedButton onClick={handleSaveStats} title={$tr("stats.saveJsonTitle")}>
+        {$tr("stats.saveJsonButton")}
       </ThemedButton>
-      <ThemedButton as="label" title="Import AlecaFrame stats JSON export">
-        Import AlecaFrame JSON
+      <ThemedButton as="label" title={$tr("stats.importAlecaTitle")}>
+        {$tr("stats.importAlecaButton")}
         <input type="file" accept=".json" class="hidden" on:change={handleImportFile} />
       </ThemedButton>
     </div>
   </div>
 
   {#if loading}
-    <div class="empty-state"><p>Loading...</p></div>
+    <div class="empty-state"><p>{$tr("common.loading")}</p></div>
   {:else}
     <div class="flex flex-1 min-h-0 overflow-hidden">
       <!-- LEFT: session stats + charts -->
@@ -581,19 +585,19 @@
                   </span>
                   <button
                     class="bg-transparent border-0 text-text-muted cursor-pointer text-lg py-1 px-2 leading-none opacity-50 transition-[opacity,color] duration-150 rounded-[var(--radius-md)] hover:!opacity-100 hover:text-accent hover:bg-bg-raised group-hover/chart:opacity-70"
-                    title="Expand chart"
+                    title={$tr("stats.expandChartTitle")}
                     on:click={() => {
                       expandedKey = key;
                       tooltip = null;
                     }}
-                    aria-label="Expand {$tr(labelKey)} chart">⛶</button
+                    aria-label={$tr("stats.expandChartAria", { label: $tr(labelKey) })}>⛶</button
                   >
                 </div>
                 {#if empty}
                   <div
                     class="flex-1 min-h-0 flex items-center justify-center text-sm text-text-muted"
                   >
-                    No data in this timeframe
+                    {$tr("stats.noDataTimeframe")}
                   </div>
                 {:else}
                   <div class="flex-1 min-h-0 flex">

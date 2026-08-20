@@ -17,7 +17,15 @@
     describeInventorySource,
     INVENTORY_SOURCE_OPTIONS,
   } from "../lib/inventorySourceLabel.js";
-  import { tr } from "../lib/i18n.js";
+  import {
+    tr,
+    locale,
+    setLocale,
+    LOCALE_OPTIONS,
+    type LocaleCode,
+    type MessageKey,
+  } from "../lib/i18n.js";
+  import ThemedSelect from "../components/ThemedSelect.svelte";
   import { hideFoundryClaims, hideFounderMasteryItems } from "../stores/preferences.js";
   import { TOGGLEABLE_TABS, tabVisibility } from "../stores/sidebarTabs.js";
   import { startTour } from "../stores/tour.js";
@@ -29,6 +37,11 @@
   };
 
   let settingsTab: "general" | "appearance" | "overlay" = "general";
+  // The store owns the language: the select only mirrors it, so an external
+  // setLocale is not written back over.
+  let languageChoice: LocaleCode;
+  $: languageChoice = $locale;
+  $: if (languageChoice !== $locale) setLocale(languageChoice);
   let statusMsg = "";
   let statusError = false;
   let statusTimer: ReturnType<typeof setTimeout> | null = null;
@@ -38,18 +51,18 @@
   async function openScanDebugFolder(): Promise<void> {
     try {
       const result = await invoke("openScanDebugFolder");
-      if (!result?.ok) flashStatus("Could not open the scan-debug folder.", true);
+      if (!result?.ok) flashStatus($tr("settings.scanDebugFolderFailed"), true);
     } catch {
-      flashStatus("Could not open the scan-debug folder.", true);
+      flashStatus($tr("settings.scanDebugFolderFailed"), true);
     }
   }
 
   async function openLogFolder(): Promise<void> {
     try {
       const result = await invoke("openLogFolder");
-      if (!result?.ok) flashStatus("Could not open the log folder.", true);
+      if (!result?.ok) flashStatus($tr("settings.logFolderFailed"), true);
     } catch {
-      flashStatus("Could not open the log folder.", true);
+      flashStatus($tr("settings.logFolderFailed"), true);
     }
   }
 
@@ -65,6 +78,12 @@
   let switchingSource = false;
 
   $: sourceDescription = describeInventorySource(inventorySource, inventoryPath);
+  $: sourceLabel = $tr(sourceDescription.labelKey);
+  $: sourceTitle = sourceDescription.path || sourceLabel;
+  $: inventorySourceOptions = INVENTORY_SOURCE_OPTIONS.map((option) => ({
+    value: option.value,
+    label: $tr(option.labelKey),
+  }));
   $: autoSyncApplies = inventorySource === "helper";
 
   async function refreshInventorySource(): Promise<void> {
@@ -94,19 +113,19 @@
       }
       await refreshInventorySource();
     } catch {
-      flashStatus("Could not change the inventory source.", true);
+      flashStatus($tr("settings.inventorySourceChangeFailed"), true);
       await refreshInventorySource();
     } finally {
       switchingSource = false;
     }
   }
 
-  const OVERLAY_SCALE_ROWS: Array<{ key: OverlayWindowKey; label: string }> = [
-    { key: "reward", label: "Relic rewards size" },
-    { key: "planner", label: "Relic recommendation size" },
-    { key: "rivenLeft", label: "Riven overlay (left) size" },
-    { key: "rivenRight", label: "Riven overlay (right) size" },
-    { key: "arbiSummary", label: "Arbitration summary size" },
+  const OVERLAY_SCALE_ROWS: Array<{ key: OverlayWindowKey; labelKey: MessageKey }> = [
+    { key: "reward", labelKey: "settings.overlayScaleReward" },
+    { key: "planner", labelKey: "settings.overlayScalePlanner" },
+    { key: "rivenLeft", labelKey: "settings.overlayScaleRivenLeft" },
+    { key: "rivenRight", labelKey: "settings.overlayScaleRivenRight" },
+    { key: "arbiSummary", labelKey: "settings.overlayScaleArbiSummary" },
   ];
   let windowScales: Partial<Record<OverlayWindowKey, number>> = {};
 
@@ -324,30 +343,33 @@
 
 <section class="view active mx-auto w-full max-w-[1120px]">
   <div class="view-header">
-    <h2>{$tr("settings.title")}</h2>
+    <h2>{$tr("common.settings")}</h2>
   </div>
 
   <div class="tab-bar">
     <button
       class="tab-item"
       class:active={settingsTab === "general"}
+      data-tour-tab="general"
       on:click={() => (settingsTab = "general")}
     >
-      <span>General</span>
+      <span>{$tr("settings.tabGeneral")}</span>
     </button>
     <button
       class="tab-item"
       class:active={settingsTab === "appearance"}
+      data-tour-tab="appearance"
       on:click={() => (settingsTab = "appearance")}
     >
-      <span>Appearance</span>
+      <span>{$tr("common.appearance")}</span>
     </button>
     <button
       class="tab-item"
       class:active={settingsTab === "overlay"}
+      data-tour-tab="overlay"
       on:click={() => (settingsTab = "overlay")}
     >
-      <span>Overlays</span>
+      <span>{$tr("common.overlays")}</span>
     </button>
   </div>
 
@@ -360,16 +382,41 @@
           <h3
             class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
           >
-            Notifications
+            {$tr("settings.languageTitle")}
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Choose which desktop and market notifications appear.
+            {$tr("settings.languageDesc")}
+          </p>
+        </div>
+        <div class="mt-2.5 grid gap-1">
+          <label class="settings-control-row">
+            <span>{$tr("settings.languageRow")}</span>
+            <ThemedSelect bind:value={languageChoice}>
+              {#each LOCALE_OPTIONS as option}
+                <option value={option.code}>{option.label}</option>
+              {/each}
+            </ThemedSelect>
+          </label>
+        </div>
+      </article>
+
+      <article
+        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
+      >
+        <div>
+          <h3
+            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
+          >
+            {$tr("settings.notificationsTitle")}
+          </h3>
+          <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
+            {$tr("settings.notificationsDesc")}
           </p>
         </div>
 
         <div class="mt-2.5 grid gap-1">
           <label class="settings-control-row">
-            <span>Windows notification sound</span>
+            <span>{$tr("settings.windowsNotifSound")}</span>
             <input
               type="checkbox"
               bind:checked={notificationSoundEnabled}
@@ -379,7 +426,7 @@
           </label>
 
           <label class="settings-control-row">
-            <span>WFM DM notifications</span>
+            <span>{$tr("settings.wfmDmNotifications")}</span>
             <input
               type="checkbox"
               bind:checked={wfmNotificationsEnabled}
@@ -389,7 +436,7 @@
           </label>
 
           <label class="settings-control-row">
-            <span>In-game message notifications</span>
+            <span>{$tr("settings.inGameMessageNotifications")}</span>
             <input
               type="checkbox"
               bind:checked={messageNotificationsEnabled}
@@ -399,7 +446,7 @@
           </label>
 
           <label class="settings-control-row" class:opacity-50={!messageNotificationsEnabled}>
-            <span>Notify even while Warframe is focused (includes messages you send)</span>
+            <span>{$tr("settings.notifyWhileFocused")}</span>
             <input
               type="checkbox"
               bind:checked={messageNotificationsWhileFocused}
@@ -410,7 +457,7 @@
           </label>
 
           <label class="settings-control-row">
-            <span>Unlist WFMarket orders when sold/bought</span>
+            <span>{$tr("settings.unlistOnTrade")}</span>
             <input
               type="checkbox"
               bind:checked={autoCloseWfmOrders}
@@ -420,7 +467,7 @@
           </label>
 
           <label class="settings-control-row">
-            <span>+1 rep keybind on the trade popup after WFMarket sales</span>
+            <span>{$tr("settings.tradeRepKeybindEnable")}</span>
             <input
               type="checkbox"
               bind:checked={tradeRepHotkeyEnabled}
@@ -430,12 +477,12 @@
           </label>
 
           <label class="settings-control-row settings-control-row-input">
-            <span>+1 rep keybind</span>
+            <span>{$tr("settings.tradeRepKeybind")}</span>
             <input
               type="text"
               bind:value={tradeRepHotkey}
               disabled={!tradeRepHotkeyEnabled}
-              placeholder="Press a key combination"
+              placeholder={$tr("settings.pressKeyCombination")}
               on:keydown={recordTradeRepHotkey}
               on:change={autoSave}
               class="settings-input"
@@ -451,16 +498,16 @@
           <h3
             class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
           >
-            Arbitrations
+            {$tr("common.arbitrations")}
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Analyze arbitration runs automatically. Logs stay on this PC.
+            {$tr("settings.arbitrationsDesc")}
           </p>
         </div>
 
         <div class="mt-2.5 grid gap-1">
           <label class="settings-control-row">
-            <span>Track arbitration runs (log capture + stats)</span>
+            <span>{$tr("settings.trackArbiRuns")}</span>
             <input
               type="checkbox"
               bind:checked={arbiTrackingEnabled}
@@ -478,36 +525,35 @@
           <h3
             class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
           >
-            Inventory
+            {$tr("common.inventory")}
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Blueprints remain in inventory data until their Foundry build is claimed. Automatic sync
-            only runs when your source is warframe-api-helper; imported files are never overwritten.
+            {$tr("settings.inventoryDesc")}
           </p>
         </div>
 
         <div class="mt-2.5 grid gap-1">
           <div class="settings-control-row">
             <span>
-              Source
-              <span class="block text-xs text-text-secondary" title={sourceDescription.title}>
-                {sourceDescription.label}{sourceDescription.detail
-                  ? ` - ${sourceDescription.detail}`
-                  : ""}
+              {$tr("common.source")}
+              <span class="block text-xs text-text-secondary" title={sourceTitle}>
+                {sourceLabel}{sourceDescription.detail ? ` - ${sourceDescription.detail}` : ""}
               </span>
             </span>
             <SegmentedControl
               value={inventorySource}
-              options={INVENTORY_SOURCE_OPTIONS}
+              options={inventorySourceOptions}
               onChange={(next) => void selectInventorySource(next)}
               disabled={switchingSource}
             />
           </div>
           <label class="settings-control-row">
             <span>
-              Automatic inventory sync
+              {$tr("settings.autoInventorySync")}
               {#if !autoSyncApplies}
-                <span class="block text-xs text-text-secondary">Helper source only</span>
+                <span class="block text-xs text-text-secondary"
+                  >{$tr("settings.helperSourceOnly")}</span
+                >
               {/if}
             </span>
             <input
@@ -519,7 +565,7 @@
             />
           </label>
           <label class="settings-control-row">
-            <span>Hide blueprints waiting in the foundry</span>
+            <span>{$tr("settings.hideFoundryPending")}</span>
             <input type="checkbox" bind:checked={$hideFoundryClaims} class="accent-accent" />
           </label>
         </div>
@@ -532,16 +578,16 @@
           <h3
             class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
           >
-            Mastery
+            {$tr("common.mastery")}
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Choose which items appear in Mastery.
+            {$tr("settings.masteryDesc")}
           </p>
         </div>
 
         <div class="mt-2.5 grid gap-1">
           <label class="settings-control-row">
-            <span>Hide Founder items</span>
+            <span>{$tr("settings.hideFounderItems")}</span>
             <input type="checkbox" bind:checked={$hideFounderMasteryItems} class="accent-accent" />
           </label>
         </div>
@@ -554,10 +600,10 @@
           <h3
             class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
           >
-            Sidebar tabs
+            {$tr("settings.sidebarTabsTitle")}
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Hide tabs you don't use. Inventory and Settings always stay.
+            {$tr("settings.sidebarTabsDesc")}
           </p>
         </div>
 
@@ -598,10 +644,10 @@
             <h3
               class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
             >
-              About
+              {$tr("settings.aboutTitle")}
             </h3>
             <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-              Unofficial Warframe companion.
+              {$tr("settings.aboutDesc")}
             </p>
           </div>
           <span
@@ -612,35 +658,35 @@
 
         <div class="mt-2.5 grid gap-1">
           <div class="settings-credit-row">
-            <span>Prices &amp; orders</span>
+            <span>{$tr("settings.creditPrices")}</span>
             <button class="settings-link" on:click={() => openLink("https://warframe.market")}
               >warframe.market</button
             >
           </div>
           <div class="settings-credit-row">
-            <span>Game data &amp; images</span>
-            <span class="settings-credit-value">DE Public Export</span>
+            <span>{$tr("settings.creditGameData")}</span>
+            <span class="settings-credit-value">{$tr("settings.creditGameDataValue")}</span>
           </div>
           <div class="settings-credit-row">
-            <span>Item &amp; drop data</span>
+            <span>{$tr("settings.creditItemDropData")}</span>
             <button class="settings-link" on:click={() => openLink("https://github.com/WFCD")}
-              >WFCD projects</button
+              >{$tr("settings.creditWfcd")}</button
             >
           </div>
           <div class="settings-credit-row">
-            <span>Item icons</span>
+            <span>{$tr("settings.creditIcons")}</span>
             <button class="settings-link" on:click={() => openLink("https://browse.wf")}
               >browse.wf</button
             >
           </div>
           <div class="settings-credit-row">
-            <span>Arbitration stats model</span>
+            <span>{$tr("settings.creditArbiStats")}</span>
             <button class="settings-link" on:click={() => openLink("https://svesk.github.io/arbi/")}
-              >sves' arbi analyzer</button
+              >{$tr("settings.creditArbiStatsValue")}</button
             >
           </div>
           <div class="settings-credit-row">
-            <span>Inventory snapshots</span>
+            <span>{$tr("settings.creditInventorySnapshots")}</span>
             <button
               class="settings-link"
               on:click={() => openLink("https://github.com/Sainan/warframe-api-helper")}
@@ -648,31 +694,31 @@
             >
           </div>
           <div class="settings-credit-row">
-            <span>Source code (MIT)</span>
+            <span>{$tr("settings.creditSource")}</span>
             <button
               class="settings-link"
               on:click={() => openLink("https://github.com/WFHelper/WFHelper")}>GitHub</button
             >
           </div>
           <div class="settings-credit-row">
-            <span>Website</span>
+            <span>{$tr("settings.creditWebsite")}</span>
             <button class="settings-link" on:click={() => openLink("https://wfhelper.com")}
               >wfhelper.com</button
             >
           </div>
           <div class="settings-credit-row">
-            <span>Community</span>
+            <span>{$tr("settings.creditCommunity")}</span>
             <button class="settings-link" on:click={() => openLink("https://discord.gg/7Gm3UvUSww")}
-              >Discord</button
+              >{$tr("settings.creditCommunityValue")}</button
             >
           </div>
           <div class="settings-credit-row">
-            <span>Support development</span>
+            <span>{$tr("settings.creditSupport")}</span>
             <span class="flex items-center gap-2.5">
               <button
                 class="settings-link"
                 on:click={() => openLink("https://github.com/sponsors/WFHelper")}
-                >&hearts; GitHub Sponsors</button
+                >&hearts; {$tr("settings.creditSponsors")}</button
               >
               <button class="settings-link" on:click={() => openLink("https://ko-fi.com/WFHelper")}
                 >Ko-fi</button
@@ -682,8 +728,7 @@
         </div>
 
         <p class="m-0 mt-2.5 text-xs leading-snug text-text-muted">
-          Unofficial fan project, not affiliated with or endorsed by Digital Extremes. Warframe and
-          related assets are property of Digital Extremes Ltd.
+          {$tr("settings.footerDisclaimer")}
         </p>
       </article>
     </div>
@@ -693,15 +738,19 @@
         <button class="btn-secondary btn-sm" on:click={resetDefaults}
           >{$tr("settings.resetDefaults")}</button
         >
-        <button class="btn-secondary btn-sm" on:click={() => startTour()}>Show feature tour</button>
+        <button class="btn-secondary btn-sm" on:click={() => startTour()}
+          >{$tr("settings.showFeatureTour")}</button
+        >
         <button class="btn-secondary btn-sm" on:click={openScanDebugFolder}
           >{$tr("settings.openScanDebug")}</button
         >
-        <button class="btn-secondary btn-sm" on:click={openLogFolder}>Open log folder</button>
-        <button class="btn-secondary btn-sm" on:click={() => currentView.set("setup")}
-          >Redo setup</button
+        <button class="btn-secondary btn-sm" on:click={openLogFolder}
+          >{$tr("settings.openLogFolder")}</button
         >
-        <span class="text-xs text-text-muted">Changes apply automatically.</span>
+        <button class="btn-secondary btn-sm" on:click={() => currentView.set("setup")}
+          >{$tr("settings.redoSetup")}</button
+        >
+        <span class="text-xs text-text-muted">{$tr("settings.changesAutoApply")}</span>
       </div>
 
       {#if statusMsg}
@@ -723,16 +772,16 @@
           <h3
             class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
           >
-            Overlay availability
+            {$tr("settings.overlayAvailabilityTitle")}
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Enable or disable each in-game overlay window.
+            {$tr("settings.overlayAvailabilityDesc")}
           </p>
         </div>
 
         <div class="mt-2.5 grid gap-1">
           <label class="settings-control-row">
-            <span>Relic rewards overlay</span>
+            <span>{$tr("settings.relicRewardsOverlay")}</span>
             <input
               type="checkbox"
               bind:checked={relicRewardsOverlayEnabled}
@@ -742,7 +791,7 @@
           </label>
 
           <label class="settings-control-row">
-            <span>Relic recommendation overlay</span>
+            <span>{$tr("settings.relicRecommendationOverlay")}</span>
             <input
               type="checkbox"
               bind:checked={relicRecommendationOverlayEnabled}
@@ -752,7 +801,7 @@
           </label>
 
           <label class="settings-control-row">
-            <span>Trade detected overlay</span>
+            <span>{$tr("settings.tradeDetectedOverlay")}</span>
             <input
               type="checkbox"
               bind:checked={tradeNotificationOverlayEnabled}
@@ -762,7 +811,7 @@
           </label>
 
           <label class="settings-control-row">
-            <span>Riven overlay</span>
+            <span>{$tr("settings.rivenOverlay")}</span>
             <input
               type="checkbox"
               bind:checked={rivenOverlayEnabled}
@@ -772,7 +821,7 @@
           </label>
 
           <label class="settings-control-row">
-            <span>Arbitration post-run summary</span>
+            <span>{$tr("settings.arbiSummaryOverlay")}</span>
             <input
               type="checkbox"
               bind:checked={arbiSummaryOverlayEnabled}
@@ -790,16 +839,16 @@
           <h3
             class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
           >
-            Scan diagnostics
+            {$tr("settings.scanDiagnosticsTitle")}
           </h3>
           <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            Save failed scan crops for bug reports. Images stay on this PC.
+            {$tr("settings.scanDiagnosticsDesc")}
           </p>
         </div>
 
         <div class="mt-2.5 grid gap-1">
           <label class="settings-control-row">
-            <span>Save OCR debug images on failed scans</span>
+            <span>{$tr("settings.ocrDebugImages")}</span>
             <input
               type="checkbox"
               bind:checked={ocrDebugImagesEnabled}
@@ -837,7 +886,7 @@
 
           {#each OVERLAY_SCALE_ROWS as row (row.key)}
             <label class="settings-control-row settings-control-row-input">
-              <span>{row.label}</span>
+              <span>{$tr(row.labelKey)}</span>
               <div class="settings-range-control">
                 <input
                   type="range"
@@ -912,7 +961,7 @@
         <button class="btn-secondary btn-sm" on:click={testTrigger}
           >{$tr("settings.testTrigger")}</button
         >
-        <span class="text-xs text-text-muted">Changes apply automatically.</span>
+        <span class="text-xs text-text-muted">{$tr("settings.changesAutoApply")}</span>
       </div>
 
       {#if statusMsg}

@@ -28,7 +28,7 @@
 
   function deleteActiveCustomTheme(): void {
     if (!activeCustomTheme) return;
-    const ok = confirm(`Delete "${activeCustomTheme.label}"?`);
+    const ok = confirm($tr("appearance.confirmDeleteTheme", { name: activeCustomTheme.label }));
     if (!ok) return;
     themeSettings.deleteCustomTheme(activeCustomTheme.id);
   }

@@ -2,6 +2,7 @@
   import { activeComponent } from "../stores/modals.js";
   import ComponentPanel from "../components/ComponentPanel.svelte";
   import DetailModalBase from "./DetailModalBase.svelte";
+  import { tr } from "../lib/i18n.js";
 
   $: data = $activeComponent;
   $: comp = data?.comp;
@@ -14,7 +15,7 @@
 
 {#if comp}
   <DetailModalBase
-    ariaLabel={comp.name || "Component details"}
+    ariaLabel={comp.name || $tr("detail.componentDetails")}
     overlayClass="comp-overlay"
     onClose={close}
     wrapPanel={false}

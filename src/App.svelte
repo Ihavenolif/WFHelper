@@ -94,15 +94,18 @@
       if (data && !(data as { error?: unknown }).error) {
         await onInventoryLoaded(data);
         // SetupView routes itself during the wizard; navigating here would tear it down
-        statusText.set(`Live update - ${$parsedItems.length} items loaded`);
+        statusText.set({ key: "app.liveUpdateStatus", params: { count: $parsedItems.length } });
       }
     });
 
     const unsubscribeInventoryStatus = on("inventory-status-updated", (status) => {
       if (status.lastError) {
-        statusText.set(`Inventory watcher error: ${status.lastError.message}`);
+        statusText.set({
+          key: "app.inventoryWatcherError",
+          params: { error: status.lastError.message },
+        });
       } else if (status.found) {
-        statusText.set(`${$parsedItems.length} items loaded`);
+        statusText.set({ key: "app.itemsLoaded", params: { count: $parsedItems.length } });
       }
     });
 
@@ -131,15 +134,15 @@
         clearMarketAccountState();
         addToast({
           level: "warning",
-          title: "Warframe Market session expired",
-          message: "Sign in again on the Market tab to restore trade notifications.",
+          title: $tr("app.wfmSessionExpiredTitle"),
+          message: $tr("app.wfmSessionExpiredMessage"),
           durationMs: 12000,
         });
         return;
       }
       addToast({
         level: "info",
-        title: `WFM DM from ${notification.from}`,
+        title: $tr("app.wfmDmTitle", { from: notification.from }),
         message: notification.content,
         durationMs: 8000,
       });
@@ -171,9 +174,8 @@
       if (!display?.fallbackHint) return;
       addToast({
         level: "warning",
-        title: "Overlay fallback active",
-        message:
-          "XWayland failed last launch, so WFHelper runs on native Wayland and overlays may not appear above the game. Pin XWayland in Settings to retry.",
+        title: $tr("app.overlayFallbackTitle"),
+        message: $tr("app.overlayFallbackMessage"),
         durationMs: 15000,
       });
     });
@@ -216,11 +218,11 @@
   }
 
   function lazyViewLabelKey(view: LazyViewName): MessageKey {
-    if (view === "world") return "view.world";
-    if (view === "market") return "view.market";
-    if (view === "wiki") return "view.wiki";
-    if (view === "arbi") return "view.arbi";
-    return "view.relics";
+    if (view === "world") return "common.world";
+    if (view === "market") return "common.market";
+    if (view === "wiki") return "common.wiki";
+    if (view === "arbi") return "common.arbitrations";
+    return "common.relics";
   }
 
   function handleViewChange(view: string): void {
@@ -286,7 +288,7 @@
       if (inventoryStatus?.found || helperStatus?.inventoryLastModified) return;
 
       currentView.set("setup");
-      statusText.set("Inventory setup required");
+      statusText.set({ key: "app.inventorySetupRequired" });
     } catch {
       // Keep the persisted view if startup status checks are unavailable.
     }

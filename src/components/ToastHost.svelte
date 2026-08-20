@@ -1,5 +1,6 @@
 <script lang="ts">
   import { toasts, removeToast } from "../stores/toasts.js";
+  import { tr } from "../lib/i18n.js";
 
   const LEVEL_CLASSES: Record<string, string> = {
     info: "border-blue-300/35 bg-blue-500/15 text-[#dbeafe]",
@@ -31,8 +32,8 @@
         <button
           class="cursor-pointer rounded border border-white/15 bg-transparent px-1.5 py-0.5 text-xs text-white/80 transition-[border-color,color] duration-150 hover:border-white/35 hover:text-white"
           on:click={() => removeToast(toast.id)}
-          aria-label="Dismiss notification"
-          title="Dismiss"
+          aria-label={$tr("common.dismissNotification")}
+          title={$tr("common.dismiss")}
         >
           x
         </button>

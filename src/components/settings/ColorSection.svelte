@@ -24,17 +24,17 @@
     {
       labelKey: "appearance.colorsAccent",
       keys: [
-        { key: "accent", labelKey: "appearance.label.accent" },
-        { key: "accentDim", labelKey: "appearance.label.accentDim" },
+        { key: "accent", labelKey: "common.primary" },
+        { key: "accentDim", labelKey: "common.muted" },
         { key: "accentBright", labelKey: "appearance.label.accentBright" },
       ],
     },
     {
       labelKey: "appearance.colorsText",
       keys: [
-        { key: "textPrimary", labelKey: "appearance.label.textPrimary", isText: true },
+        { key: "textPrimary", labelKey: "common.primary", isText: true },
         { key: "textSecondary", labelKey: "appearance.label.textSecondary", isText: true },
-        { key: "textMuted", labelKey: "appearance.label.textMuted", isText: true },
+        { key: "textMuted", labelKey: "common.muted", isText: true },
       ],
     },
     {
@@ -49,7 +49,7 @@
     {
       labelKey: "appearance.colorsBorders",
       keys: [
-        { key: "border", labelKey: "appearance.label.border" },
+        { key: "border", labelKey: "common.border" },
         { key: "borderStrong", labelKey: "appearance.label.borderStrong" },
       ],
     },
@@ -62,7 +62,7 @@
         { key: "gradeC", labelKey: "appearance.label.gradeC" },
         { key: "gradeD", labelKey: "appearance.label.gradeD" },
         { key: "gradeF", labelKey: "appearance.label.gradeF" },
-        { key: "gradeDefault", labelKey: "appearance.label.gradeDefault" },
+        { key: "gradeDefault", labelKey: "common.default" },
       ],
     },
   ];
@@ -93,7 +93,7 @@
   <div class="appearance-section-head">
     <h4 class="appearance-section-label">{$tr("appearance.colors")}</h4>
     <button class="btn-secondary btn-sm" on:click={() => themeSettings.resetColors()}>
-      {$tr("appearance.resetColors")}
+      {$tr("common.reset")}
     </button>
   </div>
 

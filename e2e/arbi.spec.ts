@@ -85,11 +85,14 @@ describeArbi("Arbitration schedule + post-run overlay", () => {
     env.LOCALAPPDATA = localAppData;
     env.WFHELPER_USER_DATA = userData;
 
-    app = await electron.launch({ args: ["--no-sandbox", "."], env });
+    app = await electron.launch({ args: ["--no-sandbox", "--lang=en-US", "."], env });
     page = await mainWindow(app);
 
     // Fresh sandbox starts on the setup view; flag it done and reload.
-    await page.evaluate(() => localStorage.setItem("setup-completed-v2", "1"));
+    await page.evaluate(() => {
+      localStorage.setItem("setup-completed-v2", "1");
+      localStorage.setItem("app-language", "en");
+    });
     await page.reload();
     await expect(page.locator("#sidebar")).toBeVisible({ timeout: 20_000 });
   });

@@ -20,7 +20,7 @@
     <h3
       class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
     >
-      {$tr("appearance.title")}
+      {$tr("common.appearance")}
     </h3>
     <p class="m-0 text-[var(--font-small-size,0.82rem)] text-text-secondary">
       {$tr("appearance.description")}

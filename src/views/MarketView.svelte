@@ -41,6 +41,7 @@
   import { marketDensity } from "../stores/uiDensity.js";
   import { getInventoryHydrationController } from "../stores/inventoryHydration.js";
   import { WFM_STATUS_HOLD_MINUTES, titleFromSlug } from "../../config/shared/wfm.js";
+  import { tr, type MessageKey } from "../lib/i18n.js";
   import type {
     MarketTab,
     OrderModalHint,
@@ -59,32 +60,35 @@
   const CONTRACTS_PAGE_SIZE = 40;
   const MARKET_METRIC_PREFETCH_LIMIT = 64;
 
-  const STATUS_OPTIONS: Array<[WfmStatus, string]> = [
-    ["online", "Online"],
-    ["ingame", "In Game"],
-    ["invisible", "Invisible"],
+  let statusOptions: Array<[WfmStatus, string]>;
+  $: statusOptions = [
+    ["online", $tr("common.online")],
+    ["ingame", $tr("common.inGame")],
+    ["invisible", $tr("common.invisible")],
   ];
 
-  const ORDER_TYPE_OPTIONS: Array<[MarketTab, string]> = [
-    ["sell", "Sell Orders"],
-    ["buy", "Buy Orders"],
-    ["rivens", "Rivens"],
-    ["browse", "Browse"],
+  let orderTypeTabs: Array<{ key: MarketTab; label: string }>;
+  $: orderTypeTabs = [
+    { key: "sell", label: $tr("market.tab.sell") },
+    { key: "buy", label: $tr("market.tab.buy") },
+    { key: "rivens", label: $tr("common.rivens") },
+    { key: "browse", label: $tr("market.tab.browse") },
   ];
-  const ORDER_TYPE_TABS = ORDER_TYPE_OPTIONS.map(([key, label]) => ({ key, label }));
 
   // The default sort set reads ducats/set fields order rows never carry; offer
   // the two quantities the rows actually show instead ("Owned N" vs "x N listed").
-  const MARKET_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
-    ["name", "Name"],
-    ["platinum", "Platinum"],
-    ["amount", "Listed Quantity"],
-    ["count", "Owned"],
+  let marketSortOptions: Array<[SharedSortKey, string]>;
+  $: marketSortOptions = [
+    ["name", $tr("common.name")],
+    ["platinum", $tr("common.platinum")],
+    ["amount", $tr("common.listedQuantity")],
+    ["count", $tr("common.owned")],
   ];
-  const RIVEN_CONTRACT_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
-    ["name", "Name"],
-    ["platinum", "Platinum"],
-    ["rerolls", "Rerolls"],
+  let rivenContractSortOptions: Array<[SharedSortKey, string]>;
+  $: rivenContractSortOptions = [
+    ["name", $tr("common.name")],
+    ["platinum", $tr("common.platinum")],
+    ["rerolls", $tr("common.rerolls")],
   ];
 
   const marketFilters = sharedFilters("market");
@@ -120,7 +124,7 @@
     const withoutRiven = contract.itemName.replace(/\s+riven$/i, "").trim();
     if (withoutRiven && withoutRiven !== contract.itemName) return withoutRiven;
     if (contract.itemUrlName) return titleFromSlug(contract.itemUrlName.replace(/_riven$/i, ""));
-    return contract.itemName || "Riven";
+    return contract.itemName || $tr("rivens.type.riven");
   }
 
   function toRivenStat(attribute: WfmContractAttribute): DecodedRiven["stats"][number] {
@@ -129,7 +133,7 @@
     const safeValue = Number.isFinite(numericValue) ? numericValue : 0;
     return {
       tag: attribute.urlName || attribute.label,
-      name: attributeKeyword(attribute) || "Unknown",
+      name: attributeKeyword(attribute) || $tr("common.unknown"),
       displayValue: Math.abs(safeValue),
       // A listed contract is already at its final rank, so there is nothing to scale.
       maxRankValue: Math.abs(safeValue),
@@ -186,7 +190,8 @@
 
   let email = "";
   let password = "";
-  let loginError = "";
+  let loginErrorKey: MessageKey | null = null;
+  let loginErrorText = "";
   let loginLoading = false;
   let ordersLoading = false;
   let ordersError = "";
@@ -207,6 +212,13 @@
   $: statusHoldMinutes = $overlaySettings.wfmStatusHoldMinutes ?? 0;
   $: holdRemaining = formatHoldRemaining($marketViewState.statusExpiresAt, holdNow);
   $: holdIdle = !$marketViewState.status || $marketViewState.status === "invisible";
+  // The sentence stays one key so a translator can move the link; omitting the
+  // param leaves "{link}" in place as the split point.
+  $: steamHintParts = $tr("market.signInSteamHint").split("{link}");
+  $: holdLabels = WFM_STATUS_HOLD_MINUTES.map((minutes) => {
+    if (!minutes) return $tr("market.holdAlways");
+    return minutes < 60 ? `${minutes}m` : `${minutes / 60}h`;
+  });
   // Only tick while there is a deadline to count down; a hold of "Always" would
   // otherwise re-run this view's reactive statements once a second for nothing.
   $: syncHoldTicker($marketViewState.statusExpiresAt !== null);
@@ -220,11 +232,6 @@
     }
     holdNow = Date.now();
     holdTicker = setInterval(() => (holdNow = Date.now()), 1000);
-  }
-
-  function holdLabel(minutes: number): string {
-    if (!minutes) return "Always";
-    return minutes < 60 ? `${minutes}m` : `${minutes / 60}h`;
   }
 
   function formatHoldRemaining(expiresAt: number | null, now: number): string {
@@ -325,12 +332,14 @@
 
   async function login(event: SubmitEvent): Promise<void> {
     event.preventDefault();
-    loginError = "";
+    loginErrorKey = null;
+    loginErrorText = "";
     loginLoading = true;
     try {
       const result = await invoke("wfmSignIn", { email, password });
       if (!result.loggedIn) {
-        loginError = result.error || "Sign-in failed. Check your credentials.";
+        if (result.error) loginErrorText = result.error;
+        else loginErrorKey = "market.signInFailed";
       } else {
         marketSession.set(result);
         password = "";
@@ -340,7 +349,7 @@
         }
       }
     } catch (error) {
-      loginError = (error as Error).message;
+      loginErrorText = (error as Error).message;
     } finally {
       loginLoading = false;
     }
@@ -479,10 +488,10 @@
   }
 
   async function deleteOrder(orderId: string): Promise<void> {
-    if (!confirm("Delete this order?")) return;
+    if (!confirm($tr("market.confirmDeleteOrder"))) return;
     const result = await tradeInvoke("wfmDeleteOrder", orderId);
     if (hasError(result)) {
-      alert(`Delete failed: ${result.error}`);
+      alert($tr("market.deleteFailed", { error: result.error }));
       return;
     }
     marketOrders.update((ordersState) => ({
@@ -506,7 +515,7 @@
     if (!isOrdersTab($marketViewState.typeTab)) return;
     const ids = [...$marketSelected];
     if (!ids.length) return;
-    if (!confirm(`Delete ${ids.length} order(s)?`)) return;
+    if (!confirm($tr("market.confirmDeleteOrders", { count: ids.length }))) return;
     for (const id of ids) {
       await tradeInvoke("wfmDeleteOrder", id);
     }
@@ -543,7 +552,7 @@
   ): Promise<boolean> {
     const result = await tradeInvoke("wfmUpdateOrder", order.id, updates);
     if (hasError(result)) {
-      alert(`Update failed: ${result.error}`);
+      alert($tr("market.updateFailed", { error: result.error }));
       return false;
     }
     marketOrders.update((state) => ({
@@ -616,7 +625,7 @@
   {#if $marketViewState.typeTab === "browse"}
     <!-- Browse works logged out - the order book is public, only posting needs auth. -->
     <div class="view-header">
-      <h2>Browse warframe.market</h2>
+      <h2>{$tr("market.browseTitle")}</h2>
       {#if $marketSession.loggedIn && $marketSession.userName}
         <div class="view-controls gap-2">
           <span
@@ -628,7 +637,7 @@
     </div>
     <div class="mb-2.5 flex items-end border-b border-white/10">
       <HeaderTabs
-        options={ORDER_TYPE_TABS}
+        options={orderTypeTabs}
         activeKey={$marketViewState.typeTab}
         onSelect={handleTypeTabSelect}
       />
@@ -637,7 +646,7 @@
   {:else if !$marketSession.loggedIn}
     <div class="mb-2.5 flex items-end border-b border-white/10">
       <HeaderTabs
-        options={ORDER_TYPE_TABS}
+        options={orderTypeTabs}
         activeKey={$marketViewState.typeTab}
         onSelect={handleTypeTabSelect}
       />
@@ -656,21 +665,22 @@
             <path d="M8 40c0-8.837 7.163-16 16-16s16 7.163 16 16" />
           </svg>
         </div>
-        <h2 class="m-0 font-display text-2xl font-bold">Warframe.market</h2>
+        <h2 class="m-0 font-display text-2xl font-bold">{$tr("market.wfmTitle")}</h2>
         <p class="mt-1.5 mb-3.5 text-sm text-text-secondary">
-          Sign in with your <strong>email &amp; password</strong>.<br />
-          Steam/Discord users: add a password in your
-          <button
+          <strong>{$tr("market.signInHint")}</strong><br />
+          {steamHintParts[0]}<button
             type="button"
             class="link-btn"
             on:click={() =>
               send("open-external", "https://warframe.market/profile/settings#password")}
-            >WFM account settings</button
-          > first.
+            >{$tr("market.wfmAccountSettings")}</button
+          >{steamHintParts[1] ?? ""}
         </p>
         <form autocomplete="on" on:submit={login}>
           <div class="grid gap-1 mb-2">
-            <label for="market-email" class="text-sm font-medium text-text-secondary">Email</label>
+            <label for="market-email" class="text-sm font-medium text-text-secondary"
+              >{$tr("market.emailLabel")}</label
+            >
             <ThemedInput
               id="market-email"
               type="email"
@@ -683,7 +693,7 @@
           </div>
           <div class="grid gap-1 mb-2">
             <label for="market-password" class="text-sm font-medium text-text-secondary"
-              >Password</label
+              >{$tr("market.passwordLabel")}</label
             >
             <ThemedInput
               id="market-password"
@@ -695,11 +705,13 @@
               className="w-full"
             />
           </div>
-          {#if loginError}
-            <div class="text-danger">{loginError}</div>
+          {#if loginErrorKey || loginErrorText}
+            <div class="text-danger">
+              {loginErrorKey ? $tr(loginErrorKey) : loginErrorText}
+            </div>
           {/if}
           <button type="submit" class="btn-primary mt-1 w-full" disabled={loginLoading}>
-            {loginLoading ? "Signing in..." : "Sign In"}
+            {loginLoading ? $tr("market.signingIn") : $tr("market.signIn")}
           </button>
         </form>
       </div>
@@ -707,7 +719,7 @@
   {:else}
     <div>
       <div class="view-header">
-        <h2>{isRivensTab ? "My Rivens" : "My Orders"}</h2>
+        <h2>{isRivensTab ? $tr("market.myRivens") : $tr("market.myOrders")}</h2>
         <div class="view-controls gap-2">
           {#if $marketSession.userName}
             <span
@@ -721,11 +733,15 @@
               class="btn-primary btn-sm"
               on:click={() => orderModalState.set({ mode: "create", order: null })}
             >
-              + New Order
+              {$tr("market.newOrder")}
             </button>
           {/if}
 
-          <button class="btn-secondary btn-sm" title="Refresh" on:click={refreshCurrentTab}>
+          <button
+            class="btn-secondary btn-sm"
+            title={$tr("common.refresh")}
+            on:click={refreshCurrentTab}
+          >
             <svg
               viewBox="0 0 24 24"
               fill="none"
@@ -739,12 +755,12 @@
               <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
             </svg>
           </button>
-          <button class="btn-secondary btn-sm" on:click={logout}>Sign Out</button>
+          <button class="btn-secondary btn-sm" on:click={logout}>{$tr("market.signOut")}</button>
         </div>
       </div>
 
       <div class="mb-2.5 flex flex-wrap items-center gap-1.5">
-        {#each STATUS_OPTIONS as [statusKey, label]}
+        {#each statusOptions as [statusKey, label]}
           <button
             class="rounded-md border border-border bg-bg-surface px-2 py-1 font-display text-xs font-semibold text-text-secondary transition-all duration-[0.14s] hover:border-text-secondary hover:text-text-primary"
             class:statusOnlineActive={statusKey === "online" &&
@@ -762,37 +778,43 @@
         <button
           class="presence-chip"
           class:presenceChipActive={autoIngameEnabled}
-          title="Set your Warframe.market status to In Game while Warframe is running, and put it back when the game closes."
+          title={$tr("market.autoIngameTitle")}
           on:click={() => saveAutoIngame(!autoIngameEnabled)}
         >
-          Auto In Game{autoIngameEnabled ? " on" : " off"}
+          {$tr("market.autoInGame")}{autoIngameEnabled
+            ? $tr("market.stateOn")
+            : $tr("market.stateOff")}
         </button>
 
         <!-- Warframe.market disables the same control while invisible: an already
              hidden status has nothing left to expire. -->
         <div class="flex flex-wrap items-center gap-1.5" class:presenceHoldIdle={holdIdle}>
-          <span class="ml-1 font-display text-xs text-text-muted">Keep status for</span>
-          {#each WFM_STATUS_HOLD_MINUTES as minutes}
+          <span class="ml-1 font-display text-xs text-text-muted"
+            >{$tr("market.keepStatusFor")}</span
+          >
+          {#each WFM_STATUS_HOLD_MINUTES as minutes, index}
             <button
               class="presence-chip"
               class:presenceChipActive={statusHoldMinutes === minutes && !holdIdle}
               disabled={holdIdle}
-              on:click={() => saveHoldMinutes(minutes)}>{holdLabel(minutes)}</button
+              on:click={() => saveHoldMinutes(minutes)}>{holdLabels[index]}</button
             >
           {/each}
         </div>
 
         {#if holdRemaining}
-          <span class="font-display text-xs text-text-secondary">{holdRemaining} left</span>
+          <span class="font-display text-xs text-text-secondary"
+            >{$tr("market.holdLeft", { time: holdRemaining })}</span
+          >
         {/if}
         {#if $marketViewState.statusAutoActive}
-          <span class="font-display text-xs text-text-muted">(following the game)</span>
+          <span class="font-display text-xs text-text-muted">{$tr("market.followingGame")}</span>
         {/if}
       </div>
 
       <div class="mb-2.5 flex items-end border-b border-white/10">
         <HeaderTabs
-          options={ORDER_TYPE_TABS}
+          options={orderTypeTabs}
           activeKey={$marketViewState.typeTab}
           onSelect={handleTypeTabSelect}
         />
@@ -804,25 +826,31 @@
         showBasic={true}
         showAdvanced={false}
         basicVariant="quick"
-        sortOptions={isRivensTab ? RIVEN_CONTRACT_SORT_OPTIONS : MARKET_SORT_OPTIONS}
+        sortOptions={isRivensTab ? rivenContractSortOptions : marketSortOptions}
       />
 
       {#if !isRivensTab && (filteredOrderRows.length > 0 || $marketSelected.size > 0)}
         <div
           class="flex flex-wrap items-center gap-1.5 mb-2.5 rounded-lg border border-border bg-bg-surface px-2.5 py-2"
         >
-          <span class="mr-1.5 text-xs text-text-secondary">{$marketSelected.size} selected</span>
-          <button class="btn-sm btn-secondary" on:click={selectAllVisible}>Select All</button>
+          <span class="mr-1.5 text-xs text-text-secondary"
+            >{$tr("common.selected", { count: $marketSelected.size })}</span
+          >
+          <button class="btn-sm btn-secondary" on:click={selectAllVisible}
+            >{$tr("common.selectAll")}</button
+          >
           {#if $marketSelected.size > 0}
             <button class="btn-sm btn-secondary" on:click={() => bulkSetVisible(true)}
-              >Set Visible</button
+              >{$tr("market.setVisible")}</button
             >
             <button class="btn-sm btn-secondary" on:click={() => bulkSetVisible(false)}
-              >Set Hidden</button
+              >{$tr("market.setHidden")}</button
             >
-            <button class="btn-sm btn-danger" on:click={bulkDelete}>Delete Selected</button>
+            <button class="btn-sm btn-danger" on:click={bulkDelete}
+              >{$tr("common.deleteSelected")}</button
+            >
             <button class="btn-sm btn-secondary" on:click={() => marketSelected.set(new Set())}
-              >Unselect All</button
+              >{$tr("market.unselectAll")}</button
             >
           {/if}
         </div>
@@ -843,7 +871,7 @@
               <div
                 class="rounded-lg border border-border bg-bg-surface px-2.5 py-2.5 text-sm text-text-muted"
               >
-                Loading riven contracts...
+                {$tr("market.loadingContracts")}
               </div>
             {:else if contractsError}
               <div
@@ -855,7 +883,7 @@
               <div
                 class="rounded-lg border border-border bg-bg-surface px-2.5 py-2.5 text-sm text-text-muted"
               >
-                No riven contracts found.
+                {$tr("market.noContracts")}
               </div>
             {:else}
               {#each filteredContractRows as contract}
@@ -873,7 +901,7 @@
                   on:click={loadMoreContracts}
                   disabled={contractsLoading}
                 >
-                  {contractsLoading ? "Loading..." : "Load More"}
+                  {contractsLoading ? $tr("common.loading") : $tr("market.loadMore")}
                 </button>
               {/if}
             {/if}
@@ -881,7 +909,7 @@
             <div
               class="rounded-lg border border-border bg-bg-surface px-2.5 py-2.5 text-sm text-text-muted"
             >
-              Loading orders...
+              {$tr("market.loadingOrders")}
             </div>
           {:else if ordersError}
             <div
@@ -893,7 +921,15 @@
             <div
               class="rounded-lg border border-border bg-bg-surface px-2.5 py-2.5 text-sm text-text-muted"
             >
-              No {$marketViewState.typeTab} orders. Click <strong>+ New Order</strong> to create one.
+              {$tr("market.noOrdersPrefix", {
+                tab: $tr(
+                  $marketViewState.typeTab === "buy"
+                    ? "market.orderTypeLower.buy"
+                    : "market.orderTypeLower.sell",
+                ),
+              })}
+              <strong>{$tr("market.newOrder")}</strong>
+              {$tr("market.noOrdersSuffix")}
             </div>
           {:else}
             {#each filteredOrderRows as order}

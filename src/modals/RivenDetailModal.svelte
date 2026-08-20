@@ -11,6 +11,8 @@
     canonicalRivenStatName,
     computeRivenStatSimilarity,
   } from "../../renderer/riven-similarity.js";
+  import { tr, type MessageKey } from "../lib/i18n.js";
+  import { RIVEN_ATTR_GRADE_KEYS, RIVEN_TYPE_KEYS } from "../lib/rivenLabels.js";
 
   interface Props {
     riven: DecodedRiven;
@@ -36,8 +38,10 @@
   /** List an unranked riven at its rank-8 numbers, the way buyers compare them. */
   let listAtMaxRank = $state(false);
   let listingBusy = $state(false);
-  let listingError = $state("");
-  let listingSuccess = $state("");
+  let listingErrorKey = $state<MessageKey | null>(null);
+  /** Server-supplied text, already localized by WFM or not translatable at all. */
+  let listingErrorRaw = $state("");
+  let listingSuccessKey = $state<MessageKey | null>(null);
   let isLoggedIn = $state(false);
   let bestAttrs = $state<RivenBestAttributes | null>(null);
   let showAllListings = $state(false);
@@ -110,25 +114,30 @@
     disposed = true;
   });
 
+  function setListingError(key: MessageKey): void {
+    listingErrorKey = key;
+    listingErrorRaw = "";
+  }
+
   async function handleListOnWfm() {
     if (listingPrice < 1) {
-      listingError =
-        listingType === "auction"
-          ? "Starting bid must be at least 1p"
-          : "Price must be at least 1p";
+      setListingError(
+        listingType === "auction" ? "rivens.detail.startingBidMin" : "rivens.detail.priceMin",
+      );
       return;
     }
     if (listingType === "auction" && listingBuyout > 0 && listingBuyout < listingPrice) {
-      listingError = "Buyout cannot be below the starting bid";
+      setListingError("rivens.detail.buyoutBelowStarting");
       return;
     }
     if (listingType === "auction" && listingMinReputation < 0) {
-      listingError = "Minimum reputation cannot be negative";
+      setListingError("rivens.detail.minRepNegative");
       return;
     }
     listingBusy = true;
-    listingError = "";
-    listingSuccess = "";
+    listingErrorKey = null;
+    listingErrorRaw = "";
+    listingSuccessKey = null;
 
     const asMaxRank = canListAtMaxRank && listAtMaxRank;
     const stats = riven.stats.map((s) => ({
@@ -169,11 +178,12 @@
 
     listingBusy = false;
     if (result.ok) {
-      listingSuccess = contract ? "Contract updated." : "Listed on WFMarket!";
+      listingSuccessKey = contract ? "rivens.detail.contractUpdated" : "rivens.detail.listedOnWfm";
       oncontractupdated?.();
+    } else if (result.error) {
+      listingErrorRaw = result.error;
     } else {
-      listingError =
-        result.error || (contract ? "Failed to update auction" : "Failed to create auction");
+      setListingError(contract ? "rivens.detail.failedUpdate" : "rivens.detail.failedCreate");
     }
   }
 
@@ -187,17 +197,26 @@
     new Set(riven.stats.filter((s) => s.positive).map((s) => canonicalRivenStatName(s.name))),
   );
   const weaponDbEntry = $derived($itemDb[riven.weaponUniqueName]);
+
+  const rivenTypeKey = $derived(RIVEN_TYPE_KEYS[riven.rivenType]);
+  const rivenTypeLabel = $derived(rivenTypeKey ? $tr(rivenTypeKey) : riven.rivenType);
+  const attrGradeKey = $derived(RIVEN_ATTR_GRADE_KEYS[riven.attributeGrade]);
+  const attrGradeLabel = $derived(attrGradeKey ? $tr(attrGradeKey) : riven.attributeGrade);
+  const listingErrorText = $derived(
+    listingErrorRaw || (listingErrorKey ? $tr(listingErrorKey) : ""),
+  );
+  const listingSuccessText = $derived(listingSuccessKey ? $tr(listingSuccessKey) : "");
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
 
 <DetailModalBase
-  ariaLabel={`Riven details: ${riven.rivenName || riven.weaponName}`}
+  ariaLabel={$tr("rivens.detail.rivenDetailsAria", { name: riven.rivenName || riven.weaponName })}
   onClose={onclose}
   panelClass="!w-[860px] !max-w-[92vw]"
 >
   <div class="detail-panel-top-actions">
-    <button class="detail-close" aria-label="Close" onclick={onclose}>&times;</button>
+    <button class="detail-close" aria-label={$tr("common.close")} onclick={onclose}>&times;</button>
   </div>
   <div class="px-7 pt-2 pb-7">
     <div class="mb-5">
@@ -216,27 +235,30 @@
         <span class="uppercase tracking-[0.04em] text-accent-dim"
           >{isContractListing
             ? contract?.isDirectSell
-              ? "Direct sale"
-              : "Auction"
-            : riven.rivenType}</span
+              ? $tr("rivens.detail.directSale")
+              : $tr("common.auction")
+            : rivenTypeLabel}</span
         >
         {#if typeof weaponDbEntry?.vaulted === "boolean"}
           <span
             class="detail-tag"
             class:vaulted={weaponDbEntry.vaulted}
             class:mastered={!weaponDbEntry.vaulted}
-            >{weaponDbEntry.vaulted ? "VAULTED" : "UNVAULTED"}</span
+            >{weaponDbEntry.vaulted ? $tr("common.vaulted") : $tr("common.unvaulted")}</span
           >
         {/if}
         {#if !isContractListing}
-          <span class="tracking-[-0.3px]" title="Disposition: {riven.disposition.toFixed(3)}"
-            >{dispoStars(riven.disposition)} {riven.disposition.toFixed(2)}</span
+          <span
+            class="tracking-[-0.3px]"
+            title={$tr("rivens.detail.dispositionTitle", {
+              value: riven.disposition.toFixed(3),
+            })}>{dispoStars(riven.disposition)} {riven.disposition.toFixed(2)}</span
           >
         {/if}
-        <span>{riven.rerolls} rolls</span>
-        <span>Rank {riven.currentRank}/{riven.maxRank}</span>
+        <span>{$tr("rivens.detail.rerolls", { count: riven.rerolls })}</span>
+        <span>{$tr("rivens.detail.rank", { current: riven.currentRank, max: riven.maxRank })}</span>
         {#if riven.masteryReq > 0}
-          <span>MR {riven.masteryReq}</span>
+          <span>{$tr("rivens.mr", { level: riven.masteryReq })}</span>
         {/if}
       </div>
     </div>
@@ -248,33 +270,37 @@
             class="flex flex-col items-center p-4 bg-bg-surface border border-border rounded-lg gap-1"
           >
             <span class="font-display text-xs uppercase tracking-[0.08em] text-text-muted"
-              >Roll Quality</span
+              >{$tr("rivens.detail.rollQuality")}</span
             >
             <span
               class="font-display text-3xl font-extrabold"
               style="color: {gradeColor(riven.overallGrade)}">{riven.overallGrade}</span
             >
             <span class="text-xs text-text-secondary"
-              >{Math.round(riven.statPerfectness * 100)}% perfect</span
+              >{$tr("rivens.detail.percentPerfect", {
+                pct: Math.round(riven.statPerfectness * 100),
+              })}</span
             >
           </div>
           <div
             class="flex flex-col items-center p-4 bg-bg-surface border border-border rounded-lg gap-1"
           >
             <span class="font-display text-xs uppercase tracking-[0.08em] text-text-muted"
-              >Attributes</span
+              >{$tr("common.attributes")}</span
             >
             <span
               class="font-display text-3xl font-extrabold"
-              style="color: {attrGradeColor(riven.attributeGrade)}">{riven.attributeGrade}</span
+              style="color: {attrGradeColor(riven.attributeGrade)}">{attrGradeLabel}</span
             >
             <span class="text-xs text-text-secondary">
-              {riven.stats.filter((s) => s.positive).length} buff{riven.stats.filter(
-                (s) => s.positive,
-              ).length !== 1
-                ? "s"
-                : ""}
-              {#if riven.stats.some((s) => !s.positive)}, 1 curse{/if}
+              {riven.stats.filter((s) => s.positive).length !== 1
+                ? $tr("rivens.detail.buffsCount", {
+                    count: riven.stats.filter((s) => s.positive).length,
+                  })
+                : $tr("rivens.detail.buffCount", {
+                    count: riven.stats.filter((s) => s.positive).length,
+                  })}
+              {#if riven.stats.some((s) => !s.positive)}, {$tr("rivens.detail.oneCurse")}{/if}
             </span>
           </div>
         </div>
@@ -282,7 +308,7 @@
 
       <div>
         <h3 class="font-display text-xs uppercase tracking-[0.08em] text-text-muted m-0 mb-2.5">
-          Attributes
+          {$tr("common.attributes")}
         </h3>
         <div class="flex flex-col gap-2">
           {#each riven.stats as stat}
@@ -331,13 +357,13 @@
       {#if bestAttrs}
         <div class="mt-5">
           <h3 class="font-display text-xs uppercase tracking-[0.08em] text-text-muted m-0 mb-2.5">
-            Best Attributes for {riven.weaponName}
+            {$tr("rivens.detail.bestAttributesFor", { weapon: riven.weaponName })}
           </h3>
           <div class="grid grid-cols-2 gap-4">
             <div class="flex flex-col gap-1">
               <span
                 class="font-display text-xs uppercase tracking-[0.06em] font-bold mb-1 text-[#4ade80]"
-                >Desired Positives</span
+                >{$tr("rivens.detail.desiredPositives")}</span
               >
               {#each bestAttrs.positives as attr}
                 {@const matched = myStatNamesLc.has(canonicalRivenStatName(attr))}
@@ -351,7 +377,7 @@
             <div class="flex flex-col gap-1">
               <span
                 class="font-display text-xs uppercase tracking-[0.06em] font-bold mb-1 text-[#ef4444]"
-                >Desired Negatives</span
+                >{$tr("rivens.detail.desiredNegatives")}</span
               >
               {#each bestAttrs.negatives as attr}
                 {@const matched = riven.stats.some(
@@ -371,12 +397,16 @@
 
       <div class="mt-6">
         <h3 class="font-display text-xs uppercase tracking-[0.08em] text-text-muted m-0 mb-2.5">
-          Similar on WFM
+          {$tr("rivens.detail.similarOnWfm")}
         </h3>
         {#if loadingListings}
-          <div class="text-sm text-text-muted text-center py-4">Searching auctions...</div>
+          <div class="text-sm text-text-muted text-center py-4">
+            {$tr("rivens.detail.searchingAuctions")}
+          </div>
         {:else if similarListings.length === 0}
-          <div class="text-sm text-text-muted text-center py-4">No similar rivens found</div>
+          <div class="text-sm text-text-muted text-center py-4">
+            {$tr("rivens.detail.noSimilarFound")}
+          </div>
         {:else}
           {@const visibleListings = showAllListings
             ? similarListings
@@ -396,7 +426,9 @@
                   <span class="font-bold text-accent-bright"
                     >{listing.buyoutPrice ?? listing.startingPrice ?? listing.platinum}p</span
                   >
-                  <span class="text-text-muted ml-auto">{listing.rerolls} rolls</span>
+                  <span class="text-text-muted ml-auto"
+                    >{$tr("rivens.detail.rerolls", { count: listing.rerolls })}</span
+                  >
                 </div>
                 <div class="flex flex-col gap-0.5">
                   {#each listing.stats as s}
@@ -414,10 +446,10 @@
                   <span class="text-xs text-text-muted">{listing.seller}</span>
                   <button
                     class="font-display text-xs font-bold py-0.5 px-1.5 rounded border border-border bg-bg-raised text-accent-bright cursor-pointer uppercase tracking-[0.03em] transition-all duration-150 hover:bg-accent-bright hover:text-bg-base hover:border-accent-bright"
-                    title="Open on warframe.market"
+                    title={$tr("common.openOnWarframeMarket")}
                     onclick={() =>
                       send("open-external", `https://warframe.market/auction/${listing.id}`)}
-                    >WFM ↗</button
+                    >{$tr("rivens.detail.wfmLink")}</button
                   >
                 </div>
               </div>
@@ -430,9 +462,13 @@
                 class="font-display text-xs font-semibold py-1.5 px-3.5 rounded-md border border-border bg-bg-raised text-text-secondary cursor-pointer transition-all duration-150 hover:bg-bg-hover hover:text-text-primary hover:border-accent-dim"
                 onclick={() => (showAllListings = !showAllListings)}
               >
-                {showAllListings ? "Show fewer" : `Show all (${similarListings.length})`}
+                {showAllListings
+                  ? $tr("common.showFewer")
+                  : $tr("rivens.detail.showAll", { count: similarListings.length })}
                 {#if !showAllListings && hiddenCount > 0}
-                  <span class="text-text-muted ml-1">· {hiddenCount} more</span>
+                  <span class="text-text-muted ml-1"
+                    >· {$tr("rivens.detail.moreCount", { count: hiddenCount })}</span
+                  >
                 {/if}
               </button>
             </div>
@@ -442,18 +478,20 @@
 
       <div class="mt-6 border-t border-border pt-4">
         <h3 class="font-display text-xs uppercase tracking-[0.08em] text-text-muted m-0 mb-2.5">
-          {isContractListing ? "WFMarket contract:" : "List on WFMarket:"}
+          {isContractListing
+            ? $tr("rivens.detail.wfmContractTitle")
+            : $tr("rivens.detail.listOnWfmTitle")}
         </h3>
         {#if !isLoggedIn}
           <div class="text-sm text-text-muted text-center py-3">
-            Log in to WFMarket to list this riven.
+            {$tr("rivens.detail.loginToList")}
           </div>
         {:else}
           <div class="flex flex-col gap-3">
             <div class="flex items-end gap-5 flex-wrap">
               <div class="flex flex-col gap-1">
                 <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
-                  >Type:</span
+                  >{$tr("rivens.detail.typeLabel")}</span
                 >
                 <div class="flex gap-1.5">
                   <button
@@ -461,20 +499,21 @@
                     'direct'
                       ? 'bg-accent-bright text-bg-base border-accent-bright'
                       : 'border-border bg-bg-raised text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-                    onclick={() => (listingType = "direct")}>Direct sale</button
+                    onclick={() => (listingType = "direct")}
+                    >{$tr("rivens.detail.directSale")}</button
                   >
                   <button
                     class="font-display text-xs font-semibold py-1 px-2.5 rounded-md border cursor-pointer transition-all duration-150 {listingType ===
                     'auction'
                       ? 'bg-accent-bright text-bg-base border-accent-bright'
                       : 'border-border bg-bg-raised text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-                    onclick={() => (listingType = "auction")}>Auction</button
+                    onclick={() => (listingType = "auction")}>{$tr("common.auction")}</button
                   >
                 </div>
               </div>
               <div class="flex flex-col gap-1">
                 <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
-                  >Visibility:</span
+                  >{$tr("rivens.detail.visibilityLabel")}</span
                 >
                 <div class="flex gap-1.5">
                   <button
@@ -482,20 +521,22 @@
                     'public'
                       ? 'bg-accent-bright text-bg-base border-accent-bright'
                       : 'border-border bg-bg-raised text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-                    onclick={() => (listingVisibility = "public")}>Public</button
+                    onclick={() => (listingVisibility = "public")}
+                    >{$tr("rivens.detail.public")}</button
                   >
                   <button
                     class="font-display text-xs font-semibold py-1 px-2.5 rounded-md border cursor-pointer transition-all duration-150 {listingVisibility ===
                     'private'
                       ? 'bg-accent-bright text-bg-base border-accent-bright'
                       : 'border-border bg-bg-raised text-text-secondary hover:bg-bg-hover hover:text-text-primary'}"
-                    onclick={() => (listingVisibility = "private")}>Private</button
+                    onclick={() => (listingVisibility = "private")}
+                    >{$tr("rivens.detail.private")}</button
                   >
                 </div>
               </div>
               <div class="flex flex-col gap-1 flex-1 min-w-[140px]">
                 <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
-                  >Description (Optional):</span
+                  >{$tr("rivens.detail.descriptionOptional")}</span
                 >
                 <input
                   type="text"
@@ -508,23 +549,25 @@
             {#if canListAtMaxRank}
               <label
                 class="flex w-fit cursor-pointer items-center gap-2 text-xs text-text-secondary"
-                title="Buyers compare rivens at max rank; this lists the rank-8 numbers instead of the current rank {riven.currentRank} ones."
+                title={$tr("rivens.detail.maxRankTooltip", { current: riven.currentRank })}
               >
                 <input type="checkbox" bind:checked={listAtMaxRank} />
-                List with rank {riven.maxRank} stats
+                {$tr("rivens.detail.listWithRankStats", { max: riven.maxRank })}
               </label>
             {/if}
             <div class="flex items-end gap-5 flex-wrap justify-between">
               <div class="flex items-end gap-4">
                 <div class="flex flex-col gap-1">
                   <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
-                    >{listingType === "auction" ? "Starting bid:" : "Selling price:"}</span
+                    >{listingType === "auction"
+                      ? $tr("rivens.detail.startingBidLabel")
+                      : $tr("rivens.detail.sellingPriceLabel")}</span
                   >
                   <div class="flex items-center gap-1">
                     <img
                       class="align-middle shrink-0"
                       src={PLATINUM_ICON_URL}
-                      alt="Platinum"
+                      alt={$tr("common.platinum")}
                       width="16"
                       height="16"
                     />
@@ -533,20 +576,22 @@
                       class="w-20 text-sm py-1 px-2 rounded-md border border-border bg-bg-raised text-text-primary outline-none transition-[border-color] duration-150 focus:border-accent-bright"
                       bind:value={listingPrice}
                       min="1"
-                      aria-label={listingType === "auction" ? "Starting bid" : "Selling price"}
+                      aria-label={listingType === "auction"
+                        ? $tr("rivens.detail.startingBidAria")
+                        : $tr("rivens.detail.sellingPriceAria")}
                     />
                   </div>
                 </div>
                 {#if listingType === "auction"}
                   <div class="flex flex-col gap-1">
                     <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
-                      >Buyout (Optional):</span
+                      >{$tr("rivens.detail.buyoutOptional")}</span
                     >
                     <div class="flex items-center gap-1">
                       <img
                         class="align-middle shrink-0"
                         src={PLATINUM_ICON_URL}
-                        alt="Platinum"
+                        alt={$tr("common.platinum")}
                         width="16"
                         height="16"
                       />
@@ -555,21 +600,21 @@
                         class="w-20 text-sm py-1 px-2 rounded-md border border-border bg-bg-raised text-text-primary outline-none transition-[border-color] duration-150 focus:border-accent-bright"
                         bind:value={listingBuyout}
                         min="0"
-                        placeholder="None"
-                        aria-label="Buyout price"
+                        placeholder={$tr("common.none")}
+                        aria-label={$tr("rivens.detail.buyoutPriceAria")}
                       />
                     </div>
                   </div>
                   <div class="flex flex-col gap-1">
                     <span class="font-display text-xs uppercase tracking-[0.06em] text-text-muted"
-                      >Min. reputation:</span
+                      >{$tr("rivens.detail.minReputationLabel")}</span
                     >
                     <input
                       type="number"
                       class="w-20 text-sm py-1 px-2 rounded-md border border-border bg-bg-raised text-text-primary outline-none transition-[border-color] duration-150 focus:border-accent-bright"
                       bind:value={listingMinReputation}
                       min="0"
-                      aria-label="Minimum reputation"
+                      aria-label={$tr("rivens.detail.minReputationAria")}
                     />
                   </div>
                 {/if}
@@ -581,18 +626,18 @@
               >
                 {listingBusy
                   ? isContractListing
-                    ? "Saving..."
-                    : "Listing..."
+                    ? $tr("common.saving")
+                    : $tr("rivens.detail.listing")
                   : isContractListing
-                    ? "Edit contract"
-                    : "List on WFMarket"}
+                    ? $tr("rivens.detail.editContract")
+                    : $tr("rivens.detail.listOnWfmButton")}
               </button>
             </div>
-            {#if listingError}
-              <div class="text-xs py-1 text-danger">{listingError}</div>
+            {#if listingErrorText}
+              <div class="text-xs py-1 text-danger">{listingErrorText}</div>
             {/if}
-            {#if listingSuccess}
-              <div class="text-xs py-1 text-success">{listingSuccess}</div>
+            {#if listingSuccessText}
+              <div class="text-xs py-1 text-success">{listingSuccessText}</div>
             {/if}
           </div>
         {/if}

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy, tick } from "svelte";
+  import { tr } from "../lib/i18n.js";
 
   /** Accessible name for the dialog - typically the item/entity name. */
   export let ariaLabel: string;
@@ -93,7 +94,11 @@
   bind:this={overlayEl}
   on:keydown={onKeydown}
 >
-  <button type="button" class="detail-backdrop" aria-label="Close dialog" on:click={onClose}
+  <button
+    type="button"
+    class="detail-backdrop"
+    aria-label={$tr("common.closeDialog")}
+    on:click={onClose}
   ></button>
   <slot />
 </div>

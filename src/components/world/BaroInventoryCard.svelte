@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { ItemDbLookup, WfmItemsLookup } from "../../types/ipc.js";
   import { getLookupByName } from "../../lib/inventoryMarket.js";
+  import { locale, tr } from "../../lib/i18n.js";
 
   // Baro inventory entry - typed loosely to match the world-state shape.
   type BaroEntry = {
@@ -27,8 +28,12 @@
     dbEntry?.imageUrl ||
     (typeof entry.imageOverride === "string" ? entry.imageOverride : null);
 
-  $: title = `${entry.item || "Unknown"}${entry.ducats ? ` · ${entry.ducats} duc` : ""}${
-    entry.credits ? ` / ${entry.credits.toLocaleString()} cr` : ""
+  $: title = `${entry.item || $tr("common.unknown")}${
+    entry.ducats ? ` · ${$tr("world.baro.ducatsShort", { count: entry.ducats })}` : ""
+  }${
+    entry.credits
+      ? ` / ${$tr("world.baro.creditsShort", { amount: entry.credits.toLocaleString($locale) })}`
+      : ""
   }`;
 
   // Variant classes - broken out for readability.
@@ -86,6 +91,6 @@
 
   <span
     class="overflow-hidden text-ellipsis whitespace-nowrap text-center text-xs
-           text-text-secondary {labelMaxW}">{entry.item || "Unknown"}</span
+           text-text-secondary {labelMaxW}">{entry.item || $tr("common.unknown")}</span
   >
 </button>
