@@ -1,10 +1,7 @@
-import fs from "node:fs";
-
 import { screen, type BrowserWindow } from "electron";
 
+import { createJsonCache } from "./jsonCache";
 import { withScope } from "./logger";
-import { writeFileAtomicSync } from "./atomicFile";
-import { userDataPath } from "./userDataPath";
 
 const log = withScope("mainWindowState");
 
@@ -23,8 +20,6 @@ interface MinWindowSize {
   width: number;
   height: number;
 }
-
-const stateFile = (): string => userDataPath("main-window-state.json");
 
 function overlapArea(bounds: WindowBounds, area: WindowBounds): number {
   const x = Math.min(bounds.x + bounds.width, area.x + area.width) - Math.max(bounds.x, area.x);
@@ -55,8 +50,14 @@ export function fitBoundsToDisplays(
   return {
     width,
     height,
-    x: Math.round(Math.min(Math.max(bounds.x, best.x), best.x + best.width - width)),
-    y: Math.round(Math.min(Math.max(bounds.y, best.y), best.y + best.height - height)),
+    x:
+      width > best.width
+        ? best.x
+        : Math.round(Math.min(Math.max(bounds.x, best.x), best.x + best.width - width)),
+    y:
+      height > best.height
+        ? best.y
+        : Math.round(Math.min(Math.max(bounds.y, best.y), best.y + best.height - height)),
   };
 }
 
@@ -64,33 +65,35 @@ function isFiniteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-/** Reopen on the last monitor, clamped so a resized display cannot hide it. */
-export function loadMainWindowState(min: MinWindowSize): MainWindowState | null {
-  try {
-    const raw = JSON.parse(fs.readFileSync(stateFile(), "utf8")) as Record<string, unknown>;
-    const { x, y, width, height } = raw;
-    if (
-      !isFiniteNumber(x) ||
-      !isFiniteNumber(y) ||
-      !isFiniteNumber(width) ||
-      !isFiniteNumber(height)
-    ) {
-      return null;
-    }
-    const workAreas = screen.getAllDisplays().map((display) => display.workArea);
-    const fitted = fitBoundsToDisplays({ x, y, width, height }, workAreas, min);
-    if (!fitted) return null;
-    return { ...fitted, maximized: raw.maximized === true };
-  } catch {
+const stateCache = createJsonCache<MainWindowState>("main-window-state.json", (parsed) => {
+  if (!parsed || typeof parsed !== "object") return null;
+  const raw = parsed as Record<string, unknown>;
+  const { x, y, width, height } = raw;
+  if (
+    !isFiniteNumber(x) ||
+    !isFiniteNumber(y) ||
+    !isFiniteNumber(width) ||
+    !isFiniteNumber(height)
+  ) {
     return null;
   }
+  return { x, y, width, height, maximized: raw.maximized === true };
+});
+
+/** Reopen on the last monitor, clamped so a resized display cannot hide it. */
+export function loadMainWindowState(min: MinWindowSize): MainWindowState | null {
+  const raw = stateCache.read();
+  if (!raw) return null;
+  const workAreas = screen.getAllDisplays().map((display) => display.workArea);
+  const fitted = fitBoundsToDisplays(raw, workAreas, min);
+  return fitted ? { ...fitted, maximized: raw.maximized } : null;
 }
 
 export function saveMainWindowState(win: BrowserWindow): void {
   if (win.isDestroyed()) return;
   try {
     const state: MainWindowState = { ...win.getNormalBounds(), maximized: win.isMaximized() };
-    writeFileAtomicSync(stateFile(), JSON.stringify(state));
+    stateCache.write(state);
   } catch (err) {
     log.warn("[Main] window state save failed:", err);
   }

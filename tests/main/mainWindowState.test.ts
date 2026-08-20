@@ -18,7 +18,6 @@ describe("fitBoundsToDisplays", () => {
   });
 
   it("pulls a mostly-offscreen window back onto its display", () => {
-    // A 100px sliver used to count as visible and left the rest off-screen.
     const fitted = fitBoundsToDisplays({ x: 1850, y: 0, width: 1280, height: 820 }, [PRIMARY], MIN);
     expect(fitted).toEqual({ x: 640, y: 0, width: 1280, height: 820 });
   });
@@ -35,6 +34,12 @@ describe("fitBoundsToDisplays", () => {
     expect(tiny).toEqual({ x: 1920, y: 0, width: 900, height: 600 });
   });
 
+  it("anchors an oversized minimum at the work-area origin", () => {
+    const compact = { x: 0, y: 0, width: 800, height: 500 };
+    const fitted = fitBoundsToDisplays({ x: 100, y: 80, width: 1280, height: 820 }, [compact], MIN);
+    expect(fitted).toEqual({ x: 0, y: 0, width: 900, height: 600 });
+  });
+
   it("returns null when the saved display is gone", () => {
     expect(fitBoundsToDisplays({ x: 4000, y: 0, width: 1280, height: 820 }, [PRIMARY], MIN)).toBe(
       null,
@@ -43,7 +48,6 @@ describe("fitBoundsToDisplays", () => {
   });
 
   it("prefers the display holding most of the window", () => {
-    // Straddles the seam with more area on the secondary.
     const fitted = fitBoundsToDisplays(
       { x: 1700, y: 0, width: 1000, height: 640 },
       [PRIMARY, SECONDARY],
