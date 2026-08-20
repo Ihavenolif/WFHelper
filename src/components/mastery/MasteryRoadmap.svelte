@@ -5,7 +5,7 @@
   import ThemedPanel from "../ThemedPanel.svelte";
   import { masteryXpToRank } from "../../../config/shared/masteryXp.js";
   import { readStorage, writeStorage } from "../../lib/persistence.js";
-  import { tr } from "../../lib/i18n.js";
+  import { locale, tr } from "../../lib/i18n.js";
   import type { MasteryRoadmap, MasteryRoadmapRecommendation } from "../../lib/masteryRoadmap.js";
 
   type RoadmapMode = "easy" | "relics" | "platinum";
@@ -95,7 +95,7 @@
         >{$tr("mastery.roadmap.easyMastery")}</span
       >
       <strong class="font-display text-2xl text-success"
-        >{$tr("mastery.roadmap.xpAmount", { amount: easyXp.toLocaleString() })}</strong
+        >{$tr("mastery.roadmap.xpAmount", { amount: easyXp.toLocaleString($locale) })}</strong
       >
       <span class="block text-xs text-text-secondary">
         {#if easyPotentialRank != null}{$tr("mastery.roadmap.easyDescWithRank", {
@@ -109,7 +109,7 @@
         >{$tr("mastery.roadmap.accessRelics")}</span
       >
       <strong class="font-display text-2xl text-accent"
-        >{$tr("mastery.roadmap.xpAmount", { amount: relicXp.toLocaleString() })}</strong
+        >{$tr("mastery.roadmap.xpAmount", { amount: relicXp.toLocaleString($locale) })}</strong
       >
       <span class="block text-xs text-text-secondary">
         {$tr("mastery.roadmap.relicsDesc", { count: roadmap.relics.length })}
@@ -120,7 +120,7 @@
         >{$tr("mastery.roadmap.buyableMastery")}</span
       >
       <strong class="font-display text-2xl text-info"
-        >{$tr("mastery.roadmap.xpAmount", { amount: buyableXp.toLocaleString() })}</strong
+        >{$tr("mastery.roadmap.xpAmount", { amount: buyableXp.toLocaleString($locale) })}</strong
       >
       <span class="block text-xs text-text-secondary">
         {$tr("mastery.roadmap.buyableDesc", { count: roadmap.platinum.length })}
@@ -136,7 +136,7 @@
         {#if bestValue.estimatedCost != null}
           <span class="block text-xs text-text-secondary">
             {$tr("mastery.roadmap.xpPerPlatAt", {
-              xp: Math.round(bestValue.xpPerPlatinum ?? 0).toLocaleString(),
+              xp: Math.round(bestValue.xpPerPlatinum ?? 0).toLocaleString($locale),
               cost: bestValue.estimatedCost,
             })}
           </span>
@@ -239,14 +239,14 @@
           <span class="grid justify-items-end gap-1 text-right">
             <strong class="font-display text-base text-accent"
               >{$tr("mastery.roadmap.xpAmount", {
-                amount: item.masteryXpRemaining.toLocaleString(),
+                amount: item.masteryXpRemaining.toLocaleString($locale),
               })}</strong
             >
             {#if item.estimatedCost != null && item.access === "platinum"}
               <span class="text-sm font-semibold text-info">{item.estimatedCost}p</span>
               <span class="text-[0.68rem] text-text-muted">
                 {$tr("mastery.roadmap.xpPerPlat", {
-                  xp: Math.round(item.xpPerPlatinum ?? 0).toLocaleString(),
+                  xp: Math.round(item.xpPerPlatinum ?? 0).toLocaleString($locale),
                 })}
               </span>
             {/if}

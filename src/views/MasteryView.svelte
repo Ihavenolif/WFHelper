@@ -11,7 +11,7 @@
   import { parseOwnedRelics } from "../lib/relic.js";
   import { activeItem, activeComponent } from "../stores/modals.js";
   import { hideFounderMasteryItems } from "../stores/preferences.js";
-  import { tr } from "../lib/i18n.js";
+  import { locale, tr } from "../lib/i18n.js";
   import type { MessageKey } from "../lib/i18n.js";
   import SharedFilterBar from "../components/SharedFilterBar.svelte";
   import HeaderTabs from "../components/HeaderTabs.svelte";
@@ -170,6 +170,7 @@
     data: typeof $masteryData,
     foundry: ReturnType<typeof buildFoundryIndex>,
     t: Translate,
+    localeCode: string,
   ): SummaryStripItem[] {
     if (!data) return [];
     const stats = data.stats;
@@ -186,8 +187,8 @@
       if (profileMastery.testReady && profileMastery.xpIntoRank != null) {
         // Banked XP overflows past the bar; show the real figure, not a clamp.
         label = t("mastery.mrXpReady", {
-          xp: profileMastery.xpIntoRank.toLocaleString(),
-          needed: (profileMastery.xpForNext ?? 0).toLocaleString(),
+          xp: profileMastery.xpIntoRank.toLocaleString(localeCode),
+          needed: (profileMastery.xpForNext ?? 0).toLocaleString(localeCode),
           rank: nextRank,
         });
       } else if (profileMastery.testReady) {
@@ -195,7 +196,10 @@
       } else if (profileMastery.xpIntoRank != null && profileMastery.xpForNext != null) {
         // The game counts down to the next rank ("LEGENDARY 7 IN 93,362"); match it.
         const remaining = Math.max(0, profileMastery.xpForNext - profileMastery.xpIntoRank);
-        label = t("mastery.mrRemainingXp", { rank: nextRank, xp: remaining.toLocaleString() });
+        label = t("mastery.mrRemainingXp", {
+          rank: nextRank,
+          xp: remaining.toLocaleString(localeCode),
+        });
       } else if (profileMastery.percentToNext != null) {
         label = t("mastery.percentToNext", { pct: profileMastery.percentToNext });
       }
@@ -211,6 +215,7 @@
           profileMastery.rank,
           profileMastery.totalXp,
           readyXp,
+          localeCode,
         );
         if (projection) {
           mrRow.subtext = projection;
@@ -222,7 +227,7 @@
     return rows;
   }
 
-  $: masterySummaryItems = buildMasterySummary(displayMasteryData, foundryIndex, $tr);
+  $: masterySummaryItems = buildMasterySummary(displayMasteryData, foundryIndex, $tr, $locale);
   // Straight from the account, so unaffected by the founder-item filter.
   $: completion = $masteryData?.stats?.completion ?? null;
   $: starChartRows = (
@@ -709,7 +714,7 @@
                     <div class="mt-1 flex flex-wrap gap-1">
                       {#if item.masteryXpRemaining > 0}
                         <span class="mastery-badge xp" title={$tr("mastery.xpBadgeTitle")}
-                          >+{item.masteryXpRemaining.toLocaleString()} XP</span
+                          >+{item.masteryXpRemaining.toLocaleString($locale)} XP</span
                         >
                       {/if}
                       {#if item.platinum != null}

@@ -8,12 +8,13 @@ export function masteryProjectionSubtext(
   currentRank: number,
   totalXp: number,
   readyXp: number,
+  locale: string,
 ): string | null {
   if (!Number.isFinite(totalXp) || !Number.isFinite(readyXp) || readyXp <= 0) return null;
 
   const bankedRank = Math.max(currentRank, masteryXpToRank(totalXp));
   const projectedRank = Math.max(bankedRank, masteryXpToRank(totalXp + readyXp));
-  const formattedReadyXp = readyXp.toLocaleString();
+  const formattedReadyXp = readyXp.toLocaleString(locale);
   const banked =
     bankedRank > currentRank ? t("mastery.projection.banked", { rank: bankedRank }) : null;
 

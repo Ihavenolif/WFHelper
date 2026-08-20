@@ -143,6 +143,7 @@
   "stats.noDays": "Noch kein Verlauf.",
   "stats.timeframe": "Zeitraum",
   "stats.trades": "Trade-Verlauf",
+  "stats.today": "heute",
   "stats.changeLabel": "Änderung",
   "stats.closeExpandedChartAria": "Vergrößertes Diagramm schließen",
   "stats.expandChartAria": "{label}-Diagramm vergrößern",

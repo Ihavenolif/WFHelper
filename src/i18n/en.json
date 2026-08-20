@@ -135,6 +135,7 @@
   "stats.noDays": "No history yet.",
   "stats.timeframe": "Timeframe",
   "stats.trades": "Trade History",
+  "stats.today": "today",
   "app.loadingView": "Loading {view} view...",
   "app.failedLoadView": "Failed to load {view} view.",
   "common.retry": "Retry",

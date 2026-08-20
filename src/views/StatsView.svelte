@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from "svelte";
   import { invoke, on } from "../lib/ipc.js";
-  import { tr } from "../lib/i18n.js";
+  import { locale, tr } from "../lib/i18n.js";
   import type { DailyStatEntry, SessionStats, TradeEvent } from "../types/ipc.js";
   import type { MessageKey } from "../lib/i18n.js";
   import ModalShell from "../components/ModalShell.svelte";
@@ -238,15 +238,16 @@
   function computeChartDataMap(
     historyArg: typeof history,
     daysArg: number,
+    localeCode: string,
   ): Record<ChartKey, ChartResult> {
     const m: Partial<Record<ChartKey, ChartResult>> = {};
     for (const { key } of CHART_SECTIONS) {
-      m[key] = barsForKey(key, historyArg, daysArg, BAR_H);
+      m[key] = barsForKey(key, historyArg, daysArg, BAR_H, localeCode);
     }
     return m as Record<ChartKey, ChartResult>;
   }
 
-  $: chartDataMap = computeChartDataMap(history, chartDays);
+  $: chartDataMap = computeChartDataMap(history, chartDays, $locale);
 
   function chartIsEmpty(cd: ChartResult): boolean {
     return (
@@ -257,16 +258,16 @@
 
   // Expanded modal chart data - recomputes when expandedKey or chartDays changes
   $: expandedChartData = expandedKey
-    ? barsForKey(expandedKey, history, chartDays, BAR_H_EXPAND)
+    ? barsForKey(expandedKey, history, chartDays, BAR_H_EXPAND, $locale)
     : null;
   $: sessionSummaryItems = session?.hasData
     ? SESSION_SECTIONS.map(
         ({ key, labelKey, currentKey }): SummaryStripItem => ({
           key,
           label: $tr(labelKey),
-          value: formatAbsolute(session?.[currentKey] ?? 0),
+          value: formatAbsolute(session?.[currentKey] ?? 0, $locale),
           icon: ICON_MAP[key],
-          subtext: `${formatDelta(session?.[key] ?? 0, formatters[key])} today`,
+          subtext: `${formatDelta(session?.[key] ?? 0, formatters[key], $locale)} ${$tr("stats.today")}`,
         }),
       )
     : [];
@@ -274,11 +275,11 @@
   let tooltip: { text: string; x: number; y: number } | null = null;
 
   function dotLabel(key: ChartKey, bar: ChartResult["bars"][number], absVal: number): string {
-    let text = shortDate(bar.date);
-    if (!Number.isNaN(absVal)) text += ` | ${formatters[key](absVal)}`;
+    let text = shortDate(bar.date, $locale);
+    if (!Number.isNaN(absVal)) text += ` | ${formatters[key](absVal, $locale)}`;
     if (bar.value !== 0) {
       const sign = bar.value >= 0 ? "+" : "−";
-      text += `  (${sign}${formatters[key](Math.abs(bar.value))})`;
+      text += `  (${sign}${formatters[key](Math.abs(bar.value), $locale)})`;
     }
     return text;
   }
@@ -469,10 +470,11 @@
                       aria-label={dotLabel(expandedKey, bar, absVal)}
                       title={dotLabel(expandedKey, bar, absVal)}
                       on:mouseenter={(e) => {
-                        let text = shortDate(bar.date);
-                        if (!Number.isNaN(absVal)) text += `  ${formatters[expandedKey!](absVal)}`;
+                        let text = shortDate(bar.date, $locale);
+                        if (!Number.isNaN(absVal))
+                          text += `  ${formatters[expandedKey!](absVal, $locale)}`;
                         const sign = bar.value >= 0 ? "+" : "−";
-                        text += `  (${sign}${formatters[expandedKey!](Math.abs(bar.value))})`;
+                        text += `  (${sign}${formatters[expandedKey!](Math.abs(bar.value), $locale)})`;
                         tooltip = { text, x: e.clientX, y: e.clientY };
                       }}
                       on:mouseleave={() => {
@@ -496,7 +498,7 @@
                 class="text-center text-xs text-text-muted whitespace-nowrap overflow-visible"
                 style="width:{100 / exBars.length}%"
               >
-                {i % step === 0 ? shortDate(bar.date) : ""}
+                {i % step === 0 ? shortDate(bar.date, $locale) : ""}
               </span>
             {/each}
           </div>
@@ -711,7 +713,7 @@
                           class="text-center overflow-visible whitespace-nowrap shrink-0 text-xs"
                           style="width:{100 / cd.bars.length}%"
                         >
-                          {i % dateStep === 0 ? shortDate(bar.date) : ""}
+                          {i % dateStep === 0 ? shortDate(bar.date, $locale) : ""}
                         </span>
                       {/each}
                     </div>
