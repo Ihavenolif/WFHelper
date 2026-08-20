@@ -308,6 +308,7 @@
   "common.total": "Total",
   "foundry.sort.count": "Count",
   "foundry.sort.time": "Time",
+  "market.selectedHidden": " ({count} hidden by filters)",
   "market.itemNotTradable": "Item is not tradable.",
   "market.loadingPrice": "Loading price...",
   "market.noListingFound": "No listing found.",

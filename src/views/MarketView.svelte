@@ -590,6 +590,10 @@
     activeOrders.map((order) => normalizeOrderForFilter(order, $parsedItems)),
     $marketFilters,
   );
+  // Bulk actions hit the whole selection, so name the rows a filter is hiding.
+  $: hiddenSelectedCount = [...$marketSelected].filter(
+    (id) => !filteredOrderRows.some((order) => order.id === id),
+  ).length;
   $: filteredContractRows = applySharedFiltersAndSort(
     $marketContracts.contracts.map(normalizeContractForFilter),
     $marketFilters,
@@ -833,9 +837,10 @@
         <div
           class="flex flex-wrap items-center gap-1.5 mb-2.5 rounded-lg border border-border bg-bg-surface px-2.5 py-2"
         >
-          <span class="mr-1.5 text-xs text-text-secondary"
-            >{$tr("common.selected", { count: $marketSelected.size })}</span
-          >
+          <span class="mr-1.5 text-xs text-text-secondary">
+            {$tr("common.selected", { count: $marketSelected.size })}{#if hiddenSelectedCount > 0}
+              {$tr("market.selectedHidden", { count: hiddenSelectedCount })}{/if}
+          </span>
           <button class="btn-sm btn-secondary" on:click={selectAllVisible}
             >{$tr("common.selectAll")}</button
           >

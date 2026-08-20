@@ -493,6 +493,7 @@
   "common.sortLowToHigh": "Niedrig zu hoch",
   "common.tryRecover": "Wiederherstellen",
   "common.unknownRendererError": "Unbekannter Renderer-Fehler",
+  "market.selectedHidden": " ({count} durch Filter ausgeblendet)",
   "appearance.lowContrast": "Wenig Kontrast",
   "inventory.tab.allParts": "Alle Teile",
   "inventory.tab.mods": "Mods",
