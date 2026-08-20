@@ -1,7 +1,6 @@
-import path from "node:path";
 import fs from "node:fs";
-import { app } from "electron";
 import { withScope } from "./logger";
+import { userDataPath } from "./userDataPath";
 import { writeFileAtomicSync } from "./atomicFile";
 import {
   collectRelicInventoryCounts,
@@ -50,7 +49,7 @@ const HISTORY_MAX_DAYS = 90;
 const HISTORY_SCHEMA_VERSION = 2;
 
 function _historyPath(): string {
-  return path.join(app.getPath("userData"), "stats-history.json");
+  return userDataPath("stats-history.json");
 }
 
 function _todayStr(): string {

@@ -10,6 +10,7 @@ import {
   rivenOcrOnnxAvailable,
   type RivenOcrResult,
 } from "../../services/rivenOcrOnnx";
+import { userDataPath } from "../../services/userDataPath";
 import { cropRivenStatImage, type RivenScanCropRect } from "./rivenScanImage";
 import { parseRivenStats, type RivenParseDiagnostics, type RivenStat } from "./rivenScanText";
 
@@ -74,10 +75,9 @@ function dumpScanCrops(
 ): void {
   if (!areOcrDebugDumpsEnabled()) return;
   try {
-    const { app } = require("electron") as typeof import("electron");
     const fs = require("node:fs") as typeof import("node:fs");
     const path = require("node:path") as typeof import("node:path");
-    const dir = path.join(app.getPath("userData"), "riven-scan-debug");
+    const dir = userDataPath("riven-scan-debug");
     fs.mkdirSync(dir, { recursive: true });
 
     const stamp = new Date().toISOString().replace(/[:.]/g, "-");

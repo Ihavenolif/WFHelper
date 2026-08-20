@@ -1,11 +1,7 @@
 // Use live DE exports so mastery data does not wait for package releases.
 
-import { app } from "electron";
-import fs from "node:fs";
-import path from "node:path";
-
+import { createJsonCache } from "./jsonCache";
 import { withScope } from "./logger";
-import { writeFileAtomicSync } from "./atomicFile";
 
 const log = withScope("publicExport");
 
@@ -55,9 +51,17 @@ interface CachePayload {
 let overlay: PublicExportOverlay | null = null;
 let refreshPromise: Promise<{ changed: boolean }> | null = null;
 
-function cachePath(): string {
-  return path.join(app.getPath("userData"), "public-export-cache.json");
-}
+const cache = createJsonCache<CachePayload>("public-export-cache.json", (raw) => {
+  const parsed = raw as Partial<CachePayload>;
+  if (!parsed.updatedAt || !parsed.exports || typeof parsed.exports !== "object") return null;
+  return {
+    updatedAt: parsed.updatedAt,
+    index: parsed.index || {},
+    exports: parsed.exports,
+    imagesIndex: typeof parsed.imagesIndex === "string" ? parsed.imagesIndex : undefined,
+    images: parsed.images && typeof parsed.images === "object" ? parsed.images : undefined,
+  };
+});
 
 function lzmaDecompress(buffer: Buffer): Promise<string> {
   // lzma-js handles DE's LZMA-alone (.lzma) stream as-is.
@@ -132,34 +136,10 @@ function enrichIconsFromImages(
   }
 }
 
-function readCache(): CachePayload | null {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(cachePath(), "utf8")) as Partial<CachePayload>;
-    if (!parsed.updatedAt || !parsed.exports || typeof parsed.exports !== "object") return null;
-    return {
-      updatedAt: parsed.updatedAt,
-      index: parsed.index || {},
-      exports: parsed.exports,
-      imagesIndex: typeof parsed.imagesIndex === "string" ? parsed.imagesIndex : undefined,
-      images: parsed.images && typeof parsed.images === "object" ? parsed.images : undefined,
-    };
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(payload: CachePayload): void {
-  try {
-    writeFileAtomicSync(cachePath(), JSON.stringify(payload));
-  } catch (err) {
-    log.warn("Failed to write public-export cache", err);
-  }
-}
-
 /** Sync read of the cached DE overlay, for use during the initial DB build. */
 export function loadOverlayFromDisk(): PublicExportOverlay | null {
   if (overlay) return overlay;
-  const cached = readCache();
+  const cached = cache.read();
   if (!cached) return null;
   overlay = { exports: cached.exports, images: cached.images || null };
   return overlay;
@@ -173,7 +153,7 @@ export async function refreshOverlayFromDE(): Promise<{ changed: boolean }> {
   if (refreshPromise) return refreshPromise;
 
   refreshPromise = (async () => {
-    const previous = readCache();
+    const previous = cache.read();
     try {
       const index = await fetchIndex();
       const nextIndex: Partial<Record<OverlayKey, string>> = {};
@@ -204,7 +184,7 @@ export async function refreshOverlayFromDE(): Promise<{ changed: boolean }> {
       enrichIconsFromImages(nextExports, nextImages);
 
       overlay = { exports: nextExports, images: nextImages || null };
-      writeCache({
+      cache.write({
         updatedAt: new Date().toISOString(),
         index: nextIndex,
         exports: nextExports,

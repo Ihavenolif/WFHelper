@@ -1,7 +1,7 @@
-import path from "path";
 import fs from "fs";
 import { randomUUID } from "crypto";
 import { withScope } from "./logger";
+import { userDataPath } from "./userDataPath";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { normalizeWfmSlugKey, type WfmStatus } from "../config/shared/wfm";
 
@@ -15,7 +15,7 @@ import {
   clearCsrfToken,
 } from "./wfmClient";
 import { setStatusViaWebSocket } from "./wfmWebSocket";
-import { app, safeStorage } from "electron";
+import { safeStorage } from "electron";
 
 const log = withScope("wfmSession");
 
@@ -46,8 +46,8 @@ interface WfmUserProfile {
   [key: string]: unknown;
 }
 
-const SESSION_FILE = (): string => path.join(app.getPath("userData"), "wfm.session");
-const DEVICE_ID_FILE = (): string => path.join(app.getPath("userData"), "wfm.device-id");
+const SESSION_FILE = (): string => userDataPath("wfm.session");
+const DEVICE_ID_FILE = (): string => userDataPath("wfm.device-id");
 
 let _token: string | null = null;
 let _userName: string | null = null;

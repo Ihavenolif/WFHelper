@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { withScope } from "./logger";
+import { userDataPath } from "./userDataPath";
 import { normalizeErrorMessage } from "../config/shared/errors";
 
 const log = withScope("rewardScanDebug");
@@ -37,8 +38,7 @@ export function setScanDebugDirForTest(dir: string | null): void {
 
 export function getScanDebugDir(): string {
   if (_dirOverride) return _dirOverride;
-  const { app } = require("electron") as typeof import("electron");
-  return path.join(app.getPath("userData"), "scan-debug");
+  return userDataPath("scan-debug");
 }
 
 /** Delete oldest bundle dirs beyond the cap. Exported for tests. */

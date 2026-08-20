@@ -1,8 +1,7 @@
 import fs from "node:fs";
 import https from "node:https";
-import path from "node:path";
-import { app } from "electron";
 import { withScope } from "./logger";
+import { userDataPath } from "./userDataPath";
 import { writeFileAtomicSync } from "./atomicFile";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import type { CodexScanEntry, CodexScansResult } from "../config/shared/codexTypes";
@@ -21,11 +20,11 @@ let _cache: { fetchedAt: number; scans: CodexScanEntry[] } | null = null;
 let _inFlight: Promise<CodexScansResult> | null = null;
 
 function _profilePath(): string {
-  return path.join(app.getPath("userData"), PROFILE_FILE);
+  return userDataPath(PROFILE_FILE);
 }
 
 function _cachePath(): string {
-  return path.join(app.getPath("userData"), CACHE_FILE);
+  return userDataPath(CACHE_FILE);
 }
 
 function _loadAccountId(): string | null {

@@ -1,7 +1,7 @@
 import path from "node:path";
 import fs from "node:fs";
-import { app } from "electron";
 import { withScope } from "./logger";
+import { userDataPath } from "./userDataPath";
 import { writeFileAtomicSync } from "./atomicFile";
 import { fetchWithTimeout } from "./worldStateFetch";
 import { normalizeErrorMessage } from "../config/shared/errors";
@@ -233,11 +233,11 @@ let _firstFetchTimer: ReturnType<typeof setTimeout> | null = null;
 let _fetchInFlight: Promise<void> | null = null;
 
 function _cachePath(): string {
-  return path.join(app.getPath("userData"), "arbi-sched-cache.json");
+  return userDataPath("arbi-sched-cache.json");
 }
 
 function _storePath(): string {
-  return path.join(app.getPath("userData"), "arbi-sched-alerts.json");
+  return userDataPath("arbi-sched-alerts.json");
 }
 
 function _loadCache(): void {

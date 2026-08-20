@@ -13,6 +13,7 @@ import { readGameAuthzWin } from "./gameMemoryWin";
 import * as codexProfile from "./codexProfile";
 import { resolveEeLogPath } from "./eeLogPath";
 import { withScope } from "./logger";
+import { userDataPath } from "./userDataPath";
 
 const log = withScope("apiHelperRunner");
 
@@ -184,11 +185,11 @@ interface DownloadProgress {
 
 /** Directory where we store the downloaded helper. */
 function getHelperDir(): string {
-  return path.join(app.getPath("userData"), "api-helper");
+  return userDataPath("api-helper");
 }
 
 function getSetupPreferencesPath(): string {
-  return path.join(app.getPath("userData"), "setup-preferences.json");
+  return userDataPath("setup-preferences.json");
 }
 
 function getInstallerAutoInstallHelperPreference(): boolean | null {

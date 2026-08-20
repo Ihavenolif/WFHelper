@@ -1,10 +1,10 @@
 import fs from "node:fs";
-import path from "node:path";
 
-import { app, screen, type BrowserWindow } from "electron";
+import { screen, type BrowserWindow } from "electron";
 
 import { withScope } from "./logger";
 import { writeFileAtomicSync } from "./atomicFile";
+import { userDataPath } from "./userDataPath";
 
 const log = withScope("mainWindowState");
 
@@ -24,7 +24,7 @@ interface MinWindowSize {
   height: number;
 }
 
-const stateFile = (): string => path.join(app.getPath("userData"), "main-window-state.json");
+const stateFile = (): string => userDataPath("main-window-state.json");
 
 function overlapArea(bounds: WindowBounds, area: WindowBounds): number {
   const x = Math.min(bounds.x + bounds.width, area.x + area.width) - Math.max(bounds.x, area.x);

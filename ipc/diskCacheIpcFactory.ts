@@ -1,10 +1,9 @@
 import { assertMainRendererSender, handleAuthorized } from "./ipcSecurity";
 import { withScope, type ScopedLogger } from "../services/logger";
 import { normalizeErrorMessage } from "../config/shared/errors";
-import { app } from "electron";
-import path from "node:path";
 import fs from "node:fs";
 import { writeFileAtomicSync } from "../services/atomicFile";
+import { userDataPath } from "../services/userDataPath";
 
 interface DiskCacheIpcConfig {
   /** Logger scope name, e.g. `"priceCacheIpc"`. */
@@ -33,7 +32,7 @@ function createDiskCacheIpc(config: DiskCacheIpcConfig): { register: () => void 
   const log: ScopedLogger = withScope(scope);
 
   function getCachePath(): string {
-    return path.join(app.getPath("userData"), filename);
+    return userDataPath(filename);
   }
 
   function register(): void {

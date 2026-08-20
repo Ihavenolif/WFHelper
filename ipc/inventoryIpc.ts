@@ -18,6 +18,7 @@ import {
   type InventorySource,
 } from "../config/shared/inventorySource";
 import { readAlecaFrameInventoryFile } from "../services/alecaFrameInventory";
+import { userDataPath } from "../services/userDataPath";
 import * as inventorySync from "../services/inventorySync";
 import { dialog, app } from "electron";
 import path from "node:path";
@@ -28,7 +29,7 @@ import crypto from "node:crypto";
 
 const log = withScope("inventoryIpc");
 
-const HELPER_INVENTORY_DIRECTORIES = [path.join(app.getPath("userData"), "api-helper")];
+const HELPER_INVENTORY_DIRECTORIES = [userDataPath("api-helper")];
 
 const USER_INVENTORY_DIRECTORIES = [
   app.getPath("downloads"),
@@ -69,7 +70,7 @@ interface InventoryReadError {
 }
 let _lastReadError: InventoryReadError | null = null;
 
-const _inventoryStatePath = path.join(app.getPath("userData"), "inventory-reload-state.json");
+const _inventoryStatePath = userDataPath("inventory-reload-state.json");
 
 function _loadPersistedState(): void {
   try {

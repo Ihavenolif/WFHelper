@@ -77,7 +77,9 @@ export function getRelicRewardItems(): RelicRewardItem[] {
   return [...seen.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function buildWfcdImageUrl(imageName: string | null | undefined): string | null {
+// Mirrors inline, unlike itemDatabase's raw builder whose callers mirror later
+// via chooseImageUrl. Same shape, different contract - keep the names apart.
+function buildMirroredWfcdImageUrl(imageName: string | null | undefined): string | null {
   const trimmed = typeof imageName === "string" ? imageName.trim() : "";
   return trimmed ? toIconMirrorUrl(WFCD_CDN + trimmed) : null;
 }
@@ -128,7 +130,7 @@ function buildRelicDatabase(): RelicDatabase {
 
     if (relic.imageName) {
       if (quality === "Intact" || !group.imageUrl) {
-        group.imageUrl = buildWfcdImageUrl(relic.imageName);
+        group.imageUrl = buildMirroredWfcdImageUrl(relic.imageName);
       }
     }
 
@@ -140,7 +142,7 @@ function buildRelicDatabase(): RelicDatabase {
         return {
           name: r.item?.name || "Unknown",
           uniqueName: r.item?.uniqueName || null,
-          imageUrl: buildWfcdImageUrl(r.item?.imageName),
+          imageUrl: buildMirroredWfcdImageUrl(r.item?.imageName),
           rarity: relicRewardRarity(quality, r.chance || 0, r.rarity || "Common"),
           chance: r.chance || 0,
           urlName: normalizeWfmSlug(rawSlug),
