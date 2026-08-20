@@ -8,6 +8,16 @@ import {
 } from "./electronTestHarness";
 
 const ACCELTRA = "/Lotus/Weapons/Tenno/LongGuns/PrimeAcceltra/PrimeAcceltraWeapon";
+const ADVANCES_DEBT_BOND = "/Lotus/Types/Items/Solaris/DebtTokenD";
+
+function testInventory(resourceCount = 1) {
+  return {
+    Suits: [],
+    LongGuns: [{ ItemType: ACCELTRA, XP: 450_000 }],
+    MiscItems: [{ ItemType: ADVANCES_DEBT_BOND, ItemCount: resourceCount }],
+    XPInfo: [{ ItemType: ACCELTRA, XP: 450_000 }],
+  };
+}
 
 test.describe("Shared view layout", () => {
   test.setTimeout(180_000);
@@ -33,11 +43,7 @@ test.describe("Shared view layout", () => {
     consoleErrors.length = 0;
     await page.reload();
     await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
-    writeHarnessInventory(harness, {
-      Suits: [],
-      LongGuns: [{ ItemType: ACCELTRA, XP: 450_000 }],
-      XPInfo: [{ ItemType: ACCELTRA, XP: 450_000 }],
-    });
+    writeHarnessInventory(harness, testInventory());
   });
 
   test.afterAll(async () => {
@@ -165,5 +171,29 @@ test.describe("Shared view layout", () => {
     expect(headerLayout[0]).not.toBeNull();
     expect(headerLayout[1]).not.toBeNull();
     expect(Math.abs(headerLayout[0]!.y - headerLayout[1]!.y)).toBeLessThanOrEqual(12);
+  });
+
+  test("resource names fit at 125% font size", async () => {
+    await page.setViewportSize({ width: 1920, height: 1200 });
+    await page.evaluate(() => {
+      localStorage.setItem(
+        "wf_theme_settings",
+        JSON.stringify({ version: 1, fontSizes: { globalScale: 1.25 } }),
+      );
+    });
+    await page.reload();
+    await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
+    writeHarnessInventory(harness, testInventory(2));
+
+    await page.locator('#sidebar [data-view="inventory"]').click();
+    await page.locator('[data-tour-tab="resources"]').click();
+    const name = page.locator(".resource-name");
+    await expect(name).toBeVisible({ timeout: 90_000 });
+    await expect(name).toHaveText("ADVANCES DEBT-BOND");
+    expect(
+      await name.evaluate(
+        (node) => node.scrollWidth <= node.clientWidth && node.scrollHeight <= node.clientHeight,
+      ),
+    ).toBe(true);
   });
 });

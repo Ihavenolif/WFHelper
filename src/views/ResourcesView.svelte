@@ -8,7 +8,7 @@
 </script>
 
 <div class="resources-sub-panel">
-  <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+  <div class="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3">
     {#if resources.length === 0}
       <div class="empty-state col-span-full">
         <p>{$tr("resources.noResourcesFound")}</p>
@@ -25,8 +25,8 @@
               cls="h-[var(--resource-image-max)] w-[var(--resource-image-max)] object-contain"
             />
           </div>
-          <div class="resource-info">
-            <span class="resource-name">{r.name}</span>
+          <div class="resource-info flex-1 justify-center p-0">
+            <span class="resource-name whitespace-normal break-words leading-tight">{r.name}</span>
             <span class="resource-count">{formatNumber(r.count)}</span>
           </div>
         </div>
