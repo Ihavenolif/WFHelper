@@ -80,6 +80,7 @@ import * as rankedHotsetIpc from "./ipc/rankedHotsetIpc";
 import * as statsIpc from "./ipc/statsIpc";
 import * as rivensIpc from "./ipc/rivensIpc";
 import * as tradeNotificationIpc from "./ipc/tradeNotificationIpc";
+import * as tradeWorkflow from "./ipc/tradeWorkflow";
 import { applyMainWindowZoom } from "./ipc/mainWindowZoom";
 import { assertMainRendererSender, handleAuthorized } from "./ipc/ipcSecurity";
 import {
@@ -89,7 +90,6 @@ import {
   HELPER_DOWNLOAD_PROGRESS,
   INVENTORY_UPDATED,
   ITEM_DB_UPDATED,
-  TRADE_RECORDED,
   ARBI_RUN_SAVED,
 } from "./config/shared/ipcChannels";
 import * as statsTracker from "./services/statsTracker";
@@ -98,14 +98,10 @@ import { setOcrDebugDumpsEnabled } from "./services/rewardScanDebug";
 import * as arbiIpc from "./ipc/arbiIpc";
 import * as arbiScheduleIpc from "./ipc/arbiScheduleIpc";
 import * as tradeTracker from "./services/tradeTracker";
-import * as tradeWfmMatcher from "./services/tradeWfmMatcher";
-import { summarizeMatches, summarizeTrade } from "./config/shared/tradeMatch";
-import type { TradeMatchPayload, TradeNotificationStatus } from "./config/shared/tradeMatch";
 import * as apiHelperRunner from "./services/apiHelperRunner";
 import * as inventorySync from "./services/inventorySync";
 import { disposeLinuxStreamCapture } from "./services/linuxStreamCapture";
 import { loadMainWindowState, saveMainWindowState } from "./services/mainWindowState";
-import { isTradeNotificationOverlayEnabled } from "./config/runtime/overlaySettings";
 import { WIN_APP_USER_MODEL_ID } from "./config/shared/appMeta";
 
 // Keep native crash dumps local under userData\Crashes.
@@ -294,13 +290,9 @@ function createWindow(): void {
   });
 }
 
-void app.whenReady().then(async () => {
-  if (!hasSingleInstanceLock) return;
-  const startupStartedAt = Date.now();
-  const profileStage = (label: string, startedAt: number): void => {
-    log.info(`[StartupProfile][main] ${label}: ${Date.now() - startedAt}ms`);
-  };
+type ProfileStage = (label: string, startedAt: number) => void;
 
+function logStartupPaths(): void {
   log.info(
     `[Startup] userData: ${app.getPath("userData")}` +
       (process.env.WFHELPER_USER_DATA ? " (WFHELPER_USER_DATA override)" : ""),
@@ -311,7 +303,9 @@ void app.whenReady().then(async () => {
   if (process.platform === "linux") {
     log.info(`[Startup] display=${DISPLAY_BACKEND} gpu=${GPU_ACCELERATION_ENABLED ? "on" : "off"}`);
   }
+}
 
+function initTrackersAndSettings(profileStage: ProfileStage): void {
   const settingsStart = Date.now();
   overlayIpc.loadOverlaySettings();
   profileStage("overlay-settings:load", settingsStart);
@@ -330,7 +324,9 @@ void app.whenReady().then(async () => {
     statsTracker.onInventoryData(data);
   });
   profileStage("stats:load-history", statsLoadStart);
+}
 
+function registerIpcHandlers(profileStage: ProfileStage): void {
   const ipcRegisterStart = Date.now();
   inventoryIpc.register();
   wfmIpc.register();
@@ -392,7 +388,9 @@ void app.whenReady().then(async () => {
   });
 
   profileStage("ipc:register", ipcRegisterStart);
+}
 
+function initDataSources(profileStage: ProfileStage): void {
   const itemDbStart = Date.now();
   publicExportSource.loadOverlayFromDisk();
   itemDb.buildDatabase();
@@ -427,6 +425,89 @@ void app.whenReady().then(async () => {
     .ensureRivenGoodRollsLoaded(true)
     .catch((err: Error) => log.error("[Rivens] startup good-roll fetch failed:", err));
   profileStage("riven-good-rolls:ensureLoaded-dispatch", rivenGoodRollsStart);
+}
+
+function initGameMonitoring(profileStage: ProfileStage): void {
+  const inventoryDetectStart = Date.now();
+  apiHelperRunner.init();
+  const loadedInventory = inventoryIpc.loadInitialInventory();
+  if (loadedInventory) {
+    log.info("Loaded inventory at:", loadedInventory.path);
+
+    // The renderer may finish loading before inventory discovery completes.
+    // (local file loads can complete in <100 ms).
+    const data = loadedInventory.data;
+    if (data && ctx.mainWindow) {
+      const wc = ctx.mainWindow.webContents;
+      const sendInventory = () => {
+        if (ctx.mainWindow) {
+          ctx.mainWindow.webContents.send(INVENTORY_UPDATED, data);
+        }
+      };
+      if (wc.isLoading()) {
+        wc.once("did-finish-load", sendInventory);
+      } else {
+        sendInventory();
+      }
+    }
+  }
+
+  // The first helper run can create inventory.json after initial discovery.
+  // Re-run discovery after polling so the watcher attaches.
+  inventorySync.apply("startup");
+
+  profileStage("inventory:auto-detect", inventoryDetectStart);
+
+  const eeLogStart = Date.now();
+  const eeLogPath = eeLogMonitor.startWatching({
+    onLoginComplete: () => inventorySync.onGameLogin(),
+    onRewardTrigger: (stalenessMs) => overlayIpc.onRelicRewardTrigger("eelog", stalenessMs),
+    onRewardUiReady: () => overlayIpc.notifyRewardUiReady(),
+    onRewardScreenClose: (stalenessMs) => overlayIpc.notifyRewardScreenClosed(stalenessMs),
+    onRelicSelectionOpen: () => overlayIpc.onRelicSelectionTrigger("eelog"),
+    onRelicSelectionClose: () => overlayIpc.onRelicSelectionClose(),
+    onActiveMissionTag: (tag) => overlayIpc.setActiveMissionTag(tag),
+    onInGameMessage: (playerName) => void messageNotificationIpc.notifyInGameMessage(playerName),
+    onTradeConfirmed: (trade) => tradeWorkflow.handleConfirmedTrade(trade),
+    onRivenSessionOpen: () => overlayIpc.onRivenSessionOpen(),
+    onRivenSessionClose: () => overlayIpc.onRivenSessionClose(),
+    onRivenRollPending: (weapon: string, cost: number) =>
+      overlayIpc.onRivenRollPending(weapon, cost),
+    onRivenRollConfirmed: () => overlayIpc.onRivenRollConfirmed(),
+    onRivenDioramaSetup: () => overlayIpc.onRivenDioramaSetup(),
+    onRivenChoiceConfirmed: () => overlayIpc.onRivenChoiceConfirmed(),
+    onRivenChatView: () => overlayIpc.onRivenChatView(),
+    onRivenWeaponPath: (weaponPath: string) => overlayIpc.onRivenWeaponPath(weaponPath),
+    onArbiRunSaved: (run) => {
+      const win = ctx.mainWindow;
+      if (win && !win.isDestroyed()) win.webContents.send(ARBI_RUN_SAVED, run);
+      overlayIpc.maybeShowArbiSummary(run);
+    },
+  });
+  if (eeLogPath) log.info("[EELog] Monitoring:", eeLogPath);
+  else log.info("[EELog] EE.log not found - relic overlay trigger disabled");
+  profileStage("ee-log:watch-start", eeLogStart);
+
+  const rewardItemsStart = Date.now();
+  try {
+    rewardScanner.setRelicItems(relicService.getRelicRewardItems());
+  } catch (err) {
+    log.error("[RewardScanner] Failed to load relic items:", (err as Error).message);
+  }
+  profileStage("relic-reward-items:prepare", rewardItemsStart);
+}
+
+void app.whenReady().then(async () => {
+  if (!hasSingleInstanceLock) return;
+  const startupStartedAt = Date.now();
+  const profileStage = (label: string, startedAt: number): void => {
+    log.info(`[StartupProfile][main] ${label}: ${Date.now() - startedAt}ms`);
+  };
+
+  logStartupPaths();
+  initTrackersAndSettings(profileStage);
+  registerIpcHandlers(profileStage);
+  initDataSources(profileStage);
 
   const windowStart = Date.now();
   createWindow();
@@ -483,126 +564,7 @@ void app.whenReady().then(async () => {
     void rewardOcrOnnx.warmupRewardStripOnnx();
   }, 6000).unref();
 
-  const inventoryDetectStart = Date.now();
-  apiHelperRunner.init();
-  const loadedInventory = inventoryIpc.loadInitialInventory();
-  if (loadedInventory) {
-    log.info("Loaded inventory at:", loadedInventory.path);
-
-    // The renderer may finish loading before inventory discovery completes.
-    // (local file loads can complete in <100 ms).
-    const data = loadedInventory.data;
-    if (data && ctx.mainWindow) {
-      const wc = ctx.mainWindow.webContents;
-      const sendInventory = () => {
-        if (ctx.mainWindow) {
-          ctx.mainWindow.webContents.send(INVENTORY_UPDATED, data);
-        }
-      };
-      if (wc.isLoading()) {
-        wc.once("did-finish-load", sendInventory);
-      } else {
-        sendInventory();
-      }
-    }
-  }
-
-  // The first helper run can create inventory.json after initial discovery.
-  // Re-run discovery after polling so the watcher attaches.
-  inventorySync.apply("startup");
-
-  profileStage("inventory:auto-detect", inventoryDetectStart);
-
-  const eeLogStart = Date.now();
-  const eeLogPath = eeLogMonitor.startWatching({
-    onLoginComplete: () => inventorySync.onGameLogin(),
-    onRewardTrigger: (stalenessMs) => overlayIpc.onRelicRewardTrigger("eelog", stalenessMs),
-    onRewardUiReady: () => overlayIpc.notifyRewardUiReady(),
-    onRewardScreenClose: (stalenessMs) => overlayIpc.notifyRewardScreenClosed(stalenessMs),
-    onRelicSelectionOpen: () => overlayIpc.onRelicSelectionTrigger("eelog"),
-    onRelicSelectionClose: () => overlayIpc.onRelicSelectionClose(),
-    onActiveMissionTag: (tag) => overlayIpc.setActiveMissionTag(tag),
-    onInGameMessage: (playerName) => void messageNotificationIpc.notifyInGameMessage(playerName),
-    onTradeConfirmed: (trade) => {
-      const event = tradeTracker.recordTradeFromLog(trade);
-      if (!event) return;
-
-      // Push trade to renderer in real-time
-      const win = ctx.mainWindow;
-      if (win && !win.isDestroyed()) {
-        win.webContents.send(TRADE_RECORDED, { trade: event, wfmMatches: [] });
-      }
-
-      // Always report the auto-close outcome.
-      void (async () => {
-        const notify = (status: TradeNotificationStatus, match?: TradeMatchPayload | null) => {
-          if (!isTradeNotificationOverlayEnabled(ctx.overlaySettings)) return;
-          tradeNotificationIpc.showTradeNotification(match ?? summarizeTrade(event), status);
-        };
-
-        if (!ctx.overlaySettings.autoCloseWfmOrders || !wfmSession.getToken()) {
-          notify("detected");
-          return;
-        }
-
-        try {
-          const matches = await tradeWfmMatcher.matchTradeToOrders(trade);
-          if (matches.length === 0) {
-            notify("no-match");
-            return;
-          }
-
-          const closed: TradeMatchPayload[] = [];
-          for (const match of matches) {
-            if (await tradeWfmMatcher.closeMatchedOrder(match)) closed.push(match);
-          }
-          if (closed.length === 0) {
-            notify("close-failed", matches[0]);
-            return;
-          }
-
-          tradeTracker.markTradeWfmClosed(event.id);
-
-          if (win && !win.isDestroyed()) {
-            win.webContents.send(TRADE_RECORDED, {
-              trade: { ...event, wfmClosed: true },
-              wfmMatches: closed,
-            });
-          }
-
-          notify("closed", summarizeMatches(closed, event.platChange));
-        } catch (err) {
-          log.warn("[Trade] Auto-close error:", String(err));
-          notify("no-match");
-        }
-      })();
-    },
-    onRivenSessionOpen: () => overlayIpc.onRivenSessionOpen(),
-    onRivenSessionClose: () => overlayIpc.onRivenSessionClose(),
-    onRivenRollPending: (weapon: string, cost: number) =>
-      overlayIpc.onRivenRollPending(weapon, cost),
-    onRivenRollConfirmed: () => overlayIpc.onRivenRollConfirmed(),
-    onRivenDioramaSetup: () => overlayIpc.onRivenDioramaSetup(),
-    onRivenChoiceConfirmed: () => overlayIpc.onRivenChoiceConfirmed(),
-    onRivenChatView: () => overlayIpc.onRivenChatView(),
-    onRivenWeaponPath: (weaponPath: string) => overlayIpc.onRivenWeaponPath(weaponPath),
-    onArbiRunSaved: (run) => {
-      const win = ctx.mainWindow;
-      if (win && !win.isDestroyed()) win.webContents.send(ARBI_RUN_SAVED, run);
-      overlayIpc.maybeShowArbiSummary(run);
-    },
-  });
-  if (eeLogPath) log.info("[EELog] Monitoring:", eeLogPath);
-  else log.info("[EELog] EE.log not found - relic overlay trigger disabled");
-  profileStage("ee-log:watch-start", eeLogStart);
-
-  const rewardItemsStart = Date.now();
-  try {
-    rewardScanner.setRelicItems(relicService.getRelicRewardItems());
-  } catch (err) {
-    log.error("[RewardScanner] Failed to load relic items:", (err as Error).message);
-  }
-  profileStage("relic-reward-items:prepare", rewardItemsStart);
+  initGameMonitoring(profileStage);
 
   profileStage("total-main-startup-sequence", startupStartedAt);
 

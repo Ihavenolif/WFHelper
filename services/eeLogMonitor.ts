@@ -185,7 +185,7 @@ interface ParsedLogTradeItem {
   direction: TradeDirection;
 }
 
-interface ParsedLogTrade {
+export interface ParsedLogTrade {
   partner: string;
   platChange: number;
   type: TradeType;
