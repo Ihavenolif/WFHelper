@@ -44,20 +44,7 @@
   import { invalidateMarketOrdersRefresh } from "./lib/marketOrdersSync.js";
   import { tr } from "./lib/i18n.js";
   import type { MessageKey } from "./lib/i18n.js";
-
-  type ViewName =
-    | "setup"
-    | "inventory"
-    | "foundry"
-    | "mastery"
-    | "stats"
-    | "world"
-    | "market"
-    | "relics"
-    | "wiki"
-    | "rivens"
-    | "arbi"
-    | "settings";
+  import type { ViewName } from "./types/views.js";
 
   type LazyViewName = Extract<ViewName, "world" | "market" | "relics" | "wiki" | "arbi">;
   type LazyViewComponent = Component<Record<string, never>>;
@@ -207,7 +194,7 @@
     };
   });
 
-  function isLazyView(view: string): view is LazyViewName {
+  function isLazyView(view: ViewName): view is LazyViewName {
     return (
       view === "world" ||
       view === "market" ||
@@ -225,7 +212,7 @@
     return "common.relics";
   }
 
-  function handleViewChange(view: string): void {
+  function handleViewChange(view: ViewName): void {
     if (isLazyView(view)) {
       activeLazyView = view;
       if (lastRequestedLazyView === view) return;

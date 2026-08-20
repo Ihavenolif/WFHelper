@@ -7,6 +7,7 @@
   import { hiddenTabs } from "../stores/sidebarTabs.js";
   import { endTour } from "../stores/tour.js";
   import { tr } from "../lib/i18n.js";
+  import type { ViewName } from "../types/views.js";
 
   const TOUR_TAB_STORAGE_KEYS = [
     "wf_inventory_tab",
@@ -19,7 +20,7 @@
   ] as const;
 
   interface TourStep {
-    view: string;
+    view: ViewName;
     text: string;
     /** CSS selector to spotlight; defaults to the content area. */
     target?: string;
@@ -204,7 +205,7 @@
     rect = null;
     targetMatched = false;
     missingSince = 0;
-    currentView.set(entry.view as never);
+    currentView.set(entry.view);
     await tick();
     entry.prepare?.();
     measure();

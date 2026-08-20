@@ -8,6 +8,7 @@
   import { hiddenTabs } from "../stores/sidebarTabs.js";
   import { resetTourAutoStart } from "../stores/tour.js";
   import type { MessageKey } from "../lib/i18n.js";
+  import type { ViewName } from "../types/views.js";
 
   const collapsed = persistedBoolean("sidebar.collapsed", false);
   $: showDevTools = $devMode;
@@ -17,7 +18,7 @@
   }
 
   interface NavItem {
-    view: string;
+    view: ViewName;
     labelKey: MessageKey;
     icon: string;
   }

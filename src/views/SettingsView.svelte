@@ -28,6 +28,7 @@
   import ThemedSelect from "../components/ThemedSelect.svelte";
   import { hideFoundryClaims, hideFounderMasteryItems } from "../stores/preferences.js";
   import { TOGGLEABLE_TABS, tabVisibility } from "../stores/sidebarTabs.js";
+  import type { ToggleableView } from "../types/views.js";
   import { startTour } from "../stores/tour.js";
   import { currentView } from "../stores/app.js";
   import type { InventorySource, OverlaySettings, OverlayWindowKey } from "../types/ipc.js";
@@ -140,60 +141,52 @@
     }
   }
 
-  let autoTrigger = OVERLAY_DEFAULTS.autoTriggerEnabled;
-  let notificationSoundEnabled = OVERLAY_DEFAULTS.notificationSoundEnabled;
-  let wfmNotificationsEnabled = OVERLAY_DEFAULTS.wfmNotificationsEnabled;
-  let messageNotificationsEnabled = OVERLAY_DEFAULTS.messageNotificationsEnabled;
-  let messageNotificationsWhileFocused = OVERLAY_DEFAULTS.messageNotificationsWhileFocused;
-  let autoCloseWfmOrders = OVERLAY_DEFAULTS.autoCloseWfmOrders;
-  let tradeRepHotkeyEnabled = OVERLAY_DEFAULTS.tradeRepHotkeyEnabled;
-  let tradeRepHotkey = OVERLAY_DEFAULTS.tradeRepHotkey;
-  let tradeNotificationOverlayEnabled = OVERLAY_DEFAULTS.tradeNotificationOverlayEnabled;
-  let relicRewardsOverlayEnabled = OVERLAY_DEFAULTS.relicRewardsOverlayEnabled;
-  let relicRecommendationOverlayEnabled = OVERLAY_DEFAULTS.relicRecommendationOverlayEnabled;
-  let rivenOverlayEnabled = OVERLAY_DEFAULTS.rivenOverlayEnabled;
-  let arbiSummaryOverlayEnabled = OVERLAY_DEFAULTS.arbiSummaryOverlayEnabled;
-  let arbiTrackingEnabled = OVERLAY_DEFAULTS.arbiTrackingEnabled;
-  let autoInventorySyncEnabled = OVERLAY_DEFAULTS.autoInventorySyncEnabled;
-  let ocrDebugImagesEnabled = OVERLAY_DEFAULTS.ocrDebugImagesEnabled;
+  // One normalizer feeds both the form and the saved payload, so a new
+  // OverlaySettings field only has to be listed here once.
+  function normalizeOverlayForm(s: OverlaySettingsFormInput) {
+    return {
+      autoTriggerEnabled: !!s.autoTriggerEnabled,
+      notificationSoundEnabled:
+        s.notificationSoundEnabled ?? OVERLAY_DEFAULTS.notificationSoundEnabled,
+      wfmNotificationsEnabled: !!s.wfmNotificationsEnabled,
+      messageNotificationsEnabled:
+        s.messageNotificationsEnabled ?? OVERLAY_DEFAULTS.messageNotificationsEnabled,
+      messageNotificationsWhileFocused: !!s.messageNotificationsWhileFocused,
+      autoCloseWfmOrders: s.autoCloseWfmOrders ?? OVERLAY_DEFAULTS.autoCloseWfmOrders,
+      tradeRepHotkeyEnabled: s.tradeRepHotkeyEnabled ?? OVERLAY_DEFAULTS.tradeRepHotkeyEnabled,
+      tradeRepHotkey: s.tradeRepHotkey || OVERLAY_DEFAULTS.tradeRepHotkey,
+      // showTradeNotification is the pre-0.2 key, still read so old settings files migrate.
+      tradeNotificationOverlayEnabled:
+        s.tradeNotificationOverlayEnabled ??
+        s.showTradeNotification ??
+        OVERLAY_DEFAULTS.tradeNotificationOverlayEnabled,
+      relicRewardsOverlayEnabled:
+        s.relicRewardsOverlayEnabled ?? OVERLAY_DEFAULTS.relicRewardsOverlayEnabled,
+      relicRecommendationOverlayEnabled:
+        s.relicRecommendationOverlayEnabled ?? OVERLAY_DEFAULTS.relicRecommendationOverlayEnabled,
+      rivenOverlayEnabled: s.rivenOverlayEnabled ?? OVERLAY_DEFAULTS.rivenOverlayEnabled,
+      arbiSummaryOverlayEnabled:
+        s.arbiSummaryOverlayEnabled ?? OVERLAY_DEFAULTS.arbiSummaryOverlayEnabled,
+      arbiTrackingEnabled: s.arbiTrackingEnabled ?? OVERLAY_DEFAULTS.arbiTrackingEnabled,
+      autoInventorySyncEnabled:
+        s.autoInventorySyncEnabled ?? OVERLAY_DEFAULTS.autoInventorySyncEnabled,
+      ocrDebugImagesEnabled: s.ocrDebugImagesEnabled ?? OVERLAY_DEFAULTS.ocrDebugImagesEnabled,
+      hotkeyEnabled: !!s.hotkeyEnabled,
+      hotkey: s.hotkey || OVERLAY_DEFAULTS.hotkey,
+      interactionHotkeyEnabled: !!s.interactionHotkeyEnabled,
+      interactionHotkey: s.interactionHotkey || OVERLAY_DEFAULTS.interactionHotkey,
+    };
+  }
+
+  let form = normalizeOverlayForm(OVERLAY_DEFAULTS);
+  // Display-only: the per-window rows fall back to it, but no control edits it,
+  // so it is deliberately absent from the saved payload.
   let overlayScale = OVERLAY_DEFAULTS.overlayScale;
-  let hotkeyEnabled = OVERLAY_DEFAULTS.hotkeyEnabled;
-  let hotkey = OVERLAY_DEFAULTS.hotkey;
-  let interactionHotkeyEnabled = OVERLAY_DEFAULTS.interactionHotkeyEnabled;
-  let interactionHotkey = OVERLAY_DEFAULTS.interactionHotkey;
 
   function applyToForm(s: OverlaySettingsFormInput): void {
-    autoTrigger = !!s.autoTriggerEnabled;
-    notificationSoundEnabled =
-      s.notificationSoundEnabled ?? OVERLAY_DEFAULTS.notificationSoundEnabled;
-    wfmNotificationsEnabled = !!s.wfmNotificationsEnabled;
-    messageNotificationsEnabled =
-      s.messageNotificationsEnabled ?? OVERLAY_DEFAULTS.messageNotificationsEnabled;
-    messageNotificationsWhileFocused = !!s.messageNotificationsWhileFocused;
-    autoCloseWfmOrders = s.autoCloseWfmOrders ?? OVERLAY_DEFAULTS.autoCloseWfmOrders;
-    tradeRepHotkeyEnabled = s.tradeRepHotkeyEnabled ?? OVERLAY_DEFAULTS.tradeRepHotkeyEnabled;
-    tradeRepHotkey = s.tradeRepHotkey || OVERLAY_DEFAULTS.tradeRepHotkey;
-    tradeNotificationOverlayEnabled =
-      s.tradeNotificationOverlayEnabled ??
-      s.showTradeNotification ??
-      OVERLAY_DEFAULTS.tradeNotificationOverlayEnabled;
-    relicRewardsOverlayEnabled =
-      s.relicRewardsOverlayEnabled ?? OVERLAY_DEFAULTS.relicRewardsOverlayEnabled;
-    relicRecommendationOverlayEnabled =
-      s.relicRecommendationOverlayEnabled ?? OVERLAY_DEFAULTS.relicRecommendationOverlayEnabled;
-    rivenOverlayEnabled = s.rivenOverlayEnabled ?? OVERLAY_DEFAULTS.rivenOverlayEnabled;
-    arbiSummaryOverlayEnabled =
-      s.arbiSummaryOverlayEnabled ?? OVERLAY_DEFAULTS.arbiSummaryOverlayEnabled;
-    arbiTrackingEnabled = s.arbiTrackingEnabled ?? OVERLAY_DEFAULTS.arbiTrackingEnabled;
-    autoInventorySyncEnabled =
-      s.autoInventorySyncEnabled ?? OVERLAY_DEFAULTS.autoInventorySyncEnabled;
-    ocrDebugImagesEnabled = s.ocrDebugImagesEnabled ?? OVERLAY_DEFAULTS.ocrDebugImagesEnabled;
+    form = normalizeOverlayForm(s);
     overlayScale = s.overlayScale ?? OVERLAY_DEFAULTS.overlayScale;
     windowScales = { ...(s.overlayWindowScales || {}) };
-    hotkeyEnabled = !!s.hotkeyEnabled;
-    hotkey = s.hotkey || OVERLAY_DEFAULTS.hotkey;
-    interactionHotkeyEnabled = !!s.interactionHotkeyEnabled;
-    interactionHotkey = s.interactionHotkey || OVERLAY_DEFAULTS.interactionHotkey;
   }
 
   onMount(async () => {
@@ -214,28 +207,7 @@
   let saveQueue: Promise<void> = Promise.resolve();
 
   function currentOverlayPayload() {
-    return {
-      autoTriggerEnabled: autoTrigger,
-      notificationSoundEnabled,
-      wfmNotificationsEnabled,
-      messageNotificationsEnabled,
-      messageNotificationsWhileFocused,
-      autoCloseWfmOrders,
-      tradeRepHotkeyEnabled,
-      tradeRepHotkey,
-      tradeNotificationOverlayEnabled,
-      relicRewardsOverlayEnabled,
-      relicRecommendationOverlayEnabled,
-      rivenOverlayEnabled,
-      arbiSummaryOverlayEnabled,
-      arbiTrackingEnabled,
-      autoInventorySyncEnabled,
-      ocrDebugImagesEnabled,
-      hotkeyEnabled,
-      hotkey,
-      interactionHotkeyEnabled,
-      interactionHotkey,
-    };
+    return { ...form };
   }
 
   function queueSave(
@@ -293,21 +265,21 @@
   function recordTriggerHotkey(e: KeyboardEvent): void {
     const accel = captureAccelerator(e);
     if (accel === undefined) return;
-    hotkey = accel;
+    form.hotkey = accel;
     autoSave();
   }
 
   function recordInteractionHotkey(e: KeyboardEvent): void {
     const accel = captureAccelerator(e);
     if (accel === undefined) return;
-    interactionHotkey = accel;
+    form.interactionHotkey = accel;
     autoSave();
   }
 
   function recordTradeRepHotkey(e: KeyboardEvent): void {
     const accel = captureAccelerator(e);
     if (accel === undefined) return;
-    tradeRepHotkey = accel;
+    form.tradeRepHotkey = accel;
     autoSave();
   }
 
@@ -332,11 +304,11 @@
 
   // Local mirror of the per-tab visibility stores so each checkbox can bind to a
   // plain bool; the change handler pushes back to the persisted store.
-  const tabChecked: Record<string, boolean> = Object.fromEntries(
+  const tabChecked = Object.fromEntries(
     TOGGLEABLE_TABS.map((t) => [t.view, get(tabVisibility[t.view])]),
-  );
+  ) as Record<ToggleableView, boolean>;
 
-  function setTabVisible(view: string): void {
+  function setTabVisible(view: ToggleableView): void {
     tabVisibility[view].set(tabChecked[view]);
   }
 </script>
@@ -419,7 +391,7 @@
             <span>{$tr("settings.windowsNotifSound")}</span>
             <input
               type="checkbox"
-              bind:checked={notificationSoundEnabled}
+              bind:checked={form.notificationSoundEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -429,7 +401,7 @@
             <span>{$tr("settings.wfmDmNotifications")}</span>
             <input
               type="checkbox"
-              bind:checked={wfmNotificationsEnabled}
+              bind:checked={form.wfmNotificationsEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -439,18 +411,18 @@
             <span>{$tr("settings.inGameMessageNotifications")}</span>
             <input
               type="checkbox"
-              bind:checked={messageNotificationsEnabled}
+              bind:checked={form.messageNotificationsEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
           </label>
 
-          <label class="settings-control-row" class:opacity-50={!messageNotificationsEnabled}>
+          <label class="settings-control-row" class:opacity-50={!form.messageNotificationsEnabled}>
             <span>{$tr("settings.notifyWhileFocused")}</span>
             <input
               type="checkbox"
-              bind:checked={messageNotificationsWhileFocused}
-              disabled={!messageNotificationsEnabled}
+              bind:checked={form.messageNotificationsWhileFocused}
+              disabled={!form.messageNotificationsEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -460,7 +432,7 @@
             <span>{$tr("settings.unlistOnTrade")}</span>
             <input
               type="checkbox"
-              bind:checked={autoCloseWfmOrders}
+              bind:checked={form.autoCloseWfmOrders}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -470,7 +442,7 @@
             <span>{$tr("settings.tradeRepKeybindEnable")}</span>
             <input
               type="checkbox"
-              bind:checked={tradeRepHotkeyEnabled}
+              bind:checked={form.tradeRepHotkeyEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -480,8 +452,8 @@
             <span>{$tr("settings.tradeRepKeybind")}</span>
             <input
               type="text"
-              bind:value={tradeRepHotkey}
-              disabled={!tradeRepHotkeyEnabled}
+              bind:value={form.tradeRepHotkey}
+              disabled={!form.tradeRepHotkeyEnabled}
               placeholder={$tr("settings.pressKeyCombination")}
               on:keydown={recordTradeRepHotkey}
               on:change={autoSave}
@@ -510,7 +482,7 @@
             <span>{$tr("settings.trackArbiRuns")}</span>
             <input
               type="checkbox"
-              bind:checked={arbiTrackingEnabled}
+              bind:checked={form.arbiTrackingEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -558,7 +530,7 @@
             </span>
             <input
               type="checkbox"
-              bind:checked={autoInventorySyncEnabled}
+              bind:checked={form.autoInventorySyncEnabled}
               on:change={autoSave}
               disabled={!autoSyncApplies}
               class="accent-accent disabled:opacity-50"
@@ -784,7 +756,7 @@
             <span>{$tr("settings.relicRewardsOverlay")}</span>
             <input
               type="checkbox"
-              bind:checked={relicRewardsOverlayEnabled}
+              bind:checked={form.relicRewardsOverlayEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -794,7 +766,7 @@
             <span>{$tr("settings.relicRecommendationOverlay")}</span>
             <input
               type="checkbox"
-              bind:checked={relicRecommendationOverlayEnabled}
+              bind:checked={form.relicRecommendationOverlayEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -804,7 +776,7 @@
             <span>{$tr("settings.tradeDetectedOverlay")}</span>
             <input
               type="checkbox"
-              bind:checked={tradeNotificationOverlayEnabled}
+              bind:checked={form.tradeNotificationOverlayEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -814,7 +786,7 @@
             <span>{$tr("settings.rivenOverlay")}</span>
             <input
               type="checkbox"
-              bind:checked={rivenOverlayEnabled}
+              bind:checked={form.rivenOverlayEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -824,7 +796,7 @@
             <span>{$tr("settings.arbiSummaryOverlay")}</span>
             <input
               type="checkbox"
-              bind:checked={arbiSummaryOverlayEnabled}
+              bind:checked={form.arbiSummaryOverlayEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -851,7 +823,7 @@
             <span>{$tr("settings.ocrDebugImages")}</span>
             <input
               type="checkbox"
-              bind:checked={ocrDebugImagesEnabled}
+              bind:checked={form.ocrDebugImagesEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -878,7 +850,7 @@
             <span>{$tr("settings.autoTrigger")}</span>
             <input
               type="checkbox"
-              bind:checked={autoTrigger}
+              bind:checked={form.autoTriggerEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -908,7 +880,7 @@
             <span>{$tr("settings.hotkeyFallback")}</span>
             <input
               type="checkbox"
-              bind:checked={hotkeyEnabled}
+              bind:checked={form.hotkeyEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -918,8 +890,8 @@
             <span>{$tr("settings.hotkey")}</span>
             <input
               type="text"
-              bind:value={hotkey}
-              disabled={!hotkeyEnabled}
+              bind:value={form.hotkey}
+              disabled={!form.hotkeyEnabled}
               placeholder={$tr("settings.hotkeyPlaceholder")}
               on:keydown={recordTriggerHotkey}
               on:change={autoSave}
@@ -931,7 +903,7 @@
             <span>{$tr("settings.interactionHotkeyEnabled")}</span>
             <input
               type="checkbox"
-              bind:checked={interactionHotkeyEnabled}
+              bind:checked={form.interactionHotkeyEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
@@ -941,8 +913,8 @@
             <span>{$tr("settings.interactionHotkey")}</span>
             <input
               type="text"
-              bind:value={interactionHotkey}
-              disabled={!interactionHotkeyEnabled}
+              bind:value={form.interactionHotkey}
+              disabled={!form.interactionHotkeyEnabled}
               placeholder={$tr("settings.interactionHotkeyPlaceholder")}
               on:keydown={recordInteractionHotkey}
               on:change={autoSave}
