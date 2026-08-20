@@ -4760,8 +4760,7 @@ export const CODEX_SCAN_REQUIREMENTS: Record<
   },
 };
 
-// Profile-only scan types: display name, icon (mirrored DE url or a wiki file
-// under /enemies/) and, when DE states one, the required scan count.
+// Profile-only scans from DE PublicExport, with mirrored DE or wiki art.
 export const CODEX_EXTRA_INFO: Record<
   string,
   { name?: string; icon?: string; faction: string; scans?: number }
