@@ -1,12 +1,12 @@
 import { withScope } from "../../services/logger";
 import { captureScreenFast, type CaptureResult } from "../../services/screenCapture";
-import { canvasContentRect } from "../../services/rewardScannerImage";
 import { sleep } from "../../services/rewardScannerUtils";
 import {
   abortRivenScanWaits,
   computeRivenFrameHashForCrop,
   RIVEN_SCAN_CROPS,
   resetRivenScanWaits,
+  rivenContentRect,
   type RivenScanCropRect,
   waitForRivenUiReady,
 } from "./rivenScanImage";
@@ -113,7 +113,7 @@ function logCapture(profile: RivenScanProfile, capture: CaptureResult): void {
   // invisible in the log, so name it when bar trim or the 16:9 clamp bites.
   let contentNote = "";
   try {
-    const content = canvasContentRect(capture.image);
+    const content = rivenContentRect(capture.image, capture.sourceType);
     if (
       content.x !== 0 ||
       content.y !== 0 ||
@@ -133,7 +133,7 @@ function logCapture(profile: RivenScanProfile, capture: CaptureResult): void {
 
 function frameHashForCapture(capture: CaptureResult, profile: RivenScanProfile): string {
   try {
-    return computeRivenFrameHashForCrop(capture.image, profile.crop);
+    return computeRivenFrameHashForCrop(capture.image, profile.crop, capture.sourceType);
   } catch {
     // Hashing failed (e.g. invalid crop region) - empty hash disables dedup for this frame.
     return "";
@@ -172,6 +172,7 @@ async function recognizeCapture(
   return recognizeRivenCardStats(capture.image, profile.crop, {
     label,
     captureMs,
+    sourceType: capture.sourceType,
     generation,
     isStale: isRivenScanStale,
   });

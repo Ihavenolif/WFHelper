@@ -526,7 +526,7 @@ function onFitsInWeapon(match: WeaponLabelMatch): void {
 async function detectFitsInWeapon(capture: CaptureResult): Promise<void> {
   const token = _rivenSessionToken;
   try {
-    const match = await readFitsInWeapon(capture.image);
+    const match = await readFitsInWeapon(capture.image, capture.sourceType);
     if (token !== _rivenSessionToken) return;
     if (match) {
       onFitsInWeapon(match);

@@ -97,7 +97,10 @@ export function detectGameContentRect(nativeImage: NativeImage): GameContentRect
 // Menus sit on a centred 16:9 canvas, so a barless non-16:9 render needs the
 // crop base clamped to it. The x half is 98e22b5, shipped since v1.1.0.
 export function canvasContentRect(nativeImage: NativeImage): GameContentRect {
-  const content = detectGameContentRect(nativeImage);
+  return centerGameCanvas(detectGameContentRect(nativeImage));
+}
+
+function centerGameCanvas(content: GameContentRect): GameContentRect {
   const canvasWidth = Math.min(content.width, Math.round((content.height * 16) / 9));
   const canvasHeight = Math.min(content.height, Math.round((content.width * 9) / 16));
   return {
@@ -106,6 +109,12 @@ export function canvasContentRect(nativeImage: NativeImage): GameContentRect {
     width: canvasWidth,
     height: canvasHeight,
   };
+}
+
+/** Clamp a known client-only frame without trying to rediscover black bars. */
+export function frameCanvasContentRect(nativeImage: NativeImage): GameContentRect {
+  const { width, height } = nativeImage.getSize();
+  return centerGameCanvas({ x: 0, y: 0, width, height });
 }
 
 const OCR_ENHANCE: Readonly<{

@@ -1,7 +1,11 @@
 import type { NativeImage } from "electron";
 import { describe, expect, it } from "vitest";
 
-import { cropRivenStatImage, RIVEN_SCAN_CROPS } from "../../ipc/overlay/rivenScanImage";
+import {
+  cropRivenStatImage,
+  RIVEN_SCAN_CROPS,
+  rivenContentRect,
+} from "../../ipc/overlay/rivenScanImage";
 
 // Minimal structural NativeImage over a BGRA buffer; crop returns another fake
 // so nested crops (rough -> aspect trim -> stat band) work.
@@ -28,30 +32,50 @@ const TEXT_W = 340;
 // (screen y 839..1163 at 1440p).
 const TEXT_TOP = 880;
 const TEXT_BOTTOM = 1160;
+const CLIENT_GEOMETRIES = [
+  ["16:9", 1280, 720],
+  ["16:10", 1280, 800],
+  ["4:3", 1024, 768],
+  ["21:9", 1720, 720],
+] as const;
+const RIVEN_LAYOUTS = [
+  ["single-card", RIVEN_SCAN_CROPS.singleCard, 0.61, 0.78],
+  ["chat-card", RIVEN_SCAN_CROPS.chatCard, 0.5, 0.64],
+  ["roll-card", RIVEN_SCAN_CROPS.rollCard, 0.6, 0.75],
+] as const;
+const RIVEN_GEOMETRY_CASES = RIVEN_LAYOUTS.flatMap(([layout, crop, top, bottom]) =>
+  CLIENT_GEOMETRIES.map(
+    ([aspect, width, height]) => [layout, aspect, crop, top, bottom, width, height] as const,
+  ),
+);
 
 /** Dark screen with white "stat line" stripes starting at textLeft. */
 function makeRivenScreen(
   textLeft: number,
   textTop = TEXT_TOP,
   textBottom = TEXT_BOTTOM,
+  width = SCREEN_W,
+  height = SCREEN_H,
+  textWidth = TEXT_W,
+  background = 30,
 ): NativeImage {
-  const bitmap = Buffer.alloc(SCREEN_W * SCREEN_H * 4);
+  const bitmap = Buffer.alloc(width * height * 4);
   for (let i = 0; i < bitmap.length; i += 4) {
-    bitmap[i] = 30;
-    bitmap[i + 1] = 30;
-    bitmap[i + 2] = 30;
+    bitmap[i] = background;
+    bitmap[i + 1] = background;
+    bitmap[i + 2] = background;
     bitmap[i + 3] = 255;
   }
   for (let y = textTop; y < textBottom; y++) {
     if ((y - textTop) % 28 >= 16) continue; // 16px text line, 12px gap
-    for (let x = textLeft; x < textLeft + TEXT_W; x++) {
-      const idx = (y * SCREEN_W + x) * 4;
+    for (let x = textLeft; x < textLeft + textWidth; x++) {
+      const idx = (y * width + x) * 4;
       bitmap[idx] = 255;
       bitmap[idx + 1] = 255;
       bitmap[idx + 2] = 255;
     }
   }
-  return wrapImage(bitmap, SCREEN_W, SCREEN_H);
+  return wrapImage(bitmap, width, height);
 }
 
 /** Width of the white text span found in a crop (0 when absent). */
@@ -134,5 +158,56 @@ describe("cropRivenStatImage", () => {
 
     expect(whiteRowGroups(chat.statCrop)).toBe(5);
     expect(whiteRowGroups(reroll.statCrop)).toBeLessThan(5);
+  });
+
+  it.each(RIVEN_GEOMETRY_CASES)(
+    "keeps the %s stat column in a %s client",
+    (_layout, _aspect, crop, topRatio, bottomRatio, width, height) => {
+      const canvasWidth = Math.min(width, Math.round((height * 16) / 9));
+      const canvasHeight = Math.min(height, Math.round((width * 9) / 16));
+      const canvasX = Math.floor((width - canvasWidth) / 2);
+      const canvasY = Math.floor((height - canvasHeight) / 2);
+      const textWidth = Math.max(120, Math.round(canvasWidth * 0.135));
+      const textLeft = canvasX + Math.round((canvasWidth - textWidth) / 2);
+      const textTop = canvasY + Math.round(canvasHeight * topRatio);
+      const textBottom = canvasY + Math.round(canvasHeight * bottomRatio);
+      const screen = makeRivenScreen(textLeft, textTop, textBottom, width, height, textWidth);
+
+      const { statCrop } = cropRivenStatImage(screen, crop, "window");
+
+      expect(whiteSpan(statCrop)).toBeGreaterThanOrEqual(textWidth - 4);
+      expect(whiteRowGroups(statCrop)).toBeGreaterThanOrEqual(3);
+    },
+  );
+
+  it("does not detect black bars again inside a dark 1280x960 window client", () => {
+    const width = 1280;
+    const height = 960;
+    const canvasHeight = 720;
+    const canvasY = 120;
+    const textWidth = 190;
+    const screen = makeRivenScreen(
+      (width - textWidth) / 2,
+      canvasY + Math.round(canvasHeight * 0.61),
+      canvasY + Math.round(canvasHeight * 0.78),
+      width,
+      height,
+      textWidth,
+      0,
+    );
+
+    expect(rivenContentRect(screen, "window")).toEqual({
+      x: 0,
+      y: 120,
+      width: 1280,
+      height: 720,
+    });
+
+    const windowCrop = cropRivenStatImage(screen, RIVEN_SCAN_CROPS.singleCard, "window");
+    const redetectedCrop = cropRivenStatImage(screen, RIVEN_SCAN_CROPS.singleCard, "screen");
+
+    expect(whiteSpan(windowCrop.statCrop)).toBeGreaterThanOrEqual(textWidth - 4);
+    expect(whiteRowGroups(windowCrop.statCrop)).toBeGreaterThanOrEqual(4);
+    expect(whiteSpan(redetectedCrop.statCrop)).toBeLessThan(textWidth - 4);
   });
 });

@@ -534,8 +534,6 @@ function onInitialStats(stats) {
   if (Array.isArray(stats) && stats.length > 0) {
     renderStats(stats);
   } else {
-    // Scan ran but read nothing - tell the user why instead of sitting on
-    // "Waiting for scan...". The usual cause is Warframe in windowed mode.
     showScanError("overlay.riven.readFailed");
   }
 }

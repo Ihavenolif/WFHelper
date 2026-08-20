@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   captureLinuxStreamFrame: vi.fn(),
   getWarframeWindowBoundsLinux: vi.fn(),
   getDisplayMatching: vi.fn(),
+  screenToDipRect: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -19,6 +20,7 @@ vi.mock("electron", () => ({
     getAllDisplays: mocks.getAllDisplays,
     getPrimaryDisplay: mocks.getPrimaryDisplay,
     getDisplayMatching: mocks.getDisplayMatching,
+    screenToDipRect: mocks.screenToDipRect,
   },
   nativeImage: { createFromBitmap: mocks.createFromBitmap },
 }));
@@ -38,6 +40,7 @@ vi.mock("../../services/linuxStreamCapture", () => ({
 }));
 
 import { __test__, captureScreenFast } from "../../services/screenCapture";
+import { cropRivenStatImage, RIVEN_SCAN_CROPS } from "../../ipc/overlay/rivenScanImage";
 
 function makeFakeNativeImage(
   width: number,
@@ -81,6 +84,7 @@ beforeEach(() => {
   __test__.resetGameWindowCacheForTest();
   mocks.getAllDisplays.mockReturnValue([]);
   mocks.getWarframeWindowBoundsLinux.mockResolvedValue(null);
+  mocks.screenToDipRect.mockImplementation((_window, rect) => rect);
 });
 
 afterEach(() => {
@@ -101,6 +105,15 @@ function primeDesktopCapturer(
   mocks.getSources.mockResolvedValue([
     { id: `screen:${display.id}:0`, name: "Screen", display_id: String(display.id), thumbnail },
   ]);
+}
+
+function brightPixelCount(image: NativeImage): number {
+  const bitmap = image.toBitmap();
+  let count = 0;
+  for (let index = 0; index < bitmap.length; index += 4) {
+    if (bitmap[index] > 200 && bitmap[index + 1] > 200 && bitmap[index + 2] > 200) count += 1;
+  }
+  return count;
 }
 
 describe("captureScreenFast on linux (persistent stream)", () => {
@@ -256,6 +269,44 @@ describe("captureScreenFast on win32 (GDI)", () => {
     mocks.createFromBitmap.mockReturnValue(makeFakeNativeImage(480, 270, () => BRIGHT));
     const result = await captureScreenFast(null);
     expect(result!.image.getSize()).toEqual({ width: 400, height: 250 });
+    expect(result!.sourceType).toBe("window");
+  });
+
+  it("captures the display containing a windowed game and preserves the riven crop", async () => {
+    setPlatform("win32");
+    const client = { x: 80, y: 60, width: 800, height: 500 };
+    const dipClient = { x: 40, y: 30, width: 400, height: 250 };
+    mocks.getGameWindowClientRect.mockReturnValue(client);
+    mocks.screenToDipRect.mockReturnValue(dipClient);
+    mocks.getDisplayMatching.mockReturnValue({ id: 7 });
+    mocks.captureGdi.mockReturnValue({
+      buffer: Buffer.alloc(1000 * 650 * 4, 30),
+      width: 1000,
+      height: 650,
+      displayId: "7",
+      originX: 0,
+      originY: 0,
+    });
+    mocks.createFromBitmap.mockReturnValue(
+      makeFakeNativeImage(1000, 650, (x, y) => {
+        const inStatRow = x >= 420 && x < 540 && y >= 380 && y < 440 && (y - 380) % 12 < 7;
+        return inStatRow ? [255, 255, 255, 255] : [30, 30, 30, 255];
+      }),
+    );
+
+    const result = await captureScreenFast("1");
+    const { statCrop } = cropRivenStatImage(
+      result!.image,
+      RIVEN_SCAN_CROPS.singleCard,
+      result!.sourceType,
+    );
+
+    expect(mocks.screenToDipRect).toHaveBeenCalledWith(null, client);
+    expect(mocks.getDisplayMatching).toHaveBeenCalledWith(dipClient);
+    expect(mocks.captureGdi).toHaveBeenCalledWith("7");
+    expect(result!.image.getSize()).toEqual({ width: 800, height: 500 });
+    expect(result!.sourceType).toBe("window");
+    expect(brightPixelCount(statCrop)).toBeGreaterThan(1000);
   });
 
   it("returns null when GDI fails instead of serving stale desktopCapturer content", async () => {

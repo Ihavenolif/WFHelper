@@ -3,6 +3,7 @@ import type { NativeImage } from "electron";
 import { withScope } from "../../services/logger";
 import { areOcrDebugDumpsEnabled } from "../../services/rewardScanDebug";
 import { sleep } from "../../services/rewardScannerUtils";
+import type { CaptureResult } from "../../services/screenCapture";
 import {
   hasLowConfidenceLine,
   LOW_CONFIDENCE_THRESHOLD,
@@ -49,6 +50,7 @@ export interface RivenCardRecognitionResult {
 interface RivenCardRecognitionOptions {
   label?: string;
   captureMs?: number;
+  sourceType?: CaptureResult["sourceType"];
   generation: number;
   isStale: (generation: number) => boolean;
 }
@@ -109,7 +111,7 @@ export async function recognizeRivenCardStats(
   const totalStart = Date.now();
 
   const cropStart = Date.now();
-  const { cardCrop, statCrop } = cropRivenStatImage(image, rect);
+  const { cardCrop, statCrop } = cropRivenStatImage(image, rect, options.sourceType);
   const cropRefineMs = Date.now() - cropStart;
 
   if (!rivenOcrOnnxAvailable()) {

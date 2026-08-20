@@ -1,9 +1,11 @@
 import type { NativeImage } from "electron";
 
 import { withScope } from "../../services/logger";
-import { canvasContentRect, cropRectContent } from "../../services/rewardScannerImage";
+import { cropRectContent } from "../../services/rewardScannerImage";
 import { recognizeRewardStripOnnx } from "../../services/rewardOcrOnnx";
 import { findWeaponByLabelLine, type WeaponLabelMatch } from "../../services/rivenData";
+import type { CaptureResult } from "../../services/screenCapture";
+import { rivenContentRect } from "./rivenScanImage";
 
 const log = withScope("rivenScan");
 
@@ -61,8 +63,11 @@ export async function readWeaponLabelFromPanelPng(
 }
 
 /** Reads the linked weapon variant off the FITS IN panel of a full capture. */
-export async function readFitsInWeapon(image: NativeImage): Promise<WeaponLabelMatch | null> {
-  const content = canvasContentRect(image);
+export async function readFitsInWeapon(
+  image: NativeImage,
+  sourceType?: CaptureResult["sourceType"],
+): Promise<WeaponLabelMatch | null> {
+  const content = rivenContentRect(image, sourceType);
   const crop = cropRectContent(image, RIVEN_FITS_IN_CROP, content);
   const { width, height } = crop.getSize();
   if (width < 48 || height < 48) return null;
