@@ -11,6 +11,9 @@ half-finished locale still ships a working UI.
 2. In `src/lib/i18n.ts`, add the code to `LocaleCode`, add an entry to
    `LOCALE_OPTIONS` with the language's own name (`Deutsch`, not `German`), and
    add one line to `LOADERS`.
+3. In `ipc/overlayI18n.ts`, add the same file to `DICTIONARIES` so the in-game
+   overlays follow the language too. They are plain HTML windows with no store
+   access, so the main process resolves their text and pushes it to them.
 
 That is the whole change. Each locale is bundled as its own chunk and only the
 active one is ever loaded, so adding a language does not grow the app for

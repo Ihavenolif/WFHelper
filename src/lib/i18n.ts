@@ -1,5 +1,6 @@
 import { derived, writable, type Readable } from "svelte/store";
 import { en, type MessageKey } from "../i18n/en.js";
+import { send } from "./ipc.js";
 
 type MessageParamValue = string | number;
 type MessageParams = Record<string, MessageParamValue>;
@@ -89,6 +90,14 @@ if (typeof document !== "undefined") {
     document.documentElement.lang = code;
   });
 }
+
+// The in-game overlays are plain HTML windows without store access, so the main
+// process resolves their text; it only needs to know which language is active.
+localeStore.subscribe((code) => {
+  if (typeof window === "undefined") return;
+  if (typeof window.api?.updateOverlayLocale !== "function") return;
+  send("overlay-locale-updated", code);
+});
 
 function interpolate(template: string, params: MessageParams): string {
   return template.replace(/\{(\w+)\}/g, (_match, key: string) => {

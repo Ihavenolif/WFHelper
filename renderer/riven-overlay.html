@@ -6,7 +6,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none';"
     />
-    <title>Riven Overlay</title>
+    <title data-i18n="settings.rivenOverlay">Riven Overlay</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Barlow:wght@300;400;500;600&display=swap"
       rel="stylesheet"
@@ -19,15 +19,20 @@
     <div id="panel">
       <div id="header">
         <div id="header-left">
-          <div id="panel-label">CURRENT</div>
+          <div id="panel-label">Current</div>
           <div id="weapon-name">&mdash;</div>
         </div>
         <div id="header-right">
           <div id="roll-badge">Roll 0</div>
-          <button id="btn-rescan" class="is-hidden" title="Rescan card and linked weapon">
+          <button
+            id="btn-rescan"
+            class="is-hidden"
+            data-i18n-title="overlay.riven.rescan"
+            title="Rescan card and linked weapon"
+          >
             &#8635;
           </button>
-          <button id="btn-close" title="Close">&times;</button>
+          <button id="btn-close" data-i18n-title="common.close" title="Close">&times;</button>
         </div>
       </div>
 
@@ -49,7 +54,7 @@
         Couldn't read the riven. Set Warframe to Fullscreen or Borderless (not Windowed).
       </div>
 
-      <div id="weapon-warning" class="is-hidden">
+      <div id="weapon-warning" class="is-hidden" data-i18n="overlay.riven.weaponMissing">
         Couldn't read the weapon name, so there are no grades. Use the rescan button to retry.
       </div>
 
@@ -61,7 +66,7 @@
 
       <!-- Similar rivens from WFM (shown when search completes) -->
       <div id="similar-listings" class="is-hidden">
-        <div id="similar-header">Similar on WFM</div>
+        <div id="similar-header" data-i18n="rivens.detail.similarOnWfm">Similar on WFM</div>
         <div id="similar-list"></div>
       </div>
 
@@ -69,6 +74,7 @@
     </div>
     <script src="overlay-drag.js"></script>
     <script src="overlay-theme.js"></script>
+    <script src="overlay-i18n.js"></script>
     <script type="module" src="riven-overlay.js"></script>
   </body>
 </html>

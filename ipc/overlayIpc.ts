@@ -1,15 +1,18 @@
 import ctx from "./context";
 import {
+  assertLocalizedOverlaySender,
   assertMainRendererSender,
   assertOverlayRendererSender,
   handleAuthorized,
   onAuthorized,
 } from "./ipcSecurity";
+import { overlayMessages, setOverlayLocale } from "./overlayI18n";
 import { disposeAppHotkeys, overlayHotkeyBackend } from "./hotkeyRegistry";
 import { createOverlaySettingsController } from "./overlay/settings";
 import { pinDragSize } from "./overlay/windows";
 import { hideTradeNotification } from "./tradeNotificationIpc";
 import { writeFileAtomicSync } from "../services/atomicFile";
+import { userDataPath } from "../services/userDataPath";
 import { asRecord } from "./ipcValidators";
 import { withScope } from "../services/logger";
 import * as warframeStatus from "../services/warframeStatus";
@@ -36,7 +39,10 @@ import {
   OVERLAY_INTERACTION_MODE,
   OVERLAY_THEME_VARS,
   OVERLAY_GET_SETTINGS,
+  OVERLAY_GET_MESSAGES,
   OVERLAY_GET_THEME_VARS,
+  OVERLAY_LOCALE_UPDATED,
+  OVERLAY_MESSAGES,
   OVERLAY_SET_SETTINGS,
   OVERLAY_THEME_UPDATED,
   OVERLAY_DRAG_MOVE,
@@ -54,9 +60,8 @@ import {
 
 const log = withScope("overlayIpc");
 
-import { BrowserWindow, app, screen, type WebContents } from "electron";
+import { BrowserWindow, screen, type WebContents } from "electron";
 import fs from "node:fs";
-import path from "node:path";
 
 function pushOverlayInteractionMode(): void {
   const payload = {
@@ -223,6 +228,18 @@ function pushOverlayThemeVars(): void {
   rivenOverlayIpc.forEachRivenWindow((win) => win.webContents.send(OVERLAY_THEME_VARS, vars));
 }
 
+// Reaches every overlay that is already open, so a language change lands
+// without waiting for the next trigger.
+function pushOverlayMessages(): void {
+  const messages = overlayMessages();
+  rewardOverlayIpc.rewardWindowsController.sendOverlayEvent(OVERLAY_MESSAGES, messages);
+  rewardOverlayIpc.plannerWindowsController.sendOverlayEvent(OVERLAY_MESSAGES, messages);
+  arbiOverlayIpc.arbiSummaryWindowsController.sendOverlayEvent(OVERLAY_MESSAGES, messages);
+  rivenOverlayIpc.forEachRivenWindow((win) => win.webContents.send(OVERLAY_MESSAGES, messages));
+  const toast = ctx.tradeNotificationWindow;
+  if (toast && !toast.isDestroyed()) toast.webContents.send(OVERLAY_MESSAGES, messages);
+}
+
 function onRelicRewardTrigger(source = "manual", stalenessMs = 0): void {
   rewardOverlayIpc.onRelicRewardTrigger(
     source,
@@ -241,7 +258,7 @@ function notifyRewardScreenClosed(stalenessMs: number): void {
   rewardOverlayIpc.notifyRewardScreenClosed(stalenessMs);
 }
 
-const OVERLAY_SETTINGS_FILE = path.join(app.getPath("userData"), "overlay-settings.json");
+const OVERLAY_SETTINGS_FILE = userDataPath("overlay-settings.json");
 
 const settingsController = createOverlaySettingsController({
   log,
@@ -361,6 +378,10 @@ function register(): void {
     return { ...(ctx.overlayThemeVars || {}) };
   });
 
+  handleAuthorized(OVERLAY_GET_MESSAGES, assertLocalizedOverlaySender, async () => {
+    return overlayMessages();
+  });
+
   onAuthorized(OVERLAY_DRAG_MOVE, assertOverlayRendererSender, (event, rawDelta: unknown) => {
     moveInteractiveOverlayWindow(event.sender, rawDelta);
   });
@@ -416,6 +437,13 @@ function register(): void {
     if (Object.keys(sanitized).length > 0) {
       pushOverlayThemeVars();
     }
+  });
+
+  onAuthorized(OVERLAY_LOCALE_UPDATED, assertMainRendererSender, (_event, rawLocale: unknown) => {
+    const locale = setOverlayLocale(rawLocale);
+    if (!locale) return;
+    log.info(`[OverlayI18n] locale=${locale}`);
+    pushOverlayMessages();
   });
 
   // wizard dummies mirror real overlay positions on the primary display's work area

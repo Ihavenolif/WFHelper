@@ -1,4 +1,9 @@
 let _runId = null;
+let _summary = null;
+
+function t(key, params) {
+  return window.overlayI18n.t(key, params);
+}
 
 function el(id) {
   return document.getElementById(id);
@@ -14,24 +19,26 @@ function formatDuration(totalSeconds) {
 }
 
 function missionLabel(data) {
-  if (data.missionType === "defense") return "Defense";
-  if (data.missionType === "interception") return "Interception";
+  if (data.missionType === "defense") return t("arbi.type.defense");
+  if (data.missionType === "interception") return t("arbi.type.interception");
   const raw = typeof data.missionTypeRaw === "string" ? data.missionTypeRaw : "";
+  // Anything else is the game's own MT_ enum, which only exists in English.
   return raw
     ? raw
         .replace(/^MT_/, "")
         .toLowerCase()
         .replace(/(^|_)\w/g, (c) => c.replace("_", " ").toUpperCase())
-    : "Arbitration";
+    : t("overlay.arbi.missionFallback");
 }
 
-function renderSummary(data) {
-  if (!data || typeof data !== "object") return;
-  _runId = typeof data.id === "string" ? data.id : null;
+function renderSummary() {
+  const data = _summary;
+  if (!data) return;
 
-  el("run-node").textContent = data.node || "Unknown node";
+  el("run-node").textContent = data.node || t("overlay.arbi.unknownNode");
+  const rotations = t("overlay.arbi.rotations", { count: Number(data.rotations) || 0 });
   el("run-meta").textContent =
-    `${missionLabel(data)} · ${formatDuration(data.durationSec)} · ${Number(data.rotations) || 0} rotations`;
+    `${missionLabel(data)} · ${formatDuration(data.durationSec)} · ${rotations}`;
 
   const mean = Number(data.expectedVitusMean);
   const std = Number(data.expectedVitusStd);
@@ -50,6 +57,13 @@ function renderSummary(data) {
 
   const pct = Number(data.pctTimeAt15Plus);
   el("kpi-saturation").textContent = Number.isFinite(pct) ? `${pct.toFixed(1)}%` : "-";
+}
+
+function onSummaryData(data) {
+  if (!data || typeof data !== "object") return;
+  _runId = typeof data.id === "string" ? data.id : null;
+  _summary = data;
+  renderSummary();
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -74,7 +88,12 @@ document.addEventListener("DOMContentLoaded", () => {
     moveBy: (dx, dy) => window.arbiSummary.moveBy(dx, dy),
   });
 
-  window.arbiSummary.onData(renderSummary);
+  window.arbiSummary.onData(onSummaryData);
   window.arbiSummary.onThemeVars(window.overlayTheme.applyThemeVars);
-  window.arbiSummary.ready();
+  window.arbiSummary.onMessages((messages) => window.overlayI18n.apply(messages));
+  // Header and KPI values are rebuilt from the stored run on a language change.
+  window.overlayI18n.onApply(renderSummary);
+  void window.overlayI18n
+    .load(() => window.arbiSummary.getMessages())
+    .then(() => window.arbiSummary.ready());
 });

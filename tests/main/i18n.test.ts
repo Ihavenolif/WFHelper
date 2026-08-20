@@ -3,10 +3,12 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { overlayMessages, setOverlayLocale } from "../../ipc/overlayI18n";
 import de from "../../src/i18n/de.json";
 import { en } from "../../src/i18n/en";
 
-const SRC = path.resolve(__dirname, "../../src");
+// The overlay keys are named in ipc/, not src/, because main resolves them.
+const REFERENCE_ROOTS = ["src", "ipc"].map((dir) => path.resolve(__dirname, "../..", dir));
 
 // warframe.market whispers are sent to other players, so they must stay English.
 const ENGLISH_ONLY = ["common.whisperBuy", "common.whisperSell"];
@@ -96,7 +98,7 @@ describe("i18n dictionaries", () => {
   });
 
   it("is fully referenced by the app", () => {
-    const blob = sourceFiles(SRC)
+    const blob = REFERENCE_ROOTS.flatMap((root) => sourceFiles(root))
       .map((file) => fs.readFileSync(file, "utf8"))
       .join("\n");
     const unused = Object.keys(en).filter((key) => {
@@ -107,5 +109,75 @@ describe("i18n dictionaries", () => {
     });
 
     expect(unused).toEqual([]);
+  });
+});
+
+// Any key-shaped literal, not only `t("...")`: overlay.js routes some keys
+// through a variable. Filtering through `en` drops filenames like "overlay.js".
+function overlayKeysReferenced(): Set<string> {
+  const dir = path.resolve(__dirname, "../../renderer");
+  const keys = new Set<string>();
+  for (const file of fs.readdirSync(dir)) {
+    if (!/\.(js|html)$/.test(file)) continue;
+    const source = fs.readFileSync(path.join(dir, file), "utf8");
+    for (const [, , key] of source.matchAll(/(["'`])([\w.]+)\1/g)) {
+      if (key in en) keys.add(key);
+    }
+  }
+  return keys;
+}
+
+describe("overlay messages", () => {
+  const locales = ["en", "de"];
+
+  it("names only keys English defines", () => {
+    setOverlayLocale("en");
+    const unknown = Object.keys(overlayMessages()).filter((key) => !(key in en));
+
+    expect(unknown).toEqual([]);
+  });
+
+  it("resolves a non-empty string for every key in every locale", () => {
+    for (const code of locales) {
+      setOverlayLocale(code);
+      const messages = overlayMessages();
+      expect(Object.keys(messages).length).toBeGreaterThan(0);
+      const blank = Object.entries(messages)
+        .filter(([, value]) => typeof value !== "string" || !value.trim())
+        .map(([key]) => `${code}:${key}`);
+
+      expect(blank).toEqual([]);
+    }
+    setOverlayLocale("en");
+  });
+
+  it("serves the active locale and falls back to English for an unknown one", () => {
+    setOverlayLocale("de");
+    expect(overlayMessages()["overlay.riven.waitingForRoll"]).toBe(
+      de["overlay.riven.waitingForRoll"],
+    );
+
+    setOverlayLocale("kr");
+    expect(overlayMessages()["overlay.riven.waitingForRoll"]).toBe(
+      en["overlay.riven.waitingForRoll"],
+    );
+  });
+
+  it("carries every key the overlay windows ask for", () => {
+    setOverlayLocale("en");
+    const served = new Set(Object.keys(overlayMessages()));
+    const asked = overlayKeysReferenced();
+
+    expect([...asked].filter((key) => !served.has(key))).toEqual([]);
+    expect(asked.size).toBeGreaterThan(0);
+  });
+
+  it("serves no key the overlay windows never ask for", () => {
+    // Naming a key in the overlay list also marks it used for the app-wide
+    // unused-key test, so a key that loses its last caller needs its own guard.
+    setOverlayLocale("en");
+    const asked = overlayKeysReferenced();
+
+    expect(Object.keys(overlayMessages()).filter((key) => !asked.has(key))).toEqual([]);
   });
 });

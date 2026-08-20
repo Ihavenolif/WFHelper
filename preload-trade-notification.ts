@@ -9,6 +9,8 @@ import {
   TRADE_NOTIFICATION_SHOW,
   TRADE_NOTIFICATION_DISMISS,
   TRADE_NOTIFICATION_REP_RESULT,
+  OVERLAY_GET_MESSAGES,
+  OVERLAY_MESSAGES,
   OVERLAY_THEME_VARS,
 } from "./config/shared/ipcChannels";
 
@@ -31,5 +33,11 @@ contextBridge.exposeInMainWorld("tradeNotificationApi", {
 
   onThemeVars: (callback: (vars: Record<string, string>) => void) => {
     return onIpcData(ipcRenderer, OVERLAY_THEME_VARS, callback);
+  },
+
+  getMessages: () => ipcRenderer.invoke(OVERLAY_GET_MESSAGES),
+
+  onMessages: (callback: (messages: Record<string, string>) => void) => {
+    return onIpcData(ipcRenderer, OVERLAY_MESSAGES, callback);
   },
 });

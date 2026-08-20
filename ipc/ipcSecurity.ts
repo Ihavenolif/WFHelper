@@ -122,14 +122,27 @@ function assertMainRendererSender(event: IpcEventLike, _channel: string): void {
   );
 }
 
-function assertOverlayRendererSender(event: IpcEventLike, _channel: string): void {
-  const candidates: BrowserWindowCandidate[] = [
+function overlayWindowCandidates(): BrowserWindowCandidate[] {
+  return [
     { win: ctx.overlayWindow, suffix: OVERLAY_RENDERER_SUFFIX },
     { win: ctx.plannerOverlayWindow, suffix: OVERLAY_RENDERER_SUFFIX },
     { win: ctx.rivenOverlayLeftWindow, suffix: RIVEN_OVERLAY_RENDERER_SUFFIX },
     { win: ctx.rivenOverlayRightWindow, suffix: RIVEN_OVERLAY_RENDERER_SUFFIX },
     { win: ctx.arbiSummaryWindow, suffix: ARBI_SUMMARY_RENDERER_SUFFIX },
   ];
+}
+
+function assertOverlayRendererSender(event: IpcEventLike, _channel: string): void {
+  assertAnyCandidateWindowSender(event, overlayWindowCandidates(), {
+    fallbackMessage: "No matching overlay window for sender",
+  });
+}
+
+// The trade toast reads the same message catalogue, but it has no drag, close
+// or scan surface, so it is only added to the guard for that one channel.
+function assertLocalizedOverlaySender(event: IpcEventLike, _channel: string): void {
+  const candidates = overlayWindowCandidates();
+  candidates.push({ win: ctx.tradeNotificationWindow, suffix: TRADE_NOTIFICATION_RENDERER_SUFFIX });
   assertAnyCandidateWindowSender(event, candidates, {
     fallbackMessage: "No matching overlay window for sender",
   });
@@ -230,6 +243,7 @@ function onAuthorized<Args extends unknown[]>(
 export {
   assertMainRendererSender,
   assertOverlayRendererSender,
+  assertLocalizedOverlaySender,
   assertRivenOverlayRendererSender,
   assertTradeNotificationSender,
   assertArbiSummarySender,

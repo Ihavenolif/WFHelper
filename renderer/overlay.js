@@ -1,8 +1,4 @@
 const SLOTS = 4;
-const OCR_UNAVAILABLE_MESSAGE =
-  "Windows OCR is not installed on this PC, so screen scanning cannot work. " +
-  "In Windows Settings > Time & Language > Language, install your language's " +
-  "features (or add English), then restart WFHelper.";
 const slotState = Array.from({ length: SLOTS }, () => ({
   item: null,
   price: null,
@@ -14,6 +10,16 @@ let rewardGeneration = 0;
 const BEST_PICK_SETTLE_CAP_MS = 4_000;
 const PLATINUM_ICON = "../assets/Platinum.png";
 const DUCAT_ICON = "../assets/OrokinDucats.png";
+
+// Every panel string is rebuilt from this state, so a language change needs no rescan.
+let scanningKey = "overlay.reward.scanning";
+let bestPlaceholderKey = "overlay.reward.detecting";
+let bannerMessage = null;
+let plannerPayload = null;
+
+function t(key, params) {
+  return window.overlayI18n.t(key, params);
+}
 
 function setOverlayInteractiveMode(interactive) {
   overlayInteractiveMode = !!interactive;
@@ -31,6 +37,13 @@ function rarityClass(rarity) {
   if (low === "rare") return "r-rare";
   if (low === "uncommon") return "r-uncommon";
   return "r-common";
+}
+
+function rarityLabel(rarity) {
+  const low = String(rarity || "").toLowerCase();
+  if (low === "rare") return t("overlay.reward.rarity.rare");
+  if (low === "uncommon") return t("overlay.reward.rarity.uncommon");
+  return t("overlay.reward.rarity.common");
 }
 
 async function fetchPrice(urlName) {
@@ -103,7 +116,7 @@ function renderSlotValues(container, price, ducats) {
       "slot-currency-value slot-plat-value",
       PLATINUM_ICON,
       String(Math.round(Number(price))),
-      "Platinum",
+      t("common.platinum"),
     );
   }
 
@@ -113,9 +126,17 @@ function renderSlotValues(container, price, ducats) {
       "slot-currency-value slot-ducat-value",
       DUCAT_ICON,
       String(Math.floor(ducatCount)),
-      "Ducats",
+      t("common.ducats"),
     );
   }
+}
+
+function partTooltip(part) {
+  const name = part.name || t("overlay.reward.partFallback");
+  const counts = `${formatCount(part.ownedCount)}/${formatCount(part.requiredCount)}`;
+  const building = part.building === true ? ` ${t("overlay.reward.partInFoundry")}` : "";
+  const reward = part.isReward ? ` ${t("overlay.reward.partIsReward")}` : "";
+  return `${name}: ${counts}${building}${reward}`;
 }
 
 function appendSetParts(container, parts) {
@@ -135,9 +156,7 @@ function appendSetParts(container, parts) {
     chip.className = `slot-set-part ${ok ? "owned" : "missing"}${building ? " building" : ""}${
       part.isReward ? " is-reward" : ""
     }`;
-    chip.title = `${part.name || "Part"}: ${formatCount(part.ownedCount)}/${formatCount(part.requiredCount)}${
-      building ? " (in the foundry)" : ""
-    }${part.isReward ? " (this reward)" : ""}`;
+    chip.title = partTooltip(part);
 
     if (part.imageUrl) {
       const img = document.createElement("img");
@@ -167,9 +186,20 @@ function plannerGridElement() {
   return document.getElementById("planner-grid");
 }
 
-function setScanningText(text) {
+function renderScanningText() {
   const el = document.getElementById("scanning-text");
-  if (el) el.textContent = text;
+  if (el) el.textContent = t(scanningKey);
+}
+
+function setScanningText(key) {
+  scanningKey = key;
+  renderScanningText();
+}
+
+function renderErrorBanner() {
+  const banner = document.getElementById("error-banner");
+  if (!banner) return;
+  banner.textContent = bannerMessage ? t(bannerMessage.key, bannerMessage.params) : "";
 }
 
 function showBestFooter(show) {
@@ -191,6 +221,7 @@ function hideScanning() {
 
 function renderSlot(index) {
   const slotEl = slotElement(index);
+  const playerEl = slotEl.querySelector(".slot-player");
   const nameEl = slotEl.querySelector(".slot-name");
   const priceEl = slotEl.querySelector(".slot-price");
   const rarityEl = slotEl.querySelector(".slot-rarity");
@@ -198,6 +229,7 @@ function renderSlot(index) {
   const { item, price, setPrice } = slotState[index];
 
   slotEl.classList.remove("has-item", "best-slot", "empty-slot");
+  if (playerEl) playerEl.textContent = t("overlay.reward.slot", { index: index + 1 });
   metaEl.innerHTML = "";
 
   if (!item) {
@@ -214,8 +246,7 @@ function renderSlot(index) {
   slotEl.classList.add("has-item");
   nameEl.textContent = item.name;
   nameEl.className = "slot-name";
-  const rarityText = String(item.rarity || "common").toLowerCase();
-  rarityEl.textContent = rarityText.charAt(0).toUpperCase() + rarityText.slice(1);
+  rarityEl.textContent = rarityLabel(item.rarity);
   rarityEl.className = `slot-rarity ${rarityClass(item.rarity)}`;
 
   renderSlotValues(priceEl, price, item.ducats);
@@ -224,29 +255,35 @@ function renderSlot(index) {
   if (Number.isFinite(partRequired) && partRequired > 0) {
     appendMetaChip(
       metaEl,
-      `Own ${formatCount(item.partOwnedCount)}/${formatCount(partRequired)}`,
+      t("overlay.reward.ownedParts", {
+        owned: formatCount(item.partOwnedCount),
+        required: formatCount(partRequired),
+      }),
       "owned",
     );
   }
 
   // Only present when the reward builds into masterable equipment.
-  if (item.mastered === true) appendMetaChip(metaEl, "Mastered", "mastered");
-  else if (item.mastered === false) appendMetaChip(metaEl, "Unmastered", "unmastered");
+  if (item.mastered === true) appendMetaChip(metaEl, t("common.mastered"), "mastered");
+  else if (item.mastered === false) appendMetaChip(metaEl, t("common.notMastered"), "unmastered");
 
-  if (item.building) appendMetaChip(metaEl, "In foundry", "building");
+  if (item.building) appendMetaChip(metaEl, t("overlay.reward.inFoundry"), "building");
 
   const setRequired = Number(item.setRequiredCount);
   if (Number.isFinite(setRequired) && setRequired > 0) {
     appendMetaChip(
       metaEl,
-      `Set ${formatCount(item.setOwnedCount)}/${formatCount(setRequired)}`,
+      t("overlay.reward.setParts", {
+        owned: formatCount(item.setOwnedCount),
+        required: formatCount(setRequired),
+      }),
       "set",
     );
   }
 
   if (item.setUrlName) {
-    const setText = setPrice == null ? "Set ..." : setPrice > 0 ? `Set ${setPrice}p` : "Set N/A";
-    appendMetaChip(metaEl, setText, "set-price");
+    const value = setPrice == null ? "..." : setPrice > 0 ? `${setPrice}p` : "N/A";
+    appendMetaChip(metaEl, t("overlay.reward.setPrice", { value }), "set-price");
   }
 
   appendSetParts(metaEl, item.setParts);
@@ -276,10 +313,10 @@ function updateBestPick() {
       "footer-currency-value footer-plat-value",
       PLATINUM_ICON,
       String(bestPrice),
-      "Platinum",
+      t("common.platinum"),
     );
   } else {
-    bestEl.textContent = "No priced rewards yet";
+    bestEl.textContent = t(bestPlaceholderKey);
   }
 }
 
@@ -292,6 +329,7 @@ function resetSlots() {
 }
 
 function resetPlannerRows() {
+  plannerPayload = null;
   const container = plannerGridElement();
   container.innerHTML = "";
 }
@@ -299,11 +337,13 @@ function resetPlannerRows() {
 function showRewardModeScanning() {
   document.body.classList.remove("planner-mode");
   rewardGeneration += 1;
-  setScanningText("Reading reward screen...");
+  setScanningText("overlay.reward.scanning");
   showScanning();
   showBestFooter(true);
+  bannerMessage = null;
+  renderErrorBanner();
+  bestPlaceholderKey = "overlay.reward.detecting";
   resetSlots();
-  document.getElementById("best-value").textContent = "Detecting...";
 }
 
 function plannerHintElement() {
@@ -331,7 +371,7 @@ function renderPlannerHint() {
   const hint = plannerHintElement();
   if (!hint) return;
   const label = prettyHotkey(dragHintInfo.hotkey);
-  hint.textContent = label ? `Press ${label} to interact with the overlay` : "";
+  hint.textContent = label ? t("overlay.hint.interactPanel", { hotkey: label }) : "";
   hint.classList.toggle("is-hidden", !plannerHintWanted || !label);
 }
 
@@ -344,9 +384,9 @@ function updateDragHint() {
   let text = "";
   if (!dragHintInfo.dismissed) {
     text = overlayInteractiveMode
-      ? "drag to move (position saves)"
+      ? t("overlay.hint.dragToMove")
       : hotkeyLabel
-        ? `${hotkeyLabel}, then drag to move`
+        ? t("overlay.hint.unlockThenDrag", { hotkey: hotkeyLabel })
         : "";
   }
 
@@ -363,23 +403,24 @@ function markOverlayMoved() {
 function showPlannerModeScanning() {
   document.body.classList.add("planner-mode");
   rewardGeneration += 1;
-  setScanningText("Detecting relic era and ranking owned relics...");
+  setScanningText("overlay.planner.scanning");
   showScanning();
   showBestFooter(false);
   showPlannerHint(false);
+  bannerMessage = null;
+  renderErrorBanner();
   resetPlannerRows();
 }
 
-function showDetectionError(message) {
+function showDetectionError(messageKey) {
   hideScanning();
   document.getElementById("slots-grid").classList.remove("is-hidden");
   plannerGridElement().classList.add("is-hidden");
   document.getElementById("error-banner").classList.add("visible");
-  document.getElementById("error-banner").textContent =
-    message ||
-    "OCR failed to detect reward items from the current screen. Use Warframe Borderless Windowed mode and set in-game UI scale to 99%.";
+  bannerMessage = { key: messageKey || "overlay.reward.ocrFailed" };
+  renderErrorBanner();
+  bestPlaceholderKey = "overlay.reward.ocrFailedShort";
   resetSlots();
-  document.getElementById("best-value").textContent = "OCR failed";
   showBestFooter(true);
 }
 
@@ -396,31 +437,15 @@ function finiteMetric(value) {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
-function renderPlannerRows(payload) {
-  const era = String(payload?.era || "").trim();
-  const confidence = Number(payload?.detection?.confidence || 0);
-  const detectionElapsedMs = Number(payload?.detection?.elapsedMs || 0);
-  const rows = Array.isArray(payload?.rows) ? payload.rows.filter(Boolean) : [];
+function plannerRows() {
+  return Array.isArray(plannerPayload?.rows) ? plannerPayload.rows.filter(Boolean) : [];
+}
 
-  hideScanning();
-  document.getElementById("slots-grid").classList.add("is-hidden");
-  plannerGridElement().classList.remove("is-hidden");
-  const errorBanner = document.getElementById("error-banner");
-  const emptyMessage = payload?.ocrUnavailable
-    ? OCR_UNAVAILABLE_MESSAGE
-    : era
-      ? "No owned relic recommendations found for the detected era."
-      : `Could not detect relic era yet (OCR ${Math.round(Math.max(0, detectionElapsedMs))}ms, confidence ${confidence.toFixed(2)}).`;
-  errorBanner.classList.toggle("visible", rows.length === 0);
-  errorBanner.classList.toggle("info", rows.length === 0 && !era);
-  errorBanner.textContent = rows.length === 0 ? emptyMessage : "";
-
-  showBestFooter(false);
-  showPlannerHint(!overlayInteractiveMode);
-
+function renderPlannerCards() {
   const container = plannerGridElement();
   container.innerHTML = "";
 
+  const rows = plannerRows();
   const bestPlat = Math.max(...rows.map((row) => finiteMetric(row?.platEv) ?? -1), -1);
 
   for (const row of rows) {
@@ -440,7 +465,7 @@ function renderPlannerRows(payload) {
 
     const vaultTag = document.createElement("span");
     vaultTag.className = `plan-vault-tag ${row.vaulted ? "vaulted" : "unvaulted"}`;
-    vaultTag.textContent = row.vaulted ? "Vaulted" : "Unvaulted";
+    vaultTag.textContent = row.vaulted ? t("common.vaulted") : t("common.unvaulted");
     title.appendChild(vaultTag);
 
     const profit = document.createElement("div");
@@ -448,7 +473,7 @@ function renderPlannerRows(payload) {
 
     const label = document.createElement("span");
     label.className = "plan-profit-label";
-    label.textContent = "E. profits:";
+    label.textContent = t("overlay.planner.expectedProfits");
 
     profit.appendChild(label);
     appendCurrencyValue(
@@ -456,20 +481,53 @@ function renderPlannerRows(payload) {
       "plan-currency-value plan-profit-plat",
       PLATINUM_ICON,
       formatProfit(platEv),
-      "Expected platinum",
+      t("overlay.planner.expectedPlatinum"),
     );
     appendCurrencyValue(
       profit,
       "plan-currency-value plan-profit-ducat",
       DUCAT_ICON,
       formatProfit(ducatEv),
-      "Expected ducats",
+      t("overlay.planner.expectedDucats"),
     );
 
     card.appendChild(title);
     card.appendChild(profit);
     container.appendChild(card);
   }
+}
+
+function plannerBannerMessage(payload, era, rows) {
+  if (rows.length > 0) return null;
+  if (payload?.ocrUnavailable) return { key: "overlay.reward.ocrUnavailable" };
+  if (era) return { key: "overlay.planner.noRecommendations" };
+  return {
+    key: "overlay.planner.eraUnknown",
+    params: {
+      elapsed: Math.round(Math.max(0, Number(payload?.detection?.elapsedMs || 0))),
+      confidence: Number(payload?.detection?.confidence || 0).toFixed(2),
+    },
+  };
+}
+
+function renderPlannerRows(payload) {
+  plannerPayload = payload;
+  const era = String(payload?.era || "").trim();
+  const rows = plannerRows();
+
+  hideScanning();
+  document.getElementById("slots-grid").classList.add("is-hidden");
+  plannerGridElement().classList.remove("is-hidden");
+  const errorBanner = document.getElementById("error-banner");
+  bannerMessage = plannerBannerMessage(payload, era, rows);
+  errorBanner.classList.toggle("visible", rows.length === 0);
+  errorBanner.classList.toggle("info", rows.length === 0 && !era);
+  renderErrorBanner();
+
+  showBestFooter(false);
+  showPlannerHint(!overlayInteractiveMode);
+
+  renderPlannerCards();
 }
 
 async function applyRewardItems(payload) {
@@ -483,7 +541,9 @@ async function applyRewardItems(payload) {
   const detectedItems = rawItems.filter(Boolean).slice(0, SLOTS);
 
   if (detectedItems.length === 0) {
-    showDetectionError(failureReason === "ocr-unavailable" ? OCR_UNAVAILABLE_MESSAGE : undefined);
+    showDetectionError(
+      failureReason === "ocr-unavailable" ? "overlay.reward.ocrUnavailable" : undefined,
+    );
     return;
   }
 
@@ -502,8 +562,11 @@ async function applyRewardItems(payload) {
   document.getElementById("slots-grid").classList.remove("is-hidden");
   plannerGridElement().classList.add("is-hidden");
   document.getElementById("error-banner").classList.remove("visible");
+  bannerMessage = null;
+  renderErrorBanner();
   showBestFooter(true);
 
+  bestPlaceholderKey = "overlay.reward.noPricedRewards";
   for (let i = 0; i < SLOTS; i += 1) {
     slotState[i].item = null;
     slotState[i].price = null;
@@ -551,6 +614,30 @@ async function applyRewardItems(payload) {
   updateBestPick();
 }
 
+/* Rebuilds every string this panel writes from JS, for a live language change. */
+function renderDynamicText() {
+  renderScanningText();
+  renderErrorBanner();
+  for (let i = 0; i < SLOTS; i += 1) renderSlot(i);
+  updateBestPick();
+  renderPlannerCards();
+  renderPlannerHint();
+  updateDragHint();
+}
+
+function startOverlay() {
+  resetSlots();
+  resetPlannerRows();
+  const mode = new URLSearchParams(window.location.search).get("mode");
+  if (mode === "planner") {
+    showPlannerModeScanning();
+  } else {
+    showRewardModeScanning();
+  }
+  setOverlayInteractiveMode(false);
+  window.overlay.ready();
+}
+
 document.addEventListener("DOMContentLoaded", () => {
   window.overlayTheme.loadThemeFromStorageFallback();
   void window.overlay
@@ -576,16 +663,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  resetSlots();
-  resetPlannerRows();
-  const mode = new URLSearchParams(window.location.search).get("mode");
-  if (mode === "planner") {
-    showPlannerModeScanning();
-  } else {
-    showRewardModeScanning();
-  }
-  setOverlayInteractiveMode(false);
-
   window.overlay.onTrigger(showRewardModeScanning);
   window.overlay.onPlannerTrigger(showPlannerModeScanning);
   window.overlay.onItems((items) => {
@@ -598,6 +675,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.overlay.onThemeVars((vars) => {
     window.overlayTheme.applyThemeVars(vars);
   });
+  window.overlay.onMessages((messages) => window.overlayI18n.apply(messages));
   window.overlay.onInteractionMode((payload) => {
     setOverlayInteractiveMode(Boolean(payload?.interactive));
     showPlannerHint(
@@ -618,5 +696,8 @@ document.addEventListener("DOMContentLoaded", () => {
     .catch(() => {
       // hint is optional; stay hidden on failure
     });
-  window.overlay.ready();
+
+  window.overlayI18n.onApply(renderDynamicText);
+  // Scan results only flow after ready(), so the first paint is already localized.
+  void window.overlayI18n.load(() => window.overlay.getMessages()).then(startOverlay);
 });

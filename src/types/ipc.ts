@@ -530,6 +530,7 @@ export interface IpcSendMap {
   "toggle-overlay": [];
   "simulate-relic-trigger": [];
   "overlay-theme-updated": [themeVars: Record<string, string>];
+  "overlay-locale-updated": [locale: string];
   "overlay:push-relic-filters": [filters: { squadSize: number; tierFilter: string | null }];
   "open-external": [url: string];
 }
