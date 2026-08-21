@@ -377,7 +377,7 @@ function showDetectionError(message) {
   document.getElementById("error-banner").classList.add("visible");
   document.getElementById("error-banner").textContent =
     message ||
-    "OCR failed to detect reward items from the current screen. Use Warframe Borderless Windowed mode and set in-game UI scale to 99%.";
+    "OCR failed to detect reward items from the current screen. Use Warframe Borderless Windowed mode and match the in-game Interface scale in WFHelper Settings.";
   resetSlots();
   document.getElementById("best-value").textContent = "OCR failed";
   showBestFooter(true);

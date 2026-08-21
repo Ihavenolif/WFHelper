@@ -216,7 +216,8 @@ export const en = {
   "settings.title": "Settings",
   "settings.overlayTitle": "Relic Overlay",
   "settings.overlayRequirements":
-    "For reliable OCR, use Borderless Windowed mode with the Warframe UI scale set to 99%.",
+    "For reliable OCR, use Borderless Windowed mode and match the scale below to Warframe's Interface setting.",
+  "settings.warframeUiScale": "Warframe interface scale",
   "settings.autoTrigger": "Auto trigger from EE.log",
   "settings.worldNotifications": "World notifications",
   "settings.hotkeyFallback": "Enable relic trigger hotkey",

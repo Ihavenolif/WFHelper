@@ -137,6 +137,7 @@
   let arbiTrackingEnabled = OVERLAY_DEFAULTS.arbiTrackingEnabled;
   let autoInventorySyncEnabled = OVERLAY_DEFAULTS.autoInventorySyncEnabled;
   let ocrDebugImagesEnabled = OVERLAY_DEFAULTS.ocrDebugImagesEnabled;
+  let warframeUiScale = OVERLAY_DEFAULTS.warframeUiScale;
   let overlayScale = OVERLAY_DEFAULTS.overlayScale;
   let hotkeyEnabled = OVERLAY_DEFAULTS.hotkeyEnabled;
   let hotkey = OVERLAY_DEFAULTS.hotkey;
@@ -169,6 +170,7 @@
     autoInventorySyncEnabled =
       s.autoInventorySyncEnabled ?? OVERLAY_DEFAULTS.autoInventorySyncEnabled;
     ocrDebugImagesEnabled = s.ocrDebugImagesEnabled ?? OVERLAY_DEFAULTS.ocrDebugImagesEnabled;
+    warframeUiScale = s.warframeUiScale ?? OVERLAY_DEFAULTS.warframeUiScale;
     overlayScale = s.overlayScale ?? OVERLAY_DEFAULTS.overlayScale;
     windowScales = { ...(s.overlayWindowScales || {}) };
     hotkeyEnabled = !!s.hotkeyEnabled;
@@ -212,6 +214,7 @@
       arbiTrackingEnabled,
       autoInventorySyncEnabled,
       ocrDebugImagesEnabled,
+      warframeUiScale,
       hotkeyEnabled,
       hotkey,
       interactionHotkeyEnabled,
@@ -833,6 +836,22 @@
               on:change={autoSave}
               class="accent-accent"
             />
+          </label>
+
+          <label class="settings-control-row settings-control-row-input">
+            <span>{$tr("settings.warframeUiScale")}</span>
+            <div class="settings-range-control">
+              <input
+                type="range"
+                min="0.5"
+                max="1"
+                step="0.01"
+                bind:value={warframeUiScale}
+                on:change={autoSave}
+                class="settings-range"
+              />
+              <span class="settings-range-value">{Math.round(warframeUiScale * 100)}%</span>
+            </div>
           </label>
 
           {#each OVERLAY_SCALE_ROWS as row (row.key)}

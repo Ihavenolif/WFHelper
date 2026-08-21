@@ -54,6 +54,8 @@ export interface OverlaySettings {
   autoInventorySyncEnabled: boolean;
   /** Save failed-scan OCR images (riven crops, reward scan-debug bundles); on unless opted out. */
   ocrDebugImagesEnabled: boolean;
+  /** Warframe's in-game interface scale, used to align reward OCR crops. */
+  warframeUiScale: number;
   /** Main-window zoom multiplier applied on top of the display-derived base. */
   uiScale: number;
   overlayScale: number;
@@ -99,6 +101,7 @@ export const OVERLAY_SETTINGS_DEFAULTS = Object.freeze({
   arbiTrackingEnabled: true,
   autoInventorySyncEnabled: true,
   ocrDebugImagesEnabled: true,
+  warframeUiScale: 0.99,
   uiScale: 1,
   overlayScale: 1,
   overlayWindowScales: Object.freeze({}),
