@@ -40,6 +40,12 @@
   $: compLocation = resolveComponentLocation(compDbEntry);
   $: compWikiUrl = comp?.uniqueName ? $itemDb[comp.uniqueName]?.wikiaUrl || null : null;
 
+  // `parentName` stays the English lookup key for prices and the wiki, so only
+  // the meta row swaps in the parent's translated label, and only for the very
+  // entry that name belongs to.
+  $: parentEntry = compDbEntry?.componentOf ? $itemDb[compDbEntry.componentOf] || null : null;
+  $: parentLabel = parentEntry?.name === parentName ? itemLabel(parentEntry) : parentName;
+
   // Reload price whenever the component (identity) changes.
   $: if (comp) {
     void loadPrice(comp, parentName);
@@ -83,7 +89,7 @@
     <div class="detail-title-area">
       <h2>{itemLabel(comp) || $tr("detail.unknownComponent")}</h2>
       <div class="comp-meta-stack">
-        {#if parentName}<div class="detail-meta">{parentName}</div>{/if}
+        {#if parentName}<div class="detail-meta">{parentLabel}</div>{/if}
         {#if comp.tradable}<div class="detail-meta">{$tr("detail.tradable")}</div>{/if}
         <div class="detail-meta">
           {$tr("detail.owned", { owned: comp.ownedCount ?? 0, needed: comp.itemCount || 1 })}

@@ -49,6 +49,8 @@
         error = null;
         fetchedAt = result.fetchedAt;
         rows = buildCodexRows(result.scans);
+        // A refresh can carry icons that were still missing when a URL last 404'd.
+        if (refresh) brokenImages.clear();
       }
     } catch {
       error = "fetch-failed";
