@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   binarizeRewardRegion,
   canvasContentRect,
+  cropBand,
   detectConsoleOpen,
   detectGameContentRect,
   detectRewardSlotLayoutCandidates,
@@ -246,6 +247,60 @@ describe("detectRewardSlotLayoutCandidates aspect handling", () => {
     // Outer card must not spill into its neighbour - that killed slots 1 and 4.
     const last = slots[3];
     expect(last.x + last.width).toBeCloseTo(0.5 + (0.626 + 0.122 - 0.5) * scale, 3);
+  });
+});
+
+describe("cropBand aspect handling", () => {
+  const BAND = { top: 0.16, height: 0.12 };
+  const flat = (w: number, h: number) =>
+    makeFakeNativeImage(w, h, () => [8, 8, 8, 255] as [number, number, number, number]);
+
+  it("crops the measured ratios on a 16:9 frame", () => {
+    const crop = cropBand(flat(1920, 1080), BAND);
+    expect(crop.getSize()).toEqual({ width: 1920, height: Math.floor(1080 * 0.12) });
+  });
+
+  type Rect = { x: number; y: number; width: number; height: number };
+
+  function bandCropRect(width: number, height: number): Rect {
+    const image = flat(width, height);
+    let cropRect: Rect | null = null;
+    const original = image.crop.bind(image);
+    image.crop = (rect: Rect) => {
+      cropRect = rect;
+      return original(rect);
+    };
+    cropBand(image, BAND);
+    return cropRect!;
+  }
+
+  // Where the letterboxed 16:9 canvas puts the band inside a taller frame.
+  function expectedBand(width: number, height: number): { y: number; height: number } {
+    const canvasHeight = width / (16 / 9);
+    const canvasTop = (height - canvasHeight) / 2;
+    return {
+      y: Math.floor(canvasTop + canvasHeight * BAND.top),
+      height: Math.floor(canvasHeight * BAND.height),
+    };
+  }
+
+  it("maps the band onto the centred 16:9 canvas of a 16:10 frame", () => {
+    // The 16:9 canvas sits at y=60..1140 inside a 1200px-tall frame, so the
+    // era text lands 40px lower than the raw ratio puts it, not the 60 of the offset.
+    const crop = bandCropRect(1920, 1200);
+    expect(crop.y).toBe(expectedBand(1920, 1200).y);
+    expect(crop.y).not.toBe(Math.floor(1200 * BAND.top));
+  });
+
+  it("maps the band onto the centred 16:9 canvas of a 4:3 frame", () => {
+    // 4:3 letterboxes hardest: an 810px canvas in a 1080px frame, so the band
+    // sits well below the raw ratio and is a quarter shorter.
+    const crop = bandCropRect(1440, 1080);
+    const expected = expectedBand(1440, 1080);
+    expect(crop.y).toBe(expected.y);
+    expect(crop.height).toBe(expected.height);
+    expect(crop.y).not.toBe(Math.floor(1080 * BAND.top));
+    expect(crop.height).not.toBe(Math.floor(1080 * BAND.height));
   });
 });
 

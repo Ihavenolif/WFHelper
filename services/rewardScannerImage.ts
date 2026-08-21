@@ -171,8 +171,9 @@ export function cropBand(nativeImage: NativeImage, band: Band | null | undefined
   const topRatio = clampNumber(band?.top, 0.0, 0.95, 0.16);
   const maxHeightRatio = Math.max(0.04, 1.0 - topRatio);
   const heightRatio = clampNumber(band?.height, 0.04, maxHeightRatio, 0.12);
-  const top = Math.floor(height * topRatio);
-  const cropHeight = Math.max(18, Math.floor(height * heightRatio));
+  const { scaleY } = aspectScaleFor(nativeImage);
+  const top = Math.floor(height * (0.5 + (topRatio - 0.5) * scaleY));
+  const cropHeight = Math.max(18, Math.floor(height * heightRatio * scaleY));
   return nativeImage.crop({ x: 0, y: top, width, height: cropHeight });
 }
 
