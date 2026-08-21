@@ -55,7 +55,18 @@ export function jsonResponse(data: unknown, req: Request, env: Env, status = 200
 }
 
 export function rawJsonResponse(raw: string, req: Request, env: Env, status = 200, extraHeaders?: Record<string, string>): Response {
-	return new Response(raw, {
+	return streamJsonResponse(raw, req, env, status, extraHeaders);
+}
+
+// Lets cache hits re-wrap a body stream instead of buffering the whole payload.
+export function streamJsonResponse(
+	body: BodyInit | null,
+	req: Request,
+	env: Env,
+	status = 200,
+	extraHeaders?: Record<string, string>,
+): Response {
+	return new Response(body, {
 		status,
 		headers: responseHeaders(req, env, extraHeaders),
 	});

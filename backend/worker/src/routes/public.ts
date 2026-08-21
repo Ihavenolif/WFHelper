@@ -1,5 +1,5 @@
 import { ORDER_SUMMARY_CATALOG_PREWARM_LAST_RUN_KEY, PREWARM_LAST_RUN_KEY, SNAPSHOT_KEY } from '../constants';
-import { emptyResponse, jsonResponse, rawJsonResponse } from '../security/cors';
+import { emptyResponse, jsonResponse, rawJsonResponse, streamJsonResponse } from '../security/cors';
 import { isAdminAuthorized } from '../security/adminAuth';
 import { BOOTSTRAP_HEADER, bootstrapEnabled, bootstrapRequired, issueBootstrapToken, verifyBootstrapToken } from '../security/bootstrap';
 import { checkPublicRateLimit } from '../security/rateLimit';
@@ -39,6 +39,9 @@ const EXCLUDED_MARKET_HEADERS = { 'cache-control': 'public, max-age=3600' };
 const SNAPSHOT_CACHE_CONTROL = 'public, max-age=7200';
 const WFM_ITEMS_CACHE_CONTROL = 'public, max-age=21600';
 const WFM_ITEMS_CACHE_VERSION = 1;
+const RANKED_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
+
+let rankedCatalogCache: { expiresAt: number; bySlug: Map<string, number> } | null = null;
 
 type PublicRateLimitRoute = Parameters<typeof checkPublicRateLimit>[2];
 type HydrateResult<T> =
@@ -54,13 +57,23 @@ function parseRankFilter(url: URL): number | null {
 }
 
 async function getRankedCatalogBySlug(env: Env): Promise<Map<string, number>> {
+	const now = Date.now();
+	if (rankedCatalogCache && rankedCatalogCache.expiresAt > now) return rankedCatalogCache.bySlug;
+
 	const entries = await readRankedSummaryCatalogFromKv(env);
 	const next = new Map<string, number>();
 	for (const entry of entries) {
 		next.set(entry.slug, entry.maxRank);
 	}
+	// An empty map already means "catalog unavailable" to callers, so caching it
+	// would keep serving 503 for the whole TTL after a transient KV miss.
+	if (next.size > 0) rankedCatalogCache = { expiresAt: now + RANKED_CATALOG_CACHE_TTL_MS, bySlug: next };
 
 	return next;
+}
+
+export function resetRankedCatalogCacheForTest(): void {
+	rankedCatalogCache = null;
 }
 
 async function validateRankedSlugAndRank(
@@ -153,14 +166,16 @@ function excludedMarketResponse(req: Request, env: Env): Response {
 	});
 }
 
-function snapshotNotModifiedResponse(etag: string, cacheControl: string, req: Request, env: Env): Response {
+function notModifiedResponse(etag: string, cacheControl: string, req: Request, env: Env): Response {
 	return emptyResponse(req, env, 304, { etag: etag, 'cache-control': cacheControl });
 }
 
-async function snapshotClientEtag(body: string): Promise<string> {
+// The cache version is part of the tag so a payload-shape change invalidates
+// client copies even when the serialized body is unchanged.
+async function clientBodyEtag(body: string, cacheVersion: string | number): Promise<string> {
 	const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(body));
 	const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-	return `"${hash}-${WFM_SNAPSHOT_CLIENT_CACHE_VERSION}"`;
+	return `"${hash}-${cacheVersion}"`;
 }
 
 function requestHasMatchingEtag(req: Request, etag: string | null): etag is string {
@@ -260,7 +275,7 @@ export async function handlePublicRoutes(req: Request, url: URL, env: Env, ctx?:
 			const cachedEtag = cachedResponse.headers.get('etag');
 			if (requestHasMatchingEtag(req, cachedEtag)) {
 				return annotateResponse(
-					snapshotNotModifiedResponse(cachedEtag, cachedResponse.headers.get('cache-control') || SNAPSHOT_CACHE_CONTROL, req, env),
+					notModifiedResponse(cachedEtag, cachedResponse.headers.get('cache-control') || SNAPSHOT_CACHE_CONTROL, req, env),
 					{ cacheHit: true },
 				);
 			}
@@ -268,7 +283,7 @@ export async function handlePublicRoutes(req: Request, url: URL, env: Env, ctx?:
 				'cache-control': cachedResponse.headers.get('cache-control') || SNAPSHOT_CACHE_CONTROL,
 			};
 			if (cachedEtag) cachedHeaders.etag = cachedEtag;
-			return annotateResponse(rawJsonResponse(await cachedResponse.text(), req, env, 200, cachedHeaders), { cacheHit: true });
+			return annotateResponse(streamJsonResponse(cachedResponse.body, req, env, 200, cachedHeaders), { cacheHit: true });
 		}
 		const raw = await env.PRICE_CACHE.get(SNAPSHOT_KEY);
 		if (!raw) {
@@ -285,9 +300,9 @@ export async function handlePublicRoutes(req: Request, url: URL, env: Env, ctx?:
 		} catch {
 			return jsonResponse({ ok: false, error: 'snapshot_invalid' }, req, env, 503);
 		}
-		const etag = await snapshotClientEtag(body);
+		const etag = await clientBodyEtag(body, WFM_SNAPSHOT_CLIENT_CACHE_VERSION);
 		if (requestHasMatchingEtag(req, etag)) {
-			return annotateResponse(snapshotNotModifiedResponse(etag, SNAPSHOT_CACHE_CONTROL, req, env), { cacheHit: true });
+			return annotateResponse(notModifiedResponse(etag, SNAPSHOT_CACHE_CONTROL, req, env), { cacheHit: true });
 		}
 
 		const responseHeaders: Record<string, string> = {
@@ -315,9 +330,13 @@ export async function handlePublicRoutes(req: Request, url: URL, env: Env, ctx?:
 		const edgeCache = caches.default;
 		const cachedResponse = await edgeCache.match(cacheKey);
 		if (cachedResponse) {
-			return annotateResponse(rawJsonResponse(await cachedResponse.text(), req, env, 200, { 'cache-control': WFM_ITEMS_CACHE_CONTROL }), {
-				cacheHit: true,
-			});
+			const cachedEtag = cachedResponse.headers.get('etag');
+			if (requestHasMatchingEtag(req, cachedEtag)) {
+				return annotateResponse(notModifiedResponse(cachedEtag, WFM_ITEMS_CACHE_CONTROL, req, env), { cacheHit: true });
+			}
+			const cachedHeaders: Record<string, string> = { 'cache-control': WFM_ITEMS_CACHE_CONTROL };
+			if (cachedEtag) cachedHeaders.etag = cachedEtag;
+			return annotateResponse(streamJsonResponse(cachedResponse.body, req, env, 200, cachedHeaders), { cacheHit: true });
 		}
 
 		let catalog = await readClientCatalogFromKv(env);
@@ -336,10 +355,22 @@ export async function handlePublicRoutes(req: Request, url: URL, env: Env, ctx?:
 		}
 
 		const body = JSON.stringify({ ok: true, updatedAt: catalog.updatedAt, items: catalog.items });
-		const response = rawJsonResponse(body, req, env, 200, { 'cache-control': WFM_ITEMS_CACHE_CONTROL });
-		if (ctx) {
-			ctx.waitUntil(edgeCache.put(cacheKey, new Response(body, { status: 200, headers: { 'cache-control': WFM_ITEMS_CACHE_CONTROL } })));
+		const etag = await clientBodyEtag(body, WFM_ITEMS_CACHE_VERSION);
+		if (requestHasMatchingEtag(req, etag)) {
+			return annotateResponse(notModifiedResponse(etag, WFM_ITEMS_CACHE_CONTROL, req, env), { cacheHit: true });
 		}
+
+		const responseHeaders: Record<string, string> = {
+			'cache-control': WFM_ITEMS_CACHE_CONTROL,
+			etag,
+		};
+
+		const response = rawJsonResponse(body, req, env, 200, responseHeaders);
+
+		if (ctx) {
+			ctx.waitUntil(edgeCache.put(cacheKey, new Response(body, { status: 200, headers: responseHeaders })));
+		}
+
 		return annotateResponse(response, { cacheHit: false });
 	}
 

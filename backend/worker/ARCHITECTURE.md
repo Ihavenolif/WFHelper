@@ -31,6 +31,9 @@ Public requests pass through these controls:
 5. Slug and rank validation before any upstream request.
 6. KV read-through, stale refresh, and negative-cache handling.
 
+Rank validation reads the ranked order-summary catalog through a five-minute isolate cache. An
+empty catalog is never cached, because callers treat it as `catalog_unavailable`.
+
 Electron and command-line clients normally omit `Origin` and are allowed. Browser origins must
 match `ALLOW_ORIGIN`. `clientIp()` trusts only `cf-connecting-ip`.
 
@@ -79,6 +82,10 @@ If the client-shaped key is absent, the route first follows the normal refresh c
 slug catalog from an older deployment can make that refresh a no-op, so the route then forces one
 upstream refresh before returning `503 catalog_not_ready`. Empty upstream responses never replace
 a valid catalog.
+
+The catalog response carries the same body ETag treatment as the snapshot, keyed by
+`WFM_ITEMS_CACHE_VERSION`. The ETag is stored in the edge-cached entry, so matching
+`If-None-Match` requests return 304 from both the Cache API hit and a freshly built body.
 
 ## Read-through and prewarm
 
