@@ -91,8 +91,8 @@ interface MovableWindow {
   setPosition(x: number, y: number, animate?: boolean): void;
 }
 
-// setPosition, never setBounds: a getBounds -> setBounds round-trip loses a pixel
-// to DIP rounding on fractionally scaled displays, so every drag shrank the window.
+// setPosition, never setBounds: a move has no business writing the size, and
+// writing it is what let the window drift when Windows adjusted the frame.
 export function moveWindowBy(win: MovableWindow, dx: number, dy: number): void {
   const { x, y } = win.getBounds();
   win.setPosition(x + dx, y + dy, false);
@@ -564,7 +564,10 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       frame: false,
       alwaysOnTop: true,
       skipTaskbar: true,
-      resizable: false,
+      // resizable:false pins min size to the constructed size, and Windows then
+      // subtracts the frame insets on every setBounds, so each drag shrank the
+      // window by 16x8. Frameless windows have no resize grips to worry about.
+      resizable: true,
       // Non-focusable so showing can never activate the overlay and unfocus
       // the game; interactive mode (F7) flips focusability on temporarily.
       focusable: false,

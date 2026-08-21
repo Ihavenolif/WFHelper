@@ -807,8 +807,8 @@ describe("show raise reassert", () => {
 });
 
 describe("moveWindowBy", () => {
-  // A fractionally scaled display hands back one pixel less than it was given,
-  // so a drag that writes the size at all shrinks the overlay on every tick.
+  // Stands in for any window that returns a smaller size than it was handed:
+  // a move must not write the size at all, or the overlay shrinks per tick.
   function fakeWindow(bounds: { x: number; y: number; width: number; height: number }) {
     const state = { ...bounds };
     return {
