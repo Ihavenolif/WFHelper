@@ -202,8 +202,8 @@ module.exports = [
     },
     rules: {
       ...tsPlugin.configs.recommended.rules,
+      // Most {#each} lists here are static config tables with no identity to key on.
       "svelte/require-each-key": "off",
-      "svelte/no-at-html-tags": "off",
       "no-undef": "off",
       "no-unused-vars": "off",
       "@typescript-eslint/no-explicit-any": "error",
