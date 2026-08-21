@@ -5,6 +5,7 @@
   import ItemImage from "../ItemImage.svelte";
   import MarketBrowseStats from "./MarketBrowseStats.svelte";
   import WikiButton from "../WikiButton.svelte";
+  import { itemLabel } from "../../lib/itemLabel.js";
   import { componentOwnership, itemDb, parsedItems, wfmItems } from "../../stores/data.js";
   import { activeItem } from "../../stores/modals.js";
   import { orderModalState } from "../../stores/market.js";
@@ -273,6 +274,12 @@
   });
 
   $: selectedDbEntry = selected?.gameRef ? ($itemDb[selected.gameRef] ?? null) : null;
+
+  // The catalog is English because warframe.market is. Only the label follows the
+  // game language; every slug, order and chat line still goes out in English.
+  function catalogLabel(entry: { name: string; gameRef?: string | null }): string {
+    return itemLabel(entry.gameRef ? ($itemDb[entry.gameRef] ?? entry) : entry);
+  }
   $: owned = computeOwned(selected, $parsedItems);
 
   interface OwnedInfo {
@@ -529,12 +536,12 @@
                   fallbackSrc={suggestion.gameRef
                     ? ($itemDb[suggestion.gameRef]?.imageUrl ?? null)
                     : null}
-                  alt={suggestion.name}
+                  alt={catalogLabel(suggestion)}
                   cls="max-h-full max-w-full"
                 />
               </span>
               <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
-                >{suggestion.name}</span
+                >{catalogLabel(suggestion)}</span
               >
             </button>
           {/each}
@@ -605,7 +612,7 @@
         <ItemImage
           src={selected.thumb}
           fallbackSrc={selected.gameRef ? ($itemDb[selected.gameRef]?.imageUrl ?? null) : null}
-          alt={selected.name}
+          alt={catalogLabel(selected)}
           cls="max-h-[72px] max-w-[72px]"
         />
       </div>
@@ -613,7 +620,7 @@
         <h3
           class="m-0 font-display text-2xl font-bold uppercase tracking-[0.04em] text-text-primary"
         >
-          {selected.name}
+          {catalogLabel(selected)}
         </h3>
         <div class="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
           <span class={owned.total > 0 ? "font-semibold text-success" : ""}
