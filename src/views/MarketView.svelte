@@ -834,9 +834,9 @@
       />
 
       {#if !isRivensTab && (filteredOrderRows.length > 0 || $marketSelected.size > 0)}
-        <div
-          class="flex flex-wrap items-center gap-1.5 mb-2.5 rounded-lg border border-border bg-bg-surface px-2.5 py-2"
-        >
+        <!-- The inline filter bar drops its bottom margin for the flex rows the other
+             views put it in; here it is a block, so this row supplies the gap. -->
+        <div class="mt-2.5 mb-2.5 flex flex-wrap items-center gap-1.5">
           <span class="mr-1.5 text-xs text-text-secondary">
             {$tr("common.selected", { count: $marketSelected.size })}{#if hiddenSelectedCount > 0}
               {$tr("market.selectedHidden", { count: hiddenSelectedCount })}{/if}
