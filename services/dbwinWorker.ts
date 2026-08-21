@@ -70,7 +70,6 @@ const uint8ArrayType = koffi.array("uint8", DBWIN_BUFFER_SIZE, "Typed");
 const lineGate = new DebugLineGate();
 
 // Cache image-name checks per phase; a restart clears stale PID ownership.
-
 const _pidIsWarframe = new Map<number, boolean>();
 // Bound PID churn from unrelated debug-emitting processes within one phase.
 const MAX_PID_CACHE_SIZE = 256;
@@ -95,8 +94,6 @@ function isWarframePid(pid: number): boolean {
   rememberPid(pid, result);
   return result;
 }
-
-// Cache image-name lookups so process enumeration stays cheap.
 
 function isWarframeRunning(): boolean {
   return enumProcessIds().some(isWarframePid);
