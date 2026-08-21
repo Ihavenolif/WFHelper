@@ -15,7 +15,7 @@ import {
   type RivenWeaponSource,
 } from "./overlay/rivenWeaponLabel";
 import { looksLikeStaleCardRead } from "./overlay/rivenScanText";
-import type { CaptureResult } from "../services/screenCapture";
+import { captureScreenFast, type CaptureResult } from "../services/screenCapture";
 import type { WeaponLabelMatch } from "../services/rivenData";
 import { sleep } from "../services/rewardScannerUtils";
 import * as rivenGrading from "../services/rivenGrading";
@@ -526,7 +526,24 @@ function onFitsInWeapon(match: WeaponLabelMatch): void {
 async function detectFitsInWeapon(capture: CaptureResult): Promise<void> {
   const token = _rivenSessionToken;
   try {
-    const match = await readFitsInWeapon(capture.image, capture.sourceType);
+    let match = await readFitsInWeapon(capture.image, capture.sourceType);
+    if (token !== _rivenSessionToken) return;
+    if (!match && rivenRightWindowsController.isOverlayWindowVisible()) {
+      let retryCapture: CaptureResult | null = null;
+      rivenRightWindowsController.hideOverlayWindow();
+      try {
+        await sleep(50);
+        if (token !== _rivenSessionToken) return;
+        retryCapture = await captureScreenFast(capture.sourceDisplayId || null, 100);
+      } finally {
+        if (token === _rivenSessionToken) {
+          rivenRightWindowsController.showOverlayWindowInactive();
+        }
+      }
+      if (retryCapture) {
+        match = await readFitsInWeapon(retryCapture.image, retryCapture.sourceType);
+      }
+    }
     if (token !== _rivenSessionToken) return;
     if (match) {
       onFitsInWeapon(match);

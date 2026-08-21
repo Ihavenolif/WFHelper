@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RIVEN_PATTERNS } from "../../services/eeLogMonitor";
 import {
@@ -11,6 +14,24 @@ import {
   type RivenStat,
 } from "../../ipc/overlay/rivenScanText";
 import { findWeaponInText, getWeaponNameByUniqueName } from "../../services/rivenData";
+
+const rivenOverlayIpcSource = fs.readFileSync(
+  path.join(process.cwd(), "ipc/rivenOverlayIpc.ts"),
+  "utf8",
+);
+
+describe("riven overlay startup", () => {
+  it("shows both panels before starting the initial scan", () => {
+    const sessionOpen =
+      rivenOverlayIpcSource.match(
+        /export function onRivenSessionOpen\(\): void \{([\s\S]*?)\n\}/,
+      )?.[1] ?? "";
+    expect(sessionOpen).toMatch(
+      /createRivenOverlayWindows\(\{ show: true \}\)[\s\S]*?triggerInitialScan\(\)/,
+    );
+    expect(sessionOpen).not.toContain("show: false");
+  });
+});
 
 describe("RIVEN_PATTERNS", () => {
   describe("sessionOpen", () => {
