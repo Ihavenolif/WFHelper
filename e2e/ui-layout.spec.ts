@@ -148,6 +148,33 @@ test.describe("Shared view layout", () => {
     }
   });
 
+  // The narrow-width rule used to pad #content on all four sides, and a sticky
+  // row pins to the padding box: the pinned filters sat a gutter below the top
+  // and the grid scrolled visibly through the strip above them.
+  test("pinned filters sit flush with the scroll area on a narrow window", async () => {
+    await page.setViewportSize({ width: 1280, height: 820 });
+    await openView("Inventory");
+    // Narrow enough for the compact rule, short enough that the grid scrolls.
+    await page.setViewportSize({ width: 760, height: 420 });
+    await page.waitForTimeout(300);
+    await page.locator("#content").evaluate((node) => {
+      node.scrollTop = 400;
+    });
+    await page.waitForTimeout(200);
+
+    expect(
+      await page.locator("#content").evaluate((node) => getComputedStyle(node).paddingTop),
+    ).toBe("0px");
+
+    const band = await page.evaluate(() => {
+      const content = document.querySelector("#content");
+      const sticky = document.querySelector(".view-sticky-filters");
+      if (!content || !sticky) return -1;
+      return Math.round(sticky.getBoundingClientRect().top - content.getBoundingClientRect().top);
+    });
+    expect(band).toBe(0);
+  });
+
   test("new planning and inventory filters are reachable", async () => {
     await page.setViewportSize({ width: 1280, height: 820 });
 

@@ -11,8 +11,9 @@
     overflow-y: auto;
     overflow-x: hidden;
     background: var(--bg-base);
-    /* Padding here clips sticky rows. */
-    padding: 0 1.75rem 1.5rem;
+    /* A top padding here parks the sticky rows below the scrollport and lets
+       the grid scroll through the strip above them. */
+    padding: 0 var(--content-gutter) 1.5rem;
   }
   #app:has(#content.setup-active) {
     height: calc(100vh - var(--titlebar-height));
@@ -557,8 +558,8 @@
     top: 0;
     z-index: 15;
     background: var(--bg-base);
-    margin-inline: -1.75rem;
-    padding: 0.5rem 1.75rem 0;
+    margin-inline: calc(var(--content-gutter) * -1);
+    padding: 0.5rem var(--content-gutter) 0;
   }
 
   /* Shared collapsible sections retain their historical names. */
