@@ -118,7 +118,7 @@ test.describe("Riven, arbitration and trade windows follow the language", () => 
       { timeout: 30_000 },
     );
     await expect(arbi.locator('[data-i18n="overlay.arbi.expectedVitus"]')).toHaveText(
-      "Erwartetes Vitus",
+      "Vitus erwartet",
     );
     await expect(arbi.locator('[data-i18n="overlay.arbi.saturation"]')).toHaveText(
       "Zeit bei 15+ Gegnern",
