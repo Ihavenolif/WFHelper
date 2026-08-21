@@ -30,6 +30,20 @@ function defaultFilters(): SharedFiltersState {
 }
 
 describe("shared filters", () => {
+  it("searches the localized name and the English one alike", () => {
+    const item = {
+      name: "Serration",
+      displayName: "Einkerbung",
+      internalName: "/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod",
+      category: "mods",
+    };
+    const filters = defaultFilters();
+
+    expect(matchesSharedFilters(item, { ...filters, search: "einkerb" })).toBe(true);
+    expect(matchesSharedFilters(item, { ...filters, search: "serrat" })).toBe(true);
+    expect(matchesSharedFilters(item, { ...filters, search: "vitality" })).toBe(false);
+  });
+
   it("matches search, prime mode, and mastered mode", () => {
     const item = {
       name: "Soma Prime",

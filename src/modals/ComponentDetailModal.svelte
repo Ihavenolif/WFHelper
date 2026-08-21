@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { activeComponent } from "../stores/modals.js";
   import ComponentPanel from "../components/ComponentPanel.svelte";
   import DetailModalBase from "./DetailModalBase.svelte";
@@ -15,7 +16,7 @@
 
 {#if comp}
   <DetailModalBase
-    ariaLabel={comp.name || $tr("detail.componentDetails")}
+    ariaLabel={itemLabel(comp) || $tr("detail.componentDetails")}
     overlayClass="comp-overlay"
     onClose={close}
     wrapPanel={false}

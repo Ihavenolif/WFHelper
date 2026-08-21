@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { SvelteMap } from "svelte/reactivity";
 
   import { masteryData } from "../stores/mastery.js";
@@ -645,14 +646,14 @@
                 class="item-card group border-info/25"
                 role="button"
                 tabindex="0"
-                aria-label={$tr("common.openDetailsFor", { name: set.name })}
+                aria-label={$tr("common.openDetailsFor", { name: itemLabel(set) })}
                 on:click={() => activeItem.set(set)}
                 on:keydown={(event) => {
                   if (event.key === "Enter" || event.key === " ") activeItem.set(set);
                 }}
               >
                 <div class="item-img-wrap">
-                  <ItemImage src={set.imageUrl} alt={set.name} />
+                  <ItemImage src={set.imageUrl} alt={itemLabel(set)} />
                   {#if set.vaulted}<span class="vault-badge">V</span>{/if}
                   <span
                     class="absolute right-2 bottom-1.5 font-display text-base font-bold text-info drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
@@ -660,7 +661,7 @@
                   >
                 </div>
                 <div class="item-body">
-                  <span class="item-name">{set.name}</span>
+                  <span class="item-name">{itemLabel(set)}</span>
                   <span class="item-type"
                     >{(set.missingParts ?? 0) === 1
                       ? $tr("mastery.needsOnePart", { count: set.missingParts ?? 0 })
@@ -687,14 +688,14 @@
                       : ''}"
                 role="button"
                 tabindex="0"
-                aria-label={$tr("common.openDetailsFor", { name: item.name })}
+                aria-label={$tr("common.openDetailsFor", { name: itemLabel(item) })}
                 on:click={() => activeItem.set(item)}
                 on:keydown={(event) => {
                   if (event.key === "Enter" || event.key === " ") activeItem.set(item);
                 }}
               >
                 <div class="item-img-wrap">
-                  <ItemImage src={item.imageUrl} alt={item.name} />
+                  <ItemImage src={item.imageUrl} alt={itemLabel(item)} />
                   {#if item.vaulted}<span class="vault-badge">V</span>{/if}
                   <span
                     class="absolute right-1.5 bottom-1.5 w-1.5 h-1.5 rounded-full shadow-[0_0_0_2px_rgba(0,0,0,0.38)] {item.status ===
@@ -706,7 +707,7 @@
                   ></span>
                 </div>
                 <div class="item-body">
-                  <span class="item-name">{item.name}</span>
+                  <span class="item-name">{itemLabel(item)}</span>
                   <span class="item-type"
                     >{item.category}{item.masteryReq ? ` · MR ${item.masteryReq}` : ""}</span
                   >
@@ -780,9 +781,9 @@
                         <button
                           type="button"
                           class="comp-dot h-1.5 w-1.5 rounded-full border border-transparent {compState}"
-                          title="{comp.name || '?'}: {$tr(componentStateLabelKey(compState))}"
+                          title="{itemLabel(comp) || '?'}: {$tr(componentStateLabelKey(compState))}"
                           aria-label={$tr("mastery.openComponentDetailsAria", {
-                            name: comp.name || $tr("mastery.componentFallback"),
+                            name: itemLabel(comp) || $tr("mastery.componentFallback"),
                           })}
                           on:click|stopPropagation={() =>
                             activeComponent.set({ comp, parentName: item.name })}

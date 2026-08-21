@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../../lib/itemLabel.js";
   import { onDestroy } from "svelte";
 
   import { tr, type MessageKey } from "../../lib/i18n.js";
@@ -425,23 +426,23 @@
       <div
         class="h-[52px] w-[52px] flex items-center justify-center rounded-lg border border-border bg-bg-raised overflow-hidden"
       >
-        <ItemImage src={item.displayImageUrl} alt={item.name} cls="max-h-full max-w-full" />
+        <ItemImage src={item.displayImageUrl} alt={itemLabel(item)} cls="max-h-full max-w-full" />
       </div>
       <div class="inventory-orderbook-item-meta">
         <div class="flex min-w-0 items-center gap-2">
           <div
             class="font-display text-sm font-semibold text-text-primary overflow-hidden text-ellipsis whitespace-nowrap"
           >
-            {item.name}
+            {itemLabel(item)}
           </div>
           {#if parentEntry?.name}
             <button
               type="button"
               class="shrink-0 cursor-pointer rounded border border-border-subtle bg-transparent px-1.5 py-0.5 text-xs text-text-secondary transition-colors duration-150 hover:border-accent hover:text-accent"
-              title={$tr("common.open", { name: parentEntry.name })}
+              title={$tr("common.open", { name: itemLabel(parentEntry) })}
               on:click={openParentItem}
             >
-              {$tr("common.partOf", { name: parentEntry.name })}
+              {$tr("common.partOf", { name: itemLabel(parentEntry) })}
             </button>
           {/if}
         </div>

@@ -25,6 +25,12 @@
     type LocaleCode,
     type MessageKey,
   } from "../lib/i18n.js";
+  import {
+    gameLanguage,
+    setGameLanguage,
+    GAME_LANGUAGE_OPTIONS,
+    type GameLanguageChoice,
+  } from "../lib/gameLanguage.js";
   import ThemedSelect from "../components/ThemedSelect.svelte";
   import { hideFoundryClaims, hideFounderMasteryItems } from "../stores/preferences.js";
   import { TOGGLEABLE_TABS, tabVisibility } from "../stores/sidebarTabs.js";
@@ -43,6 +49,10 @@
   let languageChoice: LocaleCode;
   $: languageChoice = $locale;
   $: if (languageChoice !== $locale) setLocale(languageChoice);
+
+  let gameLanguageChoice: GameLanguageChoice;
+  $: gameLanguageChoice = $gameLanguage;
+  $: if (gameLanguageChoice !== $gameLanguage) setGameLanguage(gameLanguageChoice);
   let statusMsg = "";
   let statusError = false;
   let statusTimer: ReturnType<typeof setTimeout> | null = null;
@@ -364,6 +374,15 @@
             <span>{$tr("settings.languageRow")}</span>
             <ThemedSelect bind:value={languageChoice}>
               {#each LOCALE_OPTIONS as option}
+                <option value={option.code}>{option.label}</option>
+              {/each}
+            </ThemedSelect>
+          </label>
+          <label class="settings-control-row" data-setting="game-language">
+            <span>{$tr("settings.gameLanguageRow")}</span>
+            <ThemedSelect bind:value={gameLanguageChoice}>
+              <option value="auto">{$tr("settings.gameLanguageAuto")}</option>
+              {#each GAME_LANGUAGE_OPTIONS as option}
                 <option value={option.code}>{option.label}</option>
               {/each}
             </ThemedSelect>

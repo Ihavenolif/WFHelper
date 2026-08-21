@@ -26,6 +26,7 @@ export function defaultSortDirection(sortBy: string): SortDirection {
 
 interface FilterableItem {
   name: string;
+  displayName?: string;
   category?: string;
   categoryLabel?: string;
   internalName?: string;
@@ -87,8 +88,10 @@ function matchesSearch(item: FilterableItem, search: string): boolean {
   const query = search.trim().toLowerCase();
   if (!query) return true;
 
+  // Both names: the list shows the localized one but traders search in English.
   const fields: string[] = [
     item.name,
+    item.displayName || "",
     item.category || "",
     item.categoryLabel || "",
     item.internalName || "",

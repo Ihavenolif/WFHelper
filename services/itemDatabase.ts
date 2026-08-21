@@ -10,6 +10,7 @@ import { normalizeErrorMessage } from "../config/shared/errors";
 import { normalizeDucats } from "../config/shared/numeric";
 import { normalizeWfmSlug } from "../config/shared/wfm";
 import { WIKI_MOD_ART, WIKI_MOD_ART_BY_NAME } from "../config/shared/wikiModArt";
+import { isLocalizingNames, localizeName } from "./gameLocale";
 import * as publicExportSource from "./publicExportSource";
 import { correctedDropRarity } from "./relicRarity";
 import { withScope } from "./logger";
@@ -180,6 +181,8 @@ interface ItemEntry {
   vaulted: boolean;
   exalted?: boolean;
   description: string;
+  /** `/Lotus/Language/...` key `name` was resolved from, for game-language lookup. */
+  nameKey?: string | null;
   productCategory: string | null;
   ducats: number | null;
   _source: string;
@@ -340,8 +343,16 @@ function loadPublicExportPlus(): number {
             ? (itemsByUniqueName[item.resultType]?.browseWfUrl ?? null)
             : null;
 
+        // Only a plain dict resolve is re-localizable: relic and recipe names are
+        // composed from English words that no dictionary key covers.
+        const nameKey =
+          !relicName && !recipeName && typeof item.name === "string" && item.name.startsWith("/")
+            ? item.name
+            : null;
+
         itemsByUniqueName[uniqueName] = {
           name: resolvedName,
+          nameKey,
           category,
           imageUrl: wikiCardArtUrl(uniqueName, category, resolvedName),
           browseWfUrl: resolveIcon(item.icon) || recipeIcon,
@@ -869,11 +880,19 @@ function toRendererDrop(d: DropEntry): DropEntry {
   };
 }
 
+// `name` stays English because the renderer joins on it; `displayName` appears
+// only when the game language actually moved the name, so English users pay nothing.
+function localizedPair(nameKey: string | null | undefined, english: string) {
+  const localized = localizeName(nameKey, english);
+  return localized === english ? { name: english } : { name: english, displayName: localized };
+}
+
 export function getRendererLookup(): Record<string, RendererItemEntry> {
+  const localizing = isLocalizingNames();
   const lookup: Record<string, RendererItemEntry> = {};
   for (const [key, item] of Object.entries(itemsByUniqueName)) {
     lookup[key] = {
-      name: item.name,
+      ...(localizing ? localizedPair(item.nameKey, item.name) : { name: item.name }),
       category: item.category,
       imageUrl: item.imageUrl,
       isPrime: item.isPrime,
@@ -889,7 +908,10 @@ export function getRendererLookup(): Record<string, RendererItemEntry> {
       productCategory: item.productCategory || null,
       ducats: typeof item.ducats === "number" ? item.ducats : null,
       components: (item.components || []).map((c: ComponentEntry) => ({
-        name: c.name || "",
+        // Set parts carry no key of their own, so borrow the part item's.
+        ...(localizing
+          ? localizedPair(c.nameKey ?? itemsByUniqueName[c.uniqueName]?.nameKey, c.name || "")
+          : { name: c.name || "" }),
         uniqueName: c.uniqueName || "",
         tradable: typeof c.tradable === "boolean" ? c.tradable : undefined,
         itemCount: c.itemCount || 1,

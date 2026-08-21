@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { itemDb, wfmItems } from "../stores/data.js";
   import { createPriceLoader } from "../lib/priceState.js";
   import {
@@ -76,11 +77,11 @@
   <div class="detail-header">
     {#if compImageUrl}
       <div class="detail-img-wrap">
-        <img class="item-img" src={compImageUrl} alt={comp.name} />
+        <img class="item-img" src={compImageUrl} alt={itemLabel(comp)} />
       </div>
     {/if}
     <div class="detail-title-area">
-      <h2>{comp.name || $tr("detail.unknownComponent")}</h2>
+      <h2>{itemLabel(comp) || $tr("detail.unknownComponent")}</h2>
       <div class="comp-meta-stack">
         {#if parentName}<div class="detail-meta">{parentName}</div>{/if}
         {#if comp.tradable}<div class="detail-meta">{$tr("detail.tradable")}</div>{/if}

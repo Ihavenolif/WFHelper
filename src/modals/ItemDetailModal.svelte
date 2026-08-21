@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { activeItem } from "../stores/modals.js";
   import { itemDb, wfmItems, componentOwnership } from "../stores/data.js";
   import { createPriceLoader } from "../lib/priceState.js";
@@ -137,7 +138,7 @@
 
 {#if item}
   <DetailModalBase
-    ariaLabel={item.name}
+    ariaLabel={itemLabel(item)}
     onClose={onModalClose}
     sideState={selectedComp ? "component" : "none"}
     panelClass={showCraftingTree ? "w-[90vw] max-w-[1100px]" : ""}
@@ -173,10 +174,10 @@
       <!-- Crafting tree mode: compact header + full tree -->
       <div class="flex items-center gap-3 px-4 py-2 border-b border-white/[0.06]">
         <div class="shrink-0 h-10 w-10">
-          <ItemImage src={item.imageUrl} alt={item.name} cls="h-10 w-10 object-contain" />
+          <ItemImage src={item.imageUrl} alt={itemLabel(item)} cls="h-10 w-10 object-contain" />
         </div>
         <div>
-          <h2 class="m-0 font-display text-base font-bold text-text-primary">{item.name}</h2>
+          <h2 class="m-0 font-display text-base font-bold text-text-primary">{itemLabel(item)}</h2>
           <span class="text-xs text-text-muted">{$tr("detail.craftingTree")}</span>
         </div>
       </div>
@@ -188,10 +189,10 @@
       <!-- Normal detail mode -->
       <div class="detail-header">
         <div class="detail-img-wrap">
-          <ItemImage src={item.imageUrl} alt={item.name} cls="item-img" />
+          <ItemImage src={item.imageUrl} alt={itemLabel(item)} cls="item-img" />
         </div>
         <div class="detail-title-area">
-          <h2>{item.name}</h2>
+          <h2>{itemLabel(item)}</h2>
           <div class="detail-tags">
             {#if item.isPrime}<span class="detail-tag prime">{$tr("common.prime")}</span>{/if}
             {#if item.vaulted}<span class="detail-tag vaulted">{$tr("common.vaulted")}</span>{/if}
@@ -211,10 +212,10 @@
               <button
                 type="button"
                 class="cursor-pointer rounded border border-border-subtle bg-transparent px-2 py-0.5 font-display text-xs text-text-secondary transition-colors duration-150 hover:border-accent hover:bg-surface-hover hover:text-accent"
-                title={$tr("common.open", { name: parentEntry.name })}
+                title={$tr("common.open", { name: itemLabel(parentEntry) })}
                 on:click={openParentItem}
               >
-                {$tr("common.partOf", { name: parentEntry.name })}
+                {$tr("common.partOf", { name: itemLabel(parentEntry) })}
               </button>
             {/if}
           </div>
@@ -247,7 +248,7 @@
                   aria-pressed={selectedComp === comp}
                   on:click={() => selectComponent(comp)}
                 >
-                  <span class="comp-name">{comp.name || $tr("common.unknown")}</span>
+                  <span class="comp-name">{itemLabel(comp) || $tr("common.unknown")}</span>
                   <span class="comp-count {countClass}">{ownedCount}/{needed}</span>
                 </button>
               {/each}

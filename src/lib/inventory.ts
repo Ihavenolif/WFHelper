@@ -114,7 +114,7 @@ export function parseInventory(
         ? equipped
         : (configEquipped ?? (equippedIn.length > 0 ? true : undefined));
 
-    const displayName = canonicalBuildPartName(internalName, resolved.name);
+    const englishName = canonicalBuildPartName(internalName, resolved.name);
 
     const dbDucats =
       typeof dbEntry.ducats === "number" && Number.isFinite(dbEntry.ducats) ? dbEntry.ducats : null;
@@ -130,7 +130,8 @@ export function parseInventory(
     }
 
     const nextItem: ParsedItem = {
-      name: displayName,
+      name: englishName,
+      ...(resolved.displayName ? { displayName: resolved.displayName } : {}),
       internalName,
       category: finalCat,
       categoryLabel: finalLabel,

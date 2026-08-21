@@ -25,6 +25,8 @@ export interface DropInfo {
 
 export interface ComponentInfo {
   name: string;
+  /** Active game language. Render this; `name` stays English for lookups. */
+  displayName?: string;
   uniqueName?: string;
   tradable?: boolean;
   itemCount?: number;
@@ -37,7 +39,10 @@ export interface ComponentInfo {
 }
 
 export interface ItemDbEntry {
+  /** English. Every by-name lookup and market slug is built from this. */
   name?: string;
+  /** Active game language, absent when it matches `name`. Render this. */
+  displayName?: string;
   imageUrl?: string | null;
   category?: string;
   productCategory?: string;
@@ -105,7 +110,10 @@ export type InventoryGroup =
   | "misc";
 
 export interface ParsedItem {
+  /** English. Every by-name lookup and market slug is built from this. */
   name: string;
+  /** Active game language, absent when it matches `name`. Render this. */
+  displayName?: string;
   internalName: string;
   category: string;
   categoryLabel: string;

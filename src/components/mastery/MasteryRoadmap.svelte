@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../../lib/itemLabel.js";
   import HeaderTabs from "../HeaderTabs.svelte";
   import ItemImage from "../ItemImage.svelte";
   import SearchBox from "../SearchBox.svelte";
@@ -51,7 +52,13 @@
   ].sort((a, b) => a.localeCompare(b));
   $: visible = source
     .filter((item) => category === "all" || item.category === category)
-    .filter((item) => item.name.toLowerCase().includes(search.trim().toLowerCase()))
+    // Match both: the list shows the localized name but traders search in English.
+    .filter((item) => {
+      const needle = search.trim().toLowerCase();
+      return (
+        item.name.toLowerCase().includes(needle) || itemLabel(item).toLowerCase().includes(needle)
+      );
+    })
     .sort((a, b) => {
       if (sort === "xp") {
         return b.masteryXpRemaining - a.masteryXpRemaining || a.name.localeCompare(b.name);
@@ -131,7 +138,9 @@
         >{$tr("mastery.roadmap.bestValue")}</span
       >
       {#if bestValue}
-        <strong class="block truncate font-display text-lg text-accent">{bestValue.name}</strong>
+        <strong class="block truncate font-display text-lg text-accent"
+          >{itemLabel(bestValue)}</strong
+        >
         <!-- Gated on a real price: "at 0p" would read as a genuine quote. -->
         {#if bestValue.estimatedCost != null}
           <span class="block text-xs text-text-secondary">
@@ -190,11 +199,11 @@
           <span
             class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-md)] bg-black/20"
           >
-            <ItemImage src={item.imageUrl} alt={item.name} />
+            <ItemImage src={item.imageUrl} alt={itemLabel(item)} />
           </span>
           <span class="min-w-0">
             <strong class="block truncate font-display text-base text-text-primary"
-              >{item.name}</strong
+              >{itemLabel(item)}</strong
             >
             {#if item.access === "relics"}
               <span

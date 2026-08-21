@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../../lib/itemLabel.js";
   import { createEventDispatcher, onDestroy, onMount } from "svelte";
 
   import ItemImage from "../ItemImage.svelte";
@@ -78,7 +79,7 @@
     : ''}"
   role="button"
   tabindex="0"
-  aria-label={$tr("common.openDetailsFor", { name: item.name })}
+  aria-label={$tr("common.openDetailsFor", { name: itemLabel(item) })}
   on:click={selectCard}
   on:keydown={(event) => (event.key === "Enter" || event.key === " ") && selectCard()}
   bind:this={cardEl}
@@ -88,7 +89,7 @@
       type="button"
       class="expand-link absolute top-1.5 right-1.5 z-10 inline-flex items-center rounded border border-border bg-black/45 px-1.5 py-0.5 font-display text-xs font-semibold text-text-secondary opacity-0 transition-[opacity,color,border-color] duration-100 group-hover:opacity-100 hover:text-accent hover:border-accent-dim"
       title={$tr("inventory.openItemDetails")}
-      aria-label={$tr("common.openDetailsFor", { name: item.name })}
+      aria-label={$tr("common.openDetailsFor", { name: itemLabel(item) })}
       on:click|stopPropagation={() => dispatch("expand", item)}
     >
       {$tr("common.details")}
@@ -98,7 +99,7 @@
     <ItemImage
       src={item.displayImageUrl}
       fallbackSrc={item.imageUrl !== item.displayImageUrl ? item.imageUrl : null}
-      alt={item.name}
+      alt={itemLabel(item)}
     />
     {#if item.vaulted}<span class="vault-badge">V</span>{/if}
     {#if item.orderPlaced}
@@ -122,7 +123,7 @@
     {/if}
   </div>
   <div class="item-body">
-    <span class="item-name">{item.name}</span>
+    <span class="item-name">{itemLabel(item)}</span>
     <span class="item-type">
       {item.categoryLabel}
       {#if item.inventoryGroup === "full_sets"}

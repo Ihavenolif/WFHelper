@@ -3,6 +3,7 @@ import { assertMainRendererSender, handleAuthorized, onAuthorized } from "./ipcS
 import { unwrapInventoryPayload } from "../config/shared/inventoryPayload";
 import { getLogDirectory, withScope } from "../services/logger";
 import * as itemDb from "../services/itemDatabase";
+import { setGameLocale } from "../services/gameLocale";
 import * as wfmCatalog from "../services/wfmCatalog";
 import * as masteryHelper from "../services/masteryHelper";
 import * as codexProfile from "../services/codexProfile";
@@ -14,6 +15,8 @@ import { isAllowedExternalHost } from "../config/runtime/security";
 import { app, shell } from "electron";
 import {
   DB_GET_ITEM_DATABASE,
+  GAME_LOCALE_UPDATED,
+  ITEM_DB_UPDATED,
   DB_GET_WFM_ITEMS,
   DB_GET_MASTERY,
   DB_GET_CODEX_SCANS,
@@ -45,6 +48,15 @@ function register(): void {
   handleAuthorized(DB_GET_ITEM_DATABASE, assertMainRendererSender, () =>
     itemDb.getRendererLookup(),
   );
+
+  // Names are localized on the way out of the database, so a language change only
+  // has to make the renderer re-pull; nothing in the database itself is rebuilt.
+  onAuthorized(GAME_LOCALE_UPDATED, assertMainRendererSender, (_event, rawLocale: unknown) => {
+    const locale = setGameLocale(rawLocale);
+    if (!locale) return;
+    log.info(`[GameLocale] locale=${locale}`);
+    ctx.mainWindow?.webContents.send(ITEM_DB_UPDATED);
+  });
 
   handleAuthorized(DB_GET_WFM_ITEMS, assertMainRendererSender, async () => {
     if (!wfmCatalog.isLoaded()) {
