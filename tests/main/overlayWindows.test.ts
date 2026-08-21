@@ -5,7 +5,7 @@ import { OVERLAY_CONTENT_VISIBLE } from "../../config/shared/ipcChannels";
 import {
   createOverlayWindowBoundsChangeHandler,
   createOverlayWindowsController,
-  pinDragSize,
+  moveWindowBy,
 } from "../../ipc/overlay/windows";
 import type { OverlaySettings } from "../../config/runtime/overlaySettings";
 
@@ -806,21 +806,41 @@ describe("show raise reassert", () => {
   });
 });
 
-describe("pinDragSize", () => {
-  it("keeps the first tick's size for every later tick of the drag", () => {
-    const first = pinDragSize(undefined, { width: 490, height: 344 }, 1_000);
-    // Windows shrank the window between ticks (DPI rounding); do not adopt it.
-    const second = pinDragSize(first, { width: 489, height: 343 }, 1_016);
-    expect(second).toMatchObject({ width: 490, height: 344 });
+describe("moveWindowBy", () => {
+  // A fractionally scaled display hands back one pixel less than it was given,
+  // so a drag that writes the size at all shrinks the overlay on every tick.
+  function fakeWindow(bounds: { x: number; y: number; width: number; height: number }) {
+    const state = { ...bounds };
+    return {
+      state,
+      getBounds: () => ({ ...state }),
+      setPosition: (x: number, y: number) => {
+        state.x = x;
+        state.y = y;
+      },
+      setBounds: (next: { x: number; y: number; width: number; height: number }) => {
+        state.x = next.x;
+        state.y = next.y;
+        state.width = next.width - 1;
+        state.height = next.height - 1;
+      },
+    };
+  }
 
-    const third = pinDragSize(second, { width: 480, height: 336 }, 1_400);
-    expect(third).toMatchObject({ width: 490, height: 344 });
+  it("moves the window", () => {
+    const win = fakeWindow({ x: 100, y: 200, width: 490, height: 344 });
+
+    moveWindowBy(win, 12, -8);
+
+    expect(win.state).toMatchObject({ x: 112, y: 192 });
   });
 
-  it("re-reads the size once the previous drag is over", () => {
-    const first = pinDragSize(undefined, { width: 490, height: 344 }, 1_000);
-    const later = pinDragSize(first, { width: 460, height: 320 }, 2_000);
-    expect(later).toMatchObject({ width: 460, height: 320 });
+  it("never changes the size, however many drags it takes", () => {
+    const win = fakeWindow({ x: 100, y: 200, width: 490, height: 344 });
+
+    for (let tick = 0; tick < 50; tick += 1) moveWindowBy(win, 3, 0);
+
+    expect(win.state).toMatchObject({ x: 250, width: 490, height: 344 });
   });
 });
 

@@ -86,16 +86,16 @@ type OverlayWindowsControllerOptions = {
   isNativeWayland?: () => boolean;
 };
 
-// getBounds -> setBounds round-trips resize windows on fractionally scaled displays.
-const DRAG_SIZE_PIN_MS = 500;
+interface MovableWindow {
+  getBounds(): { x: number; y: number };
+  setPosition(x: number, y: number, animate?: boolean): void;
+}
 
-export function pinDragSize(
-  pinned: { width: number; height: number; at: number } | undefined,
-  bounds: { width: number; height: number },
-  now: number,
-): { width: number; height: number; at: number } {
-  if (pinned && now - pinned.at < DRAG_SIZE_PIN_MS) return { ...pinned, at: now };
-  return { width: bounds.width, height: bounds.height, at: now };
+// setPosition, never setBounds: a getBounds -> setBounds round-trip loses a pixel
+// to DIP rounding on fractionally scaled displays, so every drag shrank the window.
+export function moveWindowBy(win: MovableWindow, dx: number, dy: number): void {
+  const { x, y } = win.getBounds();
+  win.setPosition(x + dx, y + dy, false);
 }
 
 export function createOverlayWindowBoundsChangeHandler(
