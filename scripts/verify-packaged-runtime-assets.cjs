@@ -1,21 +1,10 @@
 const { existsSync } = require("node:fs");
 const path = require("node:path");
 const asar = require("@electron/asar");
+const runtimeAssets = require("./runtime-assets.cjs");
 
-const requiredResources = [
-  "riven-ocr/yolo/stat_line_detector.onnx",
-  "riven-ocr/paddle/ch_PP-OCRv3_rec_infer.onnx",
-  "riven-ocr/paddle/ch_dict.txt",
-  "notification.wav",
-  "scripts/ocr-server.ps1",
-  "scripts/ocr.ps1",
-];
-
-const requiredAsarFiles = [
-  "node_modules/debug/src/common.js",
-  "node_modules/ms/index.js",
-  "node_modules/ms/package.json",
-];
+const requiredResources = [...runtimeAssets.onnxAssets, ...runtimeAssets.packagedResources];
+const requiredAsarFiles = runtimeAssets.asarFiles;
 
 function resourcesRoot(context) {
   return path.join(context.appOutDir, "resources");

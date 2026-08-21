@@ -2,13 +2,11 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import runtimeAssets from "./runtime-assets.cjs";
+
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-const requiredAssets = [
-  "resources/riven-ocr/yolo/stat_line_detector.onnx",
-  "resources/riven-ocr/paddle/ch_PP-OCRv3_rec_infer.onnx",
-  "resources/riven-ocr/paddle/ch_dict.txt",
-];
+const requiredAssets = runtimeAssets.onnxAssets.map((name) => `resources/${name}`);
 
 const missing = requiredAssets.filter((relativePath) => !existsSync(path.join(root, relativePath)));
 
