@@ -1,4 +1,4 @@
-import { SLUG_RE } from './constants';
+import { sanitizeWfmSlug } from '../../../config/shared/textNormalize';
 
 // The custom domain always supplies cf-connecting-ip. Do not trust the
 // caller-controlled x-forwarded-for fallback.
@@ -31,9 +31,18 @@ export async function getJsonFromKv(namespace: KVNamespace, key: string): Promis
 
 export function getSlug(pathname: string, prefix: string): string | null {
 	if (!pathname.startsWith(prefix)) return null;
-	const slug = pathname.slice(prefix.length);
-	if (!slug || !SLUG_RE.test(slug)) return null;
-	return slug;
+	const raw = pathname.slice(prefix.length);
+	if (!raw) return null;
+	// Workers hand the pathname over still percent-encoded, so an accented slug
+	// arrives escaped. Decode before the allowlist, and fail closed on a
+	// malformed escape rather than passing the raw bytes through.
+	let decoded: string;
+	try {
+		decoded = decodeURIComponent(raw);
+	} catch {
+		return null;
+	}
+	return sanitizeWfmSlug(decoded);
 }
 
 export function parseJsonBody(value: string | null): Record<string, unknown> {

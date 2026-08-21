@@ -38,7 +38,7 @@ const PUBLIC_JSON_CACHE_HEADERS = { 'cache-control': 'public, max-age=60' };
 const EXCLUDED_MARKET_HEADERS = { 'cache-control': 'public, max-age=3600' };
 const SNAPSHOT_CACHE_CONTROL = 'public, max-age=7200';
 const WFM_ITEMS_CACHE_CONTROL = 'public, max-age=21600';
-const WFM_ITEMS_CACHE_VERSION = 1;
+const WFM_ITEMS_CACHE_VERSION = 2;
 const RANKED_CATALOG_CACHE_TTL_MS = 5 * 60 * 1000;
 
 let rankedCatalogCache: { expiresAt: number; bySlug: Map<string, number> } | null = null;

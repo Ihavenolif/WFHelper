@@ -193,10 +193,10 @@ describe('backend worker', () => {
 	});
 
 	it('serves the client catalog on /v1/wfm-items', async () => {
-		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=1'));
+		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=2'));
 		const logSpy = vi.spyOn(console, 'log').mockImplementation(() => undefined);
 		await env.ITEM_META.put(
-			'catalog:client-items:v1',
+			'catalog:client-items:v2',
 			JSON.stringify({
 				updatedAt: 1234,
 				items: [{ id: 'x', slug: 'ash_prime_set', name: 'Ash Prime Set', thumb: null, icon: null, maxRank: null, gameRef: null }],
@@ -225,9 +225,9 @@ describe('backend worker', () => {
 	});
 
 	it('tags /v1/wfm-items responses with a body etag', async () => {
-		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=1'));
+		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=2'));
 		await env.ITEM_META.put(
-			'catalog:client-items:v1',
+			'catalog:client-items:v2',
 			JSON.stringify({
 				updatedAt: 4321,
 				items: [{ id: 'y', slug: 'nova_prime_set', name: 'Nova Prime Set', thumb: null, icon: null, maxRank: null, gameRef: null }],
@@ -239,15 +239,68 @@ describe('backend worker', () => {
 		await waitOnExecutionContext(ctx);
 
 		expect(response.status).toBe(200);
-		expect(response.headers.get('etag')).toMatch(/^"[0-9a-f]{64}-1"$/);
+		expect(response.headers.get('etag')).toMatch(/^"[0-9a-f]{64}-2"$/);
 		expect(response.headers.get('cache-control')).toBe('public, max-age=21600');
 		expect((await response.json()) as Record<string, unknown>).toMatchObject({ ok: true, updatedAt: 4321 });
 	});
 
-	it('honors If-None-Match on /v1/wfm-items once the catalog is edge-cached', async () => {
-		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=1'));
+	it('serves catalog slugs that are not plain [a-z0-9_]', async () => {
+		// warframe.market mints the Tektolyst arcanes with hyphens. Dropping them
+		// left the client 29 items short and named every matching order unknown.
+		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=2'));
 		await env.ITEM_META.put(
-			'catalog:client-items:v1',
+			'catalog:client-items:v2',
+			JSON.stringify({
+				updatedAt: 4322,
+				items: [
+					{ id: 'a', slug: 'zid-an-asheir', name: 'Zid-an Asheir', thumb: null, icon: null, maxRank: 5, gameRef: null },
+					{ id: 'b', slug: 'summoner’s_wrath', name: "Summoner's Wrath", thumb: null, icon: null, maxRank: 10, gameRef: null },
+					{ id: 'c', slug: '../escape', name: 'Nope', thumb: null, icon: null, maxRank: null, gameRef: null },
+				],
+			}),
+		);
+
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(new IncomingRequest('http://example.com/v1/wfm-items'), env, ctx);
+		await waitOnExecutionContext(ctx);
+
+		expect(response.status).toBe(200);
+		const json = (await response.json()) as { items: Array<{ slug: string }> };
+		expect(json.items.map((item) => item.slug)).toEqual(['zid-an-asheir', 'summoner’s_wrath']);
+	});
+
+	it('routes read-through requests for a hyphenated slug', async () => {
+		const slug = 'zid-an-asheir';
+		await env.PRICE_CACHE.put(`price:${slug}`, JSON.stringify({ slug, median: 42, rank: null, timestamp: Date.now() }));
+
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(new IncomingRequest(`https://example.com/v1/prices/${slug}`), env, ctx);
+		await waitOnExecutionContext(ctx);
+
+		expect(response.status).toBe(200);
+		expect((await response.json()) as Record<string, unknown>).toMatchObject({ ok: true, data: { slug, median: 42 } });
+	});
+
+	it('decodes a percent-encoded slug and still refuses a traversal', async () => {
+		const slug = 'höllvanian_old_town_in_fall';
+		await env.PRICE_CACHE.put(`price:${slug}`, JSON.stringify({ slug, median: 7, rank: null, timestamp: Date.now() }));
+
+		const ctx = createExecutionContext();
+		const response = await worker.fetch(new IncomingRequest(`https://example.com/v1/prices/${encodeURIComponent(slug)}`), env, ctx);
+		await waitOnExecutionContext(ctx);
+		expect(response.status).toBe(200);
+		expect((await response.json()) as Record<string, unknown>).toMatchObject({ ok: true, data: { slug, median: 7 } });
+
+		const escapeCtx = createExecutionContext();
+		const escaped = await worker.fetch(new IncomingRequest('https://example.com/v1/prices/..%2Fsecret'), env, escapeCtx);
+		await waitOnExecutionContext(escapeCtx);
+		expect(escaped.status).toBe(404);
+	});
+
+	it('honors If-None-Match on /v1/wfm-items once the catalog is edge-cached', async () => {
+		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=2'));
+		await env.ITEM_META.put(
+			'catalog:client-items:v2',
 			JSON.stringify({
 				updatedAt: 4321,
 				items: [{ id: 'y', slug: 'nova_prime_set', name: 'Nova Prime Set', thumb: null, icon: null, maxRank: null, gameRef: null }],
@@ -262,7 +315,7 @@ describe('backend worker', () => {
 		expect(etag).toBeTruthy();
 
 		// Drop the KV copy so only the edge-cached entry can answer the next two requests.
-		await env.ITEM_META.delete('catalog:client-items:v1');
+		await env.ITEM_META.delete('catalog:client-items:v2');
 		globalThis.fetch = vi.fn(async () => {
 			throw new Error('edge-cached catalog requests should not hit WFM');
 		}) as unknown as typeof fetch;
@@ -293,7 +346,7 @@ describe('backend worker', () => {
 	});
 
 	it('force-hydrates the client catalog when the slug catalog is fresh but the key is missing', async () => {
-		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=1'));
+		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=2'));
 		// Fresh slug catalog from before the client-items key existed: the
 		// cadence-respecting refresh call no-ops on it.
 		await env.ITEM_META.put(
@@ -323,7 +376,7 @@ describe('backend worker', () => {
 	});
 
 	it('returns catalog_not_ready when the catalog is missing and upstream fails', async () => {
-		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=1'));
+		await caches.default.delete(new Request('http://example.com/v1/wfm-items?v=2'));
 		globalThis.fetch = vi.fn(async () => new Response('nope', { status: 500 })) as typeof fetch;
 
 		const request = new IncomingRequest('http://example.com/v1/wfm-items');

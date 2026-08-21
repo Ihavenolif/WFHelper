@@ -1,8 +1,9 @@
-import { CATALOG_CACHE_KEY, CATALOG_CLIENT_ITEMS_KEY, ORDER_SUMMARY_CATALOG_KEY, SLUG_RE } from '../constants';
+import { CATALOG_CACHE_KEY, CATALOG_CLIENT_ITEMS_KEY, ORDER_SUMMARY_CATALOG_KEY } from '../constants';
 import type { Env, OrdersPayload, OrderSummaryCatalogEntry, OrderSummaryHotsetEntry } from '../types';
 import { getWorkerConfig } from '../config';
 import { getJsonFromKv } from '../utils';
 import { normalizeRankFilter } from '../../../../config/shared/numeric';
+import { isWfmSlug } from '../../../../config/shared/textNormalize';
 import { WFM_HEADERS } from '../../../../config/shared/wfm';
 import { isExcludedRankedMarketItem } from '../../../../config/shared/wfmExclusions';
 import { bestOrderPrice } from '../../../../config/shared/wfmOrders';
@@ -23,7 +24,7 @@ export function orderSummaryCacheTtlSec(env: Env): number {
 
 function sanitizeSlugList(value: unknown): string[] {
 	if (!Array.isArray(value)) return [];
-	return value.filter((entry): entry is string => typeof entry === 'string' && SLUG_RE.test(entry));
+	return value.filter((entry): entry is string => isWfmSlug(entry));
 }
 
 function normalizeCatalogList(value: unknown): Array<Record<string, unknown>> {
@@ -65,7 +66,7 @@ function sanitizeOrderSummaryCatalogEntries(value: unknown): OrderSummaryCatalog
 			const row = entry as Record<string, unknown>;
 			const slug = typeof row.slug === 'string' ? row.slug.trim().toLowerCase() : '';
 			const maxRank = normalizeRankFilter(row.maxRank);
-			if (!SLUG_RE.test(slug)) return null;
+			if (!isWfmSlug(slug)) return null;
 			if (maxRank == null || maxRank <= 0) return null;
 			if (isExcludedRankedMarketItem(null, slug)) return null;
 			return { slug, maxRank };
@@ -113,7 +114,7 @@ function buildClientCatalogItems(list: Array<Record<string, unknown>>): ClientCa
 	const seen = new Set<string>();
 	for (const item of list) {
 		const slug = normalizeCatalogSlug(item);
-		if (!SLUG_RE.test(slug) || seen.has(slug)) continue;
+		if (!isWfmSlug(slug) || seen.has(slug)) continue;
 		seen.add(slug);
 		const i18n = item.i18n as { en?: Record<string, unknown> } | undefined;
 		const en = i18n && typeof i18n === 'object' ? (i18n.en ?? {}) : {};
@@ -134,7 +135,7 @@ function sanitizeClientCatalogItems(value: unknown): ClientCatalogItem[] {
 	if (!Array.isArray(value)) return [];
 	return value.filter(
 		(entry): entry is ClientCatalogItem =>
-			Boolean(entry) && typeof entry === 'object' && SLUG_RE.test(String((entry as Record<string, unknown>).slug ?? '')),
+			Boolean(entry) && typeof entry === 'object' && isWfmSlug(String((entry as Record<string, unknown>).slug ?? '')),
 	);
 }
 
@@ -156,7 +157,7 @@ export function sanitizeOrderSummaryHotsetEntries(value: unknown): OrderSummaryH
 			const slug = typeof row.slug === 'string' ? row.slug.trim().toLowerCase() : '';
 			const maxRank = normalizeRankFilter(row.maxRank);
 			const lastSeenAt = Number(row.lastSeenAt || 0);
-			if (!SLUG_RE.test(slug)) return null;
+			if (!isWfmSlug(slug)) return null;
 			if (maxRank == null || maxRank <= 0) return null;
 			if (isExcludedRankedMarketItem(null, slug)) return null;
 			if (!Number.isFinite(lastSeenAt) || lastSeenAt <= 0) return null;
@@ -239,7 +240,7 @@ export async function fetchCatalogSlugs(env: Env, forceRefresh: boolean): Promis
 					const slug = typeof item.slug === 'string' ? item.slug : typeof item.url_name === 'string' ? item.url_name : '';
 					return slug.toLowerCase();
 				})
-				.filter((slug) => SLUG_RE.test(slug)),
+				.filter((slug) => isWfmSlug(slug)),
 		),
 	);
 	const rankedSummaryCatalog = buildRankedSummaryCatalog(list);

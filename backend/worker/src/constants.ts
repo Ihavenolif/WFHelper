@@ -1,7 +1,5 @@
-export const SLUG_RE = /^[a-z0-9_]+$/;
-
 export const CATALOG_CACHE_KEY = 'catalog:slugs:v1';
-export const CATALOG_CLIENT_ITEMS_KEY = 'catalog:client-items:v1';
+export const CATALOG_CLIENT_ITEMS_KEY = 'catalog:client-items:v2';
 export const PREWARM_CURSOR_KEY = 'prewarm:cursor:v1';
 export const PREWARM_LAST_RUN_KEY = 'prewarm:last-run:v1';
 export const ORDER_SUMMARY_HOTSET_KEY = 'order-summary:hotset:v1';
