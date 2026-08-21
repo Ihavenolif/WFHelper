@@ -68,6 +68,26 @@ interface InventoryReadError {
   path: string;
   at: number;
 }
+
+const FS_ERROR_CODES = new Set([
+  "ENOENT",
+  "EACCES",
+  "EPERM",
+  "EBUSY",
+  "EISDIR",
+  "ENOTDIR",
+  "EMFILE",
+  "ENFILE",
+  "ELOOP",
+  "ENAMETOOLONG",
+]);
+
+// A permissions or missing-file failure reported as "failed to parse" sends
+// every bug report down the wrong path.
+function inventoryErrorKind(err: unknown): "parse" | "read" {
+  const code = (err as NodeJS.ErrnoException | null)?.code;
+  return typeof code === "string" && FS_ERROR_CODES.has(code) ? "read" : "parse";
+}
 let _lastReadError: InventoryReadError | null = null;
 
 const _inventoryStatePath = userDataPath("inventory-reload-state.json");
@@ -320,8 +340,9 @@ function readInventory(filePath: string, source: JsonInventorySource = "helper")
     return data;
   } catch (err) {
     const message = normalizeErrorMessage(err);
-    log.error(`Failed to parse inventory at ${filePath}:`, message);
-    _lastReadError = { kind: "parse", message, path: filePath, at: Date.now() };
+    const kind = inventoryErrorKind(err);
+    log.error(`Failed to ${kind} inventory at ${filePath}:`, message);
+    _lastReadError = { kind, message, path: filePath, at: Date.now() };
     return null;
   }
 }
@@ -344,8 +365,9 @@ function readAlecaFrameInventory(filePath: string): unknown {
     return data;
   } catch (err) {
     const message = normalizeErrorMessage(err);
-    log.error(`Failed to decrypt AlecaFrame inventory at ${filePath}:`, message);
-    _lastReadError = { kind: "parse", message, path: filePath, at: Date.now() };
+    const kind = inventoryErrorKind(err);
+    log.error(`Failed to ${kind} AlecaFrame inventory at ${filePath}:`, message);
+    _lastReadError = { kind, message, path: filePath, at: Date.now() };
     return null;
   }
 }
@@ -396,8 +418,9 @@ function watchInventoryFile(filePath: string, source: InventorySource = "helper"
       }
     } catch (err) {
       const message = normalizeErrorMessage(err);
-      log.error("Failed to parse inventory:", message);
-      _lastReadError = { kind: "parse", message, path: filePath, at: Date.now() };
+      const kind = inventoryErrorKind(err);
+      log.error(`Failed to ${kind} inventory:`, message);
+      _lastReadError = { kind, message, path: filePath, at: Date.now() };
     }
   });
 
