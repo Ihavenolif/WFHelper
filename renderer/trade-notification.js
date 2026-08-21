@@ -3,10 +3,6 @@
   "use strict";
 
   const WFM_ASSET_BASE = "https://warframe.market/static/assets/";
-  // Fallback values used only if the main process sends a legacy payload
-  // without a `timing` field. The real values come from the payload.
-  const FALLBACK_VISIBLE_MS = 5000;
-  const FALLBACK_FADE_MS = 400;
 
   const STATUS_KEYS = {
     closed: "overlay.trade.listingClosed",
@@ -37,9 +33,7 @@
   let lastNotification = null;
   let lastRepResult = null;
 
-  function t(key, params) {
-    return window.overlayI18n.t(key, params);
-  }
+  const t = window.overlayI18n.t;
 
   function scheduleDismiss(visibleMs, fadeMs) {
     if (dismissTimer) clearTimeout(dismissTimer);
@@ -109,11 +103,7 @@
   }
 
   function showNotification(payload) {
-    if (!payload) return;
-    const timing = payload.timing || {};
-    const visibleMs = typeof timing.visibleMs === "number" ? timing.visibleMs : FALLBACK_VISIBLE_MS;
-    const fadeMs = typeof timing.fadeMs === "number" ? timing.fadeMs : FALLBACK_FADE_MS;
-    if (!payload.match) return;
+    if (!payload || !payload.match) return;
 
     lastNotification = payload;
     lastRepResult = null;
@@ -122,7 +112,7 @@
     // Show with animation
     notification.classList.remove("hidden", "fade-out");
 
-    scheduleDismiss(visibleMs, fadeMs);
+    scheduleDismiss(payload.timing.visibleMs, payload.timing.fadeMs);
   }
 
   function renderRepResult(payload) {

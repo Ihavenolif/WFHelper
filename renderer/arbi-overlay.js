@@ -1,10 +1,7 @@
 let _runId = null;
 let _summary = null;
 
-function t(key, params) {
-  return window.overlayI18n.t(key, params);
-}
-
+const t = window.overlayI18n.t;
 function el(id) {
   return document.getElementById(id);
 }
@@ -79,13 +76,7 @@ document.addEventListener("DOMContentLoaded", () => {
     bootstrapped = true;
     window.arbiSummary.ready();
   };
-  window.overlayTheme.loadThemeFromStorageFallback();
-  void window.arbiSummary
-    .getThemeVars()
-    .then(window.overlayTheme.applyThemeVars)
-    .catch(() => {
-      // best effort, storage fallback already applied
-    });
+  window.overlayTheme.bootstrapOverlayTheme(() => window.arbiSummary.getThemeVars());
 
   el("btn-close").addEventListener("click", () => window.arbiSummary.close());
   el("btn-details").addEventListener("click", () => {

@@ -16,10 +16,7 @@ let _scanningKey = "overlay.riven.scanning";
 let _bannerKey = "overlay.riven.readFailed";
 let _renderedStats = [];
 
-function t(key, params) {
-  return window.overlayI18n.t(key, params);
-}
-
+const t = window.overlayI18n.t;
 function el(id) {
   return document.getElementById(id);
 }
@@ -40,7 +37,6 @@ function renderInteractionHint() {
 
 function setOverlayInteractiveMode(interactive) {
   _overlayInteractiveMode = !!interactive;
-  document.documentElement.classList.toggle("is-overlay-interactive", _overlayInteractiveMode);
   const closeButton = el("btn-close");
   if (closeButton) closeButton.classList.toggle("is-hidden", !_overlayInteractiveMode);
   const rescanButton = el("btn-rescan");
@@ -267,10 +263,25 @@ function onGradingRoll(payload) {
   applyGradingToStats(side);
 }
 
-let _bestAttributesData = null;
+function fillBestRow(row, names, side, labelKey) {
+  if (!Array.isArray(names) || names.length === 0) return;
+
+  const label = document.createElement("span");
+  label.className = `best-row-label ${side}`;
+  label.textContent = t(labelKey);
+  row.appendChild(label);
+
+  for (const name of names) {
+    const chip = document.createElement("span");
+    chip.className = "best-chip";
+    chip.setAttribute("data-stat", name.toLowerCase());
+    chip.setAttribute("data-side", side);
+    chip.textContent = abbreviateStat(name);
+    row.appendChild(chip);
+  }
+}
 
 function renderBestAttributes(attrs) {
-  _bestAttributesData = attrs;
   _pendingBestAttrs = attrs;
 
   // Don't render if panel has no stats yet (right panel before first roll)
@@ -285,40 +296,8 @@ function renderBestAttributes(attrs) {
 
   posRow.innerHTML = "";
   negRow.innerHTML = "";
-
-  // Positive row
-  if (Array.isArray(attrs.positives) && attrs.positives.length > 0) {
-    var label = document.createElement("span");
-    label.className = "best-row-label pos";
-    label.textContent = t("overlay.riven.bestPositives");
-    posRow.appendChild(label);
-
-    for (var i = 0; i < attrs.positives.length; i++) {
-      var chip = document.createElement("span");
-      chip.className = "best-chip";
-      chip.setAttribute("data-stat", attrs.positives[i].toLowerCase());
-      chip.setAttribute("data-side", "pos");
-      chip.textContent = abbreviateStat(attrs.positives[i]);
-      posRow.appendChild(chip);
-    }
-  }
-
-  // Negative row
-  if (Array.isArray(attrs.negatives) && attrs.negatives.length > 0) {
-    var negLabel = document.createElement("span");
-    negLabel.className = "best-row-label neg";
-    negLabel.textContent = t("overlay.riven.bestNegatives");
-    negRow.appendChild(negLabel);
-
-    for (var j = 0; j < attrs.negatives.length; j++) {
-      var negChip = document.createElement("span");
-      negChip.className = "best-chip";
-      negChip.setAttribute("data-stat", attrs.negatives[j].toLowerCase());
-      negChip.setAttribute("data-side", "neg");
-      negChip.textContent = abbreviateStat(attrs.negatives[j]);
-      negRow.appendChild(negChip);
-    }
-  }
+  fillBestRow(posRow, attrs.positives, "pos", "overlay.riven.bestPositives");
+  fillBestRow(negRow, attrs.negatives, "neg", "overlay.riven.bestNegatives");
 
   wrapper.classList.remove("is-hidden");
   refreshBestAttributeHighlights();
@@ -498,7 +477,6 @@ function onSessionStart(weapon) {
   _rollCount = 0;
   _currentStatNamesLc = [];
   _currentStats = [];
-  _bestAttributesData = null;
   _hasDisplayedStats = false;
   _pendingBestAttrs = null;
   _pendingListings = null;
@@ -621,7 +599,6 @@ function onSessionEnd() {
   hideScanning();
   _currentStatNamesLc = [];
   _currentStats = [];
-  _bestAttributesData = null;
   _hasDisplayedStats = false;
   _pendingBestAttrs = null;
   _pendingListings = null;
@@ -662,13 +639,7 @@ document.addEventListener("DOMContentLoaded", () => {
     startOverlay();
     window.rivenOverlay.ready();
   };
-  window.overlayTheme.loadThemeFromStorageFallback();
-  void window.rivenOverlay
-    .getThemeVars()
-    .then((vars) => window.overlayTheme.applyThemeVars(vars))
-    .catch(() => {
-      // best effort, storage fallback already applied
-    });
+  window.overlayTheme.bootstrapOverlayTheme(() => window.rivenOverlay.getThemeVars());
 
   el("btn-close").addEventListener("click", () => window.rivenOverlay.close());
   el("btn-rescan").addEventListener("click", () => window.rivenOverlay.requestRescan());

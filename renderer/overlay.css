@@ -109,7 +109,7 @@ body {
 .scan-spinner {
   width: 20px;
   height: 20px;
-  border: 2px solid rgba(212, 168, 67, 0.2);
+  border: 2px solid color-mix(in oklab, var(--accent) 22%, transparent);
   border-top-color: var(--accent);
   border-radius: 50%;
   /* steps(): ~9 repaints/s - the window is software-rendered over the game. */

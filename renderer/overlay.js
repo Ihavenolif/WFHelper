@@ -17,13 +17,10 @@ let bestPlaceholderKey = "overlay.reward.detecting";
 let bannerMessage = null;
 let plannerPayload = null;
 
-function t(key, params) {
-  return window.overlayI18n.t(key, params);
-}
+const t = window.overlayI18n.t;
 
 function setOverlayInteractiveMode(interactive) {
   overlayInteractiveMode = !!interactive;
-  document.documentElement.classList.toggle("is-overlay-interactive", overlayInteractiveMode);
   const closeButton = document.getElementById("btn-close");
   if (!closeButton) return;
   closeButton.classList.toggle("is-hidden", !overlayInteractiveMode);
@@ -645,15 +642,7 @@ document.addEventListener("DOMContentLoaded", () => {
     bootstrapped = true;
     startOverlay();
   };
-  window.overlayTheme.loadThemeFromStorageFallback();
-  void window.overlay
-    .getThemeVars()
-    .then((vars) => {
-      window.overlayTheme.applyThemeVars(vars);
-    })
-    .catch(() => {
-      // best effort, storage fallback already applied
-    });
+  window.overlayTheme.bootstrapOverlayTheme(() => window.overlay.getThemeVars());
 
   document.getElementById("btn-close").addEventListener("click", () => window.overlay.close());
   window.installOverlayDrag({
