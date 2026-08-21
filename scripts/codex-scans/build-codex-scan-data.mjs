@@ -101,7 +101,8 @@ const FRAGMENT_PAGES = [
   "Fragments/Solaris United",
   "Fragments/Partnership",
   "Fragments/The Tenets",
-  "Fragments/Duviri",
+  // Fragments/Duviri is absent on purpose: every block there has an empty
+  // image field, so the parse below yields nothing and refuses to overwrite.
   "Fragments/Albrecht",
   "Fragments/Isleweaver",
 ];
