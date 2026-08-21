@@ -101,6 +101,7 @@ const FRAGMENT_PAGES = [
   "Fragments/Solaris United",
   "Fragments/Partnership",
   "Fragments/The Tenets",
+  "Fragments/Duviri",
   "Fragments/Albrecht",
   "Fragments/Isleweaver",
 ];
