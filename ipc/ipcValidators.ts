@@ -9,8 +9,6 @@ export function asRecord(value: unknown): Record<string, unknown> | null {
   return isObject(value) ? value : null;
 }
 
-export const trimmedString = toNonEmptyString;
-
 function boundedNumber(value: unknown, min: number, max: number): number | null {
   const parsed = toFiniteNumber(value);
   if (parsed == null || parsed < min || parsed > max) return null;
@@ -26,7 +24,7 @@ export function boundedInt(value: unknown, min: number, max: number): number | n
 export function stringArray(value: unknown, maxItems = 100, maxStringLength = 200): string[] {
   if (!Array.isArray(value)) return [];
   return value
-    .map((entry) => trimmedString(entry, maxStringLength))
+    .map((entry) => toNonEmptyString(entry, maxStringLength))
     .filter((entry): entry is string => Boolean(entry))
     .slice(0, maxItems);
 }

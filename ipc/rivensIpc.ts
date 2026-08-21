@@ -4,8 +4,9 @@ import * as rivenFingerprint from "../services/rivenFingerprint";
 import * as wfmRivenSearch from "../services/wfmRivenSearch";
 import * as rivenData from "../services/rivenData";
 import * as rivenBestAttributes from "../services/rivenBestAttributes";
-import { boundedInt, isObject, stringArray, trimmedString } from "./ipcValidators";
+import { boundedInt, isObject, stringArray } from "./ipcValidators";
 import { toFiniteNumber } from "../config/shared/numeric";
+import { toNonEmptyString } from "../config/shared/stringValidation";
 import {
   RIVENS_GET,
   RIVENS_GET_WEAPON_NAMES,
@@ -48,7 +49,7 @@ interface CreateAuctionStat {
 function isCreateAuctionStat(value: unknown): value is CreateAuctionStat {
   if (!isObject(value)) return false;
   return (
-    trimmedString(value.tag, 100) != null &&
+    toNonEmptyString(value.tag, 100) != null &&
     toFiniteNumber(value.value) != null &&
     typeof value.positive === "boolean" &&
     (value.multiplier == null || typeof value.multiplier === "boolean")
@@ -77,7 +78,7 @@ function register(): void {
     RIVENS_SEARCH_AUCTIONS,
     assertMainRendererSender,
     async (_event, weaponName: unknown, positiveWfmNames: unknown, negativeWfmNames: unknown) => {
-      const weapon = trimmedString(weaponName, 120);
+      const weapon = toNonEmptyString(weaponName, 120);
       if (!weapon) return [];
       const slug = rivenData.getRivenFamilySlug(weapon);
       if (!slug) return [];
@@ -97,7 +98,7 @@ function register(): void {
     RIVENS_GET_BEST_ATTRIBUTES,
     assertMainRendererSender,
     async (_event, weaponName: unknown) => {
-      const weapon = trimmedString(weaponName, 120);
+      const weapon = toNonEmptyString(weaponName, 120);
       if (!weapon) return null;
       await rivenBestAttributes.ensureRivenGoodRollsLoaded();
       const isMelee = rivenData.isMeleeWeapon(weapon);
@@ -124,7 +125,7 @@ function register(): void {
         isPrivate,
         description,
       } = payload;
-      const weapon = trimmedString(weaponName, 120);
+      const weapon = toNonEmptyString(weaponName, 120);
       if (!weapon) return { ok: false, error: "Invalid weapon name" };
       if (!Array.isArray(stats) || stats.length === 0 || stats.length > MAX_AUCTION_STATS)
         return { ok: false, error: "No stats provided" };
@@ -150,7 +151,7 @@ function register(): void {
         };
       });
 
-      const polarityValue = trimmedString(polarity, 32);
+      const polarityValue = toNonEmptyString(polarity, 32);
       const wfmPolarity = polarityValue
         ? POLARITY_TO_WFM[polarityValue] || polarityValue.toLowerCase()
         : "madurai";
@@ -158,7 +159,7 @@ function register(): void {
       // WFM expects only the generated suffix portion of the riven name in lowercase
       // (e.g. "croni-visican"), NOT the full "Angstrum Croni-visican".
       const rivenSuffix = (() => {
-        const rn = trimmedString(rivenName, 120) ?? weapon;
+        const rn = toNonEmptyString(rivenName, 120) ?? weapon;
         const prefix = weapon + " ";
         const suffix = rn.startsWith(prefix) ? rn.slice(prefix.length) : rn;
         return suffix.toLowerCase();
@@ -188,7 +189,7 @@ function register(): void {
       if (!isObject(payload)) return { ok: false, error: "Invalid payload" };
       const { auctionId, buyoutPrice, startingPrice, minReputation, isPrivate, description } =
         payload;
-      const id = trimmedString(auctionId, 64);
+      const id = toNonEmptyString(auctionId, 64);
       if (!id || !/^[a-zA-Z0-9]+$/.test(id)) {
         return { ok: false, error: "Invalid auction id" };
       }

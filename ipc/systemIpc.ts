@@ -40,7 +40,8 @@ import {
 import fs from "node:fs";
 import { getScanDebugDir } from "../services/rewardScanDebug";
 import * as linuxDisplay from "../services/linuxDisplayBackend";
-import { isObject, trimmedString } from "./ipcValidators";
+import { isObject } from "./ipcValidators";
+import { toNonEmptyString } from "../config/shared/stringValidation";
 
 const log = withScope("systemIpc");
 
@@ -88,7 +89,7 @@ function register(): void {
 
   handleAuthorized(DROP_SEARCH, assertMainRendererSender, async (_event, payload: unknown) => {
     if (!isObject(payload)) return [];
-    const query = trimmedString(payload.query, 200);
+    const query = toNonEmptyString(payload.query, 200);
     const mode = payload.mode === "item" || payload.mode === "place" ? payload.mode : null;
     if (!query || !mode) return [];
     try {

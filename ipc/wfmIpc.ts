@@ -1,5 +1,6 @@
 import { assertMainRendererSender, handleAuthorized } from "./ipcSecurity";
-import { isObject, trimmedString } from "./ipcValidators";
+import { isObject } from "./ipcValidators";
+import { toNonEmptyString } from "../config/shared/stringValidation";
 import type { WfmStatus } from "../config/shared/wfm";
 import {
   errorCode,
@@ -231,7 +232,7 @@ function register(): void {
 
   handleAuthorized(WFM_LOOKUP_ITEM, assertMainRendererSender, async (_event, payload) => {
     const slugRaw = isObject(payload) ? payload.slug : null;
-    const slug = trimmedString(slugRaw, 120)?.toLowerCase() ?? "";
+    const slug = toNonEmptyString(slugRaw, 120)?.toLowerCase() ?? "";
 
     if (!slug || !WFM_SLUG_RE.test(slug)) {
       log.warn("[Security] wfm:lookup-item-by-slug blocked due to invalid payload");
