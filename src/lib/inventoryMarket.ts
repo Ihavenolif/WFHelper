@@ -15,7 +15,7 @@ import {
   isRankedGroup,
   resolveRankedMaxRank,
 } from "../../config/shared/numeric.js";
-import { formatWfmAssetUrl } from "../../config/shared/wfm.js";
+import { formatWfmAssetUrl, sanitizeWfmSlug } from "../../config/shared/wfm.js";
 import { rendererPriceCacheKey } from "../../config/shared/wfmCacheKeys.js";
 import { isExcludedRankedMarketItem } from "../../config/shared/wfmExclusions.js";
 
@@ -237,10 +237,10 @@ function getLookupByGameRef(
 
 function resolveSlug(item: ParsedItem, lookup: WfmItemsLookup): string | null {
   const lookupByGameRef = getLookupByGameRef(item.internalName, lookup);
-  if (lookupByGameRef?.url_name) return toMarketSlug(lookupByGameRef.url_name);
+  if (lookupByGameRef?.url_name) return sanitizeWfmSlug(lookupByGameRef.url_name);
 
   const lookupByName = getLookupByName(item.name, lookup);
-  if (lookupByName?.url_name) return toMarketSlug(lookupByName.url_name);
+  if (lookupByName?.url_name) return sanitizeWfmSlug(lookupByName.url_name);
 
   if (isRankedGroup(item.inventoryGroup)) {
     return null;
@@ -334,9 +334,9 @@ export function buildBaseInventoryItems(
           : rawRelicGroupName;
       const lookupByName = getLookupByName(relicGroupName || item.name, wfmLookup);
       const lookupByGameRef = getLookupByGameRef(item.internalName, wfmLookup);
-      const mappedSlug = lookupByName?.url_name ? toMarketSlug(lookupByName.url_name) : null;
+      const mappedSlug = lookupByName?.url_name ? sanitizeWfmSlug(lookupByName.url_name) : null;
       const mappedGameRefSlug = lookupByGameRef?.url_name
-        ? toMarketSlug(lookupByGameRef.url_name)
+        ? sanitizeWfmSlug(lookupByGameRef.url_name)
         : null;
       const isSetGroup = group === "full_sets" || group === "incomplete_sets";
       const snapshotSetSlug = isSetGroup

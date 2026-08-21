@@ -2,6 +2,7 @@ import { assertMainRendererSender, handleAuthorized } from "./ipcSecurity";
 import { isObject } from "./ipcValidators";
 import { toNonEmptyString } from "../config/shared/stringValidation";
 import type { WfmStatus } from "../config/shared/wfm";
+import { isWfmSlug } from "../config/shared/wfm";
 import {
   errorCode,
   parseContractsPayload,
@@ -117,7 +118,6 @@ function _handleWfmAuthGiveUp(): void {
   log.warn("[WFMIpc] WS listener gave up on auth - notifying renderer");
   win.webContents.send(WFM_NOTIFICATION, { type: "listener-auth-failed" });
 }
-const WFM_SLUG_RE = /^[a-z0-9_]+$/;
 
 function register(): void {
   if (registerWfmFixtures()) return; // E2E-only stub replaced the whole surface
@@ -234,7 +234,7 @@ function register(): void {
     const slugRaw = isObject(payload) ? payload.slug : null;
     const slug = toNonEmptyString(slugRaw, 120)?.toLowerCase() ?? "";
 
-    if (!slug || !WFM_SLUG_RE.test(slug)) {
+    if (!isWfmSlug(slug)) {
       log.warn("[Security] wfm:lookup-item-by-slug blocked due to invalid payload");
       return { error: "Invalid item slug." };
     }

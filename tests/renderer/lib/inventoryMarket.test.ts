@@ -170,6 +170,47 @@ describe("inventoryMarket view mapping", () => {
     ]);
   });
 
+  it("keeps a hyphenated catalog slug so the order still matches", () => {
+    // The Tektolyst arcanes are the only slugs warframe.market mints with
+    // hyphens. Folding them to zid_an_asheir lost both the price and the badge.
+    const gameRef = "/Lotus/Upgrades/CosmeticEnhancers/Antiques/StatusChanceOnUltimateHit";
+    const arcane = makeBaseItem({
+      name: "Zid-An Asheir",
+      internalName: gameRef,
+      inventoryGroup: "arcanes",
+      category: "arcanes",
+      categoryLabel: "Arcane",
+      maxRank: 5,
+      rank: 5,
+      marketSlug: null,
+    });
+    const lookup = {
+      [gameRef.toLowerCase()]: {
+        url_name: "zid-an-asheir",
+        item_name: "Zid-an Asheir",
+        thumb: null,
+        icon: null,
+        maxRank: 5,
+        gameRef,
+      },
+    };
+    const { orderedNames, orderedSlugs } = buildOrderLookups({
+      sell: [
+        {
+          id: "o1",
+          itemName: "Zid-an Asheir",
+          itemUrlName: "zid-an-asheir",
+          modRank: 5,
+        } as WfmOrder,
+      ],
+      buy: [],
+    });
+
+    const [row] = buildBaseInventoryItems([arcane], "arcanes", lookup, orderedNames, orderedSlugs);
+    expect(row.marketSlug).toBe("zid-an-asheir");
+    expect(row.orderPlaced).toBe(true);
+  });
+
   it("marks every rank row for rank-less orders", () => {
     const r0 = makeBaseItem({ name: "Frost Jaw", rank: 0, marketSlug: "frost_jaw" });
     const r3 = makeBaseItem({ name: "Frost Jaw", rank: 3, marketSlug: "frost_jaw" });
