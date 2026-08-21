@@ -67,3 +67,86 @@ test("dragging the riven overlay never changes its size", async () => {
     await closeElectronTestHarness(harness);
   }
 });
+
+async function leftRivenSize(
+  harness: ElectronTestHarness,
+): Promise<{ w: number; h: number; zoom: number }> {
+  return harness.app.evaluate(({ BrowserWindow }) => {
+    const win = BrowserWindow.getAllWindows().find((candidate) =>
+      candidate.webContents.getURL().includes("side=left"),
+    );
+    const bounds = win ? win.getBounds() : { width: 0, height: 0 };
+    return { w: bounds.width, h: bounds.height, zoom: win ? win.webContents.getZoomFactor() : 0 };
+  });
+}
+
+test("a resized riven overlay reopens at the size it was left at", async () => {
+  test.setTimeout(180_000);
+  let harness: ElectronTestHarness | undefined;
+  try {
+    harness = await launchElectronTestHarness("wfh-resize-scale-");
+    await harness.app.evaluate(({ app }) => {
+      const main = process.mainModule as unknown as {
+        require: (id: string) => Record<string, () => void>;
+      };
+      main.require(`${app.getAppPath()}/.electron-build/ipc/rivenOverlayIpc`).onRivenSessionOpen();
+    });
+    const overlay = await overlayWindow(harness, "riven-overlay");
+    await overlay.waitForTimeout(1_000);
+
+    await harness.app.evaluate(({ app }) => {
+      const main = process.mainModule as unknown as {
+        require: (id: string) => { setRivenInteractiveMode: (next: boolean) => void };
+      };
+      main
+        .require(`${app.getAppPath()}/.electron-build/ipc/rivenOverlayIpc`)
+        .setRivenInteractiveMode(true);
+    });
+
+    const before = await leftRivenSize(harness);
+    expect(before.w).toBeGreaterThan(0);
+
+    // What a drag on the window edge does, minus the mouse.
+    const target = { w: Math.round(before.w * 1.2), h: Math.round(before.h * 1.2) };
+    await harness.app.evaluate(({ BrowserWindow }, size) => {
+      const win = BrowserWindow.getAllWindows().find((candidate) =>
+        candidate.webContents.getURL().includes("side=left"),
+      );
+      const bounds = win?.getBounds();
+      if (win && bounds) win.setBounds({ ...bounds, width: size.w, height: size.h });
+    }, target);
+    await overlay.waitForTimeout(600);
+
+    const scale = await harness.app.evaluate(({ app }) => {
+      const main = process.mainModule as unknown as {
+        require: (id: string) => { default: { overlaySettings: Record<string, unknown> } };
+      };
+      const settings = main.require(`${app.getAppPath()}/.electron-build/ipc/context`).default
+        .overlaySettings;
+      return (settings.overlayWindowScales as Record<string, number>)?.rivenLeft;
+    });
+    expect(scale).toBeGreaterThan(1);
+
+    // Reopening recomputes the bounds from the saved settings, which is exactly
+    // where the resized size used to be thrown away.
+    await harness.app.evaluate(({ app }) => {
+      const main = process.mainModule as unknown as {
+        require: (id: string) => Record<string, () => void>;
+      };
+      const riven = main.require(`${app.getAppPath()}/.electron-build/ipc/rivenOverlayIpc`);
+      riven.onRivenSessionClose();
+      riven.onRivenSessionOpen();
+    });
+    const reopenedHarness = harness;
+    await expect
+      .poll(async () => (await leftRivenSize(reopenedHarness)).w, { timeout: 15_000 })
+      .toBeGreaterThan(0);
+
+    const after = await leftRivenSize(harness);
+    expect(Math.abs(after.w - target.w)).toBeLessThanOrEqual(3);
+    // The frame alone proves nothing: the content has to have grown with it.
+    expect(after.zoom).toBeGreaterThan(before.zoom);
+  } finally {
+    await closeElectronTestHarness(harness);
+  }
+});

@@ -75,7 +75,11 @@ type OverlayWindowsControllerOptions = {
   /** Background colour used when transparent=false (default: '#060a12'). */
   backgroundColor?: string;
   windowStateKey?: OverlayWindowKey;
-  onWindowBoundsChanged?: (key: OverlayWindowKey, bounds: OverlaySavedWindowBounds) => void;
+  onWindowBoundsChanged?: (
+    key: OverlayWindowKey,
+    bounds: OverlaySavedWindowBounds,
+    scale?: number,
+  ) => void;
   /** Persist moves even in passive mode (arbi summary drags without the unlock hotkey). */
   persistBoundsWhenPassive?: boolean;
   /** Skip click-through entirely for windows that are meant to stay clickable. */
@@ -100,8 +104,8 @@ export function moveWindowBy(win: MovableWindow, dx: number, dy: number): void {
 
 export function createOverlayWindowBoundsChangeHandler(
   options: OverlaySettingsPersistenceOptions,
-): (key: OverlayWindowKey, bounds: OverlaySavedWindowBounds) => void {
-  return (key, bounds) => {
+): (key: OverlayWindowKey, bounds: OverlaySavedWindowBounds, scale?: number) => void {
+  return (key, bounds, scale) => {
     options.ctx.overlaySettings = {
       ...options.ctx.overlaySettings,
       // live drag = mechanic learned, retire the hint; arbi drags don't count (no hotkey needed there)
@@ -110,6 +114,16 @@ export function createOverlayWindowBoundsChangeHandler(
         ...(options.ctx.overlaySettings.overlayWindowBounds || {}),
         [key]: bounds,
       },
+      // A resized window writes the scale slider it is now equivalent to, so the
+      // size survives the next open and Settings shows what the drag chose.
+      ...(scale != null
+        ? {
+            overlayWindowScales: {
+              ...(options.ctx.overlaySettings.overlayWindowScales || {}),
+              [key]: scale,
+            },
+          }
+        : {}),
     };
     options.save();
   };
@@ -154,6 +168,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   let overlayAutoHideTimer: ReturnType<typeof setTimeout> | null = null;
   let suppressMoveSave = false;
   let moveSaveTimer: ReturnType<typeof setTimeout> | null = null;
+  let resizeSaveTimer: ReturnType<typeof setTimeout> | null = null;
   let rendererReady = false;
   let logicalVisible = false;
   let lastAppliedInteractive: boolean | null = null;
@@ -267,18 +282,41 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     );
   }
 
-  function computeOverlayZoomFactor(display: import("electron").Display): number {
+  function computeBaseZoomFactor(display: import("electron").Display): number {
     const h = display.workArea.height;
     let base = 1.3;
     if (h <= 720) base = 0.8;
     else if (h <= 900) base = 0.9;
     else if (h <= 1200) base = 1.0;
     else if (h <= 1600) base = 1.15;
+    return base;
+  }
+
+  function readUserScale(): number {
     const perWindow = windowStateKey
       ? (ctx.overlaySettings?.overlayWindowScales || {})[windowStateKey]
       : undefined;
-    const userScale = clampNumber(perWindow ?? ctx.overlaySettings?.overlayScale, 0.75, 1.5, 1);
-    return Number((base * userScale).toFixed(3));
+    return clampNumber(perWindow ?? ctx.overlaySettings?.overlayScale, 0.75, 1.5, 1);
+  }
+
+  function computeOverlayZoomFactor(display: import("electron").Display): number {
+    return Number((computeBaseZoomFactor(display) * readUserScale()).toFixed(3));
+  }
+
+  // The layout is fixed and only the zoom factor makes it fill the frame, so a
+  // dragged edge is a scale change. The axis that moved furthest names it, which
+  // keeps a one-sided drag working where the aspect lock is only advisory.
+  function scaleFromWindowSize(
+    size: { width: number; height: number },
+    display: import("electron").Display,
+  ): number {
+    const base = computeBaseZoomFactor(display);
+    const current = readUserScale();
+    const byWidth = size.width / Math.max(1, windowWidth * base);
+    const byHeight = size.height / Math.max(1, windowHeight * base);
+    const dragged =
+      Math.abs(byWidth - current) >= Math.abs(byHeight - current) ? byWidth : byHeight;
+    return Number(clampNumber(dragged, 0.75, 1.5, current).toFixed(2));
   }
 
   function getOverlayBoundsForActiveDisplay(
@@ -344,23 +382,62 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     }, 0);
   }
 
-  function saveCurrentWindowBounds(overlayWindow: import("electron").BrowserWindow): void {
+  function displayMatchingBounds(bounds: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  }): import("electron").Display | null {
+    try {
+      return screen.getDisplayMatching(bounds) || null;
+    } catch {
+      // No display matched the bounds.
+      return null;
+    }
+  }
+
+  function saveCurrentWindowBounds(
+    overlayWindow: import("electron").BrowserWindow,
+    scale?: number,
+  ): void {
     if (!windowStateKey || !onWindowBoundsChanged) return;
     if (suppressMoveSave || overlayWindow.isDestroyed()) return;
     if (!readInteractiveMode() && !persistBoundsWhenPassive) return;
     const bounds = overlayWindow.getBounds();
-    let displayId: string | null = null;
-    try {
-      const display = screen.getDisplayMatching(bounds);
-      displayId = display ? String(display.id) : null;
-    } catch {
-      // No display matched the bounds - persist without a displayId.
-    }
-    onWindowBoundsChanged(windowStateKey, {
-      x: bounds.x,
-      y: bounds.y,
-      ...(displayId ? { displayId } : {}),
-    });
+    const display = displayMatchingBounds(bounds);
+    const displayId = display ? String(display.id) : null;
+    onWindowBoundsChanged(
+      windowStateKey,
+      {
+        x: bounds.x,
+        y: bounds.y,
+        ...(displayId ? { displayId } : {}),
+      },
+      scale,
+    );
+  }
+
+  // Zoom follows the frame while the drag is live, so the content the user is
+  // sizing is the content they end up with.
+  function applyZoomForCurrentSize(overlayWindow: import("electron").BrowserWindow): void {
+    const bounds = overlayWindow.getBounds();
+    const display = displayMatchingBounds(bounds) || getDisplayForOverlay(lastOverlayAnchorMeta);
+    const zoomFactor = computeBaseZoomFactor(display) * scaleFromWindowSize(bounds, display);
+    overlayWindow.webContents.setZoomFactor(Number(zoomFactor.toFixed(3)));
+  }
+
+  function saveResizedScale(overlayWindow: import("electron").BrowserWindow): void {
+    if (overlayWindow.isDestroyed()) return;
+    const bounds = overlayWindow.getBounds();
+    // Our own sizing lands here too. Only a size we never asked for came from the
+    // user, and a size clamped to the work area must not rewrite their scale.
+    const asked = getOverlayBoundsForActiveDisplay();
+    if (bounds.width === asked.width && bounds.height === asked.height) return;
+    const display = displayMatchingBounds(bounds) || getDisplayForOverlay(lastOverlayAnchorMeta);
+    saveCurrentWindowBounds(overlayWindow, scaleFromWindowSize(bounds, display));
+    // Settle on the size the saved scale spells out, so a drag past either end
+    // of the slider springs back instead of clipping the content until restart.
+    positionOverlayWindow();
   }
 
   function attachBoundsPersistence(overlayWindow: import("electron").BrowserWindow): void {
@@ -370,6 +447,16 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       moveSaveTimer = setTimeout(() => {
         moveSaveTimer = null;
         saveCurrentWindowBounds(overlayWindow);
+      }, 250);
+    });
+    overlayWindow.on("resize", () => {
+      if (suppressMoveSave || overlayWindow.isDestroyed()) return;
+      if (!readInteractiveMode() && !persistBoundsWhenPassive) return;
+      applyZoomForCurrentSize(overlayWindow);
+      if (resizeSaveTimer) clearTimeout(resizeSaveTimer);
+      resizeSaveTimer = setTimeout(() => {
+        resizeSaveTimer = null;
+        saveResizedScale(overlayWindow);
       }, 250);
     });
   }
@@ -580,6 +667,10 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       },
     });
 
+    // Edge drags stay proportional, so any edge scales the overlay uniformly
+    // instead of stretching a layout that only the zoom factor can resize.
+    createdWindow.setAspectRatio(windowWidth / windowHeight);
+
     rendererReady = false;
     logicalVisible = false;
     lastAppliedInteractive = null;
@@ -619,6 +710,10 @@ export function createOverlayWindowsController(options: OverlayWindowsController
       if (moveSaveTimer) {
         clearTimeout(moveSaveTimer);
         moveSaveTimer = null;
+      }
+      if (resizeSaveTimer) {
+        clearTimeout(resizeSaveTimer);
+        resizeSaveTimer = null;
       }
       writeOverlayWindow(null);
       rendererReady = false;
