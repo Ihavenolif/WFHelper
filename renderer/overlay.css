@@ -2,8 +2,8 @@
   --bg: color-mix(in oklab, var(--bg-deep, #060a12) 92%, transparent);
   --surface: color-mix(in oklab, var(--bg-surface, #111827) 94%, transparent);
   --border: color-mix(in oklab, var(--border-strong, rgba(212, 168, 67, 0.25)) 80%, transparent);
-  --accent: var(--accent, #d4a843);
-  --accent-bright: var(--accent-bright, #f0c95c);
+  --accent: #d4a843;
+  --accent-bright: #f0c95c;
   --text: var(--text-primary, #e8e4dc);
   --muted: var(--text-secondary, #8b93a5);
   --danger: #f87171;
