@@ -1,5 +1,6 @@
 import path from "node:path";
 import { clampNumber } from "../../config/shared/numeric";
+import { baseZoomForDisplay } from "../../config/runtime/uiScale";
 import { OVERLAY_CONTENT_VISIBLE } from "../../config/shared/ipcChannels";
 import { isNativeWayland as linuxIsNativeWayland } from "../../services/linuxDisplayBackend";
 import { createKeepMappedMode } from "./keepMapped";
@@ -282,16 +283,6 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     );
   }
 
-  function computeBaseZoomFactor(display: import("electron").Display): number {
-    const h = display.workArea.height;
-    let base = 1.3;
-    if (h <= 720) base = 0.8;
-    else if (h <= 900) base = 0.9;
-    else if (h <= 1200) base = 1.0;
-    else if (h <= 1600) base = 1.15;
-    return base;
-  }
-
   function readUserScale(): number {
     const perWindow = windowStateKey
       ? (ctx.overlaySettings?.overlayWindowScales || {})[windowStateKey]
@@ -300,7 +291,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   }
 
   function computeOverlayZoomFactor(display: import("electron").Display): number {
-    return Number((computeBaseZoomFactor(display) * readUserScale()).toFixed(3));
+    return Number((baseZoomForDisplay(display.workArea) * readUserScale()).toFixed(3));
   }
 
   // The layout is fixed and only the zoom factor makes it fill the frame, so a
@@ -310,7 +301,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
     size: { width: number; height: number },
     display: import("electron").Display,
   ): number {
-    const base = computeBaseZoomFactor(display);
+    const base = baseZoomForDisplay(display.workArea);
     const current = readUserScale();
     const byWidth = size.width / Math.max(1, windowWidth * base);
     const byHeight = size.height / Math.max(1, windowHeight * base);
@@ -422,7 +413,7 @@ export function createOverlayWindowsController(options: OverlayWindowsController
   function applyZoomForCurrentSize(overlayWindow: import("electron").BrowserWindow): void {
     const bounds = overlayWindow.getBounds();
     const display = displayMatchingBounds(bounds) || getDisplayForOverlay(lastOverlayAnchorMeta);
-    const zoomFactor = computeBaseZoomFactor(display) * scaleFromWindowSize(bounds, display);
+    const zoomFactor = baseZoomForDisplay(display.workArea) * scaleFromWindowSize(bounds, display);
     overlayWindow.webContents.setZoomFactor(Number(zoomFactor.toFixed(3)));
   }
 

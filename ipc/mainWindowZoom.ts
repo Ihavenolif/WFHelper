@@ -12,7 +12,7 @@ export function applyMainWindowZoom(): void {
   if (!win || win.isDestroyed()) return;
   try {
     const display = screen.getDisplayMatching(win.getBounds());
-    const zoom = computeUiZoomFactor(display?.workArea?.height, ctx.overlaySettings?.uiScale);
+    const zoom = computeUiZoomFactor(display?.workArea, ctx.overlaySettings?.uiScale);
     if (win.webContents.getZoomFactor() === zoom) return;
     win.webContents.setZoomFactor(zoom);
     log.info(`[UIScale] main window zoom -> ${zoom}`);
