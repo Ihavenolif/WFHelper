@@ -220,24 +220,26 @@ function sanitizeOverlayThemeVars(raw: unknown): Record<string, string> {
   return sanitized;
 }
 
+// Theme and messages go to the same set of windows. Keeping one target list
+// stops a new overlay from being wired into one broadcast and not the other.
+function broadcastToOpenOverlays(channel: string, payload: unknown): void {
+  rewardOverlayIpc.rewardWindowsController.sendOverlayEvent(channel, payload);
+  rewardOverlayIpc.plannerWindowsController.sendOverlayEvent(channel, payload);
+  arbiOverlayIpc.arbiSummaryWindowsController.sendOverlayEvent(channel, payload);
+  rivenOverlayIpc.forEachRivenWindow((win) => win.webContents.send(channel, payload));
+  const toast = ctx.tradeNotificationWindow;
+  if (toast && !toast.isDestroyed()) toast.webContents.send(channel, payload);
+}
+
 function pushOverlayThemeVars(): void {
   if (!ctx.overlayThemeVars || Object.keys(ctx.overlayThemeVars).length === 0) return;
-  const vars = { ...ctx.overlayThemeVars };
-  rewardOverlayIpc.rewardWindowsController.sendOverlayEvent(OVERLAY_THEME_VARS, vars);
-  rewardOverlayIpc.plannerWindowsController.sendOverlayEvent(OVERLAY_THEME_VARS, vars);
-  rivenOverlayIpc.forEachRivenWindow((win) => win.webContents.send(OVERLAY_THEME_VARS, vars));
+  broadcastToOpenOverlays(OVERLAY_THEME_VARS, { ...ctx.overlayThemeVars });
 }
 
 // Reaches every overlay that is already open, so a language change lands
 // without waiting for the next trigger.
 function pushOverlayMessages(): void {
-  const messages = overlayMessages();
-  rewardOverlayIpc.rewardWindowsController.sendOverlayEvent(OVERLAY_MESSAGES, messages);
-  rewardOverlayIpc.plannerWindowsController.sendOverlayEvent(OVERLAY_MESSAGES, messages);
-  arbiOverlayIpc.arbiSummaryWindowsController.sendOverlayEvent(OVERLAY_MESSAGES, messages);
-  rivenOverlayIpc.forEachRivenWindow((win) => win.webContents.send(OVERLAY_MESSAGES, messages));
-  const toast = ctx.tradeNotificationWindow;
-  if (toast && !toast.isDestroyed()) toast.webContents.send(OVERLAY_MESSAGES, messages);
+  broadcastToOpenOverlays(OVERLAY_MESSAGES, overlayMessages());
 }
 
 function onRelicRewardTrigger(source = "manual", stalenessMs = 0): void {
