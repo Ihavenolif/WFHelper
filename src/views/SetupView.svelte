@@ -19,6 +19,7 @@
   } from "../../config/shared/inventoryPayload.js";
   import type { ThemeCornerStyle, ThemeSurfaceStyle } from "../types/theme.js";
   import type { RawInventoryData } from "../types/inventory.js";
+  import type { InventorySource } from "../../config/shared/inventorySource.js";
   import type { HelperDownloadProgress, HelperStatus } from "../types/ipc.js";
   import SegmentedControl from "../components/SegmentedControl.svelte";
   import GlassBlurControl from "../components/settings/GlassBlurControl.svelte";
@@ -26,7 +27,6 @@
   import OverlayPlacementStep from "../components/setup/OverlayPlacementStep.svelte";
 
   type Step = "configure" | "inventory" | "downloading" | "done" | "overlays" | "error";
-  type InventorySource = "helper" | "json" | "aleca";
   type HelperInventoryStatus = "checking" | "found" | "not_found" | "error";
 
   const isLinux = getPlatform() === "linux";
@@ -101,7 +101,7 @@
     if (destroyed) return;
 
     if (runnerStatus?.installerAutoInstallHelper === false) {
-      inventorySource = "json";
+      inventorySource = "manual";
     }
 
     await refreshHelperStatus();
@@ -197,31 +197,35 @@
     }
   }
 
-  async function importInventory(): Promise<void> {
+  async function importFromFile(
+    pick: () => Promise<unknown>,
+    hintKey: MessageKey,
+    failedPrefixKey: MessageKey,
+  ): Promise<void> {
     loadingApi = true;
     try {
-      const data = await invoke("openInventoryFile", "manual");
-      await acceptInventoryData(data, $tr("setup.importJsonFailedMsg"));
+      await acceptInventoryData(await pick(), $tr(hintKey));
     } catch (error) {
-      errorMessage = $tr("setup.importJsonFailedPrefix", { message: (error as Error).message });
+      errorMessage = $tr(failedPrefixKey, { message: (error as Error).message });
       step = "error";
     } finally {
       loadingApi = false;
     }
   }
 
-  async function importAlecaFrameInventory(): Promise<void> {
-    loadingApi = true;
-    try {
-      const data = await invoke("openAlecaFrameInventoryFile");
-      await acceptInventoryData(data, $tr("setup.importAlecaHint"));
-    } catch (error) {
-      errorMessage = $tr("setup.importAlecaFailedPrefix", { message: (error as Error).message });
-      step = "error";
-    } finally {
-      loadingApi = false;
-    }
-  }
+  const importInventory = (): Promise<void> =>
+    importFromFile(
+      () => invoke("openInventoryFile", "manual"),
+      "setup.importJsonFailedMsg",
+      "setup.importJsonFailedPrefix",
+    );
+
+  const importAlecaFrameInventory = (): Promise<void> =>
+    importFromFile(
+      () => invoke("openAlecaFrameInventoryFile"),
+      "setup.importAlecaHint",
+      "setup.importAlecaFailedPrefix",
+    );
 
   async function loadApiHelper(preferPicker = false): Promise<void> {
     loadingApi = true;
@@ -278,7 +282,7 @@
       return;
     }
 
-    if (inventorySource === "json") {
+    if (inventorySource === "manual") {
       await importInventory();
       return;
     }
@@ -693,9 +697,9 @@
 
               <button
                 type="button"
-                class={sourceButtonClass("json", inventorySource)}
-                aria-pressed={inventorySource === "json"}
-                on:click={() => (inventorySource = "json")}
+                class={sourceButtonClass("manual", inventorySource)}
+                aria-pressed={inventorySource === "manual"}
+                on:click={() => (inventorySource = "manual")}
               >
                 <span class="font-display text-sm font-semibold"
                   >{$tr("setup.source.json.name")}</span
@@ -795,7 +799,7 @@
                 {$tr("common.loading")}
               {:else if inventorySource === "helper"}
                 {runnerStatus?.exeFound ? $tr("setup.loadHelperData") : $tr("setup.installHelper")}
-              {:else if inventorySource === "json"}
+              {:else if inventorySource === "manual"}
                 {$tr("setup.importJsonButton")}
               {:else if inventorySource === "aleca"}
                 {$tr("setup.importAlecaButton")}

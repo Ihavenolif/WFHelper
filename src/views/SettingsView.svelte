@@ -59,23 +59,22 @@
 
   const isLinux = getPlatform() === "linux";
 
-  async function openScanDebugFolder(): Promise<void> {
+  async function openFolder(
+    channel: "openScanDebugFolder" | "openLogFolder",
+    failedKey: MessageKey,
+  ): Promise<void> {
     try {
-      const result = await invoke("openScanDebugFolder");
-      if (!result?.ok) flashStatus($tr("settings.scanDebugFolderFailed"), true);
+      const result = await invoke(channel);
+      if (!result?.ok) flashStatus($tr(failedKey), true);
     } catch {
-      flashStatus($tr("settings.scanDebugFolderFailed"), true);
+      flashStatus($tr(failedKey), true);
     }
   }
 
-  async function openLogFolder(): Promise<void> {
-    try {
-      const result = await invoke("openLogFolder");
-      if (!result?.ok) flashStatus($tr("settings.logFolderFailed"), true);
-    } catch {
-      flashStatus($tr("settings.logFolderFailed"), true);
-    }
-  }
+  const openScanDebugFolder = (): Promise<void> =>
+    openFolder("openScanDebugFolder", "settings.scanDebugFolderFailed");
+  const openLogFolder = (): Promise<void> =>
+    openFolder("openLogFolder", "settings.logFolderFailed");
 
   function flashStatus(msg: string, isError: boolean): void {
     statusMsg = msg;
