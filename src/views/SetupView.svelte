@@ -364,6 +364,8 @@
     arbiSummary: 1,
   };
   let previewW = 0;
+  // The step promises "saved instantly", so a failed write has to say so.
+  let placementSaveFailed = false;
   let dragging: {
     key: PlacementKey;
     pointerId: number;
@@ -456,7 +458,7 @@
     invoke("saveOverlayPlacement", key, {
       xFrac: p.x / placementArea.width,
       yFrac: p.y / placementArea.height,
-    }).catch(() => {});
+    }).catch(() => (placementSaveFailed = true));
   }
 
   // slider preview scales the dummy like the real window zoom; persisted on release
@@ -478,7 +480,9 @@
 
   function commitScale(): void {
     for (const key of placementStep.dummies) {
-      invoke("saveOverlayScale", key, placementScales[key]).catch(() => {});
+      invoke("saveOverlayScale", key, placementScales[key]).catch(
+        () => (placementSaveFailed = true),
+      );
     }
   }
 
@@ -670,6 +674,11 @@
         <p class="m-0 mt-1.5 text-xs leading-snug text-text-muted">
           {$tr("setup.overlay.hint")}
         </p>
+        {#if placementSaveFailed}
+          <p class="m-0 mt-1.5 text-xs leading-snug text-danger">
+            {$tr("setup.overlay.saveFailed")}
+          </p>
+        {/if}
         <div class="mt-2.5 flex items-center gap-3">
           <span class="shrink-0 text-xs text-text-muted">{$tr("setup.overlay.sizeLabel")}</span>
           <input

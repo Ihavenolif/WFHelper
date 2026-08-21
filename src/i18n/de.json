@@ -1050,6 +1050,7 @@
   "setup.overlay.arbiSummary.text": "Zeigt deine Run-Statistiken, wenn eine Arbitration endet. Zieh es an die passende Stelle.",
   "setup.overlay.dragMe": "zieh mich",
   "setup.overlay.hint": "Wird sofort gespeichert. Im Spiel kannst du Overlays jederzeit verschieben: entsperre mit dem Hotkey auf dem Overlay und zieh mit beliebiger Maustaste.",
+  "setup.overlay.saveFailed": "Position konnte nicht gespeichert werden. Nach einem Neustart sitzt sie wieder am alten Platz.",
   "setup.overlay.planner.text": "Bewertet deine eigenen Relikte auf dem Relikt-Auswahlbildschirm. Zieh es an die passende Stelle.",
   "setup.overlay.planner.title": "Relikt-Planer-Overlay",
   "setup.overlay.reward.text": "Erscheint, wenn dein Trupp Relikte öffnet, und ermittelt für jede Belohnung den Preis. Zieh das Panel dorthin, wo es über deinem Spiel sitzen soll.",

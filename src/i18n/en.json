@@ -1035,6 +1035,7 @@
   "setup.overlay.arbiSummary.text": "Shows your run stats when an arbitration ends. Drag it into place.",
   "setup.overlay.dragMe": "drag me",
   "setup.overlay.hint": "Saved instantly. In game you can move overlays any time: unlock with the hotkey shown on them, then drag with either mouse button.",
+  "setup.overlay.saveFailed": "Could not save that position. It will be back where it was after a restart.",
   "setup.overlay.planner.text": "Ranks your owned relics on the relic selection screen. Drag it into place.",
   "setup.overlay.planner.title": "Relic planner overlay",
   "setup.overlay.reward.text": "Pops up when your squad opens relics and prices every reward. Drag the panel to where it should sit over your game.",
