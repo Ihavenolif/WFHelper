@@ -8,6 +8,8 @@
     applyOverlaySettingsResponse,
   } from "../stores/overlaySettings.js";
   import AppearanceCard from "../components/settings/AppearanceCard.svelte";
+  import SettingsSection from "../components/settings/SettingsSection.svelte";
+  import SettingsRow from "../components/settings/SettingsRow.svelte";
   import ProtonLaunchOption from "../components/ProtonLaunchOption.svelte";
   import LinuxDisplayBackend from "../components/LinuxDisplayBackend.svelte";
   import SegmentedControl from "../components/SegmentedControl.svelte";
@@ -276,24 +278,12 @@
     return parts.join("+");
   }
 
-  function recordTriggerHotkey(e: KeyboardEvent): void {
-    const accel = captureAccelerator(e);
-    if (accel === undefined) return;
-    form.hotkey = accel;
-    autoSave();
-  }
+  type HotkeyField = "hotkey" | "interactionHotkey" | "tradeRepHotkey";
 
-  function recordInteractionHotkey(e: KeyboardEvent): void {
+  function recordHotkey(field: HotkeyField, e: KeyboardEvent): void {
     const accel = captureAccelerator(e);
     if (accel === undefined) return;
-    form.interactionHotkey = accel;
-    autoSave();
-  }
-
-  function recordTradeRepHotkey(e: KeyboardEvent): void {
-    const accel = captureAccelerator(e);
-    if (accel === undefined) return;
-    form.tradeRepHotkey = accel;
+    form[field] = accel;
     autoSave();
   }
 
@@ -315,6 +305,47 @@
   function openLink(url: string): void {
     send("open-external", url);
   }
+
+  type CreditRow = { label: string; url: string; text: string } | { label: string; value: string };
+
+  // Rebuilt on a language switch, so both the row labels and the translated
+  // link texts follow the active locale.
+  let credits: CreditRow[];
+  $: credits = [
+    {
+      label: $tr("settings.creditPrices"),
+      url: "https://warframe.market",
+      text: "warframe.market",
+    },
+    { label: $tr("settings.creditGameData"), value: $tr("settings.creditGameDataValue") },
+    {
+      label: $tr("settings.creditItemDropData"),
+      url: "https://github.com/WFCD",
+      text: $tr("settings.creditWfcd"),
+    },
+    { label: $tr("settings.creditIcons"), url: "https://browse.wf", text: "browse.wf" },
+    {
+      label: $tr("settings.creditArbiStats"),
+      url: "https://svesk.github.io/arbi/",
+      text: $tr("settings.creditArbiStatsValue"),
+    },
+    {
+      label: $tr("settings.creditInventorySnapshots"),
+      url: "https://github.com/Sainan/warframe-api-helper",
+      text: "warframe-api-helper",
+    },
+    {
+      label: $tr("settings.creditSource"),
+      url: "https://github.com/WFHelper/WFHelper",
+      text: "GitHub",
+    },
+    { label: $tr("settings.creditWebsite"), url: "https://wfhelper.com", text: "wfhelper.com" },
+    {
+      label: $tr("settings.creditCommunity"),
+      url: "https://discord.gg/7Gm3UvUSww",
+      text: $tr("settings.creditCommunityValue"),
+    },
+  ];
 
   // Local mirror of the per-tab visibility stores so each checkbox can bind to a
   // plain bool; the change handler pushes back to the persisted store.
@@ -361,87 +392,65 @@
 
   {#if settingsTab === "general"}
     <div class="settings-tab-grid settings-masonry py-3">
-      <article
-        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
+      <SettingsSection
+        title={$tr("settings.languageTitle")}
+        description={$tr("settings.languageDesc")}
       >
-        <div>
-          <h3
-            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
-          >
-            {$tr("settings.languageTitle")}
-          </h3>
-          <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            {$tr("settings.languageDesc")}
-          </p>
-        </div>
         <div class="mt-2.5 grid gap-1">
-          <label class="settings-control-row" data-setting="language">
-            <span>{$tr("settings.languageRow")}</span>
+          <SettingsRow label={$tr("settings.languageRow")} dataSetting="language">
             <ThemedSelect bind:value={languageChoice}>
               {#each LOCALE_OPTIONS as option}
                 <option value={option.code}>{option.label}</option>
               {/each}
             </ThemedSelect>
-          </label>
-          <label class="settings-control-row" data-setting="game-language">
-            <span>{$tr("settings.gameLanguageRow")}</span>
+          </SettingsRow>
+          <SettingsRow label={$tr("settings.gameLanguageRow")} dataSetting="game-language">
             <ThemedSelect bind:value={gameLanguageChoice}>
               <option value="auto">{$tr("settings.gameLanguageAuto")}</option>
               {#each GAME_LANGUAGE_OPTIONS as option}
                 <option value={option.code}>{option.label}</option>
               {/each}
             </ThemedSelect>
-          </label>
+          </SettingsRow>
         </div>
-      </article>
+      </SettingsSection>
 
-      <article
-        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
+      <SettingsSection
+        title={$tr("settings.notificationsTitle")}
+        description={$tr("settings.notificationsDesc")}
       >
-        <div>
-          <h3
-            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
-          >
-            {$tr("settings.notificationsTitle")}
-          </h3>
-          <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            {$tr("settings.notificationsDesc")}
-          </p>
-        </div>
-
         <div class="mt-2.5 grid gap-1">
-          <label class="settings-control-row">
-            <span>{$tr("settings.windowsNotifSound")}</span>
+          <SettingsRow label={$tr("settings.windowsNotifSound")}>
             <input
               type="checkbox"
               bind:checked={form.notificationSoundEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row">
-            <span>{$tr("settings.wfmDmNotifications")}</span>
+          <SettingsRow label={$tr("settings.wfmDmNotifications")}>
             <input
               type="checkbox"
               bind:checked={form.wfmNotificationsEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row">
-            <span>{$tr("settings.inGameMessageNotifications")}</span>
+          <SettingsRow label={$tr("settings.inGameMessageNotifications")}>
             <input
               type="checkbox"
               bind:checked={form.messageNotificationsEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row" class:opacity-50={!form.messageNotificationsEnabled}>
-            <span>{$tr("settings.notifyWhileFocused")}</span>
+          <SettingsRow
+            label={$tr("settings.notifyWhileFocused")}
+            dimmed={!form.messageNotificationsEnabled}
+          >
             <input
               type="checkbox"
               bind:checked={form.messageNotificationsWhileFocused}
@@ -449,108 +458,75 @@
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row">
-            <span>{$tr("settings.unlistOnTrade")}</span>
+          <SettingsRow label={$tr("settings.unlistOnTrade")}>
             <input
               type="checkbox"
               bind:checked={form.autoCloseWfmOrders}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row">
-            <span>{$tr("settings.tradeRepKeybindEnable")}</span>
+          <SettingsRow label={$tr("settings.tradeRepKeybindEnable")}>
             <input
               type="checkbox"
               bind:checked={form.tradeRepHotkeyEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row settings-control-row-input">
-            <span>{$tr("settings.tradeRepKeybind")}</span>
+          <SettingsRow label={$tr("settings.tradeRepKeybind")} inputRow>
             <input
               type="text"
               bind:value={form.tradeRepHotkey}
               disabled={!form.tradeRepHotkeyEnabled}
               placeholder={$tr("settings.pressKeyCombination")}
-              on:keydown={recordTradeRepHotkey}
+              on:keydown={(e) => recordHotkey("tradeRepHotkey", e)}
               on:change={autoSave}
               class="settings-input"
             />
-          </label>
+          </SettingsRow>
         </div>
-      </article>
+      </SettingsSection>
 
-      <article
-        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
+      <SettingsSection
+        title={$tr("common.arbitrations")}
+        description={$tr("settings.arbitrationsDesc")}
       >
-        <div>
-          <h3
-            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
-          >
-            {$tr("common.arbitrations")}
-          </h3>
-          <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            {$tr("settings.arbitrationsDesc")}
-          </p>
-        </div>
-
         <div class="mt-2.5 grid gap-1">
-          <label class="settings-control-row">
-            <span>{$tr("settings.trackArbiRuns")}</span>
+          <SettingsRow label={$tr("settings.trackArbiRuns")}>
             <input
               type="checkbox"
               bind:checked={form.arbiTrackingEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
         </div>
-      </article>
+      </SettingsSection>
 
-      <article
-        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
-      >
-        <div>
-          <h3
-            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
-          >
-            {$tr("common.inventory")}
-          </h3>
-          <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            {$tr("settings.inventoryDesc")}
-          </p>
-        </div>
-
+      <SettingsSection title={$tr("common.inventory")} description={$tr("settings.inventoryDesc")}>
         <div class="mt-2.5 grid gap-1">
-          <div class="settings-control-row">
-            <span>
-              {$tr("common.source")}
-              <span class="block text-xs text-text-secondary" title={sourceTitle}>
-                {sourceLabel}{sourceDescription.detail ? ` - ${sourceDescription.detail}` : ""}
-              </span>
-            </span>
+          <SettingsRow
+            as="div"
+            label={$tr("common.source")}
+            hint={`${sourceLabel}${sourceDescription.detail ? ` - ${sourceDescription.detail}` : ""}`}
+            hintTitle={sourceTitle}
+          >
             <SegmentedControl
               value={inventorySource}
               options={inventorySourceOptions}
               onChange={(next) => void selectInventorySource(next)}
               disabled={switchingSource}
             />
-          </div>
-          <label class="settings-control-row">
-            <span>
-              {$tr("settings.autoInventorySync")}
-              {#if !autoSyncApplies}
-                <span class="block text-xs text-text-secondary"
-                  >{$tr("settings.helperSourceOnly")}</span
-                >
-              {/if}
-            </span>
+          </SettingsRow>
+          <SettingsRow
+            label={$tr("settings.autoInventorySync")}
+            hint={autoSyncApplies ? undefined : $tr("settings.helperSourceOnly")}
+          >
             <input
               type="checkbox"
               bind:checked={form.autoInventorySyncEnabled}
@@ -558,155 +534,70 @@
               disabled={!autoSyncApplies}
               class="accent-accent disabled:opacity-50"
             />
-          </label>
-          <label class="settings-control-row">
-            <span>{$tr("settings.hideFoundryPending")}</span>
+          </SettingsRow>
+          <SettingsRow label={$tr("settings.hideFoundryPending")}>
             <input type="checkbox" bind:checked={$hideFoundryClaims} class="accent-accent" />
-          </label>
+          </SettingsRow>
         </div>
-      </article>
+      </SettingsSection>
 
-      <article
-        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
-      >
-        <div>
-          <h3
-            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
-          >
-            {$tr("common.mastery")}
-          </h3>
-          <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            {$tr("settings.masteryDesc")}
-          </p>
-        </div>
-
+      <SettingsSection title={$tr("common.mastery")} description={$tr("settings.masteryDesc")}>
         <div class="mt-2.5 grid gap-1">
-          <label class="settings-control-row">
-            <span>{$tr("settings.hideFounderItems")}</span>
+          <SettingsRow label={$tr("settings.hideFounderItems")}>
             <input type="checkbox" bind:checked={$hideFounderMasteryItems} class="accent-accent" />
-          </label>
+          </SettingsRow>
         </div>
-      </article>
+      </SettingsSection>
 
-      <article
-        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
+      <SettingsSection
+        title={$tr("settings.sidebarTabsTitle")}
+        description={$tr("settings.sidebarTabsDesc")}
       >
-        <div>
-          <h3
-            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
-          >
-            {$tr("settings.sidebarTabsTitle")}
-          </h3>
-          <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            {$tr("settings.sidebarTabsDesc")}
-          </p>
-        </div>
-
         <div class="mt-2.5 grid gap-1">
           {#each TOGGLEABLE_TABS as tab (tab.view)}
-            <label class="settings-control-row">
-              <span>{$tr(tab.labelKey)}</span>
+            <SettingsRow label={$tr(tab.labelKey)}>
               <input
                 type="checkbox"
                 bind:checked={tabChecked[tab.view]}
                 on:change={() => setTabVisible(tab.view)}
                 class="accent-accent"
               />
-            </label>
+            </SettingsRow>
           {/each}
         </div>
-      </article>
+      </SettingsSection>
 
       {#if isLinux}
-        <article
-          class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
-        >
+        <SettingsSection>
           <ProtonLaunchOption />
-        </article>
+        </SettingsSection>
 
-        <article
-          class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
-        >
+        <SettingsSection>
           <LinuxDisplayBackend />
-        </article>
+        </SettingsSection>
       {/if}
 
-      <article
-        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
-      >
-        <div class="flex items-start justify-between gap-3">
-          <div>
-            <h3
-              class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
-            >
-              {$tr("settings.aboutTitle")}
-            </h3>
-            <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-              {$tr("settings.aboutDesc")}
-            </p>
-          </div>
+      <SettingsSection title={$tr("settings.aboutTitle")} description={$tr("settings.aboutDesc")}>
+        {#snippet aside()}
           <span
             class="shrink-0 rounded bg-bg-raised px-2 py-0.5 font-display text-xs font-semibold text-text-secondary"
             >v{appVersion}</span
           >
-        </div>
+        {/snippet}
 
         <div class="mt-2.5 grid gap-1">
-          <div class="settings-credit-row">
-            <span>{$tr("settings.creditPrices")}</span>
-            <button class="settings-link" on:click={() => openLink("https://warframe.market")}
-              >warframe.market</button
-            >
-          </div>
-          <div class="settings-credit-row">
-            <span>{$tr("settings.creditGameData")}</span>
-            <span class="settings-credit-value">{$tr("settings.creditGameDataValue")}</span>
-          </div>
-          <div class="settings-credit-row">
-            <span>{$tr("settings.creditItemDropData")}</span>
-            <button class="settings-link" on:click={() => openLink("https://github.com/WFCD")}
-              >{$tr("settings.creditWfcd")}</button
-            >
-          </div>
-          <div class="settings-credit-row">
-            <span>{$tr("settings.creditIcons")}</span>
-            <button class="settings-link" on:click={() => openLink("https://browse.wf")}
-              >browse.wf</button
-            >
-          </div>
-          <div class="settings-credit-row">
-            <span>{$tr("settings.creditArbiStats")}</span>
-            <button class="settings-link" on:click={() => openLink("https://svesk.github.io/arbi/")}
-              >{$tr("settings.creditArbiStatsValue")}</button
-            >
-          </div>
-          <div class="settings-credit-row">
-            <span>{$tr("settings.creditInventorySnapshots")}</span>
-            <button
-              class="settings-link"
-              on:click={() => openLink("https://github.com/Sainan/warframe-api-helper")}
-              >warframe-api-helper</button
-            >
-          </div>
-          <div class="settings-credit-row">
-            <span>{$tr("settings.creditSource")}</span>
-            <button
-              class="settings-link"
-              on:click={() => openLink("https://github.com/WFHelper/WFHelper")}>GitHub</button
-            >
-          </div>
-          <div class="settings-credit-row">
-            <span>{$tr("settings.creditWebsite")}</span>
-            <button class="settings-link" on:click={() => openLink("https://wfhelper.com")}
-              >wfhelper.com</button
-            >
-          </div>
-          <div class="settings-credit-row">
-            <span>{$tr("settings.creditCommunity")}</span>
-            <button class="settings-link" on:click={() => openLink("https://discord.gg/7Gm3UvUSww")}
-              >{$tr("settings.creditCommunityValue")}</button
-            >
-          </div>
+          {#each credits as credit}
+            <div class="settings-credit-row">
+              <span>{credit.label}</span>
+              {#if "url" in credit}
+                <button class="settings-link" on:click={() => openLink(credit.url)}
+                  >{credit.text}</button
+                >
+              {:else}
+                <span class="settings-credit-value">{credit.value}</span>
+              {/if}
+            </div>
+          {/each}
           <div class="settings-credit-row">
             <span>{$tr("settings.creditSupport")}</span>
             <span class="flex items-center gap-2.5">
@@ -725,7 +616,7 @@
         <p class="m-0 mt-2.5 text-xs leading-snug text-text-muted">
           {$tr("settings.footerDisclaimer")}
         </p>
-      </article>
+      </SettingsSection>
     </div>
 
     <div class="settings-wide-actions pb-3">
@@ -760,128 +651,100 @@
     </div>
   {:else if settingsTab === "overlay"}
     <div class="settings-tab-grid settings-masonry py-3">
-      <article
-        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
+      <SettingsSection
+        title={$tr("settings.overlayAvailabilityTitle")}
+        description={$tr("settings.overlayAvailabilityDesc")}
       >
-        <div>
-          <h3
-            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
-          >
-            {$tr("settings.overlayAvailabilityTitle")}
-          </h3>
-          <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            {$tr("settings.overlayAvailabilityDesc")}
-          </p>
-        </div>
-
         <div class="mt-2.5 grid gap-1">
-          <label class="settings-control-row" data-setting="relicRewardsOverlay">
-            <span>{$tr("settings.relicRewardsOverlay")}</span>
+          <SettingsRow
+            label={$tr("settings.relicRewardsOverlay")}
+            dataSetting="relicRewardsOverlay"
+          >
             <input
               type="checkbox"
               bind:checked={form.relicRewardsOverlayEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row" data-setting="relicRecommendationOverlay">
-            <span>{$tr("settings.relicRecommendationOverlay")}</span>
+          <SettingsRow
+            label={$tr("settings.relicRecommendationOverlay")}
+            dataSetting="relicRecommendationOverlay"
+          >
             <input
               type="checkbox"
               bind:checked={form.relicRecommendationOverlayEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row" data-setting="tradeNotificationOverlay">
-            <span>{$tr("settings.tradeDetectedOverlay")}</span>
+          <SettingsRow
+            label={$tr("settings.tradeDetectedOverlay")}
+            dataSetting="tradeNotificationOverlay"
+          >
             <input
               type="checkbox"
               bind:checked={form.tradeNotificationOverlayEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row" data-setting="rivenOverlay">
-            <span>{$tr("settings.rivenOverlay")}</span>
+          <SettingsRow label={$tr("settings.rivenOverlay")} dataSetting="rivenOverlay">
             <input
               type="checkbox"
               bind:checked={form.rivenOverlayEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row" data-setting="arbiSummaryOverlay">
-            <span>{$tr("settings.arbiSummaryOverlay")}</span>
+          <SettingsRow label={$tr("settings.arbiSummaryOverlay")} dataSetting="arbiSummaryOverlay">
             <input
               type="checkbox"
               bind:checked={form.arbiSummaryOverlayEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
         </div>
-      </article>
+      </SettingsSection>
 
-      <article
-        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
+      <SettingsSection
+        title={$tr("settings.scanDiagnosticsTitle")}
+        description={$tr("settings.scanDiagnosticsDesc")}
       >
-        <div>
-          <h3
-            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
-          >
-            {$tr("settings.scanDiagnosticsTitle")}
-          </h3>
-          <p class="text-[var(--font-small-size,0.82rem)] text-text-secondary">
-            {$tr("settings.scanDiagnosticsDesc")}
-          </p>
-        </div>
-
         <div class="mt-2.5 grid gap-1">
-          <label class="settings-control-row">
-            <span>{$tr("settings.ocrDebugImages")}</span>
+          <SettingsRow label={$tr("settings.ocrDebugImages")}>
             <input
               type="checkbox"
               bind:checked={form.ocrDebugImagesEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
         </div>
-      </article>
+      </SettingsSection>
 
-      <article
-        class="w-full rounded-[var(--radius-xl)] border border-[var(--ui-panel-border)] bg-[var(--ui-panel-bg)] p-4 shadow-[var(--ui-panel-shadow)] [backdrop-filter:var(--ui-backdrop-blur)]"
-      >
-        <div>
-          <h3
-            class="m-0 mb-1.5 font-display text-[var(--font-heading-size,0.95rem)] font-semibold tracking-[0.03em] text-text-primary"
-          >
-            {$tr("settings.overlayTitle")}
-          </h3>
-          <p class="mt-1 text-xs leading-tight text-text-muted">
-            {$tr("settings.overlayRequirements")}
-          </p>
-        </div>
+      <SettingsSection title={$tr("settings.overlayTitle")}>
+        <p class="mt-1 text-xs leading-tight text-text-muted">
+          {$tr("settings.overlayRequirements")}
+        </p>
 
         <div class="mt-2.5 grid gap-1">
-          <label class="settings-control-row">
-            <span>{$tr("settings.autoTrigger")}</span>
+          <SettingsRow label={$tr("settings.autoTrigger")}>
             <input
               type="checkbox"
               bind:checked={form.autoTriggerEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
           {#each OVERLAY_SCALE_ROWS as row (row.key)}
-            <label class="settings-control-row settings-control-row-input">
-              <span>{$tr(row.labelKey)}</span>
+            <SettingsRow label={$tr(row.labelKey)} inputRow>
               <div class="settings-range-control">
                 <input
                   type="range"
@@ -896,56 +759,52 @@
                   >{Math.round((windowScales[row.key] ?? overlayScale) * 100)}%</span
                 >
               </div>
-            </label>
+            </SettingsRow>
           {/each}
 
-          <label class="settings-control-row">
-            <span>{$tr("settings.hotkeyFallback")}</span>
+          <SettingsRow label={$tr("settings.hotkeyFallback")}>
             <input
               type="checkbox"
               bind:checked={form.hotkeyEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row settings-control-row-input">
-            <span>{$tr("settings.hotkey")}</span>
+          <SettingsRow label={$tr("settings.hotkey")} inputRow>
             <input
               type="text"
               bind:value={form.hotkey}
               disabled={!form.hotkeyEnabled}
               placeholder={$tr("settings.hotkeyPlaceholder")}
-              on:keydown={recordTriggerHotkey}
+              on:keydown={(e) => recordHotkey("hotkey", e)}
               on:change={autoSave}
               class="settings-input"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row">
-            <span>{$tr("settings.interactionHotkeyEnabled")}</span>
+          <SettingsRow label={$tr("settings.interactionHotkeyEnabled")}>
             <input
               type="checkbox"
               bind:checked={form.interactionHotkeyEnabled}
               on:change={autoSave}
               class="accent-accent"
             />
-          </label>
+          </SettingsRow>
 
-          <label class="settings-control-row settings-control-row-input">
-            <span>{$tr("settings.interactionHotkey")}</span>
+          <SettingsRow label={$tr("settings.interactionHotkey")} inputRow>
             <input
               type="text"
               bind:value={form.interactionHotkey}
               disabled={!form.interactionHotkeyEnabled}
               placeholder={$tr("settings.interactionHotkeyPlaceholder")}
-              on:keydown={recordInteractionHotkey}
+              on:keydown={(e) => recordHotkey("interactionHotkey", e)}
               on:change={autoSave}
               class="settings-input"
             />
-          </label>
+          </SettingsRow>
         </div>
-      </article>
+      </SettingsSection>
     </div>
 
     <div class="settings-wide-actions pb-3">
@@ -974,31 +833,6 @@
     grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
     gap: 0.85rem;
     align-items: start;
-  }
-
-  .settings-control-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.7rem;
-    border-radius: var(--radius-md);
-    padding: 0.34rem 0.45rem;
-    margin: 0 -0.45rem;
-    cursor: pointer;
-  }
-
-  .settings-control-row:hover {
-    background: var(--bg-hover);
-  }
-
-  .settings-control-row span {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    font-weight: 500;
-  }
-
-  .settings-control-row-input {
-    cursor: default;
   }
 
   .settings-input {
