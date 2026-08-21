@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { onDestroy, tick } from "svelte";
 
   import type { CraftingTreeNode } from "../lib/craftingTree.js";
@@ -246,11 +247,15 @@
                   on:pointerdown|stopPropagation
                   on:click={() => openUsedFor(usage.uniqueName)}
                 >
-                  <ItemImage src={usage.imageUrl} alt={usage.name} cls="h-14 w-14 object-contain" />
+                  <ItemImage
+                    src={usage.imageUrl}
+                    alt={itemLabel(usage)}
+                    cls="h-14 w-14 object-contain"
+                  />
                   <span
                     class="max-w-full break-words text-center font-display text-xs font-semibold leading-tight text-text-primary"
                   >
-                    {usage.name}
+                    {itemLabel(usage)}
                   </span>
                 </button>
               {/each}
@@ -275,7 +280,7 @@
           <span class="text-success">{$tr("crafting.noBlueprintsMissing")}</span>
         {:else}
           {#each missingBlueprints as bp (bp.uniqueName)}
-            <div class="text-text-muted">{bp.name} ({bp.owned}/{bp.count})</div>
+            <div class="text-text-muted">{itemLabel(bp)} ({bp.owned}/{bp.count})</div>
           {/each}
         {/if}
         <div
@@ -287,7 +292,7 @@
           <span class="text-success">{$tr("crafting.noResourcesMissing")}</span>
         {:else}
           {#each missingResources as res (res.uniqueName)}
-            <div class="text-text-muted">{res.name} ({res.owned}/{res.count})</div>
+            <div class="text-text-muted">{itemLabel(res)} ({res.owned}/{res.count})</div>
           {/each}
         {/if}
       </div>

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { SvelteSet } from "svelte/reactivity";
 
   import { relicDb, relicOwnedCounts } from "../stores/relics.js";
@@ -213,11 +214,13 @@
                     {#if r.imageUrl}
                       <img
                         src={r.imageUrl}
-                        alt={r.name}
+                        alt={itemLabel(r)}
                         class="w-[22px] h-[22px] object-contain shrink-0 opacity-90"
                       />
                     {/if}
-                    <span class="flex-1 min-w-0 text-xs text-text-primary truncate">{r.name}</span>
+                    <span class="flex-1 min-w-0 text-xs text-text-primary truncate"
+                      >{itemLabel(r)}</span
+                    >
                     <span
                       class="text-xs font-semibold shrink-0"
                       style="color:{RARITY_COLOUR[r.rarity] ?? 'var(--text-muted)'}"

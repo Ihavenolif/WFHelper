@@ -35,6 +35,7 @@ const ITEM_DB: Record<string, Record<string, unknown>> = {
 };
 
 vi.mock("../../services/itemDatabase", () => ({
+  localizedNameFields: () => ({}),
   lookupItem: (uniqueName: string) => ITEM_DB[uniqueName] || null,
   lookupItemByNameOrSlug: (name: string) =>
     Object.values(ITEM_DB).find((entry) => entry.name === name) || null,

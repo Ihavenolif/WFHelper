@@ -161,12 +161,17 @@ export function buildFullSetItems(
     const ownedPartTypes = hydratedComponents.filter((component) => component.owned).length;
     const missingParts = totalPartTypes - ownedPartTypes;
 
-    const setName = resolved.name.endsWith(" Set") ? resolved.name : `${resolved.name} Set`;
+    const withSet = (base: string) => (base.endsWith(" Set") ? base : `${base} Set`);
+    const setName = withSet(resolved.name);
+    // "Set" is our own word, not one DE ships, so only the item name follows the
+    // game language here.
+    const setDisplayName = resolved.displayName ? withSet(resolved.displayName) : null;
     const isPrime = isPrimeRoot;
     const marketSlug = getFullSetOverride(uniqueName)?.slug;
 
     const common = {
       name: setName,
+      ...(setDisplayName ? { displayName: setDisplayName } : {}),
       internalName: `${uniqueName}#set`,
       rank: 0,
       maxRank: 1,

@@ -907,6 +907,19 @@ function localizedPair(uniqueName: string, nameKey: string | null | undefined, e
   return localized === english ? { name: english } : { name: english, displayName: localized };
 }
 
+/**
+ * displayName for anything built outside getRendererLookup, keyed by uniqueName.
+ * Spread it next to an English `name`; it is empty whenever nothing would move.
+ */
+export function localizedNameFields(
+  uniqueName: string | null | undefined,
+  english: string,
+): { displayName?: string } {
+  if (!isLocalizingNames() || !uniqueName) return {};
+  const pair = localizedPair(uniqueName, itemsByUniqueName[uniqueName]?.nameKey, english);
+  return pair.displayName ? { displayName: pair.displayName } : {};
+}
+
 /** True once the mirrored wiki card survived the merge as the item's art. */
 function hasCardArt(imageUrl: string | null): boolean {
   return imageUrl != null && imageUrl.includes("/mod-art/");

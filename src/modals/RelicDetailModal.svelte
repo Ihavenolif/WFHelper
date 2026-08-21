@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { activeRelic } from "../stores/modals.js";
   import { itemDb, componentOwnership } from "../stores/data.js";
   import { relicOwnedCounts } from "../stores/relics.js";
@@ -336,7 +337,7 @@
             >
             <span
               class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-text-primary text-sm"
-              title={reward.name}>{reward.name}</span
+              title={itemLabel(reward)}>{itemLabel(reward)}</span
             >
             <span class="text-right text-xs text-text-secondary">{reward.chance}%</span>
             <span class="text-right text-xs text-text-secondary">

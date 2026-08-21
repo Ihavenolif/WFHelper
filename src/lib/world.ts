@@ -75,6 +75,7 @@ function extractPrimeNames(text: string): string[] {
 
 interface FeaturedPrime {
   name: string;
+  displayName?: string;
   imageUrl: string;
   owned: boolean;
   uniqueName: string;
@@ -168,6 +169,7 @@ export function buildFeaturedPrimes(
     seen.add(key);
     featured.push({
       name: db.name,
+      ...(db.displayName ? { displayName: db.displayName } : {}),
       imageUrl: db.imageUrl,
       owned: ownedUnique.has(inv.uniqueName || "") || ownedNames.has(key),
       uniqueName: inv.uniqueName || "",
@@ -213,6 +215,7 @@ export function buildFeaturedPrimes(
         seen.add(key);
         featured.push({
           name: entry.name,
+          ...(entry.displayName ? { displayName: entry.displayName } : {}),
           imageUrl: entry.imageUrl,
           owned: (entry.uniqueName && ownedUnique.has(entry.uniqueName)) || ownedNames.has(key),
           uniqueName: entry.uniqueName || "",
@@ -228,6 +231,7 @@ export function buildFeaturedPrimes(
 
 export interface CircuitChoice {
   name: string;
+  displayName?: string;
   imageUrl: string;
   owned: boolean;
   uniqueName: string;
@@ -318,7 +322,7 @@ function circuitResolver(
   // Build name -> { uniqueName, imageUrl, category } lookup
   const byName = new Map<
     string,
-    { uniqueName: string; imageUrl: string; category: string; displayName: string }
+    { uniqueName: string; imageUrl: string; category: string; name: string; displayName?: string }
   >();
   // Steel Path rewards the Incarnon Genesis adapter, whose art is the evolved
   // weapon - closer to what the reward actually is than the base weapon icon.
@@ -331,7 +335,8 @@ function circuitResolver(
         uniqueName,
         imageUrl: entry.imageUrl,
         category: (entry.category || entry.productCategory || "").toLowerCase(),
-        displayName: entry.name,
+        name: entry.name,
+        ...(entry.displayName ? { displayName: entry.displayName } : {}),
       });
     }
     const base = key.endsWith(INCARNON_SUFFIX) ? key.slice(0, -INCARNON_SUFFIX.length) : null;
@@ -377,6 +382,12 @@ function circuitResolver(
       // Art only - ownership still tracks the base weapon the adapter fits.
       const imageUrl = incarnonArt.get(circuitNameKey(name)) || match.imageUrl;
 
-      return { name: match.displayName, imageUrl, owned, uniqueName: match.uniqueName };
+      return {
+        name: match.name,
+        ...(match.displayName ? { displayName: match.displayName } : {}),
+        imageUrl,
+        owned,
+        uniqueName: match.uniqueName,
+      };
     });
 }

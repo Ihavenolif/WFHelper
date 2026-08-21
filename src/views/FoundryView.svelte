@@ -1,4 +1,5 @@
 ﻿<script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { SvelteMap } from "svelte/reactivity";
   import {
     itemDb,
@@ -47,6 +48,7 @@
   interface FoundryEntry {
     source: "building" | "blueprint";
     name: string;
+    displayName?: string;
     imageUrl: string | null;
     uniqueName: string | null;
     productUniqueName: string | null;
@@ -121,6 +123,7 @@
   function commonEntryFields(item: FoundryBuildingItem | FoundryRecipeItem) {
     return {
       name: item.name,
+      ...(item.displayName ? { displayName: item.displayName } : {}),
       imageUrl: item.imageUrl,
       uniqueName: item.uniqueName,
       productUniqueName: item.productUniqueName,
@@ -261,6 +264,7 @@
 
   function filterableFoundryEntry(row: { e: FoundryEntry; status: ItemStatus }): {
     name: string;
+    displayName?: string;
     category: string;
     keywords: string[];
     count: number | null;
@@ -274,6 +278,7 @@
     const db = row.e.productUniqueName ? $itemDb[row.e.productUniqueName] : null;
     return {
       name: row.e.name,
+      ...(row.e.displayName ? { displayName: row.e.displayName } : {}),
       category: row.e.category,
       keywords: materialKeywords(row.e.productUniqueName),
       count: row.e.source === "blueprint" ? row.e.count : null,
@@ -504,13 +509,13 @@
               <div class="h-14 w-14 shrink-0 flex items-center justify-center">
                 <ItemImage
                   src={item.imageUrl}
-                  alt={item.name}
+                  alt={itemLabel(item)}
                   cls="max-h-14 max-w-14 object-contain"
                 />
               </div>
               <div class="flex-1 min-w-0 flex flex-col gap-1">
                 <span class="font-display font-semibold text-sm text-text-primary truncate">
-                  {item.name}{#if item.source === "blueprint"}<span
+                  {itemLabel(item)}{#if item.source === "blueprint"}<span
                       class="ml-2 text-accent font-bold">×{item.count}</span
                     >{/if}
                 </span>

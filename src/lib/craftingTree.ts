@@ -8,6 +8,7 @@ import type { ItemDbEntry, RecipeData } from "../types/inventory.js";
 export interface CraftingTreeNode {
   uniqueName: string;
   name: string;
+  displayName?: string;
   imageUrl: string | null;
   count: number;
   owned: number;
@@ -19,17 +20,26 @@ export interface CraftingTreeNode {
   usedFor: Array<{
     uniqueName: string;
     name: string;
+    displayName?: string;
     imageUrl: string | null;
   }>;
   children: CraftingTreeNode[];
+}
+
+interface CraftingTreeTally {
+  uniqueName: string;
+  name: string;
+  displayName?: string;
+  count: number;
+  owned: number;
 }
 
 interface CraftingTreeSummary {
   totalCredits: number;
   minBuildTime: number;
   maxBuildTime: number;
-  blueprints: { uniqueName: string; name: string; count: number; owned: number }[];
-  resources: { uniqueName: string; name: string; count: number; owned: number }[];
+  blueprints: CraftingTreeTally[];
+  resources: CraftingTreeTally[];
 }
 
 const MAX_DEPTH = 5;
@@ -143,6 +153,7 @@ function buildNode(
       children.push({
         uniqueName: bpUn,
         name: bpItem?.name || `${name} Blueprint`,
+        ...(bpItem?.displayName ? { displayName: bpItem.displayName } : {}),
         imageUrl: bpItem?.imageUrl || null,
         count: bpNeeded,
         owned: bpOwned,
@@ -183,6 +194,7 @@ function buildNode(
   return {
     uniqueName,
     name,
+    ...(item?.displayName ? { displayName: item.displayName } : {}),
     imageUrl,
     count,
     owned,
@@ -223,6 +235,7 @@ function findUsedFor(
     matches.push({
       uniqueName: productUniqueName,
       name: entry.name || fallbackNameFromUniqueName(productUniqueName),
+      ...(entry.displayName ? { displayName: entry.displayName } : {}),
       imageUrl: entry.imageUrl || null,
     });
   }
@@ -236,8 +249,8 @@ export function computeCraftingSummary(tree: CraftingTreeNode): CraftingTreeSumm
   let totalCredits = 0;
   let minBuildTime = 0;
   let maxBuildTime = 0;
-  const blueprintMap = new Map<string, { name: string; count: number; owned: number }>();
-  const resourceMap = new Map<string, { name: string; count: number; owned: number }>();
+  const blueprintMap = new Map<string, Omit<CraftingTreeTally, "uniqueName">>();
+  const resourceMap = new Map<string, Omit<CraftingTreeTally, "uniqueName">>();
 
   function walk(node: CraftingTreeNode, depth: number): number {
     let subtreeTime = 0;
@@ -253,6 +266,7 @@ export function computeCraftingSummary(tree: CraftingTreeNode): CraftingTreeSumm
       } else {
         resourceMap.set(node.uniqueName, {
           name: node.name,
+          ...(node.displayName ? { displayName: node.displayName } : {}),
           count: node.count,
           owned: node.owned,
         });
@@ -266,6 +280,7 @@ export function computeCraftingSummary(tree: CraftingTreeNode): CraftingTreeSumm
         } else {
           blueprintMap.set(node.uniqueName, {
             name: node.name,
+            ...(node.displayName ? { displayName: node.displayName } : {}),
             count: node.count,
             owned: node.owned,
           });

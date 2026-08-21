@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import type { CraftingTreeNode } from "../lib/craftingTree.js";
   import { formatBuildTime, formatNumber } from "../lib/format.js";
   import ItemImage from "./ItemImage.svelte";
@@ -40,7 +41,7 @@
           </svg>
         </span>
       {/if}
-      <ItemImage src={node.imageUrl} alt={node.name} cls="h-12 w-12 object-contain" />
+      <ItemImage src={node.imageUrl} alt={itemLabel(node)} cls="h-12 w-12 object-contain" />
       {#if node.recipe}
         <div
           class="node-tooltip pointer-events-none absolute -bottom-9 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded bg-black/90 px-1.5 py-0.5 text-xs text-text-primary opacity-0 transition-opacity duration-100 group-hover/node:opacity-100"
@@ -57,7 +58,7 @@
       class="mt-0.5 max-w-[90px] break-words text-center font-display text-xs font-semibold leading-tight text-text-primary"
       class:opacity-40={gotEnough}
     >
-      {node.name}
+      {itemLabel(node)}
     </span>
   </div>
 

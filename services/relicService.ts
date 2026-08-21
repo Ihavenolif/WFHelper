@@ -3,7 +3,12 @@ import { normalizeErrorMessage } from "../config/shared/errors";
 import { normalizeDucats } from "../config/shared/numeric";
 import { normalizeWfmSlug } from "../config/shared/wfm";
 import { relicRewardRarity } from "./relicRarity";
-import { lookupItem, lookupItemByNameOrSlug, toIconMirrorUrl } from "./itemDatabase";
+import {
+  localizedNameFields,
+  lookupItem,
+  lookupItemByNameOrSlug,
+  toIconMirrorUrl,
+} from "./itemDatabase";
 
 const log = withScope("relicService");
 
@@ -141,6 +146,7 @@ function buildRelicDatabase(): RelicDatabase {
         const rawSlug = r.item?.warframeMarket?.urlName || r.item?.warframeMarket?.url_name || null;
         return {
           name: r.item?.name || "Unknown",
+          ...localizedNameFields(r.item?.uniqueName, r.item?.name || "Unknown"),
           uniqueName: r.item?.uniqueName || null,
           imageUrl: buildMirroredWfcdImageUrl(r.item?.imageName),
           rarity: relicRewardRarity(quality, r.chance || 0, r.rarity || "Common"),

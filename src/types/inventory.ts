@@ -163,6 +163,7 @@ export interface ParsedItem {
 
 export interface FoundryBuildingItem {
   name: string;
+  displayName?: string;
   imageUrl: string | null;
   endDate: Date | null;
   /** Blueprint recipe uniqueName (the raw ItemType in PendingRecipes). */
@@ -178,6 +179,7 @@ export interface FoundryBuildingItem {
 
 export interface FoundryRecipeItem {
   name: string;
+  displayName?: string;
   imageUrl: string | null;
   count: number;
   /** Blueprint recipe uniqueName (the raw ItemType in Recipes). */
@@ -201,6 +203,7 @@ export interface FoundryData {
 
 export interface Resource {
   name: string;
+  displayName?: string;
   imageUrl: string | null;
   internalName: string;
   count: number;

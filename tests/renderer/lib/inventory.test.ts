@@ -248,6 +248,42 @@ describe("inventory parsing", () => {
     expect(mag?.completeSets).toBe(1);
   });
 
+  // "Set" is our own word, so only the item half of the label follows the game
+  // language. The English name has to survive as the market join key.
+  it("localizes the item half of a set name", () => {
+    const root = "/Lotus/Powersuits/Mag/MagPrime";
+    const itemDb: Record<string, ItemDbEntry> = {
+      [root]: {
+        name: "Mag Prime",
+        displayName: "매그 프라임",
+        category: "Warframes",
+        isPrime: true,
+        components: [
+          {
+            uniqueName: "/Lotus/Types/Recipes/WarframeRecipes/MagPrimeBlueprint",
+            itemCount: 1,
+            tradable: true,
+            name: "Blueprint",
+          },
+          {
+            uniqueName: "/Lotus/Types/Recipes/WarframeRecipes/MagPrimeChassisComponent",
+            itemCount: 1,
+            tradable: true,
+            name: "Chassis",
+          },
+        ],
+      },
+    };
+    const owned = new Map<string, number>([
+      ["/Lotus/Types/Recipes/WarframeRecipes/MagPrimeBlueprint", 1],
+      ["/Lotus/Types/Recipes/WarframeRecipes/MagPrimeChassisBlueprint", 1],
+    ]);
+
+    const mag = buildFullSetItems(itemDb, owned).find((s) => s.name === "Mag Prime Set");
+
+    expect(mag?.displayName).toBe("매그 프라임 Set");
+  });
+
   it("excludes unlisted blueprints and resources from non-prime weapon sets", () => {
     const root = "/Lotus/Weapons/Tenno/LongGuns/TnQuadSniper/TnQuadSniper";
     const barrel = "/Lotus/Types/Recipes/Weapons/WeaponParts/TnQuadSniperRifleBarrel";

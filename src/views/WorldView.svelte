@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { onMount } from "svelte";
   import { worldData, worldLoading, worldFissureMode } from "../stores/world.js";
   import { inventoryData, itemDb, componentOwnership, wfmItems } from "../stores/data.js";
@@ -373,7 +374,7 @@
               <div class="-m-1 flex gap-2.5 overflow-x-auto p-2">
                 {#each featuredPrimes as p}
                   <IconButtonCard
-                    name={p.name}
+                    name={itemLabel(p)}
                     imageUrl={p.imageUrl}
                     owned={p.owned}
                     onClick={() => openItemDetail(p.uniqueName)}
@@ -432,7 +433,7 @@
                       <div class="flex gap-2">
                         {#each week.items as item}
                           <IconButtonCard
-                            name={item.name}
+                            name={itemLabel(item)}
                             imageUrl={item.imageUrl}
                             owned={item.owned}
                             onClick={() => openItemDetail(item.uniqueName)}
@@ -449,7 +450,7 @@
                 <div class="-mx-1.5 -mt-1 mb-1 flex gap-2 overflow-x-auto p-2">
                   {#each rot.items as item}
                     <IconButtonCard
-                      name={item.name}
+                      name={itemLabel(item)}
                       imageUrl={item.imageUrl}
                       owned={item.owned}
                       onClick={() => openItemDetail(item.uniqueName)}

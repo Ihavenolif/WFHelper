@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../../lib/itemLabel.js";
   import ItemImage from "../ItemImage.svelte";
   import MarketMetricStrip from "../MarketMetricStrip.svelte";
   import { fissureTierClass, QUALITY_MODES, RELIC_ICON_PATHS } from "../../lib/relic.js";
@@ -136,7 +137,11 @@
         class:owned={isOwnedReward(reward)}
         title={rewardTooltip(reward)}
       >
-        <ItemImage src={rewardIconSrc(reward)} alt={reward.name} cls="relic-reward-preview-img" />
+        <ItemImage
+          src={rewardIconSrc(reward)}
+          alt={itemLabel(reward)}
+          cls="relic-reward-preview-img"
+        />
       </span>
     {/each}
   </span>

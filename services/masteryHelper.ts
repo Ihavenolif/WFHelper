@@ -899,6 +899,7 @@ export function getAllMasterableItems(): MasterableItem[] {
 
     items.push({
       name: displayName,
+      ...itemDb.localizedNameFields(uniqueName, displayName),
       uniqueName,
       category: display.category,
       imageUrl: item.imageUrl || null,
@@ -1067,6 +1068,7 @@ export function computeMasteryProgress(inventoryData: Record<string, unknown>): 
       const ownedCount = comp.uniqueName ? componentOwnership.get(comp.uniqueName) || 0 : 0;
       return {
         name: comp.name || "",
+        ...itemDb.localizedNameFields(comp.uniqueName, comp.name || ""),
         uniqueName: comp.uniqueName || "",
         tradable: comp.tradable || false,
         itemCount: comp.itemCount || 1,
