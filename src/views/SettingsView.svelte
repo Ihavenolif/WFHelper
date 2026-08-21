@@ -151,40 +151,46 @@
     }
   }
 
-  // Normalizes editable fields for form initialization and saved payloads.
-  function normalizeOverlayForm(s: OverlaySettingsFormInput) {
-    return {
-      autoTriggerEnabled: !!s.autoTriggerEnabled,
-      notificationSoundEnabled:
-        s.notificationSoundEnabled ?? OVERLAY_DEFAULTS.notificationSoundEnabled,
-      wfmNotificationsEnabled: !!s.wfmNotificationsEnabled,
-      messageNotificationsEnabled:
-        s.messageNotificationsEnabled ?? OVERLAY_DEFAULTS.messageNotificationsEnabled,
-      messageNotificationsWhileFocused: !!s.messageNotificationsWhileFocused,
-      autoCloseWfmOrders: s.autoCloseWfmOrders ?? OVERLAY_DEFAULTS.autoCloseWfmOrders,
-      tradeRepHotkeyEnabled: s.tradeRepHotkeyEnabled ?? OVERLAY_DEFAULTS.tradeRepHotkeyEnabled,
-      tradeRepHotkey: s.tradeRepHotkey || OVERLAY_DEFAULTS.tradeRepHotkey,
-      // showTradeNotification is the pre-0.2 key, still read so old settings files migrate.
-      tradeNotificationOverlayEnabled:
-        s.tradeNotificationOverlayEnabled ??
-        s.showTradeNotification ??
-        OVERLAY_DEFAULTS.tradeNotificationOverlayEnabled,
-      relicRewardsOverlayEnabled:
-        s.relicRewardsOverlayEnabled ?? OVERLAY_DEFAULTS.relicRewardsOverlayEnabled,
-      relicRecommendationOverlayEnabled:
-        s.relicRecommendationOverlayEnabled ?? OVERLAY_DEFAULTS.relicRecommendationOverlayEnabled,
-      rivenOverlayEnabled: s.rivenOverlayEnabled ?? OVERLAY_DEFAULTS.rivenOverlayEnabled,
-      arbiSummaryOverlayEnabled:
-        s.arbiSummaryOverlayEnabled ?? OVERLAY_DEFAULTS.arbiSummaryOverlayEnabled,
-      arbiTrackingEnabled: s.arbiTrackingEnabled ?? OVERLAY_DEFAULTS.arbiTrackingEnabled,
-      autoInventorySyncEnabled:
-        s.autoInventorySyncEnabled ?? OVERLAY_DEFAULTS.autoInventorySyncEnabled,
-      ocrDebugImagesEnabled: s.ocrDebugImagesEnabled ?? OVERLAY_DEFAULTS.ocrDebugImagesEnabled,
-      hotkeyEnabled: !!s.hotkeyEnabled,
-      hotkey: s.hotkey || OVERLAY_DEFAULTS.hotkey,
-      interactionHotkeyEnabled: !!s.interactionHotkeyEnabled,
-      interactionHotkey: s.interactionHotkey || OVERLAY_DEFAULTS.interactionHotkey,
-    };
+  // Every editable overlay field, in the order the panel shows them.
+  const OVERLAY_FORM_KEYS = [
+    "autoTriggerEnabled",
+    "notificationSoundEnabled",
+    "wfmNotificationsEnabled",
+    "messageNotificationsEnabled",
+    "messageNotificationsWhileFocused",
+    "autoCloseWfmOrders",
+    "tradeRepHotkeyEnabled",
+    "tradeRepHotkey",
+    "tradeNotificationOverlayEnabled",
+    "relicRewardsOverlayEnabled",
+    "relicRecommendationOverlayEnabled",
+    "rivenOverlayEnabled",
+    "arbiSummaryOverlayEnabled",
+    "arbiTrackingEnabled",
+    "autoInventorySyncEnabled",
+    "ocrDebugImagesEnabled",
+    "hotkeyEnabled",
+    "hotkey",
+    "interactionHotkeyEnabled",
+    "interactionHotkey",
+  ] as const;
+
+  type OverlayForm = Pick<typeof OVERLAY_DEFAULTS, (typeof OVERLAY_FORM_KEYS)[number]>;
+
+  // A missing key takes its declared default; three of these default to true,
+  // so coercing absence to false silently disables the user's hotkeys. A hotkey
+  // cleared to "" is absence too.
+  function normalizeOverlayForm(s: OverlaySettingsFormInput): OverlayForm {
+    const out: Record<string, unknown> = {};
+    for (const key of OVERLAY_FORM_KEYS) {
+      const value = (s as Record<string, unknown>)[key];
+      out[key] = value == null || value === "" ? OVERLAY_DEFAULTS[key] : value;
+    }
+    // showTradeNotification is the pre-0.2 key, still read so old settings files migrate.
+    if (s.tradeNotificationOverlayEnabled == null && s.showTradeNotification != null) {
+      out.tradeNotificationOverlayEnabled = s.showTradeNotification;
+    }
+    return out as OverlayForm;
   }
 
   let form = normalizeOverlayForm(OVERLAY_DEFAULTS);
