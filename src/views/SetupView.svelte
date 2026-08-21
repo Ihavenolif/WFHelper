@@ -300,6 +300,13 @@
 
   type StepTarget = "configure" | "inventory" | "overlays" | "done";
 
+  const PROGRESS_STEPS: Array<{ target: StepTarget; labelKey: MessageKey }> = [
+    { target: "configure", labelKey: "setup.step.configure" },
+    { target: "inventory", labelKey: "setup.step.inventorySource" },
+    { target: "overlays", labelKey: "common.overlays" },
+    { target: "done", labelKey: "setup.step.finish" },
+  ];
+
   function stepFlags(target: StepTarget, current: Step): { active: boolean; complete: boolean } {
     const active =
       current === target ||
@@ -347,62 +354,22 @@
           <img src={APP_LOGO_URL} alt={$tr("setup.appLogoAlt")} class="h-14 w-14 object-contain" />
         </div>
         <div class="mt-8 flex w-full flex-col gap-4">
-          <div
-            class="flex items-center gap-2 text-xs transition-colors duration-200 {stepTextClass(
-              'configure',
-              step,
-            )}"
-          >
-            <span
-              class="h-2 w-2 shrink-0 rounded-full transition-[background] duration-200 {stepDotClass(
-                'configure',
+          {#each PROGRESS_STEPS as entry (entry.target)}
+            <div
+              class="flex items-center gap-2 text-xs transition-colors duration-200 {stepTextClass(
+                entry.target,
                 step,
               )}"
-            ></span>
-            {$tr("setup.step.configure")}
-          </div>
-          <div
-            class="flex items-center gap-2 text-xs transition-colors duration-200 {stepTextClass(
-              'inventory',
-              step,
-            )}"
-          >
-            <span
-              class="h-2 w-2 shrink-0 rounded-full transition-[background] duration-200 {stepDotClass(
-                'inventory',
-                step,
-              )}"
-            ></span>
-            {$tr("setup.step.inventorySource")}
-          </div>
-          <div
-            class="flex items-center gap-2 text-xs transition-colors duration-200 {stepTextClass(
-              'overlays',
-              step,
-            )}"
-          >
-            <span
-              class="h-2 w-2 shrink-0 rounded-full transition-[background] duration-200 {stepDotClass(
-                'overlays',
-                step,
-              )}"
-            ></span>
-            {$tr("common.overlays")}
-          </div>
-          <div
-            class="flex items-center gap-2 text-xs transition-colors duration-200 {stepTextClass(
-              'done',
-              step,
-            )}"
-          >
-            <span
-              class="h-2 w-2 shrink-0 rounded-full transition-[background] duration-200 {stepDotClass(
-                'done',
-                step,
-              )}"
-            ></span>
-            {$tr("setup.step.finish")}
-          </div>
+            >
+              <span
+                class="h-2 w-2 shrink-0 rounded-full transition-[background] duration-200 {stepDotClass(
+                  entry.target,
+                  step,
+                )}"
+              ></span>
+              {$tr(entry.labelKey)}
+            </div>
+          {/each}
         </div>
       </div>
 

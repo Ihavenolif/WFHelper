@@ -19,7 +19,8 @@
 
   // The preview maps directly to the primary display work area, so dummy panel
   // positions can be saved for the real overlays.
-  type PlacementKey = "reward" | "planner" | "rivenLeft" | "rivenRight" | "arbiSummary";
+  const PLACEMENT_KEYS = ["reward", "planner", "rivenLeft", "rivenRight", "arbiSummary"] as const;
+  type PlacementKey = (typeof PLACEMENT_KEYS)[number];
   type PlacementRect = { x: number; y: number; width: number; height: number };
 
   const overlayPlacementSteps: Array<{
@@ -65,13 +66,9 @@
   let overlayStepIndex = $state(0);
   let placementArea = $state({ width: 1920, height: 1080 });
   let placementPos: Record<PlacementKey, PlacementRect> | null = $state(null);
-  let placementScales: Record<PlacementKey, number> = $state({
-    reward: 1,
-    planner: 1,
-    rivenLeft: 1,
-    rivenRight: 1,
-    arbiSummary: 1,
-  });
+  let placementScales: Record<PlacementKey, number> = $state(
+    Object.fromEntries(PLACEMENT_KEYS.map((key) => [key, 1])) as Record<PlacementKey, number>,
+  );
   let previewW = $state(0);
   // The step promises "saved instantly", so a failed write has to say so.
   let placementSaveFailed = $state(false);
@@ -94,20 +91,14 @@
     try {
       const layout = await invoke("getOverlayPlacementLayout");
       placementArea = layout.area;
-      placementPos = {
-        reward: clampToArea(layout.overlays.reward),
-        planner: clampToArea(layout.overlays.planner),
-        rivenLeft: clampToArea(layout.overlays.rivenLeft),
-        rivenRight: clampToArea(layout.overlays.rivenRight),
-        arbiSummary: clampToArea(layout.overlays.arbiSummary),
-      };
-      placementScales = {
-        reward: layout.overlays.reward.scale,
-        planner: layout.overlays.planner.scale,
-        rivenLeft: layout.overlays.rivenLeft.scale,
-        rivenRight: layout.overlays.rivenRight.scale,
-        arbiSummary: layout.overlays.arbiSummary.scale,
-      };
+      const pos = {} as Record<PlacementKey, PlacementRect>;
+      const scales = {} as Record<PlacementKey, number>;
+      for (const key of PLACEMENT_KEYS) {
+        pos[key] = clampToArea(layout.overlays[key]);
+        scales[key] = layout.overlays[key].scale;
+      }
+      placementPos = pos;
+      placementScales = scales;
     } catch {
       // No dummies then - the wizard must never get stuck on this step.
       placementPos = null;
