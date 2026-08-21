@@ -7,6 +7,7 @@ vi.mock("../../services/rewardOcrOnnx", () => ({
 
 import { findWeaponByLabelLine } from "../../services/rivenData";
 import {
+  readFitsInWeapon,
   readWeaponLabelFromPanelPng,
   shouldApplyLabelWeapon,
 } from "../../ipc/overlay/rivenWeaponLabel";
@@ -16,6 +17,15 @@ function rows(...texts: string[]) {
     text: texts.join(" "),
     rows: texts.map((text) => ({ text, confidence: 0.95 })),
   };
+}
+
+async function makePng(width: number, height: number): Promise<Buffer> {
+  const sharp = (await import("sharp")).default;
+  return sharp({
+    create: { width, height, channels: 3, background: { r: 10, g: 10, b: 18 } },
+  })
+    .png()
+    .toBuffer();
 }
 
 describe("findWeaponByLabelLine", () => {
@@ -95,15 +105,6 @@ describe("readWeaponLabelFromPanelPng", () => {
     recognizeMock.mockReset();
   });
 
-  async function makePng(width: number, height: number): Promise<Buffer> {
-    const sharp = (await import("sharp")).default;
-    return sharp({
-      create: { width, height, channels: 3, background: { r: 10, g: 10, b: 18 } },
-    })
-      .png()
-      .toBuffer();
-  }
-
   it("passes a 1080p crop through unresized and matches the label", async () => {
     const png = await makePng(576, 486);
     recognizeMock.mockResolvedValue(rows("FITS IN", "Kuva Sobek", "CANCEL"));
@@ -127,6 +128,19 @@ describe("readWeaponLabelFromPanelPng", () => {
     expect(meta.height).toBe(486); // 648 * (1080 / 1440)
   });
 
+  it("inverts a light item plate for dark-label themes", async () => {
+    const png = await makePng(200, 100);
+    recognizeMock.mockResolvedValue(rows("Kuva Sobek"));
+
+    const match = await readWeaponLabelFromPanelPng(png, 1080, { invert: true });
+    expect(match).toEqual({ name: "Kuva Sobek", exact: true });
+
+    const sharp = (await import("sharp")).default;
+    const sent = recognizeMock.mock.calls[0][0] as Buffer;
+    const pixel = await sharp(sent).removeAlpha().raw().toBuffer();
+    expect([...pixel.subarray(0, 3)]).toEqual([245, 245, 237]);
+  });
+
   it("returns null when nothing legible or no caption is a weapon", async () => {
     const png = await makePng(576, 486);
     recognizeMock.mockResolvedValueOnce(null);
@@ -134,5 +148,32 @@ describe("readWeaponLabelFromPanelPng", () => {
 
     recognizeMock.mockResolvedValueOnce(rows("FITS IN", "SHOW RANKED", "CANCEL"));
     expect(await readWeaponLabelFromPanelPng(png, 1080)).toBeNull();
+  });
+});
+
+describe("readFitsInWeapon", () => {
+  beforeEach(() => {
+    recognizeMock.mockReset();
+  });
+
+  it("retries the focused weapon plate with inverted polarity", async () => {
+    const png = await makePng(403, 237);
+    const crop = vi.fn(() => ({
+      getSize: () => ({ width: 403, height: 237 }),
+      toPNG: () => png,
+    }));
+    const image = {
+      getSize: () => ({ width: 1920, height: 1080 }),
+      crop,
+    };
+    recognizeMock
+      .mockResolvedValueOnce(rows("SHOW RANKED", "CANCEL"))
+      .mockResolvedValueOnce(rows("Kuva Sobek"));
+
+    const match = await readFitsInWeapon(image as never, "window");
+    expect(match).toEqual({ name: "Kuva Sobek", exact: true });
+    expect(recognizeMock).toHaveBeenCalledTimes(2);
+    expect(crop).toHaveBeenCalledTimes(1);
+    expect(crop).toHaveBeenCalledWith({ x: 1497, y: 777, width: 403, height: 237 });
   });
 });
