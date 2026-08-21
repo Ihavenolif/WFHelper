@@ -74,7 +74,7 @@
       <span class="flex items-center gap-2.5">
         <button
           class="settings-link"
-          onclick={() => openLink("https://github.com/sponsors/WFHelper")}
+          onclick={() => openLink("https://github.com/sponsors/MrZockerator")}
           >&hearts; {$tr("settings.creditSponsors")}</button
         >
         <button class="settings-link" onclick={() => openLink("https://ko-fi.com/WFHelper")}
