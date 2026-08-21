@@ -9,6 +9,7 @@ import { fallbackNameFromUniqueName, sanitizeDisplayName } from "../config/share
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { normalizeDucats } from "../config/shared/numeric";
 import { normalizeWfmSlug } from "../config/shared/wfm";
+import { WIKI_MOD_ART, WIKI_MOD_ART_BY_NAME } from "../config/shared/wikiModArt";
 import * as publicExportSource from "./publicExportSource";
 import { correctedDropRarity } from "./relicRarity";
 import { withScope } from "./logger";
@@ -52,6 +53,17 @@ export function toIconMirrorUrl(sourceUrl: string | null | undefined): string | 
 function buildWfcdImageUrl(imageName: string | null | undefined): string | null {
   const trimmed = typeof imageName === "string" ? imageName.trim() : "";
   return trimmed ? WFCD_CDN + trimmed : null;
+}
+
+// DE's export ships the flat mod texture; the wiki has the framed card players
+// know. Mirror-only, so the manifest builder never takes it for an upstream URL.
+function wikiCardArtUrl(uniqueName: string, category: string, displayName: string): string | null {
+  if (process.env.WFHELPER_ICON_MIRROR_DISABLED === "1") return null;
+  if (category !== "Mod" && category !== "Arcane") return null;
+  // The wiki's internal names have drifted from DE's for railjack mods and
+  // stances, so the display name is the only join left for those.
+  const stem = WIKI_MOD_ART[uniqueName] ?? WIKI_MOD_ART_BY_NAME[displayName];
+  return stem ? `${ICON_MIRROR_BASE_URL}/mod-art/${encodeURIComponent(stem)}.webp` : null;
 }
 
 function chooseImageUrl(...urls: Array<string | null | undefined>): string | null {
@@ -331,7 +343,7 @@ function loadPublicExportPlus(): number {
         itemsByUniqueName[uniqueName] = {
           name: resolvedName,
           category,
-          imageUrl: null,
+          imageUrl: wikiCardArtUrl(uniqueName, category, resolvedName),
           browseWfUrl: resolveIcon(item.icon) || recipeIcon,
           isPrime: resolvedName.includes("Prime"),
           masteryReq: item.masteryReq || 0,
@@ -574,7 +586,12 @@ function loadWfcdItems(): number {
       } else {
         const existing = itemsByUniqueName[item.uniqueName];
 
-        existing.imageUrl = chooseImageUrl(existing.browseWfUrl, item.wikiaThumbnail, wfcdImageUrl);
+        existing.imageUrl = chooseImageUrl(
+          wikiCardArtUrl(item.uniqueName, existing.category, existing.name),
+          existing.browseWfUrl,
+          item.wikiaThumbnail,
+          wfcdImageUrl,
+        );
 
         if (existing.name.startsWith("/Lotus/") && item.name) {
           const cleanedName = sanitizeDisplayName(item.name);

@@ -19,6 +19,12 @@ env/
 docs/
 .icon-mirror/
 
+# Wiki card-art tooling: run locally to rebuild the mirror, not part of the app.
+scripts/icon-mirror/build-wiki-mod-art.mjs
+scripts/icon-mirror/download-wiki-mod-art.mjs
+scripts/icon-mirror/wiki-mod-art.json
+scripts/icon-mirror/wiki-mod-art-missing.json
+
 main.js
 preload.js
 preload-overlay.js
