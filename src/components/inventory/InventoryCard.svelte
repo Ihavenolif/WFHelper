@@ -100,6 +100,7 @@
       src={item.displayImageUrl}
       fallbackSrc={item.imageUrl !== item.displayImageUrl ? item.imageUrl : null}
       alt={itemLabel(item)}
+      auditKey={item.name}
     />
     {#if item.vaulted}<span class="vault-badge">V</span>{/if}
     {#if item.orderPlaced}

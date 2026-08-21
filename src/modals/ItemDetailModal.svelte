@@ -174,7 +174,12 @@
       <!-- Crafting tree mode: compact header + full tree -->
       <div class="flex items-center gap-3 px-4 py-2 border-b border-white/[0.06]">
         <div class="shrink-0 h-10 w-10">
-          <ItemImage src={item.imageUrl} alt={itemLabel(item)} cls="h-10 w-10 object-contain" />
+          <ItemImage
+            src={item.imageUrl}
+            alt={itemLabel(item)}
+            auditKey={item.name}
+            cls="h-10 w-10 object-contain"
+          />
         </div>
         <div>
           <h2 class="m-0 font-display text-base font-bold text-text-primary">{itemLabel(item)}</h2>
@@ -189,7 +194,12 @@
       <!-- Normal detail mode -->
       <div class="detail-header">
         <div class="detail-img-wrap">
-          <ItemImage src={item.imageUrl} alt={itemLabel(item)} cls="item-img" />
+          <ItemImage
+            src={item.imageUrl}
+            alt={itemLabel(item)}
+            auditKey={item.name}
+            cls="item-img"
+          />
         </div>
         <div class="detail-title-area">
           <h2>{itemLabel(item)}</h2>

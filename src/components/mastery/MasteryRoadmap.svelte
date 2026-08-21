@@ -199,7 +199,7 @@
           <span
             class="flex h-16 w-16 items-center justify-center overflow-hidden rounded-[var(--radius-md)] bg-black/20"
           >
-            <ItemImage src={item.imageUrl} alt={itemLabel(item)} />
+            <ItemImage src={item.imageUrl} alt={itemLabel(item)} auditKey={item.name} />
           </span>
           <span class="min-w-0">
             <strong class="block truncate font-display text-base text-text-primary"

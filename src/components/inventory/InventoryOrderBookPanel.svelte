@@ -426,7 +426,12 @@
       <div
         class="h-[52px] w-[52px] flex items-center justify-center rounded-lg border border-border bg-bg-raised overflow-hidden"
       >
-        <ItemImage src={item.displayImageUrl} alt={itemLabel(item)} cls="max-h-full max-w-full" />
+        <ItemImage
+          src={item.displayImageUrl}
+          alt={itemLabel(item)}
+          auditKey={item.name}
+          cls="max-h-full max-w-full"
+        />
       </div>
       <div class="inventory-orderbook-item-meta">
         <div class="flex min-w-0 items-center gap-2">

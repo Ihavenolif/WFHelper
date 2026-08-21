@@ -653,7 +653,7 @@
                 }}
               >
                 <div class="item-img-wrap">
-                  <ItemImage src={set.imageUrl} alt={itemLabel(set)} />
+                  <ItemImage src={set.imageUrl} alt={itemLabel(set)} auditKey={set.name} />
                   {#if set.vaulted}<span class="vault-badge">V</span>{/if}
                   <span
                     class="absolute right-2 bottom-1.5 font-display text-base font-bold text-info drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
@@ -695,7 +695,7 @@
                 }}
               >
                 <div class="item-img-wrap">
-                  <ItemImage src={item.imageUrl} alt={itemLabel(item)} />
+                  <ItemImage src={item.imageUrl} alt={itemLabel(item)} auditKey={item.name} />
                   {#if item.vaulted}<span class="vault-badge">V</span>{/if}
                   <span
                     class="absolute right-1.5 bottom-1.5 w-1.5 h-1.5 rounded-full shadow-[0_0_0_2px_rgba(0,0,0,0.38)] {item.status ===

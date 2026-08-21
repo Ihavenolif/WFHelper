@@ -5,6 +5,8 @@
 
   export let src: string | null = null;
   export let alt = "";
+  // The dev icon audit joins on English names; alt follows the game language.
+  export let auditKey: string | null = null;
   export let cls = "item-img";
   // Second-chance source (e.g. DE artwork when the mirrored WFM thumb 404s).
   export let fallbackSrc: string | null = null;
@@ -37,7 +39,8 @@
 
   function onError(event: Event): void {
     // Every branch below is a degradation, the Forma swap included.
-    if (alt) reportDegradedIcon(alt);
+    const key = auditKey || alt;
+    if (key) reportDegradedIcon(key);
     const img = event.currentTarget as HTMLImageElement | null;
     if (isFormaIcon && !useFormaFallback && img && !img.src.endsWith("Forma.webp")) {
       useFormaFallback = true;
