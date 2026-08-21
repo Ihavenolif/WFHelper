@@ -290,6 +290,19 @@
     void fetchOrders({ background: true });
   }
 
+  // Same "empty or past its TTL" test for orders and contracts, in three places.
+  function needsFetch(count: number, lastFetch: number, ttlMs: number): boolean {
+    return count === 0 || Date.now() - lastFetch > ttlMs;
+  }
+
+  function needsContracts(): boolean {
+    return needsFetch(
+      $marketContracts.contracts.length,
+      $marketViewState.contractsLastFetch,
+      CONTRACTS_STALE_MS,
+    );
+  }
+
   async function loadView(): Promise<void> {
     try {
       const session = await invoke("wfmGetSession");
@@ -300,9 +313,8 @@
 
     if (!$marketSession.loggedIn) return;
 
-    const hasOrders = $marketOrders.sell.length + $marketOrders.buy.length > 0;
-    const ordersStale = Date.now() - $marketViewState.ordersLastFetch > ORDERS_STALE_MS;
-    if (!hasOrders || ordersStale) {
+    const orderCount = $marketOrders.sell.length + $marketOrders.buy.length;
+    if (needsFetch(orderCount, $marketViewState.ordersLastFetch, ORDERS_STALE_MS)) {
       await fetchOrders();
     }
 
@@ -322,9 +334,7 @@
     }
 
     if ($marketViewState.typeTab === "rivens") {
-      const hasContracts = $marketContracts.contracts.length > 0;
-      const contractsStale = Date.now() - $marketViewState.contractsLastFetch > CONTRACTS_STALE_MS;
-      if (!hasContracts || contractsStale) {
+      if (needsContracts()) {
         await fetchContracts();
       }
     }
@@ -468,9 +478,7 @@
     marketSelected.set(new Set());
 
     if (type === "rivens") {
-      const hasContracts = $marketContracts.contracts.length > 0;
-      const contractsStale = Date.now() - $marketViewState.contractsLastFetch > CONTRACTS_STALE_MS;
-      if (!hasContracts || contractsStale) {
+      if (needsContracts()) {
         void fetchContracts();
       }
     }
