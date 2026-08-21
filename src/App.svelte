@@ -25,23 +25,13 @@
   import OrderModal from "./modals/OrderModal.svelte";
 
   import { currentView, SETUP_COMPLETED_KEY, statusText } from "./stores/app.js";
-  import { pendingArbiRunId } from "./stores/arbiRuns.js";
-  import { itemDb, parsedItems } from "./stores/data.js";
+  import { parsedItems } from "./stores/data.js";
   import { tourActive } from "./stores/tour.js";
-  import { masteryData } from "./stores/mastery.js";
-  import {
-    applyClosedWfmListing,
-    clearMarketAccountState,
-    resetMarketFetchTimes,
-    setMarketViewState,
-  } from "./stores/market.js";
   import { activeItem, activeComponent, activeRelic } from "./stores/modals.js";
-  import { applyUpdateState } from "./stores/updates.js";
-  import { addToast } from "./stores/toasts.js";
-  import { onInventoryLoaded, setInventoryStatus } from "./lib/actions.js";
+  import { setInventoryStatus } from "./lib/actions.js";
   import { initStartup } from "./lib/startupLoader.js";
-  import { invoke, on } from "./lib/ipc.js";
-  import { invalidateMarketOrdersRefresh } from "./lib/marketOrdersSync.js";
+  import { initRendererEvents } from "./lib/rendererEvents.js";
+  import { invoke } from "./lib/ipc.js";
   import { tr } from "./lib/i18n.js";
   import type { MessageKey } from "./lib/i18n.js";
   import type { ViewName } from "./types/views.js";
@@ -77,95 +67,7 @@
       handleViewChange(view);
     });
 
-    const unsubscribeInventoryUpdated = on("inventory-updated", async (data) => {
-      if (data && !(data as { error?: unknown }).error) {
-        await onInventoryLoaded(data);
-        // SetupView routes itself during the wizard; navigating here would tear it down
-        statusText.set({ key: "app.liveUpdateStatus", params: { count: $parsedItems.length } });
-      }
-    });
-
-    const unsubscribeInventoryStatus = on("inventory-status-updated", (status) => {
-      if (status.lastError) {
-        statusText.set({
-          key: "app.inventoryWatcherError",
-          params: { error: status.lastError.message },
-        });
-      } else if (status.found) {
-        statusText.set({ key: "app.itemsLoaded", params: { count: $parsedItems.length } });
-      }
-    });
-
-    const unsubscribeUpdateStatus = on("app-update-status", (state) => {
-      applyUpdateState(state, true);
-    });
-
-    const unsubscribeWfmNotification = on("wfm:notification", (notification) => {
-      if (notification.type === "orders-changed") {
-        // MarketView refetches when it is mounted; this covers when it is not.
-        resetMarketFetchTimes();
-        return;
-      }
-      if (notification.type === "presence") {
-        // Main drives presence (hold expiry, game launch) while the lazy Market
-        // tab may be unmounted - keep the store current either way.
-        setMarketViewState({
-          status: notification.status,
-          statusExpiresAt: notification.expiresAt,
-          statusAutoActive: notification.autoActive,
-        });
-        return;
-      }
-      if (notification.type === "listener-auth-failed") {
-        invalidateMarketOrdersRefresh();
-        clearMarketAccountState();
-        addToast({
-          level: "warning",
-          title: $tr("app.wfmSessionExpiredTitle"),
-          message: $tr("app.wfmSessionExpiredMessage"),
-          durationMs: 12000,
-        });
-        return;
-      }
-      addToast({
-        level: "info",
-        title: $tr("app.wfmDmTitle", { from: notification.from }),
-        message: notification.content,
-        durationMs: 8000,
-      });
-    });
-
-    // Lives here, not in MarketView: the trade lands while the user is in-game,
-    // long before the (lazy) Market tab is mounted.
-    const unsubscribeTradeRecorded = on("trade-recorded", (data) => {
-      for (const match of data?.wfmMatches ?? []) applyClosedWfmListing(match);
-    });
-
-    // Post-run overlay "Detailed Stats" button: open the arbi tab on that run.
-    const unsubscribeArbiOpenRun = on("arbi-open-run", (runId) => {
-      pendingArbiRunId.set(runId);
-      currentView.set("arbi");
-    });
-
-    // DE overlay refresh can add items/icons after startup; re-pull the affected stores.
-    const unsubscribeItemDbUpdated = on("item-db-updated", async () => {
-      const db = await invoke("getItemDatabase");
-      itemDb.set(db || {});
-      invoke("getMasteryProgress")
-        .then((md) => masteryData.set(md))
-        .catch((err) => console.warn("[Mastery] getMasteryProgress failed:", err));
-    });
-
-    // Main raises fallbackHint once per remembered XWayland failure.
-    void invoke("getLinuxDisplay").then((display) => {
-      if (!display?.fallbackHint) return;
-      addToast({
-        level: "warning",
-        title: $tr("app.overlayFallbackTitle"),
-        message: $tr("app.overlayFallbackMessage"),
-        durationMs: 15000,
-      });
-    });
+    const disposeEvents = initRendererEvents();
 
     const startup = initStartup();
 
@@ -181,15 +83,8 @@
 
     return () => {
       startup.dispose();
+      disposeEvents();
       unsubscribeViewChange();
-      unsubscribeInventoryUpdated();
-      unsubscribeInventoryStatus();
-      unsubscribeUpdateStatus();
-      unsubscribeWfmNotification();
-      unsubscribeTradeRecorded();
-      unsubscribeArbiOpenRun();
-      unsubscribeItemDbUpdated();
-
       window.removeEventListener("keydown", onKeyDown);
     };
   });

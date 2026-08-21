@@ -464,7 +464,7 @@ export interface WfmRivenListing {
   isDirectSell: boolean;
 }
 
-type WfmNotification =
+export type WfmNotification =
   | { type: "whisper" | "trade"; from: string; content: string }
   // The persistent WS listener gave up after repeated sign-in rejections;
   // the session token is dead and the user must log in again.
