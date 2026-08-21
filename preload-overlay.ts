@@ -3,7 +3,6 @@ import { onIpc } from "./ipc/preloadListeners";
 import { installOverlayContentVisibility } from "./ipc/overlayContentVisibility";
 import {
   OVERLAY_CLOSE,
-  OVERLAY_GET_RELIC_ITEMS,
   OVERLAY_GET_PRICE,
   OVERLAY_GET_THEME_VARS,
   OVERLAY_GET_MESSAGES,
@@ -26,7 +25,6 @@ installOverlayContentVisibility(ipcRenderer);
 
 contextBridge.exposeInMainWorld("overlay", {
   close: () => ipcRenderer.send(OVERLAY_CLOSE),
-  getRelicItems: () => ipcRenderer.invoke(OVERLAY_GET_RELIC_ITEMS),
   getPrice: (slug: string) => ipcRenderer.invoke(OVERLAY_GET_PRICE, slug),
   getThemeVars: () => ipcRenderer.invoke(OVERLAY_GET_THEME_VARS),
   getMessages: () => ipcRenderer.invoke(OVERLAY_GET_MESSAGES),

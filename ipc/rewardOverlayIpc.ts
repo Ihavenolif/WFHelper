@@ -33,7 +33,6 @@ import {
 } from "../config/runtime/overlaySettings";
 import {
   OVERLAY_CLOSE,
-  OVERLAY_GET_RELIC_ITEMS,
   OVERLAY_GET_PRICE,
   OVERLAY_GET_DRAG_HINT,
   TOGGLE_OVERLAY,
@@ -244,10 +243,6 @@ export function register(
     }
 
     rewardWindowsController.hideOverlayWindow();
-  });
-
-  handleAuthorized(OVERLAY_GET_RELIC_ITEMS, assertOverlayRendererSender, async () => {
-    return relicService.getRelicRewardItems();
   });
 
   // move-hint state: unlock hotkey + whether a live overlay was ever dragged (setup doesn't count)

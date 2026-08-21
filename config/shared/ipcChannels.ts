@@ -99,7 +99,6 @@ export const OVERLAY_DRAG_MOVE = "overlay-drag-move";
 export const OVERLAY_READY = "overlay-ready";
 
 export const OVERLAY_CLOSE = "overlay-close";
-export const OVERLAY_GET_RELIC_ITEMS = "overlay-get-relic-items";
 export const TOGGLE_OVERLAY = "toggle-overlay";
 export const SIMULATE_RELIC_TRIGGER = "simulate-relic-trigger";
 export const RELIC_REWARD_TRIGGER = "relic-reward-trigger";
