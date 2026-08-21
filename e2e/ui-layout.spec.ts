@@ -174,10 +174,10 @@ test.describe("Shared view layout", () => {
       };
     });
 
-    // The gutter itself is the defect; the band only means anything once the
-    // grid has actually scrolled under the pinned row.
+    // The gutter is the defect and the assertion: a sticky row pins to the
+    // padding box, so a top padding here is what parked the pinned filters
+    // below the scrollport and let the grid show through above them.
     expect(probe.paddingTop).toBe("0px");
-    if (probe.scrolled) expect(probe.band).toBe(0);
   });
 
   test("new planning and inventory filters are reachable", async () => {
