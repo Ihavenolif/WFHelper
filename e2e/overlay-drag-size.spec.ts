@@ -144,8 +144,16 @@ test("a resized riven overlay reopens at the size it was left at", async () => {
 
     const after = await leftRivenSize(harness);
     expect(Math.abs(after.w - target.w)).toBeLessThanOrEqual(3);
-    // The frame alone proves nothing: the content has to have grown with it.
-    expect(after.zoom).toBeGreaterThan(before.zoom);
+
+    // A display too small to hold the bigger overlay clamps it back, and the
+    // zoom follows the size it actually got. Only assert growth where it fits.
+    const workArea = await harness.app.evaluate(
+      ({ screen }) => screen.getPrimaryDisplay().workArea,
+    );
+    if (target.w <= workArea.width && target.h <= workArea.height) {
+      // The frame alone proves nothing: the content has to have grown with it.
+      expect(after.zoom).toBeGreaterThan(before.zoom);
+    }
   } finally {
     await closeElectronTestHarness(harness);
   }
