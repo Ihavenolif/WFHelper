@@ -2,15 +2,13 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { withScope } from "./logger";
+import { enumProcessIds, queryExePath } from "./win32Process";
 import { findWindowBoundsByTitle, isWindowFocusedByTitle } from "./x11WindowQuery";
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { WARFRAME_STATUS_CACHE_TTL_MS } from "../config/runtime/cacheConfig";
 
 const log = withScope("warframeStatus");
 
-const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
-const MAX_PATH = 260;
-const PROCESS_SCAN_BUFFER_BYTES = 16_384;
 const PROCESS_NAME_CACHE_TTL_MS = 10_000;
 const MAX_PROCESS_NAME_CACHE_SIZE = 512;
 
@@ -48,10 +46,6 @@ let _win32: {
   GetWindowThreadProcessId: (...args: any[]) => any;
   GetWindowLongW: (...args: any[]) => any;
   GetWindowRect: (...args: any[]) => any;
-  OpenProcess: (...args: any[]) => any;
-  CloseHandle: (...args: any[]) => any;
-  QueryFullProcessImageNameW: (...args: any[]) => any;
-  EnumProcesses: (...args: any[]) => any;
 } | null = null;
 /* eslint-enable @typescript-eslint/no-explicit-any */
 let _win32InitFailed = false;
@@ -63,8 +57,6 @@ function ensureWin32(): boolean {
   try {
     const k = koffi();
     const user32 = k.load("user32.dll");
-    const kernel32 = k.load("kernel32.dll");
-    const psapi = k.load("psapi.dll");
     _win32 = {
       GetForegroundWindow: user32.func("__stdcall", "GetForegroundWindow", "void *", []),
       GetWindowThreadProcessId: user32.func("__stdcall", "GetWindowThreadProcessId", "uint32", [
@@ -75,15 +67,6 @@ function ensureWin32(): boolean {
       // Win32 BOOL is a 4-byte int; koffi "bool" is 1 byte and leaves garbage
       // in the upper bytes of BOOL params - always use int32.
       GetWindowRect: user32.func("__stdcall", "GetWindowRect", "int32", ["void *", "void *"]),
-      OpenProcess: kernel32.func("OpenProcess", "void *", ["uint32", "int32", "uint32"]),
-      CloseHandle: kernel32.func("CloseHandle", "int32", ["void *"]),
-      QueryFullProcessImageNameW: kernel32.func("QueryFullProcessImageNameW", "int32", [
-        "void *",
-        "uint32",
-        "void *",
-        "void *",
-      ]),
-      EnumProcesses: psapi.func("EnumProcesses", "int32", ["void *", "uint32", "void *"]),
     };
     return true;
   } catch (err) {
@@ -93,48 +76,23 @@ function ensureWin32(): boolean {
   }
 }
 
-const exeNameBuffer = Buffer.alloc(MAX_PATH * 2);
-const exeNameSizeBuffer = Buffer.alloc(4);
-const pidsBuffer = Buffer.alloc(PROCESS_SCAN_BUFFER_BYTES);
-const pidsUsedBuffer = Buffer.alloc(4);
 const foregroundPidBuffer = Buffer.alloc(4);
 const foregroundRectBuffer = Buffer.alloc(16);
 const processNameCache = new Map<number, { name: string | null; checkedAt: number }>();
 
 function getProcessName(pid: number): string | null {
-  if (!ensureWin32() || pid <= 0) return null;
+  if (pid <= 0) return null;
   const now = Date.now();
   const cached = processNameCache.get(pid);
   if (cached && now - cached.checkedAt < PROCESS_NAME_CACHE_TTL_MS) {
     return cached.name;
   }
 
-  const win32 = _win32!;
-
-  const handle = win32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-  if (!handle) {
-    rememberProcessName(pid, null, now);
-    return null;
-  }
-
-  try {
-    exeNameBuffer.fill(0);
-    exeNameSizeBuffer.writeUInt32LE(MAX_PATH, 0);
-    const ok = win32.QueryFullProcessImageNameW(handle, 0, exeNameBuffer, exeNameSizeBuffer);
-    if (!ok) {
-      rememberProcessName(pid, null, now);
-      return null;
-    }
-
-    const charCount = exeNameSizeBuffer.readUInt32LE(0);
-    const exePath = exeNameBuffer.subarray(0, charCount * 2).toString("utf16le");
-    const baseName = path.win32.basename(exePath).replace(/\.exe$/i, "");
-    const processName = baseName || null;
-    rememberProcessName(pid, processName, now);
-    return processName;
-  } finally {
-    win32.CloseHandle(handle);
-  }
+  const query = queryExePath(pid);
+  const processName =
+    query.status === "ok" ? path.win32.basename(query.path).replace(/\.exe$/i, "") || null : null;
+  rememberProcessName(pid, processName, now);
+  return processName;
 }
 
 function rememberProcessName(pid: number, name: string | null, checkedAt: number): void {
@@ -152,19 +110,7 @@ function isWarframeProcessName(processName: string | null): boolean {
 
 async function isWarframeProcessRunning(): Promise<boolean> {
   try {
-    if (!ensureWin32()) return false;
-    const win32 = _win32!;
-
-    pidsUsedBuffer.fill(0);
-    const ok = win32.EnumProcesses(pidsBuffer, pidsBuffer.length, pidsUsedBuffer);
-    if (!ok) return false;
-
-    const pidCount = pidsUsedBuffer.readUInt32LE(0) >>> 2;
-    for (let i = 0; i < pidCount; i++) {
-      const pid = pidsBuffer.readUInt32LE(i * 4);
-      if (pid > 0 && isWarframeProcessName(getProcessName(pid))) return true;
-    }
-    return false;
+    return enumProcessIds().some((pid) => isWarframeProcessName(getProcessName(pid)));
   } catch (err) {
     log.warn("[WarframeStatus] process scan failed:", normalizeErrorMessage(err));
     return false;
