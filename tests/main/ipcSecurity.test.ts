@@ -25,6 +25,9 @@ describe("ipc sender guards", () => {
     const event = makeEvent(11, "file:///D:/app/renderer/dist/index.html");
 
     expect(() => ipcSecurity.assertMainRendererSender(event, "get-inventory")).not.toThrow();
+    expect(
+      ipcSecurity.isAuthorizedSender(ipcSecurity.assertMainRendererSender, event, "get-inventory"),
+    ).toBe(true);
   });
 
   it("rejects sender id mismatch", () => {
@@ -61,6 +64,15 @@ describe("ipc sender guards", () => {
     expect(() =>
       ipcSecurity.assertRivenOverlayRendererSender(rightEvent, "riven-ready"),
     ).not.toThrow();
+    for (const event of [leftEvent, rightEvent]) {
+      expect(
+        ipcSecurity.isAuthorizedSender(
+          ipcSecurity.assertRivenOverlayRendererSender,
+          event,
+          "riven-ready",
+        ),
+      ).toBe(true);
+    }
   });
 
   it("lets the trade toast read messages but nothing else", () => {
