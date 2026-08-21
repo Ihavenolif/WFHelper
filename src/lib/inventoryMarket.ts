@@ -437,11 +437,13 @@ export function buildBaseInventoryItems(
     .filter((item): item is InventoryBaseItem => item != null);
 }
 
-export function buildInventoryViewItems(
-  baseItems: InventoryBaseItem[],
+// Generic so callers that hang an extra field on the base item (market orders
+// carry sourceOrderId) get it back on the view item instead of re-joining.
+export function buildInventoryViewItems<T extends InventoryBaseItem>(
+  baseItems: T[],
   metricsByKey: Record<string, ItemMetrics>,
-): InventoryViewItem[] {
-  return baseItems.map<InventoryViewItem>((item) => {
+): (T & InventoryViewItem)[] {
+  return baseItems.map<T & InventoryViewItem>((item) => {
     const metric = metricsByKey[item.internalName] || null;
     const isRankedListingItem = isRankedGroup(item.inventoryGroup);
     const itemMaxRank =

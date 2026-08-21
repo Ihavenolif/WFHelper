@@ -563,7 +563,7 @@
   }
 
   function selectOrder(order: WfmOrder): void {
-    const item = marketOrderViewItems.find((entry) => entry.sourceOrderId === order.id);
+    const item = marketOrderItemsByOrderId.get(order.id);
     selectedOrderItemKey = item?.internalName ?? null;
     orderBookPanelOpen = true;
   }
@@ -590,10 +590,9 @@
     activeOrders.map((order) => normalizeOrderForFilter(order, $parsedItems)),
     $marketFilters,
   );
+  $: visibleOrderIds = new Set(filteredOrderRows.map((order) => order.id));
   // Bulk actions hit the whole selection, so name the rows a filter is hiding.
-  $: hiddenSelectedCount = [...$marketSelected].filter(
-    (id) => !filteredOrderRows.some((order) => order.id === id),
-  ).length;
+  $: hiddenSelectedCount = [...$marketSelected].filter((id) => !visibleOrderIds.has(id)).length;
   $: filteredContractRows = applySharedFiltersAndSort(
     $marketContracts.contracts.map(normalizeContractForFilter),
     $marketFilters,
@@ -601,11 +600,9 @@
   $: marketOrderBaseItems = filteredOrderRows.map((order) =>
     buildMarketOrderInventoryItem(order, $parsedItems, $wfmItems),
   );
-  $: marketOrderViewItems = buildInventoryViewItems(marketOrderBaseItems, $hydrationMetrics).map(
-    (item, index) => ({
-      ...item,
-      sourceOrderId: marketOrderBaseItems[index]?.sourceOrderId ?? "",
-    }),
+  $: marketOrderViewItems = buildInventoryViewItems(marketOrderBaseItems, $hydrationMetrics);
+  $: marketOrderItemsByOrderId = new Map(
+    marketOrderViewItems.map((item) => [item.sourceOrderId, item]),
   );
   $: selectedOrderItem = selectedOrderItemKey
     ? (marketOrderViewItems.find((item) => item.internalName === selectedOrderItemKey) ?? null)
@@ -938,8 +935,7 @@
             </div>
           {:else}
             {#each filteredOrderRows as order}
-              {@const orderItem =
-                marketOrderViewItems.find((entry) => entry.sourceOrderId === order.id) ?? null}
+              {@const orderItem = marketOrderItemsByOrderId.get(order.id) ?? null}
               <MarketOrderRow
                 {order}
                 item={orderItem}
