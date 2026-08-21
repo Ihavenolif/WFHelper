@@ -10,6 +10,7 @@
   import AppearanceCard from "../components/settings/AppearanceCard.svelte";
   import SettingsSection from "../components/settings/SettingsSection.svelte";
   import SettingsRow from "../components/settings/SettingsRow.svelte";
+  import AboutCard from "../components/settings/AboutCard.svelte";
   import ProtonLaunchOption from "../components/ProtonLaunchOption.svelte";
   import LinuxDisplayBackend from "../components/LinuxDisplayBackend.svelte";
   import SegmentedControl from "../components/SegmentedControl.svelte";
@@ -300,53 +301,6 @@
     send("simulate-relic-trigger");
   }
 
-  const appVersion = import.meta.env.VITE_APP_VERSION || "?";
-
-  function openLink(url: string): void {
-    send("open-external", url);
-  }
-
-  type CreditRow = { label: string; url: string; text: string } | { label: string; value: string };
-
-  // Rebuilt on a language switch, so both the row labels and the translated
-  // link texts follow the active locale.
-  let credits: CreditRow[];
-  $: credits = [
-    {
-      label: $tr("settings.creditPrices"),
-      url: "https://warframe.market",
-      text: "warframe.market",
-    },
-    { label: $tr("settings.creditGameData"), value: $tr("settings.creditGameDataValue") },
-    {
-      label: $tr("settings.creditItemDropData"),
-      url: "https://github.com/WFCD",
-      text: $tr("settings.creditWfcd"),
-    },
-    { label: $tr("settings.creditIcons"), url: "https://browse.wf", text: "browse.wf" },
-    {
-      label: $tr("settings.creditArbiStats"),
-      url: "https://svesk.github.io/arbi/",
-      text: $tr("settings.creditArbiStatsValue"),
-    },
-    {
-      label: $tr("settings.creditInventorySnapshots"),
-      url: "https://github.com/Sainan/warframe-api-helper",
-      text: "warframe-api-helper",
-    },
-    {
-      label: $tr("settings.creditSource"),
-      url: "https://github.com/WFHelper/WFHelper",
-      text: "GitHub",
-    },
-    { label: $tr("settings.creditWebsite"), url: "https://wfhelper.com", text: "wfhelper.com" },
-    {
-      label: $tr("settings.creditCommunity"),
-      url: "https://discord.gg/7Gm3UvUSww",
-      text: $tr("settings.creditCommunityValue"),
-    },
-  ];
-
   // Local mirror of the per-tab visibility stores so each checkbox can bind to a
   // plain bool; the change handler pushes back to the persisted store.
   const tabChecked = Object.fromEntries(
@@ -577,46 +531,7 @@
         </SettingsSection>
       {/if}
 
-      <SettingsSection title={$tr("settings.aboutTitle")} description={$tr("settings.aboutDesc")}>
-        {#snippet aside()}
-          <span
-            class="shrink-0 rounded bg-bg-raised px-2 py-0.5 font-display text-xs font-semibold text-text-secondary"
-            >v{appVersion}</span
-          >
-        {/snippet}
-
-        <div class="mt-2.5 grid gap-1">
-          {#each credits as credit}
-            <div class="settings-credit-row">
-              <span>{credit.label}</span>
-              {#if "url" in credit}
-                <button class="settings-link" on:click={() => openLink(credit.url)}
-                  >{credit.text}</button
-                >
-              {:else}
-                <span class="settings-credit-value">{credit.value}</span>
-              {/if}
-            </div>
-          {/each}
-          <div class="settings-credit-row">
-            <span>{$tr("settings.creditSupport")}</span>
-            <span class="flex items-center gap-2.5">
-              <button
-                class="settings-link"
-                on:click={() => openLink("https://github.com/sponsors/WFHelper")}
-                >&hearts; {$tr("settings.creditSponsors")}</button
-              >
-              <button class="settings-link" on:click={() => openLink("https://ko-fi.com/WFHelper")}
-                >Ko-fi</button
-              >
-            </span>
-          </div>
-        </div>
-
-        <p class="m-0 mt-2.5 text-xs leading-snug text-text-muted">
-          {$tr("settings.footerDisclaimer")}
-        </p>
-      </SettingsSection>
+      <AboutCard />
     </div>
 
     <div class="settings-wide-actions pb-3">
@@ -887,45 +802,6 @@
   .settings-masonry > :global(article) {
     break-inside: avoid;
     margin-bottom: 0.85rem;
-  }
-
-  .settings-link {
-    background: none;
-    border: 0;
-    padding: 0;
-    color: var(--accent);
-    cursor: pointer;
-    font-size: 0.875rem;
-    font-family: inherit;
-  }
-
-  .settings-link:hover {
-    text-decoration: underline;
-  }
-
-  .settings-credit-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.7rem;
-    border-radius: var(--radius-md);
-    padding: 0.34rem 0.45rem;
-    margin: 0 -0.45rem;
-  }
-
-  .settings-credit-row:hover {
-    background: var(--bg-hover);
-  }
-
-  .settings-credit-row > span:first-child {
-    color: var(--text-secondary);
-    font-size: 0.875rem;
-    font-weight: 500;
-  }
-
-  .settings-credit-value {
-    color: var(--text-primary);
-    font-size: 0.875rem;
   }
 
   .settings-wide-actions {
