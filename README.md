@@ -72,7 +72,7 @@ Good to know:
   installs.
 - **Inventory comes straight from the running game.** Nothing extra to
   download on Linux.
-- **Wayland needs no setup.** The app puts itself on XWayland so the overlays
+- **Wayland picks its own backend.** The app puts itself on XWayland so the overlays
   can sit on top of the game. Compositors without a real XWayland (niri) show
   no window at all, so WFHelper notices, restarts on native Wayland and
   remembers it. Settings lets you pick the backend by hand. Wayland gives no
