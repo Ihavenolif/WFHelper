@@ -1,6 +1,7 @@
 import { derived, writable, type Readable } from "svelte/store";
 import { locale } from "./i18n.js";
 import { send } from "./ipc.js";
+import { GAME_LOCALE_UPDATED } from "../../config/shared/ipcChannels.js";
 
 // DE publishes an item name dictionary per client language, so game names need no
 // human translation. Kept separate from the UI language because traders read and
@@ -86,5 +87,5 @@ export function setGameLanguage(choice: GameLanguageChoice): void {
 effectiveGameLanguage.subscribe((code) => {
   if (typeof window === "undefined") return;
   if (typeof window.api?.updateGameLocale !== "function") return;
-  send("game-locale-updated", code);
+  send(GAME_LOCALE_UPDATED, code);
 });

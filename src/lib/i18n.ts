@@ -1,6 +1,7 @@
 import { derived, writable, type Readable } from "svelte/store";
 import { en, type MessageKey } from "../i18n/en.js";
 import { send } from "./ipc.js";
+import { OVERLAY_LOCALE_UPDATED } from "../../config/shared/ipcChannels.js";
 
 type MessageParamValue = string | number;
 type MessageParams = Record<string, MessageParamValue>;
@@ -96,7 +97,7 @@ if (typeof document !== "undefined") {
 localeStore.subscribe((code) => {
   if (typeof window === "undefined") return;
   if (typeof window.api?.updateOverlayLocale !== "function") return;
-  send("overlay-locale-updated", code);
+  send(OVERLAY_LOCALE_UPDATED, code);
 });
 
 function interpolate(template: string, params: MessageParams): string {
