@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   getWarframeWindowBoundsLinux: vi.fn(),
   getDisplayMatching: vi.fn(),
   screenToDipRect: vi.fn(),
+  dipToScreenRect: vi.fn(),
 }));
 
 vi.mock("electron", () => ({
@@ -21,6 +22,7 @@ vi.mock("electron", () => ({
     getPrimaryDisplay: mocks.getPrimaryDisplay,
     getDisplayMatching: mocks.getDisplayMatching,
     screenToDipRect: mocks.screenToDipRect,
+    dipToScreenRect: mocks.dipToScreenRect,
   },
   nativeImage: { createFromBitmap: mocks.createFromBitmap },
 }));
@@ -276,14 +278,18 @@ describe("captureScreenFast on win32 (GDI)", () => {
     setPlatform("win32");
     const client = { x: 80, y: 60, width: 800, height: 500 };
     const dipClient = { x: 40, y: 30, width: 400, height: 250 };
+    // A real Electron Display.id, not a hand-picked small integer. Small ids
+    // hid the bug where this was passed to GetMonitorInfoW as an HMONITOR.
+    const display = { id: 2528732444, bounds: { x: -1920, y: 0, width: 1000, height: 650 } };
     mocks.getGameWindowClientRect.mockReturnValue(client);
     mocks.screenToDipRect.mockReturnValue(dipClient);
-    mocks.getDisplayMatching.mockReturnValue({ id: 7 });
+    mocks.getDisplayMatching.mockReturnValue(display);
+    mocks.dipToScreenRect.mockReturnValue(display.bounds);
     mocks.captureGdi.mockReturnValue({
       buffer: Buffer.alloc(1000 * 650 * 4, 30),
       width: 1000,
       height: 650,
-      displayId: "7",
+      displayId: "2528732444",
       originX: 0,
       originY: 0,
     });
@@ -303,7 +309,14 @@ describe("captureScreenFast on win32 (GDI)", () => {
 
     expect(mocks.screenToDipRect).toHaveBeenCalledWith(null, client);
     expect(mocks.getDisplayMatching).toHaveBeenCalledWith(dipClient);
-    expect(mocks.captureGdi).toHaveBeenCalledWith("7");
+    expect(mocks.dipToScreenRect).toHaveBeenCalledWith(null, display.bounds);
+    expect(mocks.captureGdi).toHaveBeenCalledWith({
+      displayId: "2528732444",
+      x: -1920,
+      y: 0,
+      width: 1000,
+      height: 650,
+    });
     expect(result!.image.getSize()).toEqual({ width: 800, height: 500 });
     expect(result!.sourceType).toBe("window");
     expect(brightPixelCount(statCrop)).toBeGreaterThan(1000);

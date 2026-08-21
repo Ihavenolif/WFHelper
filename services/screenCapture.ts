@@ -2,7 +2,7 @@
 
 import type { NativeImage } from "electron";
 import { withScope } from "./logger";
-import { captureGdi, getGameWindowClientRect } from "./dxgiCapture";
+import { captureGdi, getGameWindowClientRect, type GdiCaptureTarget } from "./dxgiCapture";
 import { captureLinuxStreamFrame } from "./linuxStreamCapture";
 import { getWarframeWindowBoundsLinux } from "./warframeStatus";
 import { detectGameContentRect } from "./rewardScannerImage";
@@ -32,6 +32,35 @@ interface CaptureOptions {
   preferredDisplayId?: string | null;
 }
 
+// BitBlt reads the virtual screen, so the target monitor has to arrive as
+// physical bounds. Electron's Display.id is not an HMONITOR and never was.
+async function resolveGdiTarget(
+  gameRect: ReturnType<typeof getGameWindowClientRect>,
+  preferredDisplayId?: string | null,
+): Promise<GdiCaptureTarget | null> {
+  const wanted = preferredDisplayId?.trim() || null;
+  if (!gameRect && !wanted) return null;
+  try {
+    const { screen } = await import("electron");
+    const display = gameRect
+      ? screen.getDisplayMatching(screen.screenToDipRect(null, gameRect))
+      : screen.getAllDisplays().find((d) => String(d.id) === wanted);
+    if (!display) return null;
+    const bounds = screen.dipToScreenRect(null, display.bounds);
+    if (!bounds?.width || !bounds.height) return null;
+    return {
+      displayId: String(display.id),
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+    };
+  } catch (err) {
+    log.warn("[ScreenCapture] game display lookup skipped:", normalizeErrorMessage(err));
+    return null;
+  }
+}
+
 async function captureWin32Gdi(preferredDisplayId?: string | null): Promise<CaptureResult | null> {
   let gameRect: ReturnType<typeof getGameWindowClientRect> = null;
   try {
@@ -40,18 +69,8 @@ async function captureWin32Gdi(preferredDisplayId?: string | null): Promise<Capt
     log.warn("[ScreenCapture] game window lookup skipped:", normalizeErrorMessage(err));
   }
 
-  let displayId = preferredDisplayId || null;
-  if (gameRect) {
-    try {
-      const { screen } = await import("electron");
-      const gameDisplay = screen.getDisplayMatching(screen.screenToDipRect(null, gameRect));
-      if (gameDisplay) displayId = String(gameDisplay.id);
-    } catch (err) {
-      log.warn("[ScreenCapture] game display lookup skipped:", normalizeErrorMessage(err));
-    }
-  }
-
-  const gdiResult = captureGdi(displayId);
+  const target = await resolveGdiTarget(gameRect, preferredDisplayId);
+  const gdiResult = captureGdi(target);
   if (!gdiResult) return null;
   // dynamic import keeps electron lazy and lets tests mock it
   const { nativeImage } = await import("electron");
