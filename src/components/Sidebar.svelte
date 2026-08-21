@@ -9,6 +9,7 @@
   import { resetTourAutoStart } from "../stores/tour.js";
   import type { MessageKey } from "../lib/i18n.js";
   import type { ViewName } from "../types/views.js";
+  import { SIDEBAR_VIEW_ORDER, VIEW_LABEL_KEYS } from "../lib/viewRegistry.js";
 
   const collapsed = persistedBoolean("sidebar.collapsed", false);
   $: showDevTools = $devMode;
@@ -23,63 +24,11 @@
     icon: string;
   }
 
-  const navItems: NavItem[] = [
-    {
-      view: "inventory",
-      labelKey: "common.inventory",
-      icon: NAV_ICON_URLS.inventory,
-    },
-    {
-      view: "foundry",
-      labelKey: "common.foundry",
-      icon: NAV_ICON_URLS.foundry,
-    },
-    {
-      view: "mastery",
-      labelKey: "common.mastery",
-      icon: NAV_ICON_URLS.mastery,
-    },
-    {
-      view: "stats",
-      labelKey: "common.stats",
-      icon: NAV_ICON_URLS.stats,
-    },
-    {
-      view: "world",
-      labelKey: "common.world",
-      icon: NAV_ICON_URLS.world,
-    },
-    {
-      view: "market",
-      labelKey: "common.market",
-      icon: NAV_ICON_URLS.market,
-    },
-    {
-      view: "relics",
-      labelKey: "common.relics",
-      icon: NAV_ICON_URLS.relics,
-    },
-    {
-      view: "wiki",
-      labelKey: "common.wiki",
-      icon: NAV_ICON_URLS.wiki,
-    },
-    {
-      view: "rivens",
-      labelKey: "common.rivens",
-      icon: NAV_ICON_URLS.rivens,
-    },
-    {
-      view: "arbi",
-      labelKey: "common.arbitrations",
-      icon: NAV_ICON_URLS.arbi,
-    },
-    {
-      view: "settings",
-      labelKey: "common.settings",
-      icon: NAV_ICON_URLS.settings,
-    },
-  ];
+  const navItems: NavItem[] = SIDEBAR_VIEW_ORDER.map((view) => ({
+    view,
+    labelKey: VIEW_LABEL_KEYS[view],
+    icon: NAV_ICON_URLS[view],
+  }));
 
   $: visibleNavItems = navItems.filter((item) => !$hiddenTabs.has(item.view));
 

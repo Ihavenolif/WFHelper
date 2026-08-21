@@ -33,25 +33,17 @@
   import { initRendererEvents } from "./lib/rendererEvents.js";
   import { invoke } from "./lib/ipc.js";
   import { tr } from "./lib/i18n.js";
-  import type { MessageKey } from "./lib/i18n.js";
   import type { ViewName } from "./types/views.js";
+  import {
+    isLazyView,
+    LAZY_VIEW_LOADERS,
+    VIEW_LABEL_KEYS,
+    type LazyViewName,
+  } from "./lib/viewRegistry.js";
 
-  type LazyViewName = Extract<ViewName, "world" | "market" | "relics" | "wiki" | "arbi">;
   type LazyViewComponent = Component<Record<string, never>>;
-  type LazyViewModule = { default: LazyViewComponent };
 
-  interface LazyViewEntry {
-    loader: () => Promise<LazyViewModule>;
-    component: LazyViewComponent | null;
-  }
-
-  const lazyViews = new Map<LazyViewName, LazyViewEntry>([
-    ["world", { loader: () => import("./views/WorldView.svelte"), component: null }],
-    ["market", { loader: () => import("./views/MarketView.svelte"), component: null }],
-    ["relics", { loader: () => import("./views/RelicsView.svelte"), component: null }],
-    ["wiki", { loader: () => import("./views/WikiView.svelte"), component: null }],
-    ["arbi", { loader: () => import("./views/ArbiAnalyzeView.svelte"), component: null }],
-  ]);
+  const loadedLazyViews: Partial<Record<LazyViewName, LazyViewComponent>> = {};
 
   let lazyViewComponent: LazyViewComponent | null = null;
   let lazyViewLoading = false;
@@ -89,24 +81,6 @@
     };
   });
 
-  function isLazyView(view: ViewName): view is LazyViewName {
-    return (
-      view === "world" ||
-      view === "market" ||
-      view === "relics" ||
-      view === "wiki" ||
-      view === "arbi"
-    );
-  }
-
-  function lazyViewLabelKey(view: LazyViewName): MessageKey {
-    if (view === "world") return "common.world";
-    if (view === "market") return "common.market";
-    if (view === "wiki") return "common.wiki";
-    if (view === "arbi") return "common.arbitrations";
-    return "common.relics";
-  }
-
   function handleViewChange(view: ViewName): void {
     if (isLazyView(view)) {
       activeLazyView = view;
@@ -130,13 +104,10 @@
     lazyViewLoading = true;
 
     try {
-      const entry = lazyViews.get(view);
-      if (!entry) throw new Error(`Unknown lazy view: ${view}`);
-      let component = entry.component;
+      let component = loadedLazyViews[view];
       if (!component) {
-        const loaded = await entry.loader();
-        component = loaded.default;
-        entry.component = component;
+        component = (await LAZY_VIEW_LOADERS[view]()).default;
+        loadedLazyViews[view] = component;
       }
 
       if (requestToken !== lazyRequestToken || $currentView !== view) {
@@ -236,13 +207,13 @@
         {#if lazyViewLoading || activeLazyView !== lastRequestedLazyView}
           <section class="view active">
             <div class="empty-state">
-              <p>{$tr("app.loadingView", { view: $tr(lazyViewLabelKey(activeLazyView)) })}</p>
+              <p>{$tr("app.loadingView", { view: $tr(VIEW_LABEL_KEYS[activeLazyView]) })}</p>
             </div>
           </section>
         {:else if lazyViewError}
           <section class="view active">
             <div class="empty-state gap-3">
-              <p>{$tr("app.failedLoadView", { view: $tr(lazyViewLabelKey(activeLazyView)) })}</p>
+              <p>{$tr("app.failedLoadView", { view: $tr(VIEW_LABEL_KEYS[activeLazyView]) })}</p>
               <p class="text-sm text-text-muted">{lazyViewError}</p>
               <button
                 class="cursor-pointer rounded border border-border bg-bg-soft px-3 py-1 text-sm text-text-secondary transition-[border-color,color] duration-150 hover:border-border-strong hover:text-text-primary"
