@@ -114,6 +114,40 @@ test.describe("Shared view layout", () => {
     ).toBe(true);
   });
 
+  // A rotated monitor lands the inventory header in the band where the tabs no
+  // longer fit beside the search box. They used to wrap mid-row and strand the
+  // controls next to a strip of empty header.
+  test("Inventory tabs keep one row when the search box has to drop below", async () => {
+    for (const viewport of [
+      { width: 1150, height: 1900 },
+      { width: 1280, height: 2000 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await openView("Inventory");
+
+      const rows = await page
+        .locator("[data-tour-tab]")
+        .evaluateAll(
+          (nodes) =>
+            new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().top))).size,
+        );
+      expect(rows).toBe(1);
+
+      const header = page.locator('[data-tour="inventory-tabs"]');
+      const tabsBottom = await page
+        .locator('[data-tour-tab="all_parts"]')
+        .evaluate((node) => node.getBoundingClientRect().bottom);
+      const controlsTop = await header
+        .locator(".ml-auto")
+        .evaluate((node) => node.getBoundingClientRect().top);
+      expect(controlsTop).toBeGreaterThanOrEqual(tabsBottom);
+
+      expect(
+        await page.locator("#content").evaluate((node) => node.scrollWidth <= node.clientWidth),
+      ).toBe(true);
+    }
+  });
+
   test("new planning and inventory filters are reachable", async () => {
     await page.setViewportSize({ width: 1280, height: 820 });
 
