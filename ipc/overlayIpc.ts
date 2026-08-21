@@ -252,14 +252,6 @@ function onRelicRewardTrigger(source = "manual", stalenessMs = 0): void {
   );
 }
 
-function notifyRewardUiReady(): void {
-  rewardOverlayIpc.notifyRewardUiReady();
-}
-
-function notifyRewardScreenClosed(stalenessMs: number): void {
-  rewardOverlayIpc.notifyRewardScreenClosed(stalenessMs);
-}
-
 const OVERLAY_SETTINGS_FILE = userDataPath("overlay-settings.json");
 
 const settingsController = createOverlaySettingsController({
@@ -289,10 +281,6 @@ function onRelicSelectionTrigger(source: string): void {
 
 function onRelicSelectionClose(): void {
   rewardOverlayIpc.onRelicSelectionClose(pushOverlayInteractionMode);
-}
-
-function setActiveMissionTag(tag: string): void {
-  rewardOverlayIpc.setActiveMissionTag(tag);
 }
 
 function applyOverlayAvailabilitySettings(previousSettings: OverlaySettings): void {
@@ -566,26 +554,4 @@ export function disposeOverlayHotkeys(): void {
   disposeAppHotkeys();
 }
 
-export {
-  register,
-  onRelicRewardTrigger,
-  notifyRewardUiReady,
-  notifyRewardScreenClosed,
-  onRelicSelectionTrigger,
-  onRelicSelectionClose,
-  setActiveMissionTag,
-};
-export { warmPlannerOverlayWindow } from "./rewardOverlayIpc";
-
-// Re-export riven callbacks for main.ts wiring
-export {
-  onRivenSessionClose,
-  onRivenChatView,
-  onRivenSessionOpen,
-  onRivenRollPending,
-  onRivenRollConfirmed,
-  onRivenDioramaSetup,
-  onRivenChoiceConfirmed,
-  onRivenWeaponPath,
-} from "./rivenOverlayIpc";
-export { maybeShowArbiSummary } from "./arbiOverlayIpc";
+export { register, onRelicRewardTrigger, onRelicSelectionTrigger, onRelicSelectionClose };

@@ -72,6 +72,9 @@ import ctx from "./ipc/context";
 import * as inventoryIpc from "./ipc/inventoryIpc";
 import * as wfmIpc from "./ipc/wfmIpc";
 import * as overlayIpc from "./ipc/overlayIpc";
+import * as rewardOverlayIpc from "./ipc/rewardOverlayIpc";
+import * as rivenOverlayIpc from "./ipc/rivenOverlayIpc";
+import * as arbiOverlayIpc from "./ipc/arbiOverlayIpc";
 import * as worldStateIpc from "./ipc/worldStateIpc";
 import * as messageNotificationIpc from "./ipc/messageNotificationIpc";
 import * as systemIpc from "./ipc/systemIpc";
@@ -462,26 +465,26 @@ function initGameMonitoring(profileStage: ProfileStage): void {
   const eeLogPath = eeLogMonitor.startWatching({
     onLoginComplete: () => inventorySync.onGameLogin(),
     onRewardTrigger: (stalenessMs) => overlayIpc.onRelicRewardTrigger("eelog", stalenessMs),
-    onRewardUiReady: () => overlayIpc.notifyRewardUiReady(),
-    onRewardScreenClose: (stalenessMs) => overlayIpc.notifyRewardScreenClosed(stalenessMs),
+    onRewardUiReady: () => rewardOverlayIpc.notifyRewardUiReady(),
+    onRewardScreenClose: (stalenessMs) => rewardOverlayIpc.notifyRewardScreenClosed(stalenessMs),
     onRelicSelectionOpen: () => overlayIpc.onRelicSelectionTrigger("eelog"),
     onRelicSelectionClose: () => overlayIpc.onRelicSelectionClose(),
-    onActiveMissionTag: (tag) => overlayIpc.setActiveMissionTag(tag),
+    onActiveMissionTag: (tag) => rewardOverlayIpc.setActiveMissionTag(tag),
     onInGameMessage: (playerName) => void messageNotificationIpc.notifyInGameMessage(playerName),
     onTradeConfirmed: (trade) => tradeWorkflow.handleConfirmedTrade(trade),
-    onRivenSessionOpen: () => overlayIpc.onRivenSessionOpen(),
-    onRivenSessionClose: () => overlayIpc.onRivenSessionClose(),
+    onRivenSessionOpen: () => rivenOverlayIpc.onRivenSessionOpen(),
+    onRivenSessionClose: () => rivenOverlayIpc.onRivenSessionClose(),
     onRivenRollPending: (weapon: string, cost: number) =>
-      overlayIpc.onRivenRollPending(weapon, cost),
-    onRivenRollConfirmed: () => overlayIpc.onRivenRollConfirmed(),
-    onRivenDioramaSetup: () => overlayIpc.onRivenDioramaSetup(),
-    onRivenChoiceConfirmed: () => overlayIpc.onRivenChoiceConfirmed(),
-    onRivenChatView: () => overlayIpc.onRivenChatView(),
-    onRivenWeaponPath: (weaponPath: string) => overlayIpc.onRivenWeaponPath(weaponPath),
+      rivenOverlayIpc.onRivenRollPending(weapon, cost),
+    onRivenRollConfirmed: () => rivenOverlayIpc.onRivenRollConfirmed(),
+    onRivenDioramaSetup: () => rivenOverlayIpc.onRivenDioramaSetup(),
+    onRivenChoiceConfirmed: () => rivenOverlayIpc.onRivenChoiceConfirmed(),
+    onRivenChatView: () => rivenOverlayIpc.onRivenChatView(),
+    onRivenWeaponPath: (weaponPath: string) => rivenOverlayIpc.onRivenWeaponPath(weaponPath),
     onArbiRunSaved: (run) => {
       const win = ctx.mainWindow;
       if (win && !win.isDestroyed()) win.webContents.send(ARBI_RUN_SAVED, run);
-      overlayIpc.maybeShowArbiSummary(run);
+      arbiOverlayIpc.maybeShowArbiSummary(run);
     },
   });
   if (eeLogPath) log.info("[EELog] Monitoring:", eeLogPath);
@@ -553,7 +556,7 @@ void app.whenReady().then(async () => {
   // Keep prewarming off the first-paint path.
   setTimeout(() => {
     try {
-      overlayIpc.warmPlannerOverlayWindow();
+      rewardOverlayIpc.warmPlannerOverlayWindow();
     } catch (err) {
       log.warn("[Overlay] planner pre-warm failed:", err);
     }
