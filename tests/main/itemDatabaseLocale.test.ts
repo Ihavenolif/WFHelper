@@ -57,6 +57,31 @@ describe("item database game language", () => {
     expect(itemDb.getRendererLookup()[SERRATION].displayName).toBeUndefined();
   });
 
+  // DE gives recipes no name at all, so ours is composed. The pattern it ships
+  // moves the word: Korean appends it, Spanish and Russian lead with it.
+  it("localizes blueprint names through the pattern DE composes them with", () => {
+    const blueprint = "/Lotus/Types/Recipes/Weapons/WeaponParts/DuviriRifleBarrelBlueprint";
+
+    setGameLocale("en");
+    expect(itemDb.getRendererLookup()[blueprint].name).toBe("Aeolak Barrel Blueprint");
+
+    setGameLocale("ko");
+    expect(itemDb.getRendererLookup()[blueprint].displayName).toBe("아이올락 배럴 설계도");
+
+    setGameLocale("es");
+    expect(itemDb.getRendererLookup()[blueprint].displayName).toBe("Plano de Cañón de Aeolak");
+  });
+
+  it("keeps the English name as the join key for a localized blueprint", () => {
+    setGameLocale("ko");
+    const blueprint =
+      itemDb.getRendererLookup()[
+        "/Lotus/Types/Recipes/Weapons/WeaponParts/DuviriRifleBarrelBlueprint"
+      ];
+
+    expect(blueprint.name).toBe("Aeolak Barrel Blueprint");
+  });
+
   it("omits displayName for names a dictionary key never covered", () => {
     setGameLocale("de");
     const lookup = itemDb.getRendererLookup();

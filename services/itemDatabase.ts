@@ -880,10 +880,30 @@ function toRendererDrop(d: DropEntry): DropEntry {
   };
 }
 
+const BLUEPRINT_PATTERN_KEY = "/Lotus/Language/Items/BlueprintAndItem";
+const BLUEPRINT_PATTERN_EN = "|ITEM| Blueprint";
+
+// Recipes carry no name of their own, so theirs is composed from the item they
+// build. DE ships the pattern for it, which is the only thing that puts the word
+// where the language wants it: Spanish and Russian lead with it, Japanese does not.
+function localizeItemName(
+  uniqueName: string,
+  nameKey: string | null | undefined,
+  english: string,
+): string {
+  if (nameKey) return localizeName(nameKey, english);
+  const result = itemsByUniqueName[resultTypeByBlueprint[uniqueName]];
+  if (!result) return english;
+  return localizeName(BLUEPRINT_PATTERN_KEY, BLUEPRINT_PATTERN_EN).replace(
+    "|ITEM|",
+    localizeName(result.nameKey, result.name),
+  );
+}
+
 // `name` stays English because the renderer joins on it; `displayName` appears
 // only when the game language actually moved the name, so English users pay nothing.
-function localizedPair(nameKey: string | null | undefined, english: string) {
-  const localized = localizeName(nameKey, english);
+function localizedPair(uniqueName: string, nameKey: string | null | undefined, english: string) {
+  const localized = localizeItemName(uniqueName, nameKey, english);
   return localized === english ? { name: english } : { name: english, displayName: localized };
 }
 
@@ -897,7 +917,7 @@ export function getRendererLookup(): Record<string, RendererItemEntry> {
   const lookup: Record<string, RendererItemEntry> = {};
   for (const [key, item] of Object.entries(itemsByUniqueName)) {
     lookup[key] = {
-      ...(localizing ? localizedPair(item.nameKey, item.name) : { name: item.name }),
+      ...(localizing ? localizedPair(key, item.nameKey, item.name) : { name: item.name }),
       category: item.category,
       imageUrl: item.imageUrl,
       ...(hasCardArt(item.imageUrl) ? { cardArt: true } : {}),
@@ -916,7 +936,11 @@ export function getRendererLookup(): Record<string, RendererItemEntry> {
       components: (item.components || []).map((c: ComponentEntry) => ({
         // Set parts carry no key of their own, so borrow the part item's.
         ...(localizing
-          ? localizedPair(c.nameKey ?? itemsByUniqueName[c.uniqueName]?.nameKey, c.name || "")
+          ? localizedPair(
+              c.uniqueName || "",
+              c.nameKey ?? itemsByUniqueName[c.uniqueName]?.nameKey,
+              c.name || "",
+            )
           : { name: c.name || "" }),
         uniqueName: c.uniqueName || "",
         tradable: typeof c.tradable === "boolean" ? c.tradable : undefined,

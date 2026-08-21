@@ -34,6 +34,11 @@ const SOURCES = [
 
 const LANGUAGE_PREFIX = "/Lotus/Language/";
 
+// No export table references this one: it is DE's own blueprint pattern, and the
+// only thing that gets the word and its position right per language. Spanish and
+// Russian put it in front, Japanese hangs it off the name.
+const EXTRA_KEYS = ["/Lotus/Language/Items/BlueprintAndItem"];
+
 // Names only. Descriptions are 4x the bytes for text no list or search shows,
 // and riven names are assembled from locTag plus prefixTag plus suffixTag.
 const NAME_FIELDS = new Set([
@@ -77,6 +82,7 @@ for (const source of SOURCES) {
   console.log(`${source}: ${keys.size - before} new name keys`);
 }
 if (keys.size === 0) throw new Error("no name keys harvested, refusing to overwrite");
+for (const key of EXTRA_KEYS) keys.add(key);
 
 // Plain code-unit sort, not localeCompare: the output has to be byte-stable
 // whatever locale the build machine runs in.
