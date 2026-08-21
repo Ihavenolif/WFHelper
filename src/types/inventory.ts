@@ -43,6 +43,8 @@ export interface ItemDbEntry {
   name?: string;
   /** Active game language, absent when it matches `name`. Render this. */
   displayName?: string;
+  /** Art is the framed wiki card, so a marketplace thumbnail must not replace it. */
+  cardArt?: true;
   imageUrl?: string | null;
   category?: string;
   productCategory?: string;
@@ -114,6 +116,8 @@ export interface ParsedItem {
   name: string;
   /** Active game language, absent when it matches `name`. Render this. */
   displayName?: string;
+  /** Art is the framed wiki card, so a marketplace thumbnail must not replace it. */
+  cardArt?: true;
   internalName: string;
   category: string;
   categoryLabel: string;

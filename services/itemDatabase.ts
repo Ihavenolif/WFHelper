@@ -887,6 +887,11 @@ function localizedPair(nameKey: string | null | undefined, english: string) {
   return localized === english ? { name: english } : { name: english, displayName: localized };
 }
 
+/** True once the mirrored wiki card survived the merge as the item's art. */
+function hasCardArt(imageUrl: string | null): boolean {
+  return imageUrl != null && imageUrl.includes("/mod-art/");
+}
+
 export function getRendererLookup(): Record<string, RendererItemEntry> {
   const localizing = isLocalizingNames();
   const lookup: Record<string, RendererItemEntry> = {};
@@ -895,6 +900,7 @@ export function getRendererLookup(): Record<string, RendererItemEntry> {
       ...(localizing ? localizedPair(item.nameKey, item.name) : { name: item.name }),
       category: item.category,
       imageUrl: item.imageUrl,
+      ...(hasCardArt(item.imageUrl) ? { cardArt: true } : {}),
       isPrime: item.isPrime,
       tradable: typeof item.tradable === "boolean" ? item.tradable : undefined,
       masteryReq: item.masteryReq || 0,

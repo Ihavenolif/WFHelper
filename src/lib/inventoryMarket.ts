@@ -493,10 +493,14 @@ export function buildInventoryViewItems(
         : null;
 
     const iconFromMeta = formatWfmAssetUrl(metric?.thumb || metric?.icon || null);
-    const displayImageUrl = isRankedListingItem
-      ? item.marketThumb || iconFromMeta || item.imageUrl || null
-      : item.imageUrl || item.marketThumb || iconFromMeta || null;
-    const usesFallbackArt = isRankedListingItem && !item.marketThumb && !iconFromMeta;
+    // Mods and arcanes used to prefer the WFM thumb because DE's flat icon was
+    // worse. The framed wiki card is better than both, so it wins when we have it.
+    const displayImageUrl =
+      isRankedListingItem && !item.cardArt
+        ? item.marketThumb || iconFromMeta || item.imageUrl || null
+        : item.imageUrl || item.marketThumb || iconFromMeta || null;
+    const usesFallbackArt =
+      isRankedListingItem && !item.cardArt && !item.marketThumb && !iconFromMeta;
 
     const equippedInList = Array.isArray(item.equippedIn) ? item.equippedIn : [];
     const equippedSummary =

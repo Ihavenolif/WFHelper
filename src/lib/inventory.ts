@@ -132,6 +132,7 @@ export function parseInventory(
     const nextItem: ParsedItem = {
       name: englishName,
       ...(resolved.displayName ? { displayName: resolved.displayName } : {}),
+      ...(resolved.cardArt ? { cardArt: true as const } : {}),
       internalName,
       category: finalCat,
       categoryLabel: finalLabel,

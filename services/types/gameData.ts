@@ -54,6 +54,8 @@ export interface RendererItemEntry {
   name: string;
   /** Active game language, present only when it differs from `name`. Display only. */
   displayName?: string;
+  /** Art is the framed wiki card, so a marketplace thumbnail must not replace it. */
+  cardArt?: true;
   category: string;
   imageUrl: string | null;
   isPrime: boolean;
