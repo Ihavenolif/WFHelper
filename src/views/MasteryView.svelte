@@ -6,13 +6,13 @@
   import { wfmItems, foundryData, inventoryData, itemDb, parsedItems } from "../stores/data.js";
   import { buildSubsumedFamilySet, isFrameSubsumed, isSubsumableFrame } from "../lib/helminth.js";
   import { componentUniqueNameAliases } from "../../config/shared/componentNames.js";
-  import { masteryProjectionSubtext, type Translate } from "../lib/masteryProjection.js";
+  import { masteryProjectionSubtext } from "../lib/masteryProjection.js";
   import { buildMasteryRoadmap, estimateMasteryPurchaseCost } from "../lib/masteryRoadmap.js";
   import { getLookupByName } from "../lib/inventoryMarket.js";
   import { parseOwnedRelics } from "../lib/relic.js";
   import { activeItem, activeComponent } from "../stores/modals.js";
   import { hideFounderMasteryItems } from "../stores/preferences.js";
-  import { locale, tr } from "../lib/i18n.js";
+  import { locale, tr, type Translator } from "../lib/i18n.js";
   import type { MessageKey } from "../lib/i18n.js";
   import SharedFilterBar from "../components/SharedFilterBar.svelte";
   import HeaderTabs from "../components/HeaderTabs.svelte";
@@ -170,7 +170,7 @@
   function buildMasterySummary(
     data: typeof $masteryData,
     foundry: ReturnType<typeof buildFoundryIndex>,
-    t: Translate,
+    t: Translator,
     localeCode: string,
   ): SummaryStripItem[] {
     if (!data) return [];

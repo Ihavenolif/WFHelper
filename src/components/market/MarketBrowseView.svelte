@@ -13,7 +13,7 @@
   import { CREDITS_ICON_URL } from "../../lib/assetUrls.js";
   import { invoke, send } from "../../lib/ipc.js";
   import { isIpcError } from "../../lib/ipcGuards.js";
-  import { locale, tr as translate, type MessageKey } from "../../lib/i18n.js";
+  import { locale, tr as translate, type MessageKey, type Translator } from "../../lib/i18n.js";
   import { useInterval } from "../../lib/timers.js";
   import {
     clearOrderBookCache,
@@ -38,8 +38,6 @@
   type ContentView = "orders" | "stats";
   type StatusFilter = "all" | "onsite" | "ingame";
   type RankFilter = "all" | "maxed";
-  type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
-
   const AUTO_REFRESH_MS = 45_000;
   const FEEDBACK_TTL_MS = 2_500;
   const MAX_SUGGESTIONS = 8;
@@ -350,7 +348,7 @@
   }
 
   function formatUpdatedLabel(
-    translate: Translate,
+    translate: Translator,
     timestamp: number | null | undefined,
     nowMs: number,
   ): string {

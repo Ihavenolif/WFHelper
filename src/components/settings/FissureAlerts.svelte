@@ -1,7 +1,7 @@
 <script lang="ts">
   import { overlaySettings, applyOverlaySettingsResponse } from "../../stores/overlaySettings.js";
   import { invoke } from "../../lib/ipc.js";
-  import { tr, type MessageKey } from "../../lib/i18n.js";
+  import { tr, type MessageKey, type Translator } from "../../lib/i18n.js";
   import type { FissureAlert } from "../../types/ipc.js";
   import ThemedButton from "../ThemedButton.svelte";
   import ThemedSelect from "../ThemedSelect.svelte";
@@ -93,15 +93,13 @@
     await persistAlerts(alerts.filter((a) => a.id !== id));
   }
 
-  type Translate = (key: MessageKey) => string;
-
-  const tierLabel = (t: Translate, tier: string) =>
+  const tierLabel = (t: Translator, tier: string) =>
     tier === "any" ? t("settings.fissureAnyTier") : tier;
-  const missionLabel = (t: Translate, m: string) =>
+  const missionLabel = (t: Translator, m: string) =>
     m === "any" ? t("settings.fissureAnyMission") : m;
-  const planetLabel = (t: Translate, p: string) =>
+  const planetLabel = (t: Translator, p: string) =>
     p === "any" ? t("settings.fissureAnyPlanet") : p;
-  const spLabel = (t: Translate, sp: string) =>
+  const spLabel = (t: Translator, sp: string) =>
     sp === "any"
       ? t("settings.fissureAnyMode")
       : sp === "steel"

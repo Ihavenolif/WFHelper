@@ -38,7 +38,7 @@
   import CollapsibleSection from "../components/CollapsibleSection.svelte";
   import HeaderTabs from "../components/HeaderTabs.svelte";
   import ArbiSchedule from "../components/world/ArbiSchedule.svelte";
-  import { tr, type MessageKey } from "../lib/i18n.js";
+  import { tr, type Translator } from "../lib/i18n.js";
   import InvasionItem from "../components/world/InvasionItem.svelte";
   import BaroInventoryCard from "../components/world/BaroInventoryCard.svelte";
   import CycleRow from "../components/world/CycleRow.svelte";
@@ -52,8 +52,6 @@
   } from "../lib/bountyRewards.js";
   import { buildParsedItemFromDb } from "../lib/parsedItemFromDb.js";
   import { clockStore } from "../lib/timers.js";
-
-  type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
 
   // Collapse state per section - persisted to localStorage
   let collapsed: Record<string, boolean> = loadCollapsedSections();
@@ -133,7 +131,7 @@
     idx: number,
     db: Record<string, ItemDbEntry>,
     inv: RawInventoryData | null,
-    t: Translate,
+    t: Translator,
   ): Array<{ label: string; current: boolean; items: CircuitChoice[] }> {
     if (idx < 0) return [];
     const ordered = [...rotation.slice(idx), ...rotation.slice(0, idx)];
@@ -223,7 +221,7 @@
     return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  function daysUntilLabel(iso: string | undefined, now: number, t: Translate): string {
+  function daysUntilLabel(iso: string | undefined, now: number, t: Translator): string {
     const ms = iso ? Date.parse(iso) - now : Number.NaN;
     if (!Number.isFinite(ms)) return t("world.soon");
     const days = Math.max(1, Math.ceil(ms / 86_400_000));

@@ -7,7 +7,7 @@ type MessageParamValue = string | number;
 type MessageParams = Record<string, MessageParamValue>;
 export type LocaleCode = "en" | "de";
 type LocaleDictionary = Partial<Record<MessageKey, string>>;
-type Translator = (key: MessageKey, params?: MessageParams) => string;
+export type Translator = (key: MessageKey, params?: MessageParams) => string;
 
 export const LOCALE_OPTIONS: ReadonlyArray<{ code: LocaleCode; label: string }> = [
   { code: "en", label: "English" },

@@ -1,10 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { en } from "../../../src/i18n/en.js";
-import { masteryProjectionSubtext, type Translate } from "../../../src/lib/masteryProjection.js";
+import { masteryProjectionSubtext } from "../../../src/lib/masteryProjection.js";
+import type { Translator } from "../../../src/lib/i18n.js";
 
 // Mirrors the app translator so the assertions stay against real English copy.
-const t: Translate = (key, params = {}) =>
+const t: Translator = (key, params = {}) =>
   (en[key] ?? key).replace(/\{(\w+)\}/g, (_match, name: string) => String(params[name] ?? ""));
 
 describe("masteryProjectionSubtext", () => {

@@ -1,10 +1,8 @@
 import { masteryXpToRank } from "../../config/shared/masteryXp.js";
-import type { MessageKey } from "./i18n.js";
-
-export type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
+import type { Translator } from "./i18n.js";
 
 export function masteryProjectionSubtext(
-  t: Translate,
+  t: Translator,
   currentRank: number,
   totalXp: number,
   readyXp: number,

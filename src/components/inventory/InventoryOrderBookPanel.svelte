@@ -2,7 +2,7 @@
   import { itemLabel } from "../../lib/itemLabel.js";
   import { onDestroy } from "svelte";
 
-  import { tr, type MessageKey } from "../../lib/i18n.js";
+  import { tr, type MessageKey, type Translator } from "../../lib/i18n.js";
   import ItemImage from "../ItemImage.svelte";
   import InventoryOrderBookSide from "./InventoryOrderBookSide.svelte";
   import { activeItem } from "../../stores/modals.js";
@@ -288,10 +288,8 @@
     return rows;
   }
 
-  type Translate = (key: MessageKey, params?: Record<string, string | number>) => string;
-
   function formatUpdatedLabel(
-    t: Translate,
+    t: Translator,
     timestamp: number | null | undefined,
     nowMs: number,
   ): string {
