@@ -325,6 +325,7 @@ const FIXED_REWARD_LAYOUTS: Readonly<
 // Ratios were measured on 16:9, so rescale the off axis about the centre: x on
 // wider frames (98e22b5, a real 21:9 report), y on taller ones (16:10, 4:3).
 const REFERENCE_ASPECT = 16 / 9;
+const REFERENCE_UI_SCALE = 0.99;
 
 interface AspectScale {
   scaleX: number;
@@ -363,6 +364,19 @@ function aspectCorrectLayout(
 ): Array<{ x: number; y: number; width: number; height: number }> {
   if (scale.scaleX >= 1 && scale.scaleY >= 1) return layout.map((slot) => ({ ...slot }));
   return layout.map((slot) => aspectCorrectRect(slot, scale));
+}
+
+function uiScaleCorrectLayout(
+  layout: ReadonlyArray<{ x: number; y: number; width: number; height: number }>,
+  uiScale: number,
+): Array<{ x: number; y: number; width: number; height: number }> {
+  const scale = clampNumber(uiScale, 0.5, 1, REFERENCE_UI_SCALE) / REFERENCE_UI_SCALE;
+  return layout.map((slot) => ({
+    x: 0.5 + (slot.x - 0.5) * scale,
+    y: 0.5 + (slot.y - 0.5) * scale,
+    width: slot.width * scale,
+    height: slot.height * scale,
+  }));
 }
 
 function smoothColumns(values: number[]): number[] {
@@ -444,7 +458,10 @@ function computeSlotActivity(
   return Number((brightScore * 0.45 + textureScore * 0.55).toFixed(3));
 }
 
-function detectFixedRewardSlotLayouts(nativeImage: NativeImage): RewardSlotLayout[] {
+function detectFixedRewardSlotLayouts(
+  nativeImage: NativeImage,
+  uiScale = REFERENCE_UI_SCALE,
+): RewardSlotLayout[] {
   const candidates: RewardSlotLayout[] = [];
   function buildFixedSlots(
     layout: Array<{ x: number; y: number; width: number; height: number }>,
@@ -468,7 +485,7 @@ function detectFixedRewardSlotLayouts(nativeImage: NativeImage): RewardSlotLayou
   for (const [countKey, layout] of Object.entries(FIXED_REWARD_LAYOUTS)) {
     const count = Number(countKey);
     // Sample the same rects the crops use, or a wide frame scores the gaps.
-    const scaled = aspectCorrectLayout(layout, scale);
+    const scaled = aspectCorrectLayout(uiScaleCorrectLayout(layout, uiScale), scale);
     const activities = scaled.map((slot) => computeSlotActivity(nativeImage, slot));
     const activeCount = activities.filter((score) => score >= 0.22).length;
     const avgScore =
@@ -491,13 +508,19 @@ function detectFixedRewardSlotLayouts(nativeImage: NativeImage): RewardSlotLayou
   return candidates;
 }
 
-function detectFixedRewardSlotLayout(nativeImage: NativeImage): RewardSlotLayout | null {
-  return detectFixedRewardSlotLayouts(nativeImage)[0] || null;
+function detectFixedRewardSlotLayout(
+  nativeImage: NativeImage,
+  uiScale = REFERENCE_UI_SCALE,
+): RewardSlotLayout | null {
+  return detectFixedRewardSlotLayouts(nativeImage, uiScale)[0] || null;
 }
 
-export function detectRewardSlotLayoutCandidates(nativeImage: NativeImage): RewardSlotLayout[] {
-  const fixed = detectFixedRewardSlotLayouts(nativeImage);
-  const primary = detectRewardSlotLayout(nativeImage);
+export function detectRewardSlotLayoutCandidates(
+  nativeImage: NativeImage,
+  uiScale = REFERENCE_UI_SCALE,
+): RewardSlotLayout[] {
+  const fixed = detectFixedRewardSlotLayouts(nativeImage, uiScale);
+  const primary = detectRewardSlotLayout(nativeImage, uiScale);
   const byKey = new Map<string, RewardSlotLayout>();
   for (const layout of [...fixed, primary]) {
     if (!layout || layout.count <= 0) continue;
@@ -512,12 +535,15 @@ export function detectRewardSlotLayoutCandidates(nativeImage: NativeImage): Rewa
   });
 }
 
-function detectRewardSlotLayout(nativeImage: NativeImage): RewardSlotLayout {
+function detectRewardSlotLayout(
+  nativeImage: NativeImage,
+  uiScale = REFERENCE_UI_SCALE,
+): RewardSlotLayout {
   if (!nativeImage || typeof nativeImage.getSize !== "function") {
     return { count: 0, confidence: 0, slots: [] };
   }
 
-  const fixedLayout = detectFixedRewardSlotLayout(nativeImage);
+  const fixedLayout = detectFixedRewardSlotLayout(nativeImage, uiScale);
   if (fixedLayout) return fixedLayout;
 
   const layoutRegion = aspectCorrectRect(SLOT_LAYOUT_REGION, aspectScaleFor(nativeImage));

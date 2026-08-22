@@ -135,6 +135,10 @@ export function createOverlaySettingsController(options: OverlaySettingsControll
     return Number(clampNumber(value, 0.75, 1.5, Number(fallback ?? 1)).toFixed(2));
   }
 
+  function normalizeWarframeUiScale(value: unknown, fallback: unknown): number {
+    return Number(clampNumber(value, 0.5, 1, Number(fallback ?? 0.99)).toFixed(2));
+  }
+
   function normalizeWindowScales(value: unknown): Partial<Record<OverlayWindowKey, number>> {
     const input = asRecord(value);
     if (!input) return {};
@@ -239,6 +243,10 @@ export function createOverlaySettingsController(options: OverlaySettingsControll
       arbiTrackingEnabled: booleanSetting("arbiTrackingEnabled"),
       autoInventorySyncEnabled: booleanSetting("autoInventorySyncEnabled"),
       ocrDebugImagesEnabled: booleanSetting("ocrDebugImagesEnabled"),
+      warframeUiScale: normalizeWarframeUiScale(
+        candidate.warframeUiScale,
+        defaults.warframeUiScale,
+      ),
       uiScale: normalizeOverlayScale(candidate.uiScale, defaults.uiScale),
       overlayScale: normalizeOverlayScale(candidate.overlayScale, defaults.overlayScale),
       overlayWindowScales: normalizeWindowScales(candidate.overlayWindowScales),

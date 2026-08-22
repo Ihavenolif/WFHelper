@@ -171,6 +171,7 @@
     "arbiTrackingEnabled",
     "autoInventorySyncEnabled",
     "ocrDebugImagesEnabled",
+    "warframeUiScale",
     "hotkeyEnabled",
     "hotkey",
     "interactionHotkeyEnabled",
@@ -657,6 +658,22 @@
               class="accent-accent"
             />
           </SettingsRow>
+
+          <label class="settings-control-row settings-control-row-input">
+            <span>{$tr("settings.warframeUiScale")}</span>
+            <div class="settings-range-control">
+              <input
+                type="range"
+                min="0.5"
+                max="1"
+                step="0.01"
+                bind:value={form.warframeUiScale}
+                on:change={autoSave}
+                class="settings-range"
+              />
+              <span class="settings-range-value">{Math.round(form.warframeUiScale * 100)}%</span>
+            </div>
+          </label>
 
           {#each OVERLAY_SCALE_ROWS as row (row.key)}
             <SettingsRow label={$tr(row.labelKey)} inputRow>

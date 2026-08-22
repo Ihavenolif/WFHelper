@@ -248,6 +248,18 @@ describe("detectRewardSlotLayoutCandidates aspect handling", () => {
     const last = slots[3];
     expect(last.x + last.width).toBeCloseTo(0.5 + (0.626 + 0.122 - 0.5) * scale, 3);
   });
+
+  it("scales card geometry around the screen centre for the configured Warframe UI scale", () => {
+    const scale = 0.75 / 0.99;
+    const layout = detectRewardSlotLayoutCandidates(frameWithRewardRow(1920, 1080), 0.75).find(
+      (candidate) => candidate.count === 4,
+    );
+    expect(layout).toBeDefined();
+    expect(layout!.slots[0].x).toBeCloseTo(0.5 + (0.245 - 0.5) * scale, 3);
+    expect(layout!.slots[0].y).toBeCloseTo(0.5 + (0.225 - 0.5) * scale, 3);
+    expect(layout!.slots[0].width).toBeCloseTo(0.122 * scale, 3);
+    expect(layout!.slots[0].height).toBeCloseTo(0.225 * scale, 3);
+  });
 });
 
 describe("cropBand aspect handling", () => {

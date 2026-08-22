@@ -57,7 +57,7 @@ export function detectRelicSelectionEra(
 
 export async function scanRewardsDetailed(
   preCapture?: PreCaptureResult | null,
-  scanOptions?: { reader?: RewardReader },
+  scanOptions?: { reader?: RewardReader; warframeUiScale?: number },
 ): Promise<{
   items: SortedItem[];
   meta: Record<string, unknown>;
@@ -70,7 +70,10 @@ export async function scanRewardsDetailed(
   return runRewardScanPipeline({
     preCapture,
     sortedItems,
-    settings: REWARD_SCAN_SETTINGS,
+    settings: {
+      ...REWARD_SCAN_SETTINGS,
+      warframeUiScale: scanOptions?.warframeUiScale ?? 0.99,
+    },
     runOCRStructuredBuffer,
     // Windows OCR does not exist off-Windows; pin the cross-platform onnx reader.
     reader: process.platform === "win32" ? scanOptions?.reader : "onnx",
