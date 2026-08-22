@@ -1,12 +1,8 @@
 /** Flatten and cache WFCD drop tables for wiki search. */
 
-import { app } from "electron";
-import fs from "node:fs";
-import path from "node:path";
-
+import { createJsonCache } from "./jsonCache";
 import { withScope } from "./logger";
 import { correctedDropRarity } from "./relicRarity";
-import { writeFileAtomicSync } from "./atomicFile";
 
 const log = withScope("dropData");
 
@@ -32,9 +28,11 @@ let rows: DropRow[] = [];
 let loadedHash: string | null = null;
 let refreshPromise: Promise<{ changed: boolean }> | null = null;
 
-function cachePath(): string {
-  return path.join(app.getPath("userData"), "drop-data-cache.json");
-}
+const cache = createJsonCache<CachePayload>("drop-data-cache.json", (raw) => {
+  const parsed = raw as Partial<CachePayload>;
+  if (!parsed.hash || !Array.isArray(parsed.rows)) return null;
+  return { hash: parsed.hash, updatedAt: parsed.updatedAt || "", rows: parsed.rows };
+});
 
 async function fetchJson<T>(url: string): Promise<T> {
   const res = await fetch(url, { redirect: "follow" });
@@ -187,27 +185,9 @@ function flatten(data: AllData): DropRow[] {
 
 // cache + load
 
-function readCache(): CachePayload | null {
-  try {
-    const parsed = JSON.parse(fs.readFileSync(cachePath(), "utf8")) as Partial<CachePayload>;
-    if (!parsed.hash || !Array.isArray(parsed.rows)) return null;
-    return { hash: parsed.hash, updatedAt: parsed.updatedAt || "", rows: parsed.rows };
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(payload: CachePayload): void {
-  try {
-    writeFileAtomicSync(cachePath(), JSON.stringify(payload));
-  } catch (err) {
-    log.warn("Failed to write drop-data cache", err);
-  }
-}
-
 export function loadFromDisk(): boolean {
   if (loadedHash) return true;
-  const cached = readCache();
+  const cached = cache.read();
   if (!cached) return false;
   rows = cached.rows;
   loadedHash = cached.hash;
@@ -230,7 +210,7 @@ export async function refreshFromUpstream(): Promise<{ changed: boolean }> {
       const next = flatten(all);
       rows = next;
       loadedHash = hash;
-      writeCache({ hash, updatedAt: new Date().toISOString(), rows: next });
+      cache.write({ hash, updatedAt: new Date().toISOString(), rows: next });
       log.info(`Drop data refreshed: ${next.length} rows (hash ${hash.slice(0, 8)})`);
       return { changed: true };
     } catch (err) {

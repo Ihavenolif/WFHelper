@@ -1,7 +1,7 @@
 {
   "name": "wfhelper",
   "version": "0.0.0",
-  "description": "A Warframe companion app - inventory viewer, foundry tracker, and more.",
+  "description": "Warframe companion: inventory, foundry, relic and riven scanning, market orders.",
   "main": ".electron-build/main.js",
   "engines": {
     "node": ">=22.12",
@@ -18,8 +18,8 @@
     "check": "svelte-check --tsconfig tsconfig.json",
     "typecheck": "pnpm run typecheck:renderer && pnpm run typecheck:main && pnpm run typecheck:tests",
     "lint": "pnpm run lint:renderer && pnpm run lint:main && pnpm run lint:worker",
-    "format": "prettier --write \"src/**/*.{ts,svelte,css}\" \"renderer/*.{js,css}\" \"{config,ipc,services,tests,e2e}/**/*.ts\" \"backend/**/*.ts\" \"scripts/**/*.{mjs,cjs,js}\" \"*.{ts,mjs,js}\"",
-    "format:check": "prettier --check \"src/**/*.{ts,svelte,css}\" \"renderer/*.{js,css}\" \"{config,ipc,services,tests,e2e}/**/*.ts\" \"backend/**/*.ts\" \"scripts/**/*.{mjs,cjs,js}\" \"*.{ts,mjs,js}\"",
+    "format": "prettier --write \"src/**/*.{ts,svelte,css,json}\" \"renderer/*.{js,css}\" \"{config,ipc,services,tests,e2e}/**/*.ts\" \"backend/**/*.ts\" \"scripts/**/*.{mjs,cjs,js}\" \"*.{ts,mjs,js}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,svelte,css,json}\" \"renderer/*.{js,css}\" \"{config,ipc,services,tests,e2e}/**/*.ts\" \"backend/**/*.ts\" \"scripts/**/*.{mjs,cjs,js}\" \"*.{ts,mjs,js}\"",
     "test": "vitest run",
     "test:watch": "vitest",
     "dist:win:publish": "pnpm run verify:onnx-models && pnpm run build && electron-builder --win nsis --publish always",
@@ -54,14 +54,17 @@
     "backend:prewarm:order-summaries": "powershell -ExecutionPolicy Bypass -File ./scripts/prewarm-order-summaries.ps1",
     "backend:prewarm:order-summaries:hotset": "powershell -ExecutionPolicy Bypass -File ./scripts/prewarm-order-summaries.ps1 -Source hotset",
     "icons:manifest": "pnpm run build:main && node scripts/icon-mirror/build-icon-manifest.mjs",
-    "icons:download": "pnpm run icons:manifest && node scripts/icon-mirror/download-icon-mirror.mjs && pnpm run icons:download:wfm && pnpm run icons:download:enemies",
+    "icons:download": "pnpm run icons:manifest && node scripts/icon-mirror/download-icon-mirror.mjs && pnpm run icons:download:wfm && pnpm run icons:download:enemies && pnpm run icons:download:mod-art",
     "icons:download:wfm": "electron scripts/icon-mirror/download-wfm-thumbs.cjs",
     "icons:download:enemies": "node scripts/icon-mirror/download-enemy-images.mjs",
     "icons:deploy": "npm --prefix backend/worker exec -- wrangler pages deploy .icon-mirror/public --project-name wfhelper-icons --branch pre-production --commit-dirty=true",
     "icons:sync": "pnpm run icons:download && pnpm run icons:deploy",
     "rebuild": "electron-rebuild -f",
     "prepare": "husky",
-    "test:linux-boot": "node scripts/linux-boot-smoke.mjs"
+    "test:linux-boot": "node scripts/linux-boot-smoke.mjs",
+    "icons:mod-art": "node scripts/icon-mirror/build-wiki-mod-art.mjs",
+    "icons:download:mod-art": "node scripts/icon-mirror/download-wiki-mod-art.mjs",
+    "i18n:item-names": "node scripts/i18n/build-item-names.mjs"
   },
   "keywords": [
     "warframe",
@@ -131,6 +134,7 @@
       ".electron-build/**/*",
       "renderer/**/*",
       "assets/**/*",
+      "src/data/itemNames/**/*",
       "package.json",
       "node_modules/**/*",
       "!node_modules/**/{test,tests,__tests__,example,examples,docs,doc}/**",

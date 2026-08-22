@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { tr } from "../../lib/i18n.js";
+
   export let name: string;
   export let imageUrl: string | null | undefined = null;
   export let owned = false;
@@ -29,7 +31,7 @@
   class="group flex shrink-0 flex-col items-center border-0 bg-transparent p-0 text-inherit cursor-pointer
          transition-transform duration-100 hover:z-[1] {labelGap} {hoverCls}"
   on:click={onClick}
-  title="View {name} details"
+  title={$tr("world.viewDetails", { name })}
 >
   <div
     class="flex items-center justify-center overflow-hidden bg-black/30

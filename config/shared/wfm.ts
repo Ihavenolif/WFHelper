@@ -1,4 +1,4 @@
-import { normalizeForSlug } from "./textNormalize";
+import { normalizeForSlug, sanitizeWfmSlug } from "./textNormalize";
 
 /** Warframe.market user presence status. */
 export type WfmStatus = "online" | "ingame" | "invisible";
@@ -76,8 +76,14 @@ export function titleFromSlug(slug: string): string {
     .replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
 }
 
-// Slug normalizer for WFM URLs - see normalizeForSlug for the semantics.
-export { normalizeForSlug as normalizeWfmSlug } from "./textNormalize";
+export { isWfmSlug, sanitizeWfmSlug } from "./textNormalize";
+
+// A slug warframe.market minted survives verbatim; only a display name gets its
+// punctuation folded into underscores. Zid-an Asheir is slugged with hyphens,
+// so folding one would point every lookup at an item that does not exist.
+export function normalizeWfmSlug(value: string | null | undefined): string | null {
+  return sanitizeWfmSlug(value) ?? normalizeForSlug(value);
+}
 
 export function normalizeWfmSlugKey(value: unknown): string {
   return normalizeForSlug(typeof value === "string" ? value : null) ?? "";

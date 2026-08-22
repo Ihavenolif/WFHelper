@@ -11,6 +11,12 @@ let _hasDisplayedStats = false;
 let _pendingBestAttrs = null;
 let _pendingListings = null;
 
+// Every panel string is rebuilt from this state, so a language change needs no rescan.
+let _scanningKey = "overlay.riven.scanning";
+let _bannerKey = "overlay.riven.readFailed";
+let _renderedStats = [];
+
+const t = window.overlayI18n.t;
 function el(id) {
   return document.getElementById(id);
 }
@@ -25,13 +31,12 @@ function renderInteractionHint() {
     .replace(/CommandOrControl|Control/g, "Ctrl")
     .replace(/Command/g, "Cmd")
     .replace(/\+/g, " + ");
-  hint.textContent = label ? `Press ${label} to interact` : "";
+  hint.textContent = label ? t("overlay.hint.interact", { hotkey: label }) : "";
   hint.classList.toggle("is-hidden", _overlayInteractiveMode || !label);
 }
 
 function setOverlayInteractiveMode(interactive) {
   _overlayInteractiveMode = !!interactive;
-  document.documentElement.classList.toggle("is-overlay-interactive", _overlayInteractiveMode);
   const closeButton = el("btn-close");
   if (closeButton) closeButton.classList.toggle("is-hidden", !_overlayInteractiveMode);
   const rescanButton = el("btn-rescan");
@@ -136,13 +141,16 @@ function renderStats(stats) {
   const errorEl = el("error-banner");
   if (!container || !list) return;
 
+  _renderedStats = Array.isArray(stats) ? stats : [];
   list.innerHTML = "";
 
-  if (!Array.isArray(stats) || stats.length === 0) {
+  if (_renderedStats.length === 0) {
     _hasDisplayedStats = false;
     const empty = document.createElement("div");
     empty.className = "stat-empty";
-    empty.textContent = _isLeft ? "Waiting for scan\u2026" : "Waiting for roll\u2026";
+    empty.textContent = t(
+      _isLeft ? "overlay.riven.waitingForScan" : "overlay.riven.waitingForRoll",
+    );
     list.appendChild(empty);
     container.classList.remove("is-hidden");
     if (errorEl) errorEl.classList.remove("visible");
@@ -154,12 +162,12 @@ function renderStats(stats) {
 
   _hasDisplayedStats = true;
   if (errorEl) errorEl.classList.remove("visible");
-  for (const stat of stats) {
+  for (const stat of _renderedStats) {
     list.appendChild(buildStatRow(stat));
   }
   container.classList.remove("is-hidden");
 
-  _currentStats = statsToMatchable(stats);
+  _currentStats = statsToMatchable(_renderedStats);
   _currentStatNamesLc = _currentStats.map(function (s) {
     return s.name;
   });
@@ -169,18 +177,23 @@ function renderStats(stats) {
   if (_pendingListings) renderSimilarListings(_pendingListings);
 }
 
+function renderErrorBanner() {
+  const banner = el("error-banner");
+  if (banner) banner.textContent = t(_bannerKey);
+}
+
 /** Show the error banner with a reason instead of an endless "Waiting" spinner. */
-function showScanError(message) {
+function showScanError(messageKey) {
   hideScanning();
   _hasDisplayedStats = false;
-  const banner = el("error-banner");
+  _renderedStats = [];
   el("stats-container").classList.add("is-hidden");
   el("best-attributes").classList.add("is-hidden");
   el("similar-listings").classList.add("is-hidden");
-  if (banner) {
-    if (message) banner.textContent = message;
-    banner.classList.add("visible");
-  }
+  _bannerKey = messageKey;
+  renderErrorBanner();
+  const banner = el("error-banner");
+  if (banner) banner.classList.add("visible");
 }
 
 /** State: current stat names (lowercase) for WFM similarity matching. */
@@ -223,6 +236,7 @@ function applyGradingToStats(gradingResult) {
   const container = el("stats-container");
   if (!list || !container) return;
 
+  _renderedStats = stats;
   list.innerHTML = "";
   for (const stat of stats) {
     list.appendChild(buildStatRow(stat));
@@ -249,10 +263,25 @@ function onGradingRoll(payload) {
   applyGradingToStats(side);
 }
 
-let _bestAttributesData = null;
+function fillBestRow(row, names, side, labelKey) {
+  if (!Array.isArray(names) || names.length === 0) return;
+
+  const label = document.createElement("span");
+  label.className = `best-row-label ${side}`;
+  label.textContent = t(labelKey);
+  row.appendChild(label);
+
+  for (const name of names) {
+    const chip = document.createElement("span");
+    chip.className = "best-chip";
+    chip.setAttribute("data-stat", name.toLowerCase());
+    chip.setAttribute("data-side", side);
+    chip.textContent = abbreviateStat(name);
+    row.appendChild(chip);
+  }
+}
 
 function renderBestAttributes(attrs) {
-  _bestAttributesData = attrs;
   _pendingBestAttrs = attrs;
 
   // Don't render if panel has no stats yet (right panel before first roll)
@@ -267,45 +296,15 @@ function renderBestAttributes(attrs) {
 
   posRow.innerHTML = "";
   negRow.innerHTML = "";
-
-  // Positive row
-  if (Array.isArray(attrs.positives) && attrs.positives.length > 0) {
-    var label = document.createElement("span");
-    label.className = "best-row-label pos";
-    label.textContent = "BEST";
-    posRow.appendChild(label);
-
-    for (var i = 0; i < attrs.positives.length; i++) {
-      var chip = document.createElement("span");
-      chip.className = "best-chip";
-      chip.setAttribute("data-stat", attrs.positives[i].toLowerCase());
-      chip.setAttribute("data-side", "pos");
-      chip.textContent = abbreviateStat(attrs.positives[i]);
-      posRow.appendChild(chip);
-    }
-  }
-
-  // Negative row
-  if (Array.isArray(attrs.negatives) && attrs.negatives.length > 0) {
-    var negLabel = document.createElement("span");
-    negLabel.className = "best-row-label neg";
-    negLabel.textContent = "NEG";
-    negRow.appendChild(negLabel);
-
-    for (var j = 0; j < attrs.negatives.length; j++) {
-      var negChip = document.createElement("span");
-      negChip.className = "best-chip";
-      negChip.setAttribute("data-stat", attrs.negatives[j].toLowerCase());
-      negChip.setAttribute("data-side", "neg");
-      negChip.textContent = abbreviateStat(attrs.negatives[j]);
-      negRow.appendChild(negChip);
-    }
-  }
+  fillBestRow(posRow, attrs.positives, "pos", "overlay.riven.bestPositives");
+  fillBestRow(negRow, attrs.negatives, "neg", "overlay.riven.bestNegatives");
 
   wrapper.classList.remove("is-hidden");
   refreshBestAttributeHighlights();
 }
 
+// Keyed and valued in English: the scan, the grading tables and the WFM search
+// all speak these stat names, so a translated chip could not be matched back.
 var STAT_ABBREVIATIONS = {
   "critical chance": "CritCh",
   "critical damage": "CritDmg",
@@ -401,7 +400,7 @@ function renderSimilarListings(listings) {
     if (pct >= 75) simEl.classList.add("sim-high");
     else if (pct >= 40) simEl.classList.add("sim-medium");
     else simEl.classList.add("sim-low");
-    simEl.textContent = pct + "% match";
+    simEl.textContent = t("overlay.riven.matchPercent", { percent: pct });
     card.appendChild(simEl);
 
     var topRow = document.createElement("div");
@@ -415,7 +414,7 @@ function renderSimilarListings(listings) {
 
     var rerollsEl = document.createElement("span");
     rerollsEl.className = "listing-rerolls";
-    rerollsEl.textContent = (item.rerolls || 0) + " rolls";
+    rerollsEl.textContent = t("overlay.riven.rolls", { count: item.rerolls || 0 });
     topRow.appendChild(rerollsEl);
 
     card.appendChild(topRow);
@@ -444,6 +443,16 @@ function renderSimilarListings(listings) {
   wrapper.classList.remove("is-hidden");
 }
 
+function renderScanningText() {
+  const text = el("scanning-text");
+  if (text) text.textContent = t(_scanningKey);
+}
+
+function setScanningText(key) {
+  _scanningKey = key;
+  renderScanningText();
+}
+
 function showScanning() {
   el("scanning-state").classList.add("visible");
   el("stats-container").classList.add("is-hidden");
@@ -454,11 +463,20 @@ function hideScanning() {
   el("scanning-state").classList.remove("visible");
 }
 
+function renderRollBadge() {
+  const rollBadge = el("roll-badge");
+  if (rollBadge) rollBadge.textContent = t("overlay.riven.roll", { count: _rollCount });
+}
+
+function renderPanelLabel() {
+  const labelEl = el("panel-label");
+  if (labelEl) labelEl.textContent = t(_isLeft ? "overlay.riven.current" : "overlay.riven.newRoll");
+}
+
 function onSessionStart(weapon) {
   _rollCount = 0;
   _currentStatNamesLc = [];
   _currentStats = [];
-  _bestAttributesData = null;
   _hasDisplayedStats = false;
   _pendingBestAttrs = null;
   _pendingListings = null;
@@ -466,8 +484,7 @@ function onSessionStart(weapon) {
   el("weapon-name").textContent = weapon || "\u2014";
   setWeaponWarningVisible(false);
 
-  const rollBadge = el("roll-badge");
-  if (rollBadge) rollBadge.textContent = "Roll 0";
+  renderRollBadge();
 
   // Reset stats
   el("stats-container").classList.add("is-hidden");
@@ -482,7 +499,7 @@ function onSessionStart(weapon) {
   // Right panel: show "waiting for roll" placeholder
   if (_isLeft) {
     showScanning();
-    el("scanning-text").textContent = "Scanning current stats\u2026";
+    setScanningText("overlay.riven.scanningCurrent");
   } else {
     renderStats([]); // shows "Waiting for roll..."
   }
@@ -495,17 +512,13 @@ function onInitialStats(stats) {
   if (Array.isArray(stats) && stats.length > 0) {
     renderStats(stats);
   } else {
-    // Scan ran but read nothing - tell the user why instead of sitting on
-    // "Waiting for scan...". The usual cause is Warframe in windowed mode.
-    showScanError(
-      "Couldn't read the riven. Set Warframe to Fullscreen or Borderless (not Windowed).",
-    );
+    showScanError("overlay.riven.readFailed");
   }
 }
 
 function onScanning() {
   showScanning();
-  el("scanning-text").textContent = "Scanning riven stats\u2026";
+  setScanningText("overlay.riven.scanningRoll");
 }
 
 function onRollResult(payload) {
@@ -513,8 +526,7 @@ function onRollResult(payload) {
 
   _rollCount = Number(rollCount) || _rollCount + 1;
 
-  const rollBadge = el("roll-badge");
-  if (rollBadge) rollBadge.textContent = "Roll " + _rollCount;
+  renderRollBadge();
 
   hideScanning();
 
@@ -525,9 +537,7 @@ function onRollResult(payload) {
   if (hasStats) {
     renderStats(stats);
   } else {
-    showScanError(
-      "Couldn't read the new roll. Set Warframe to Fullscreen or Borderless (not Windowed).",
-    );
+    showScanError("overlay.riven.rollReadFailed");
   }
 }
 
@@ -563,7 +573,7 @@ function onChoiceMade(side) {
   // immediate feedback that the overlay is updating.
   if (_isLeft) {
     showScanning();
-    el("scanning-text").textContent = "Scanning current stats\u2026";
+    setScanningText("overlay.riven.scanningCurrent");
   }
 }
 
@@ -578,7 +588,7 @@ function onRescan() {
   setWeaponWarningVisible(false);
   if (_isLeft) {
     showScanning();
-    el("scanning-text").textContent = "Rescanning…";
+    setScanningText("overlay.riven.rescanning");
   } else {
     el("overall-grade").classList.add("is-hidden");
     renderStats([]); // shows "Waiting for roll..."
@@ -589,7 +599,6 @@ function onSessionEnd() {
   hideScanning();
   _currentStatNamesLc = [];
   _currentStats = [];
-  _bestAttributesData = null;
   _hasDisplayedStats = false;
   _pendingBestAttrs = null;
   _pendingListings = null;
@@ -598,24 +607,39 @@ function onSessionEnd() {
   el("similar-listings").classList.add("is-hidden");
 }
 
-document.addEventListener("DOMContentLoaded", () => {
+/* Rebuilds every string this panel writes from JS, for a live language change. */
+function renderDynamicText() {
+  renderPanelLabel();
+  renderRollBadge();
+  renderScanningText();
+  renderErrorBanner();
+  renderInteractionHint();
+  // The banner replaces the stat list, so re-rendering stats would resurrect it.
+  const banner = el("error-banner");
+  if (banner && banner.classList.contains("visible")) return;
+  renderStats(_renderedStats);
+}
+
+function startOverlay() {
   const panel = el("panel");
-  const labelEl = el("panel-label");
+  if (!_isLeft && panel) panel.classList.add("is-new");
+  renderPanelLabel();
+  renderRollBadge();
+  renderScanningText();
+  renderErrorBanner();
+  setOverlayInteractiveMode(false);
+  renderStats([]);
+}
 
-  if (_isLeft) {
-    if (labelEl) labelEl.textContent = "CURRENT";
-  } else {
-    if (panel) panel.classList.add("is-new");
-    if (labelEl) labelEl.textContent = "NEW ROLL";
-  }
-
-  window.overlayTheme.loadThemeFromStorageFallback();
-  void window.rivenOverlay
-    .getThemeVars()
-    .then((vars) => window.overlayTheme.applyThemeVars(vars))
-    .catch(() => {
-      // best effort, storage fallback already applied
-    });
+document.addEventListener("DOMContentLoaded", () => {
+  let bootstrapped = false;
+  const finishBootstrap = (loaded) => {
+    if (!loaded || bootstrapped) return;
+    bootstrapped = true;
+    startOverlay();
+    window.rivenOverlay.ready();
+  };
+  window.overlayTheme.bootstrapOverlayTheme(() => window.rivenOverlay.getThemeVars());
 
   el("btn-close").addEventListener("click", () => window.rivenOverlay.close());
   el("btn-rescan").addEventListener("click", () => window.rivenOverlay.requestRescan());
@@ -629,9 +653,8 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  setOverlayInteractiveMode(false);
-  renderStats([]);
   window.rivenOverlay.onThemeVars((vars) => window.overlayTheme.applyThemeVars(vars));
+  window.rivenOverlay.onMessages((messages) => finishBootstrap(window.overlayI18n.apply(messages)));
   window.rivenOverlay.onSessionStart((weapon) => onSessionStart(weapon));
   window.rivenOverlay.onInitialStats((stats) => onInitialStats(stats));
   window.rivenOverlay.onScanning(() => onScanning());
@@ -662,4 +685,7 @@ document.addEventListener("DOMContentLoaded", () => {
   window.rivenOverlay.onGradingRoll((payload) => onGradingRoll(payload));
   window.rivenOverlay.onBestAttributes((attrs) => renderBestAttributes(attrs));
   window.rivenOverlay.onSimilarListings((listings) => renderSimilarListings(listings));
+
+  window.overlayI18n.onApply(renderDynamicText);
+  void window.overlayI18n.load(() => window.rivenOverlay.getMessages()).then(finishBootstrap);
 });

@@ -1,5 +1,6 @@
 <script lang="ts">
   import SortDirectionIcon from "./SortDirectionIcon.svelte";
+  import { tr } from "../lib/i18n.js";
   import type { SortDirection } from "../types/filters.js";
 
   interface Props {
@@ -11,7 +12,14 @@
     label?: string;
   }
 
-  let { value, options, direction, onSelect, onToggleDirection, label = "Sort" }: Props = $props();
+  let {
+    value,
+    options,
+    direction,
+    onSelect,
+    onToggleDirection,
+    label = $tr("common.sort"),
+  }: Props = $props();
 
   function onChange(event: Event): void {
     onSelect((event.currentTarget as HTMLSelectElement).value);
@@ -30,8 +38,10 @@
       type="button"
       class="sort-control-direction"
       onclick={onToggleDirection}
-      title={direction === "asc" ? "Low to high" : "High to low"}
-      aria-label={direction === "asc" ? "Sort direction ascending" : "Sort direction descending"}
+      title={direction === "asc" ? $tr("common.sortLowToHigh") : $tr("common.sortHighToLow")}
+      aria-label={direction === "asc"
+        ? $tr("common.sortDirectionAscending")
+        : $tr("common.sortDirectionDescending")}
     >
       <SortDirectionIcon asc={direction === "asc"} />
     </button>

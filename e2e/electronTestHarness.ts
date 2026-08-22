@@ -15,6 +15,10 @@ interface ElectronTestHarnessOptions {
   storage?: Record<string, string>;
   inventory?: unknown;
   onPage?: (page: Page) => void | Promise<void>;
+  /** Electron --lang switch, which is what navigator.language reports. */
+  lang?: string;
+  /** Leave app-language unset so detectLocale() falls through to the OS locale. */
+  skipLanguageSeed?: boolean;
 }
 
 export interface ElectronTestHarness {
@@ -45,24 +49,61 @@ export async function launchElectronTestHarness(
   env.LOCALAPPDATA = localAppData;
   env.WFHELPER_USER_DATA = userData;
 
-  const app = await electron.launch({ args: ["--no-sandbox", "."], env });
-  const page = await mainWindow(app);
-  await options.onPage?.(page);
-  await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
-  await page.evaluate(
-    (storage) => {
-      for (const [key, value] of Object.entries(storage)) localStorage.setItem(key, value);
-    },
-    {
-      "setup-completed-v2": "1",
-      "feature-tour-done": "1",
-      ...options.storage,
-    },
-  );
-  await page.reload();
-  await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
+  let app: ElectronApplication | null = null;
+  try {
+    app = await electron.launch({
+      args: ["--no-sandbox", `--lang=${options.lang ?? "en-US"}`, "."],
+      env,
+    });
+    const page = await mainWindow(app);
+    await options.onPage?.(page);
+    await expect(page.locator("#app")).toBeVisible({ timeout: 90_000 });
+    await page.evaluate(
+      (storage) => {
+        for (const [key, value] of Object.entries(storage)) localStorage.setItem(key, value);
+      },
+      {
+        "setup-completed-v2": "1",
+        "feature-tour-done": "1",
+        ...(options.skipLanguageSeed ? {} : { "app-language": "en" }),
+        ...options.storage,
+      },
+    );
+    await page.reload();
+    await expect(page.locator("#sidebar")).toBeVisible({ timeout: 90_000 });
 
-  return { app, page, sandboxDir, helperDir };
+    return { app, page, sandboxDir, helperDir };
+  } catch (error) {
+    // Without this the caller never gets a harness, so the process and the
+    // sandbox dir would both leak on any failure above.
+    try {
+      await app?.close();
+    } catch {
+      // already gone
+    }
+    fs.rmSync(sandboxDir, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+export async function setDisplayLanguage(page: Page, code: string): Promise<void> {
+  await page.locator('#sidebar [data-view="settings"]').click();
+  await page.locator('[data-setting="language"] select').selectOption(code);
+}
+
+export async function overlayWindow(
+  harness: ElectronTestHarness,
+  match: string,
+  reject?: string,
+): Promise<Page> {
+  for (let attempt = 0; attempt < 60; attempt += 1) {
+    for (const win of harness.app.windows()) {
+      const url = win.url();
+      if (url.includes(match) && (!reject || !url.includes(reject))) return win;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error(`overlay window ${match} never appeared`);
 }
 
 export function writeHarnessInventory(harness: ElectronTestHarness, inventory: unknown): void {

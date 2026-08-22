@@ -10,6 +10,7 @@ export function buildParsedItemFromDb(
   const drops = [...(dbEntry.drops || []), ...(options.extraDrops || [])];
   return {
     name: dbEntry.name || "Unknown",
+    ...(dbEntry.displayName ? { displayName: dbEntry.displayName } : {}),
     internalName: uniqueName,
     category: dbEntry.category || "",
     categoryLabel: dbEntry.category || "",

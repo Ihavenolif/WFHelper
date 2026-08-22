@@ -3,7 +3,7 @@
   import { toBlob } from "html-to-image";
 
   import { invoke } from "../../lib/ipc.js";
-  import { tr } from "../../lib/i18n.js";
+  import { locale, tr } from "../../lib/i18n.js";
   import { log } from "../../lib/log.js";
   import { clockStore } from "../../lib/timers.js";
   import type { ArbiScheduleAlerts, ArbiScheduleEntry } from "../../types/ipc.js";
@@ -83,7 +83,7 @@
     });
   $: visibleEntries = filterScheduleEntries(entries, selected, searchState, daysToShow, nowMs);
   $: selectedCopyEntries = selectedScheduleEntries(visibleEntries, copySelection);
-  $: dayGroups = groupEntriesByDay(visibleEntries);
+  $: dayGroups = groupEntriesByDay(visibleEntries, $locale);
   $: occurrenceSet = new Set(alerts.occurrences);
   $: favoriteSet = new Set(alerts.favoriteNodes);
   $: updatedAgo = formatUpdatedAgo(fetchedAt, nowMs);
@@ -247,14 +247,16 @@
 
   function buildCopyCard(chosen: ArbiScheduleEntry[]): { stage: HTMLElement; card: HTMLElement } {
     const card = cardEl("wfh-arbicard");
-    card.appendChild(cardEl("wfh-arbicard-header", `Selected Arbitrations (${chosen.length})`));
+    card.appendChild(
+      cardEl("wfh-arbicard-header", $tr("arbisched.cardHeader", { count: chosen.length })),
+    );
     card.appendChild(cardEl("wfh-arbicard-tz", timezoneLabel()));
 
-    for (const group of groupEntriesByDay(chosen)) {
+    for (const group of groupEntriesByDay(chosen, $locale)) {
       card.appendChild(cardEl("wfh-arbicard-day", group.dayLabel));
       for (const entry of group.entries) {
         const row = cardEl("wfh-arbicard-row");
-        row.appendChild(cardEl("wfh-arbicard-time", formatEntryTime(entry.epochMs)));
+        row.appendChild(cardEl("wfh-arbicard-time", formatEntryTime(entry.epochMs, $locale)));
         row.appendChild(cardEl("wfh-arbicard-node", entry.node));
         row.appendChild(cardEl("wfh-arbicard-mission", entry.mission));
         row.appendChild(
@@ -269,7 +271,7 @@
 
     const footer = cardEl("wfh-arbicard-footer");
     footer.appendChild(cardEl("wfh-arbicard-url", "wfhelper.com"));
-    footer.appendChild(cardEl("wfh-arbicard-brand", "WARFRAME ARBITRATIONS"));
+    footer.appendChild(cardEl("wfh-arbicard-brand", $tr("arbisched.brand")));
     card.appendChild(footer);
 
     const stage = document.createElement("div");
@@ -415,11 +417,8 @@
     </div>
 
     <div class="flex gap-2">
-      <button class="btn-secondary btn-sm flex-1" on:click={selectAll}
-        >{$tr("arbisched.all")}</button
-      >
-      <button class="btn-secondary btn-sm flex-1" on:click={selectNone}
-        >{$tr("arbisched.none")}</button
+      <button class="btn-secondary btn-sm flex-1" on:click={selectAll}>{$tr("common.all")}</button>
+      <button class="btn-secondary btn-sm flex-1" on:click={selectNone}>{$tr("common.none")}</button
       >
     </div>
 
@@ -445,7 +444,7 @@
         <button
           class="btn-secondary btn-sm flex-1"
           disabled={presets.length === 0}
-          on:click={deletePreset}>{$tr("arbisched.presetDelete")}</button
+          on:click={deletePreset}>{$tr("common.delete")}</button
         >
       </div>
       <div class="flex gap-1.5">
@@ -456,9 +455,7 @@
           bind:value={presetName}
           on:keydown={(e) => e.key === "Enter" && savePreset()}
         />
-        <button class="btn-secondary btn-sm" on:click={savePreset}
-          >{$tr("arbisched.presetSave")}</button
-        >
+        <button class="btn-secondary btn-sm" on:click={savePreset}>{$tr("common.save")}</button>
       </div>
       {#if presetStatus}
         <span class="text-xs text-text-muted">{presetStatus}</span>
@@ -491,7 +488,7 @@
         on:click={copySelectedRows}
       >
         {copyState === "done"
-          ? $tr("arbisched.copied")
+          ? $tr("common.copied")
           : copyState === "error"
             ? $tr("arbisched.copyFailed")
             : copyState === "max"
@@ -537,9 +534,9 @@
           <div
             class="grid grid-cols-[90px_minmax(0,1.3fr)_minmax(0,1fr)_110px_130px_36px_28px] gap-x-3 border-b border-border px-2 py-1.5 text-left text-xs font-semibold uppercase tracking-wide text-text-muted"
           >
-            <span>{$tr("arbisched.col.time")}</span>
-            <span>{$tr("arbisched.col.node")}</span>
-            <span>{$tr("arbisched.col.mission")}</span>
+            <span>{$tr("foundry.sort.time")}</span>
+            <span>{$tr("common.node")}</span>
+            <span>{$tr("common.mission")}</span>
             <span>{$tr("arbisched.col.faction")}</span>
             <span class="text-right">{$tr("arbisched.col.startsIn")}</span>
             <span></span>
@@ -563,7 +560,7 @@
                   : ''}"
               >
                 <span class="font-display tracking-[0.02em] whitespace-nowrap text-text-secondary"
-                  >{formatEntryTime(entry.epochMs)}</span
+                  >{formatEntryTime(entry.epochMs, $locale)}</span
                 >
                 <span class="truncate font-semibold text-text-primary">
                   {entry.node}

@@ -4,8 +4,8 @@ import zlib from "node:zlib";
 import { promisify } from "node:util";
 import { pipeline } from "node:stream";
 import { pipeline as pipelinePromise } from "node:stream/promises";
-import { app } from "electron";
 import { withScope } from "./logger";
+import { userDataPath } from "./userDataPath";
 import { writeFileAtomicSync } from "./atomicFile";
 import { createArbiParser } from "./arbiRunParser";
 import type { ArbiParsedRun, ArbiParser } from "./arbiRunParser";
@@ -61,11 +61,11 @@ let _initialized = false;
 let _trackingEnabled = true;
 
 function _indexPath(): string {
-  return path.join(app.getPath("userData"), "arbi-runs.json");
+  return userDataPath("arbi-runs.json");
 }
 
 function _logsDir(): string {
-  return path.join(app.getPath("userData"), "arbi-logs");
+  return userDataPath("arbi-logs");
 }
 
 function _gzPath(id: string): string {

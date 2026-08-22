@@ -1,5 +1,6 @@
 <script lang="ts">
   import { POLARITY_ICON_URLS } from "../lib/assetUrls.js";
+  import { tr } from "../lib/i18n.js";
 
   export let polarity: string | null | undefined = null;
   export let size = 18;
@@ -48,8 +49,8 @@
 {#if kind}
   <img
     src={POLARITY_ICON_URLS[kind]}
-    alt={`Polarity: ${POLARITY_LABELS[kind]}`}
-    title={`Polarity: ${POLARITY_LABELS[kind]}`}
+    alt={$tr("rivens.polarityLabel", { polarity: POLARITY_LABELS[kind] })}
+    title={$tr("rivens.polarityLabel", { polarity: POLARITY_LABELS[kind] })}
     width={size}
     height={size}
     class={className}

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { barsForKey } from "../../../src/lib/stats/chartData.js";
+import {
+  barsForKey,
+  formatAbsolute,
+  formatters,
+  shortDate,
+} from "../../../src/lib/stats/chartData.js";
 import type { DailyStatEntry } from "../../../src/types/ipc.js";
 
 function dayStr(offsetDays: number): string {
@@ -57,5 +62,17 @@ describe("barsForKey abs line", () => {
     expect(res.absLine).not.toBeNull();
     expect(res.absLine!.length).toBe(1);
     expect(res.absLine![0].idx).toBe(res.bars.length - 1);
+  });
+});
+
+describe("stats formatting", () => {
+  it("uses the selected locale for values, abbreviations and dates", () => {
+    expect(formatAbsolute(1_250_000, "de")).toBe("1,25M");
+    expect(formatters.creditsDelta(125_000, "de")).toBe("125,0k");
+    expect(shortDate("2026-08-20", "de")).toBe("20.8.");
+
+    expect(formatAbsolute(1_250_000, "en")).toBe("1.25M");
+    expect(formatters.creditsDelta(125_000, "en")).toBe("125.0k");
+    expect(shortDate("2026-08-20", "en")).toBe("8/20");
   });
 });

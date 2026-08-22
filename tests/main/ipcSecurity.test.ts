@@ -9,12 +9,14 @@ describe("ipc sender guards", () => {
   const originalOverlayWindow = ctx.overlayWindow;
   const originalRivenOverlayLeftWindow = ctx.rivenOverlayLeftWindow;
   const originalRivenOverlayRightWindow = ctx.rivenOverlayRightWindow;
+  const originalTradeNotificationWindow = ctx.tradeNotificationWindow;
 
   afterEach(() => {
     ctx.mainWindow = originalMainWindow;
     ctx.overlayWindow = originalOverlayWindow;
     ctx.rivenOverlayLeftWindow = originalRivenOverlayLeftWindow;
     ctx.rivenOverlayRightWindow = originalRivenOverlayRightWindow;
+    ctx.tradeNotificationWindow = originalTradeNotificationWindow;
   });
 
   it("accepts the expected main renderer sender", () => {
@@ -23,6 +25,9 @@ describe("ipc sender guards", () => {
     const event = makeEvent(11, "file:///D:/app/renderer/dist/index.html");
 
     expect(() => ipcSecurity.assertMainRendererSender(event, "get-inventory")).not.toThrow();
+    expect(
+      ipcSecurity.isAuthorizedSender(ipcSecurity.assertMainRendererSender, event, "get-inventory"),
+    ).toBe(true);
   });
 
   it("rejects sender id mismatch", () => {
@@ -59,5 +64,33 @@ describe("ipc sender guards", () => {
     expect(() =>
       ipcSecurity.assertRivenOverlayRendererSender(rightEvent, "riven-ready"),
     ).not.toThrow();
+    for (const event of [leftEvent, rightEvent]) {
+      expect(
+        ipcSecurity.isAuthorizedSender(
+          ipcSecurity.assertRivenOverlayRendererSender,
+          event,
+          "riven-ready",
+        ),
+      ).toBe(true);
+    }
+  });
+
+  it("lets the trade toast read messages but nothing else", () => {
+    ctx.tradeNotificationWindow = makeWindowStub(51);
+
+    const event = makeEvent(51, "file:///D:/app/renderer/trade-notification.html");
+
+    expect(() =>
+      ipcSecurity.assertLocalizedOverlaySender(event, "overlay:get-messages"),
+    ).not.toThrow();
+    expect(() =>
+      ipcSecurity.assertOverlayRendererSender(event, "overlay:get-theme-vars"),
+    ).toThrow();
+  });
+
+  it("rejects an unknown window on the message channel", () => {
+    const event = makeEvent(99, "file:///D:/app/renderer/overlay.html");
+
+    expect(() => ipcSecurity.assertLocalizedOverlaySender(event, "overlay:get-messages")).toThrow();
   });
 });

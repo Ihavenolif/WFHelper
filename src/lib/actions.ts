@@ -26,5 +26,5 @@ export async function onInventoryLoaded(data: RawInventoryData): Promise<void> {
 }
 
 export function setInventoryStatus(count: number): void {
-  statusText.set(`${count} items loaded`);
+  statusText.set({ key: "app.itemsLoaded", params: { count } });
 }

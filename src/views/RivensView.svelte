@@ -14,6 +14,7 @@
   import { sharedFilters } from "../stores/filters.js";
   import { readStorage, writeStorage } from "../lib/persistence.js";
   import { tr } from "../lib/i18n.js";
+  import { RIVEN_TYPE_KEYS } from "../lib/rivenLabels.js";
 
   type RivenSortKey = "name" | "disposition" | "rerolls" | "grade";
   type RivenViewTab = "unveiled" | "veiled" | "finder";
@@ -35,21 +36,31 @@
   let viewTab = $state<RivenViewTab>(restoreViewTab());
 
   const TYPES = ["all", "Rifle", "Shotgun", "Pistol", "Melee", "Archgun", "Kitgun", "Zaw"];
-  const TYPE_OPTIONS = TYPES.map((value) => ({ value, label: value === "all" ? "All" : value }));
+  const TYPE_OPTIONS = $derived(
+    TYPES.map((value) => ({
+      value,
+      label: value === "all" ? $tr("common.all") : $tr(RIVEN_TYPE_KEYS[value]),
+    })),
+  );
   // Letter families: grading emits +/- variants (A+, B-, ...), S and F stand alone.
   const GRADES = ["all", "S", "A", "B", "C", "F"];
-  const GRADE_OPTIONS = GRADES.map((value) => ({ value, label: value === "all" ? "All" : value }));
-  const VIEW_TABS = [
-    { key: "unveiled", label: "Unveiled" },
-    { key: "veiled", label: "Veiled" },
-    { key: "finder", label: "Riven Finder" },
-  ];
-  const SORT_OPTIONS: Array<[RivenSortKey, string]> = [
-    ["name", "Name"],
-    ["disposition", "Disposition"],
-    ["rerolls", "Rerolls"],
-    ["grade", "Grade"],
-  ];
+  const GRADE_OPTIONS = $derived(
+    GRADES.map((value) => ({
+      value,
+      label: value === "all" ? $tr("common.all") : value,
+    })),
+  );
+  const VIEW_TABS = $derived([
+    { key: "unveiled", label: $tr("rivens.tab.unveiled") },
+    { key: "veiled", label: $tr("rivens.tab.veiled") },
+    { key: "finder", label: $tr("rivens.tab.finder") },
+  ]);
+  const SORT_OPTIONS: Array<[RivenSortKey, string]> = $derived([
+    ["name", $tr("common.name")],
+    ["disposition", $tr("rivens.sort.disposition")],
+    ["rerolls", $tr("common.rerolls")],
+    ["grade", $tr("rivens.sort.grade")],
+  ]);
   const rivenFilters = sharedFilters("rivens");
   function filterableRiven(riven: DecodedRiven): {
     name: string;
@@ -142,7 +153,7 @@
 
 <section class="view active">
   <div class="view-header mb-2">
-    <h2>{$tr("rivens.title")}</h2>
+    <h2>{$tr("common.rivens")}</h2>
   </div>
 
   <div class="mb-4 flex items-end border-b border-white/[0.09]" data-tour="riven-view-tabs">
@@ -151,9 +162,9 @@
         ...tab,
         label:
           tab.key === "unveiled"
-            ? `Unveiled (${rivens.length})`
+            ? $tr("rivens.tab.unveiledCount", { count: rivens.length })
             : tab.key === "veiled"
-              ? `Veiled (${totalVeiled})`
+              ? $tr("rivens.tab.veiledCount", { count: totalVeiled })
               : tab.label,
       }))}
       activeKey={viewTab}
@@ -185,7 +196,7 @@
     </div>
 
     {#if loading}
-      {@render emptyState("Loading rivens...")}
+      {@render emptyState($tr("rivens.loading"))}
     {:else if filteredRivens.length === 0}
       {@render emptyState(rivens.length === 0 ? $tr("rivens.noData") : $tr("rivens.noResults"))}
     {:else}
@@ -263,7 +274,9 @@
               <div
                 class="absolute z-[1] left-[22%] right-[22%] top-[83.5%] flex items-center justify-between text-xs font-display leading-none [text-shadow:0_0_3px_rgba(0,0,0,1),0_0_6px_rgba(0,0,0,1)]"
               >
-                <span class="text-white/80 font-bold">MR {riven.masteryReq}</span>
+                <span class="text-white/80 font-bold"
+                  >{$tr("rivens.mr", { level: riven.masteryReq })}</span
+                >
                 <RivenPolarityIcon
                   polarity={riven.polarity}
                   size={14}
@@ -278,9 +291,9 @@
     {/if}
   {:else if viewTab === "veiled"}
     {#if loading}
-      {@render emptyState("Loading rivens...")}
+      {@render emptyState($tr("rivens.loading"))}
     {:else if veiledRivens.length === 0 && veiledUnseen.length === 0}
-      {@render emptyState("No veiled rivens found")}
+      {@render emptyState($tr("rivens.noVeiled"))}
     {:else}
       {#if veiledRivens.length > 0}
         <div class="mb-5">
@@ -290,7 +303,7 @@
                 class="flex items-center justify-between py-2.5 px-4 bg-bg-surface border border-border rounded-lg transition-[border-color] duration-150 hover:border-border-strong"
               >
                 <div class="font-display text-sm font-semibold text-text-primary min-w-16 shrink-0">
-                  {entry.label} Riven Mod
+                  {$tr("rivens.rivenMod", { label: entry.label })}
                 </div>
                 {#if entry.challengeDesc}
                   <div class="flex items-center gap-3 flex-1 min-w-0">
@@ -314,7 +327,9 @@
                   </div>
                 {:else}
                   <div class="flex items-center gap-3 flex-1 min-w-0">
-                    <span class="text-xs text-text-muted italic">Challenge not yet assigned</span>
+                    <span class="text-xs text-text-muted italic"
+                      >{$tr("rivens.challengeNotAssigned")}</span
+                    >
                   </div>
                 {/if}
               </div>
@@ -326,7 +341,7 @@
       {#if veiledUnseen.length > 0}
         <div class="mb-5">
           <h3 class="font-display text-sm font-semibold text-text-secondary m-0 mb-2">
-            Unseen (???) rivens
+            {$tr("rivens.unseenTitle")}
           </h3>
           <div class="grid grid-cols-[repeat(auto-fill,minmax(170px,1fr))] gap-3">
             {#each veiledUnseen as group}
@@ -335,7 +350,7 @@
               >
                 <div class="font-display text-base font-bold text-text-primary">{group.label}</div>
                 <div class="text-xs text-text-muted leading-[1.3]">
-                  Equip these rivens to reveal their challenge
+                  {$tr("rivens.equipToReveal")}
                 </div>
                 <div class="flex items-center gap-2 mt-auto">
                   <span class="font-display text-sm font-bold text-text-secondary"

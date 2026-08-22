@@ -25,6 +25,8 @@ export interface DropInfo {
 
 export interface ComponentInfo {
   name: string;
+  /** Active game language. Render this; `name` stays English for lookups. */
+  displayName?: string;
   uniqueName?: string;
   tradable?: boolean;
   itemCount?: number;
@@ -37,7 +39,12 @@ export interface ComponentInfo {
 }
 
 export interface ItemDbEntry {
+  /** English. Every by-name lookup and market slug is built from this. */
   name?: string;
+  /** Active game language, absent when it matches `name`. Render this. */
+  displayName?: string;
+  /** Art is the framed wiki card, so a marketplace thumbnail must not replace it. */
+  cardArt?: true;
   imageUrl?: string | null;
   category?: string;
   productCategory?: string;
@@ -105,7 +112,12 @@ export type InventoryGroup =
   | "misc";
 
 export interface ParsedItem {
+  /** English. Every by-name lookup and market slug is built from this. */
   name: string;
+  /** Active game language, absent when it matches `name`. Render this. */
+  displayName?: string;
+  /** Art is the framed wiki card, so a marketplace thumbnail must not replace it. */
+  cardArt?: true;
   internalName: string;
   category: string;
   categoryLabel: string;
@@ -130,6 +142,8 @@ export interface ParsedItem {
   platinum?: number | null;
   ducats?: number | null;
   amount?: number | null;
+  /** Copies across all rank variants of a mod/arcane; rows stay rank-split. */
+  combinedAmount?: number | null;
   ducatonator?: number | null;
   completeSets?: number | boolean | null;
   /** Incomplete-set progress: distinct part types still to farm, and owned/total. */
@@ -149,6 +163,7 @@ export interface ParsedItem {
 
 export interface FoundryBuildingItem {
   name: string;
+  displayName?: string;
   imageUrl: string | null;
   endDate: Date | null;
   /** Blueprint recipe uniqueName (the raw ItemType in PendingRecipes). */
@@ -164,6 +179,7 @@ export interface FoundryBuildingItem {
 
 export interface FoundryRecipeItem {
   name: string;
+  displayName?: string;
   imageUrl: string | null;
   count: number;
   /** Blueprint recipe uniqueName (the raw ItemType in Recipes). */
@@ -187,6 +203,7 @@ export interface FoundryData {
 
 export interface Resource {
   name: string;
+  displayName?: string;
   imageUrl: string | null;
   internalName: string;
   count: number;

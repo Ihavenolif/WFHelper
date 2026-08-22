@@ -29,6 +29,20 @@ describe("circuit choice art", () => {
     expect(torid.uniqueName).toBe(TORID);
   });
 
+  // The circuit row used to hand the view a single name field, so a localized
+  // database still drew the English one here.
+  it("carries the localized name without losing the English one", () => {
+    const localized: Record<string, ItemDbEntry> = {
+      ...DB,
+      [TORID]: { ...DB[TORID], displayName: "토리드" },
+    };
+
+    const [torid] = resolveCircuitChoices(["Torid"], localized, null);
+
+    expect(torid.name).toBe("Torid");
+    expect(torid.displayName).toBe("토리드");
+  });
+
   it("still reads ownership off the base weapon", () => {
     const [torid] = resolveCircuitChoices(["Torid"], DB, { LongGuns: [{ ItemType: TORID }] });
 

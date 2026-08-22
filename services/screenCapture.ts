@@ -2,7 +2,7 @@
 
 import type { NativeImage } from "electron";
 import { withScope } from "./logger";
-import { captureGdi, getGameWindowClientRect } from "./dxgiCapture";
+import { captureGdi, getGameWindowClientRect, type GdiCaptureTarget } from "./dxgiCapture";
 import { captureLinuxStreamFrame } from "./linuxStreamCapture";
 import { getWarframeWindowBoundsLinux } from "./warframeStatus";
 import { detectGameContentRect } from "./rewardScannerImage";
@@ -32,8 +32,45 @@ interface CaptureOptions {
   preferredDisplayId?: string | null;
 }
 
+// BitBlt reads the virtual screen, so the target monitor has to arrive as
+// physical bounds. Electron's Display.id is not an HMONITOR and never was.
+async function resolveGdiTarget(
+  gameRect: ReturnType<typeof getGameWindowClientRect>,
+  preferredDisplayId?: string | null,
+): Promise<GdiCaptureTarget | null> {
+  const wanted = preferredDisplayId?.trim() || null;
+  if (!gameRect && !wanted) return null;
+  try {
+    const { screen } = await import("electron");
+    const display = gameRect
+      ? screen.getDisplayMatching(screen.screenToDipRect(null, gameRect))
+      : screen.getAllDisplays().find((d) => String(d.id) === wanted);
+    if (!display) return null;
+    const bounds = screen.dipToScreenRect(null, display.bounds);
+    if (!bounds?.width || !bounds.height) return null;
+    return {
+      displayId: String(display.id),
+      x: bounds.x,
+      y: bounds.y,
+      width: bounds.width,
+      height: bounds.height,
+    };
+  } catch (err) {
+    log.warn("[ScreenCapture] game display lookup skipped:", normalizeErrorMessage(err));
+    return null;
+  }
+}
+
 async function captureWin32Gdi(preferredDisplayId?: string | null): Promise<CaptureResult | null> {
-  const gdiResult = captureGdi(preferredDisplayId || null);
+  let gameRect: ReturnType<typeof getGameWindowClientRect> = null;
+  try {
+    gameRect = getGameWindowClientRect();
+  } catch (err) {
+    log.warn("[ScreenCapture] game window lookup skipped:", normalizeErrorMessage(err));
+  }
+
+  const target = await resolveGdiTarget(gameRect, preferredDisplayId);
+  const gdiResult = captureGdi(target);
   if (!gdiResult) return null;
   // dynamic import keeps electron lazy and lets tests mock it
   const { nativeImage } = await import("electron");
@@ -43,30 +80,25 @@ async function captureWin32Gdi(preferredDisplayId?: string | null): Promise<Capt
   });
   if (!img || img.isEmpty()) return null;
   // Crop windowed captures so layout ratios exclude desktop and window chrome.
-  try {
-    const gameRect = getGameWindowClientRect();
-    if (gameRect) {
-      const ox = gameRect.x - gdiResult.originX;
-      const oy = gameRect.y - gdiResult.originY;
-      const x = Math.max(0, ox);
-      const y = Math.max(0, oy);
-      const width = Math.min(gdiResult.width, ox + gameRect.width) - x;
-      const height = Math.min(gdiResult.height, oy + gameRect.height) - y;
-      const isSubRegion =
-        width < gdiResult.width - EDGE_SLACK_PX || height < gdiResult.height - EDGE_SLACK_PX;
-      if (isSubRegion && width >= MIN_CONTENT_WIDTH_PX && height >= MIN_CONTENT_HEIGHT_PX) {
-        img = img.crop({ x, y, width, height });
-        log.info(
-          `[ScreenCapture] cropped to Warframe client rect ${width}x${height} at (${x},${y})`,
-        );
-      }
+  let sourceType: CaptureResult["sourceType"] = "screen";
+  if (gameRect) {
+    const ox = gameRect.x - gdiResult.originX;
+    const oy = gameRect.y - gdiResult.originY;
+    const x = Math.max(0, ox);
+    const y = Math.max(0, oy);
+    const width = Math.min(gdiResult.width, ox + gameRect.width) - x;
+    const height = Math.min(gdiResult.height, oy + gameRect.height) - y;
+    const isSubRegion =
+      width < gdiResult.width - EDGE_SLACK_PX || height < gdiResult.height - EDGE_SLACK_PX;
+    if (isSubRegion && width >= MIN_CONTENT_WIDTH_PX && height >= MIN_CONTENT_HEIGHT_PX) {
+      img = img.crop({ x, y, width, height });
+      sourceType = "window";
+      log.info(`[ScreenCapture] cropped to Warframe client rect ${width}x${height} at (${x},${y})`);
     }
-  } catch (err) {
-    log.warn("[ScreenCapture] game window crop skipped:", normalizeErrorMessage(err));
   }
   return {
     image: img,
-    sourceType: "screen",
+    sourceType,
     sourceName: "GDI BitBlt",
     sourceId: `gdi:${gdiResult.displayId || "0"}`,
     sourceDisplayId: gdiResult.displayId || "",

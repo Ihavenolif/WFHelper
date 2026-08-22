@@ -1,5 +1,6 @@
 <script lang="ts">
   import ModalShell from "./ModalShell.svelte";
+  import { locale, tr } from "../lib/i18n.js";
   import { parseReleaseNotes } from "../lib/releaseNotes.js";
   import type { AppUpdateState } from "../types/ipc.js";
 
@@ -20,7 +21,7 @@
     if (!iso) return "";
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    return d.toLocaleDateString($locale, { year: "numeric", month: "short", day: "numeric" });
   }
 
   function openLink(href: string | undefined): void {
@@ -28,17 +29,20 @@
   }
 </script>
 
-<ModalShell ariaLabel="What's new" {onClose}>
+<ModalShell ariaLabel={$tr("update.whatsNew")} {onClose}>
   <div class="detail-panel update-modal-panel">
-    <button type="button" class="detail-close" aria-label="Close update dialog" on:click={onClose}
-      >&times;</button
+    <button
+      type="button"
+      class="detail-close"
+      aria-label={$tr("update.closeDialog")}
+      on:click={onClose}>&times;</button
     >
 
     <div class="detail-header">
       <div class="detail-title-area">
-        <h2>What's new{version ? ` in ${version}` : ""}</h2>
+        <h2>{version ? $tr("update.whatsNewIn", { version }) : $tr("update.whatsNew")}</h2>
         {#if dateLabel}
-          <p class="update-modal-date">Released {dateLabel}</p>
+          <p class="update-modal-date">{$tr("update.released", { date: dateLabel })}</p>
         {/if}
       </div>
     </div>
@@ -80,15 +84,15 @@
         </div>
       {:else}
         <p class="update-notes-empty">
-          No release notes were published for this version. See the releases page for details.
+          {$tr("update.noReleaseNotes")}
         </p>
       {/if}
 
       {#if state.status === "downloading"}
-        <div class="update-progress" aria-label="Download progress">
+        <div class="update-progress" aria-label={$tr("update.downloadProgress")}>
           <div class="update-progress-bar" style={`width:${percent}%`}></div>
         </div>
-        <p class="update-progress-label">Downloading… {percent}%</p>
+        <p class="update-progress-label">{$tr("update.downloading", { percent })}</p>
       {:else if state.status === "error" && state.message}
         <p class="update-error">{state.message}</p>
       {/if}
@@ -97,14 +101,16 @@
     <div class="update-modal-footer">
       {#if state.status === "available"}
         <button type="button" class="btn-success btn-sm" disabled={pending} on:click={onDownload}>
-          Download {version || "update"}
+          {$tr("update.download", { version: version || $tr("update.updateFallback") })}
         </button>
       {:else if state.status === "downloaded"}
         <button type="button" class="btn-success btn-sm" disabled={pending} on:click={onInstall}>
-          Restart &amp; install
+          {$tr("update.restartAndInstall")}
         </button>
       {/if}
-      <button type="button" class="btn-secondary btn-sm" on:click={onClose}>Close</button>
+      <button type="button" class="btn-secondary btn-sm" on:click={onClose}
+        >{$tr("common.close")}</button
+      >
     </div>
   </div>
 </ModalShell>

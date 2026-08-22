@@ -25,3 +25,20 @@ export function normalizeForOcr(value: unknown): string {
     .replace(/[^A-Z]/g, "")
     .trim();
 }
+
+// Most warframe.market slugs are [a-z0-9_], but the catalog also ships hyphens,
+// parentheses, curly apostrophes and accented letters. Allowlist what it holds
+// so path separators stay out, and anchor both ends on an alphanumeric so bare
+// punctuation still falls through to name folding.
+const WFM_SLUG_RE = /^[\p{Ll}\p{N}](?:[\p{Ll}\p{M}\p{N}_()'’-]{0,118}[\p{Ll}\p{N})])?$/u;
+
+export function isWfmSlug(value: unknown): boolean {
+  return typeof value === "string" && WFM_SLUG_RE.test(value);
+}
+
+/** Keeps a slug warframe.market already minted; null for anything else. */
+export function sanitizeWfmSlug(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const slug = value.trim().toLowerCase();
+  return WFM_SLUG_RE.test(slug) ? slug : null;
+}

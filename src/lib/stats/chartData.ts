@@ -57,31 +57,40 @@ const ABS_FIELD_MAP: Partial<Record<ChartKey, keyof DailyStatEntry>> = {
   vitusDelta: "absVitus",
 };
 
-export function formatDelta(n: number, fmt: (abs: number) => string): string {
+type ValueFormatter = (abs: number, locale: string) => string;
+
+export function formatDelta(n: number, fmt: ValueFormatter, locale: string): string {
   const sign = n >= 0 ? "+" : "−";
-  return `${sign}${fmt(Math.abs(n))}`;
+  return `${sign}${fmt(Math.abs(n), locale)}`;
 }
 
-function fmtPlat(abs: number): string {
-  return abs.toLocaleString();
+function fixed(value: number, digits: number, locale: string): string {
+  return value.toLocaleString(locale, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  });
 }
 
-function fmtCredits(abs: number): string {
-  if (abs >= 1_000_000) return `${(abs / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `${(abs / 1_000).toFixed(1)}k`;
-  return abs.toLocaleString();
+function fmtPlat(abs: number, locale: string): string {
+  return abs.toLocaleString(locale);
 }
 
-function fmtEndo(abs: number): string {
-  if (abs >= 1_000) return `${(abs / 1_000).toFixed(1)}k`;
-  return abs.toLocaleString();
+function fmtCredits(abs: number, locale: string): string {
+  if (abs >= 1_000_000) return `${fixed(abs / 1_000_000, 2, locale)}M`;
+  if (abs >= 1_000) return `${fixed(abs / 1_000, 1, locale)}k`;
+  return abs.toLocaleString(locale);
 }
 
-function fmtCount(abs: number): string {
-  return abs.toLocaleString();
+function fmtEndo(abs: number, locale: string): string {
+  if (abs >= 1_000) return `${fixed(abs / 1_000, 1, locale)}k`;
+  return abs.toLocaleString(locale);
 }
 
-export const formatters: Record<ChartKey, (abs: number) => string> = {
+function fmtCount(abs: number, locale: string): string {
+  return abs.toLocaleString(locale);
+}
+
+export const formatters: Record<ChartKey, ValueFormatter> = {
   platDelta: fmtPlat,
   ducatsDelta: fmtPlat,
   ayaDelta: fmtCount,
@@ -92,25 +101,26 @@ export const formatters: Record<ChartKey, (abs: number) => string> = {
   dailyTrades: fmtCount,
 };
 
-export function formatAbsolute(n: number | null): string {
+export function formatAbsolute(n: number | null, locale: string): string {
   if (n === null) return "-";
   const abs = Math.abs(n);
-  if (abs >= 1_000_000) return `${(n / 1_000_000).toFixed(2)}M`;
-  if (abs >= 100_000) return `${(n / 1_000).toFixed(1)}k`;
-  return n.toLocaleString();
+  if (abs >= 1_000_000) return `${fixed(n / 1_000_000, 2, locale)}M`;
+  if (abs >= 100_000) return `${fixed(n / 1_000, 1, locale)}k`;
+  return n.toLocaleString(locale);
 }
 
-export function shortDate(iso: string): string {
-  const parts = iso.split("-");
-  return `${parseInt(parts[2])}.${parseInt(parts[1])}`;
+export function shortDate(iso: string, locale: string): string {
+  const date = new Date(`${iso}T00:00:00Z`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString(locale, { day: "numeric", month: "numeric", timeZone: "UTC" });
 }
 
 /** Compact SI tick label: 1.2M / 3.4K / raw. */
-function fmtTickSI(value: number): string {
+function fmtTickSI(value: number, locale: string): string {
   const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (abs >= 1_000) return `${(value / 1_000).toFixed(1)}K`;
-  return String(value);
+  if (abs >= 1_000_000) return `${fixed(value / 1_000_000, 1, locale)}M`;
+  if (abs >= 1_000) return `${fixed(value / 1_000, 1, locale)}K`;
+  return value.toLocaleString(locale);
 }
 
 /** Round up to a "nice" number for axis scaling (1, 2, 5 multiples of powers of 10). */
@@ -128,6 +138,7 @@ function niceRoundUp(val: number): number {
 /** Compute nice Y-axis ticks from 0 to a nice ceiling above maxVal. */
 function computeNiceTicks(
   maxVal: number,
+  locale: string,
   targetCount: number = 5,
 ): { ticks: YTick[]; niceMax: number } {
   if (maxVal <= 0) {
@@ -142,7 +153,7 @@ function computeNiceTicks(
   for (let v = 0; v <= niceMax; v += niceStep) {
     // 0 at bottom (yFrac close to 1), niceMax at top (yFrac close to 0)
     const yFrac = PAD + (1 - v / niceMax) * (1 - 2 * PAD);
-    ticks.push({ label: fmtTickSI(v), value: v, yFrac });
+    ticks.push({ label: fmtTickSI(v, locale), value: v, yFrac });
   }
   return { ticks, niceMax };
 }
@@ -195,6 +206,7 @@ export function barsForKey(
   hist: DailyStatEntry[],
   days: number,
   barH: number = BAR_H,
+  locale: string = "en",
 ): ChartResult {
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - days);
@@ -258,7 +270,7 @@ export function barsForKey(
     const maxV = Math.max(...values);
     if (maxV > 0) {
       const targetTicks = barH >= BAR_H_EXPAND ? 8 : 5;
-      earlyNiceMax = computeNiceTicks(maxV, targetTicks).niceMax;
+      earlyNiceMax = computeNiceTicks(maxV, locale, targetTicks).niceMax;
     }
   }
 
@@ -310,7 +322,7 @@ export function barsForKey(
     if (validAbs.length >= 1) {
       const maxV = Math.max(...validAbs);
       const targetTicks = barH >= BAR_H_EXPAND ? 8 : 5;
-      const nice = computeNiceTicks(maxV, targetTicks);
+      const nice = computeNiceTicks(maxV, locale, targetTicks);
       yTicks = nice.ticks;
       niceMax = nice.niceMax;
 
@@ -332,7 +344,7 @@ export function barsForKey(
     // Bar-only charts (relicsOpened, dailyTrades): Y-axis from bar values
     if (earlyNiceMax > 0) {
       const targetTicks = barH >= BAR_H_EXPAND ? 8 : 5;
-      const nice = computeNiceTicks(Math.max(...values), targetTicks);
+      const nice = computeNiceTicks(Math.max(...values), locale, targetTicks);
       yTicks = nice.ticks;
       niceMax = nice.niceMax;
     }

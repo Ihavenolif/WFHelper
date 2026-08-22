@@ -4,10 +4,10 @@
 import { workerData, parentPort } from "worker_threads";
 import koffi from "koffi";
 import { DebugLineGate } from "./debugLineFilter";
+import { enumProcessIds, isWarframeExePath, queryExePath } from "./win32Process";
 
 // Win32 API declarations
 const kernel32 = koffi.load("kernel32.dll");
-const psapi = koffi.load("psapi.dll");
 
 const CreateFileMappingW = kernel32.func("CreateFileMappingW", "void *", [
   "void *", // hFile            - INVALID_HANDLE_VALUE (-1n) for pagefile-backed
@@ -48,30 +48,6 @@ const GetLastError = kernel32.func("GetLastError", "uint32", []);
 const GetCurrentThread = kernel32.func("GetCurrentThread", "void *", []);
 const SetThreadPriority = kernel32.func("SetThreadPriority", "int32", ["void *", "int32"]);
 
-// OpenProcess - used by isWarframePid() to query process image names
-const OpenProcess = kernel32.func("OpenProcess", "void *", [
-  "uint32", // dwDesiredAccess - PROCESS_QUERY_LIMITED_INFORMATION
-  "int32", // bInheritHandle (BOOL) - 0
-  "uint32", // dwProcessId
-]);
-
-// QueryFullProcessImageNameW - retrieves the full exe path for an open handle.
-// lpExeName: caller-allocated WCHAR buffer.  lpdwSize: in=capacity, out=char count.
-const QueryFullProcessImageNameW = kernel32.func("QueryFullProcessImageNameW", "int32", [
-  "void *", // hProcess
-  "uint32", // dwFlags - 0 = Win32 path format
-  "void *", // lpExeName  (PWSTR output buffer, raw pointer)
-  "void *", // lpdwSize   (PDWORD in/out,        raw pointer)
-]);
-
-// EnumProcesses - fills a DWORD array with the PID of every running process.
-// lpcbNeeded is set on return to the number of bytes written.
-const EnumProcesses = psapi.func("EnumProcesses", "int32", [
-  "void *", // lpidProcess - output: DWORD array of PIDs
-  "uint32", // cb          - size of array in bytes
-  "void *", // lpcbNeeded  - output: bytes written
-]);
-
 const PAGE_READWRITE = 0x04;
 const FILE_MAP_READ = 0x0004;
 const WAIT_OBJECT_0 = 0;
@@ -81,11 +57,7 @@ const DBWIN_BUFFER_SIZE = 4096;
 const INVALID_HANDLE_VALUE = -1n;
 // How long to block on WaitForSingleObject before re-checking the stop flag
 const WAIT_TIMEOUT_MS = 500;
-// PROCESS_QUERY_LIMITED_INFORMATION - minimum right for QueryFullProcessImageNameW
-const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 const THREAD_PRIORITY_HIGHEST = 2;
-// MAX_PATH in wide characters (WCHAR)
-const MAX_PATH = 260;
 // Phase 0: sleep this long between Warframe presence checks
 const WARFRAME_POLL_MS = 2000;
 // Phase 1: re-confirm Warframe is still running this often (milliseconds)
@@ -98,7 +70,6 @@ const uint8ArrayType = koffi.array("uint8", DBWIN_BUFFER_SIZE, "Typed");
 const lineGate = new DebugLineGate();
 
 // Cache image-name checks per phase; a restart clears stale PID ownership.
-
 const _pidIsWarframe = new Map<number, boolean>();
 // Bound PID churn from unrelated debug-emitting processes within one phase.
 const MAX_PID_CACHE_SIZE = 256;
@@ -110,62 +81,22 @@ function rememberPid(pid: number, value: boolean): void {
   _pidIsWarframe.set(pid, value);
 }
 
-// Pre-allocated output buffers (reused every call - no per-call heap alloc)
-const _exeNameBuf = Buffer.alloc(MAX_PATH * 2); // WCHAR[MAX_PATH] = UTF-16LE path
-const _exeNameSizeBuf = Buffer.alloc(4); // DWORD in/out
-
 function isWarframePid(pid: number): boolean {
   const cached = _pidIsWarframe.get(pid);
   if (cached !== undefined) return cached;
 
-  const hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-  if (!hProc) {
-    // Process may have exited; treat as not Warframe and don't cache -
-    // if the PID reappears it may be Warframe next time.
-    return false;
-  }
+  const query = queryExePath(pid);
+  // Process may have exited; treat as not Warframe and don't cache -
+  // if the PID reappears it may be Warframe next time.
+  if (query.status === "unreachable") return false;
 
-  // Reset size to buffer capacity before the call (it is an in/out parameter)
-  _exeNameSizeBuf.writeUInt32LE(MAX_PATH, 0);
-
-  const ok = (QueryFullProcessImageNameW(hProc, 0, _exeNameBuf, _exeNameSizeBuf) as number) !== 0;
-  CloseHandle(hProc);
-
-  if (!ok) {
-    rememberPid(pid, false);
-    return false;
-  }
-
-  const charCount = _exeNameSizeBuf.readUInt32LE(0);
-  const exePath = _exeNameBuf
-    .subarray(0, charCount * 2)
-    .toString("utf16le")
-    .toLowerCase();
-  const result = exePath.endsWith("\\warframe.x64.exe");
+  const result = query.status === "ok" && isWarframeExePath(query.path);
   rememberPid(pid, result);
   return result;
 }
 
-// Cache image-name lookups so process enumeration stays cheap.
-
-// Pre-allocated buffer for up to 1024 PIDs (4096 bytes / 4 bytes per DWORD)
-const _pidsBuf = Buffer.alloc(4096);
-const _pidsUsedBuf = Buffer.alloc(4); // DWORD: bytes returned by EnumProcesses
-
 function isWarframeRunning(): boolean {
-  _pidsUsedBuf.fill(0);
-  const ok = (EnumProcesses(_pidsBuf, _pidsBuf.length, _pidsUsedBuf) as number) !== 0;
-  if (!ok) return false;
-
-  const byteCount = _pidsUsedBuf.readUInt32LE(0);
-  const count = byteCount >>> 2; // each PID is 4 bytes
-
-  for (let i = 0; i < count; i++) {
-    const pid = _pidsBuf.readUInt32LE(i * 4);
-    if (pid === 0) continue; // System Idle Process - skip
-    if (isWarframePid(pid)) return true;
-  }
-  return false;
+  return enumProcessIds().some(isWarframePid);
 }
 
 const stopFlag = new Int32Array((workerData as { stopBuffer: SharedArrayBuffer }).stopBuffer);

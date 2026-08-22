@@ -4,6 +4,7 @@
   import MarketRowBase from "./MarketRowBase.svelte";
   import OrderStepper from "./OrderStepper.svelte";
   import { isRankedGroup } from "../../../config/shared/numeric.js";
+  import { tr } from "../../lib/i18n.js";
   import type { InventoryViewItem } from "../../lib/inventoryMarket.js";
   import type { OrderModalHint, WfmOrder } from "../../types/market.js";
 
@@ -58,7 +59,7 @@
   $: orderKind = order.orderType === "buy" ? "WTB" : "WTS";
   $: orderKindClass =
     order.orderType === "buy" ? "bg-sky-500/20 text-sky-300" : "bg-amber-500/20 text-amber-300";
-  $: liveLabel = order.visible ? "live" : "hidden";
+  $: liveLabel = order.visible ? $tr("market.liveLower") : $tr("market.hiddenLower");
   $: ownedCount = item?.amount ?? 0;
   $: isRankedListing = item
     ? isRankedGroup(item.inventoryGroup) && item.maxRank > 0
@@ -112,13 +113,15 @@
         type="checkbox"
         class="h-3.5 w-3.5 shrink-0 accent-accent"
         checked={selected}
-        title="Select for bulk action"
+        title={$tr("market.selectForBulk")}
         on:click|stopPropagation
         on:change={handleCheckbox}
       />
     </svelte:fragment>
     <svelte:fragment slot="titleMeta">
-      <span class="ml-1.5 text-xs font-semibold text-text-muted">Owned {ownedCount}</span>
+      <span class="ml-1.5 text-xs font-semibold text-text-muted"
+        >{$tr("market.ownedCount", { count: ownedCount })}</span
+      >
     </svelte:fragment>
     <svelte:fragment slot="headerEnd">
       {#if order.modRank != null}
@@ -128,7 +131,7 @@
       {/if}
       <span
         class="shrink-0 text-xs font-semibold {order.visible ? 'text-success' : 'text-warning'}"
-        title={order.visible ? "Visible on WFM" : "Hidden on WFM"}
+        title={order.visible ? $tr("market.visibleOnWfm") : $tr("market.hiddenOnWfm")}
       >
         {liveLabel}
       </span>
@@ -136,24 +139,25 @@
     <svelte:fragment slot="compactBody">
       <div class="flex min-w-0 flex-1 flex-col gap-1.5">
         <div class="flex items-center gap-2">
-          <span class="flex items-center gap-0.5" title="Listed quantity">
-            <span class="text-xs font-semibold uppercase tracking-[0.04em] text-text-muted">Q:</span
+          <span class="flex items-center gap-0.5" title={$tr("common.listedQuantity")}>
+            <span class="text-xs font-semibold uppercase tracking-[0.04em] text-text-muted"
+              >{$tr("market.qtyAbbrev")}</span
             >
             <OrderStepper
               value={draftQuantity}
               min={1}
               max={999}
-              label="quantity"
+              label={$tr("market.quantity")}
               onChange={(next) => (draftQuantity = next)}
             />
           </span>
-          <span class="flex items-center gap-0.5" title="Price (platinum)">
+          <span class="flex items-center gap-0.5" title={$tr("common.pricePlatinum")}>
             <img src={PLATINUM_ICON_URL} alt="" width="14" height="14" class="shrink-0" />
             <OrderStepper
               value={draftPlatinum}
               min={1}
               max={99999}
-              label="price"
+              label={$tr("market.price")}
               accent
               onChange={(next) => (draftPlatinum = next)}
             />
@@ -167,19 +171,21 @@
         {#if dirty}
           <button
             class="btn-success btn-sm h-7 w-7 px-0 text-sm font-black"
-            title="Apply new price/quantity"
-            aria-label="Apply changes"
+            title={$tr("market.applyNewPriceQty")}
+            aria-label={$tr("market.applyChanges")}
             disabled={savingInline}
             on:click={stopAndApply}>&check;</button
           >
         {/if}
-        <button class="btn-sm btn-secondary h-7 px-2 text-xs" title="Edit" on:click={stopAndEdit}
-          >Edit</button
+        <button
+          class="btn-sm btn-secondary h-7 px-2 text-xs"
+          title={$tr("market.edit")}
+          on:click={stopAndEdit}>{$tr("market.edit")}</button
         >
         <button
           class="btn-sm btn-danger h-7 w-7 px-0 text-sm font-black"
-          title="Delete"
-          aria-label="Delete"
+          title={$tr("common.delete")}
+          aria-label={$tr("common.delete")}
           on:click={stopAndDelete}>X</button
         >
       </div>
@@ -200,13 +206,15 @@
         type="checkbox"
         class="mt-1 h-[15px] w-[15px] shrink-0 accent-accent"
         checked={selected}
-        title="Select for bulk action"
+        title={$tr("market.selectForBulk")}
         on:click|stopPropagation
         on:change={handleCheckbox}
       />
     </svelte:fragment>
     <svelte:fragment slot="titleMeta">
-      <span class="ml-2 text-xs font-semibold text-text-muted">Owned {ownedCount}</span>
+      <span class="ml-2 text-xs font-semibold text-text-muted"
+        >{$tr("market.ownedCount", { count: ownedCount })}</span
+      >
     </svelte:fragment>
     <svelte:fragment slot="fullBody">
       <MarketOrderSummary {isRankedListing} {summaryRank} {wtsLabel} {wtbLabel} {medianLabel} />
@@ -219,27 +227,33 @@
           </span>
         {/if}
         {#if order.visible}
-          <span class="order-vis border-success/35 bg-success/15 text-success">Visible</span>
+          <span class="order-vis border-success/35 bg-success/15 text-success"
+            >{$tr("market.visible")}</span
+          >
         {:else}
-          <span class="order-vis border-warning/35 bg-warning/15 text-warning">Hidden</span>
+          <span class="order-vis border-warning/35 bg-warning/15 text-warning"
+            >{$tr("common.hidden")}</span
+          >
         {/if}
-        <span class="flex items-center gap-0.5" title="Listed quantity">
-          <span class="text-xs font-semibold uppercase tracking-[0.04em] text-text-muted">Q:</span>
+        <span class="flex items-center gap-0.5" title={$tr("common.listedQuantity")}>
+          <span class="text-xs font-semibold uppercase tracking-[0.04em] text-text-muted"
+            >{$tr("market.qtyAbbrev")}</span
+          >
           <OrderStepper
             value={draftQuantity}
             min={1}
             max={999}
-            label="quantity"
+            label={$tr("market.quantity")}
             onChange={(next) => (draftQuantity = next)}
           />
         </span>
-        <span class="flex items-center gap-0.5" title="Price (platinum)">
+        <span class="flex items-center gap-0.5" title={$tr("common.pricePlatinum")}>
           <img src={PLATINUM_ICON_URL} alt="" width="14" height="14" class="shrink-0" />
           <OrderStepper
             value={draftPlatinum}
             min={1}
             max={99999}
-            label="price"
+            label={$tr("market.price")}
             accent
             onChange={(next) => (draftPlatinum = next)}
           />
@@ -247,17 +261,19 @@
         {#if dirty}
           <button
             class="btn-success btn-sm h-7 w-7 px-0 text-sm font-black"
-            title="Apply new price/quantity"
-            aria-label="Apply changes"
+            title={$tr("market.applyNewPriceQty")}
+            aria-label={$tr("market.applyChanges")}
             disabled={savingInline}
             on:click={stopAndApply}>&check;</button
           >
         {/if}
-        <button class="btn-sm btn-secondary h-7 px-2 text-xs" on:click={stopAndEdit}>Edit</button>
+        <button class="btn-sm btn-secondary h-7 px-2 text-xs" on:click={stopAndEdit}
+          >{$tr("market.edit")}</button
+        >
         <button
           class="btn-sm btn-danger h-7 w-7 px-0 text-sm font-black"
-          title="Delete"
-          aria-label="Delete"
+          title={$tr("common.delete")}
+          aria-label={$tr("common.delete")}
           on:click={stopAndDelete}>X</button
         >
       </div>

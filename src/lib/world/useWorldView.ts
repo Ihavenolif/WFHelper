@@ -8,6 +8,8 @@ import {
   timeTo,
   timeToStrict,
 } from "../format.js";
+import { tr } from "../i18n.js";
+import type { MessageKey } from "../../i18n/en.js";
 import { invoke, on } from "../ipc.js";
 import { useInterval } from "../timers.js";
 import { PLANET_ICON_PATHS, fissureTierClass } from "../world.js";
@@ -86,10 +88,12 @@ export function mountWorldView(): () => void {
   void fetchWorldData(true);
 
   const stopFetchErrorListener = on("world-state-fetch-error", (message) => {
+    // A toast is a snapshot, so resolving the language once at fire time is fine.
+    const t = get(tr);
     addToast({
       level: "warning",
-      title: "World State",
-      message: `Failed to fetch world state: ${message}`,
+      title: t("world.fetchErrorTitle"),
+      message: t("world.fetchFailed", { error: String(message) }),
       durationMs: 8000,
     });
   });
@@ -274,6 +278,7 @@ export function buildCycleRows({
   duviriState,
   times,
   nowCoarseMs,
+  t,
 }: {
   earth: CycleData;
   cetus: CycleData;
@@ -283,14 +288,21 @@ export function buildCycleRows({
   duviriState: string;
   times: ReturnType<typeof buildWorldTimes>;
   nowCoarseMs: number;
+  t: (key: MessageKey) => string;
 }) {
-  const earthLabel = earth.isDay ? "Day" : "Night";
-  const cetusLabel = cetus.isDay ? "Day" : "Night";
-  const vallisLabel = vallis.isWarm ? "Warm" : "Cold";
+  const earthLabel = t(earth.isDay ? "world.cycle.day" : "world.cycle.night");
+  const cetusLabel = t(cetus.isDay ? "world.cycle.day" : "world.cycle.night");
+  const vallisLabel = t(vallis.isWarm ? "world.cycle.warm" : "world.cycle.cold");
   const cambionState = (cambion.active || "").toString().toLowerCase();
-  const cambionLabel = cambionState
-    ? cambionState.charAt(0).toUpperCase() + cambionState.slice(1)
-    : "Unknown";
+  // DE only ever reports fass or vome here; anything else is shown as sent.
+  const cambionLabel =
+    cambionState === "fass"
+      ? t("world.cycle.fass")
+      : cambionState === "vome"
+        ? t("world.cycle.vome")
+        : cambionState
+          ? cambionState.charAt(0).toUpperCase() + cambionState.slice(1)
+          : t("common.unknown");
   const rows = [
     {
       key: "earth" as const,
@@ -299,7 +311,7 @@ export function buildCycleRows({
       time: times.earth,
       stateLabel: earthLabel,
       stateClass: earth.isDay ? "day" : "night",
-      nextLabel: earth.isDay ? "Night" : "Day",
+      nextLabel: t(earth.isDay ? "world.cycle.night" : "world.cycle.day"),
       urgent: isUrgent(earth.expiry, earth.activation, undefined, nowCoarseMs),
     },
     {
@@ -309,7 +321,7 @@ export function buildCycleRows({
       time: times.cetus,
       stateLabel: cetusLabel,
       stateClass: cetus.isDay ? "day" : "night",
-      nextLabel: cetus.isDay ? "Night" : "Day",
+      nextLabel: t(cetus.isDay ? "world.cycle.night" : "world.cycle.day"),
       urgent: isUrgent(cetus.expiry, cetus.activation, undefined, nowCoarseMs),
     },
     {
@@ -319,7 +331,7 @@ export function buildCycleRows({
       time: times.vallis,
       stateLabel: vallisLabel,
       stateClass: vallis.isWarm ? "warm" : "cold",
-      nextLabel: vallis.isWarm ? "Cold" : "Warm",
+      nextLabel: t(vallis.isWarm ? "world.cycle.cold" : "world.cycle.warm"),
       urgent: isUrgent(vallis.expiry, vallis.activation, undefined, nowCoarseMs),
     },
     {
@@ -329,7 +341,7 @@ export function buildCycleRows({
       time: times.cambion,
       stateLabel: cambionLabel,
       stateClass: cambionState || "fass",
-      nextLabel: cambionState === "fass" ? "Vome" : "Fass",
+      nextLabel: t(cambionState === "fass" ? "world.cycle.vome" : "world.cycle.fass"),
       urgent: isUrgent(cambion.expiry, cambion.activation, undefined, nowCoarseMs),
     },
     ...(duviri?.expiry
@@ -341,7 +353,7 @@ export function buildCycleRows({
             time: times.duviri,
             stateLabel: duviriState,
             stateClass: duviriState.toLowerCase(),
-            nextLabel: (duviri.nextState || "Unknown").toString(),
+            nextLabel: duviri.nextState ? String(duviri.nextState) : t("common.unknown"),
             urgent: isUrgent(duviri.expiry, null, undefined, nowCoarseMs),
           },
         ]

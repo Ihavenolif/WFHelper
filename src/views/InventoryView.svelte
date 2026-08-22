@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount } from "svelte";
 
+  import { tr } from "../lib/i18n.js";
   import { parsedItems, wfmItems, inventoryData, itemDb } from "../stores/data.js";
   import { masteryData } from "../stores/mastery.js";
   import { marketOrders } from "../stores/market.js";
@@ -36,6 +37,8 @@
     recordRankedHotsetEntry,
   } from "../lib/wfm/rankedHotset.js";
   import { getInventoryHydrationController } from "../stores/inventoryHydration.js";
+  import { ARCANE_STAND_IN_ART } from "../data/arcaneStandInArt.js";
+  import { devMode, degradedIcons } from "../stores/devMode.js";
   import { sharedFilters, updateSharedFilters } from "../stores/filters.js";
   import { activeItem } from "../stores/modals.js";
   import { isRankedGroup } from "../../config/shared/numeric.js";
@@ -56,31 +59,32 @@
 
   // Only sorts the active tab can actually compute; anything else would
   // silently fall back to a name sort (metrics missing on those items).
-  const FULL_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
-    ["name", "Name"],
-    ["platinum", "Platinum"],
-    ["ducats", "Ducats"],
-    ["amount", "Amount"],
-    ["ducatonator", "Ducatonator"],
-    ["complete_sets", "Complete (Sets)"],
-    ["missing_parts", "Parts to Complete"],
-  ];
-  const PRICED_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
-    ["name", "Name"],
-    ["platinum", "Platinum"],
-    ["amount", "Amount"],
-  ];
-  const RESOURCE_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
-    ["name", "Name"],
-    ["amount", "Amount"],
-  ];
-  const SORT_OPTIONS_BY_TAB: Partial<Record<InventoryFilterTab, Array<[SharedSortKey, string]>>> = {
+  $: FULL_SORT_OPTIONS = [
+    ["name", $tr("common.name")],
+    ["platinum", $tr("common.platinum")],
+    ["ducats", $tr("common.ducats")],
+    ["amount", $tr("filters.amount")],
+    ["ducatonator", $tr("filters.ducatonator")],
+    ["complete_sets", $tr("filters.completeSets")],
+    ["missing_parts", $tr("filters.partsToComplete")],
+  ] as Array<[SharedSortKey, string]>;
+  $: PRICED_SORT_OPTIONS = [
+    ["name", $tr("common.name")],
+    ["platinum", $tr("common.platinum")],
+    ["amount", $tr("filters.amount")],
+  ] as Array<[SharedSortKey, string]>;
+  $: RESOURCE_SORT_OPTIONS = [
+    ["name", $tr("common.name")],
+    ["amount", $tr("filters.amount")],
+  ] as Array<[SharedSortKey, string]>;
+  $: SORT_OPTIONS_BY_TAB = {
     all_parts: FULL_SORT_OPTIONS,
     full_sets: FULL_SORT_OPTIONS,
     resources: RESOURCE_SORT_OPTIONS,
-  };
+  } as Partial<Record<InventoryFilterTab, Array<[SharedSortKey, string]>>>;
 
   let filter: InventoryFilterTab = restoreFilterTab();
+  let missingIconsOnly = false;
   let showFilterPanel = false;
   // Full Sets lists sellable spares; this folds in the sets still missing parts.
   let showIncompleteSets = false;
@@ -318,6 +322,16 @@
   $: partMastery = buildPartMasteryResolver($itemDb, $masteryData);
   $: masteredTabItems = attachPartMasteryFlags(searchableTabItems, partMastery);
   $: filtered = applySharedFiltersAndSort(masteredTabItems, $inventoryFilters);
+  $: visibleItems =
+    $devMode && missingIconsOnly
+      ? filtered.filter(
+          (item) =>
+            !item.displayImageUrl ||
+            item.usesFallbackArt ||
+            ARCANE_STAND_IN_ART.has(item.internalName) ||
+            $degradedIcons.has(item.name),
+        )
+      : filtered;
   $: resourceList =
     $inventoryData && Object.keys($itemDb).length > 0
       ? parseResources($inventoryData, $itemDb)
@@ -340,7 +354,7 @@
   }
 
   $: filteredResources = filterAndSortResources(resourceList, $inventoryFilters);
-  $: filteredTotalCount = filter === "resources" ? filteredResources.length : filtered.length;
+  $: filteredTotalCount = filter === "resources" ? filteredResources.length : visibleItems.length;
   function countActiveAdvancedFilters(state: SharedFiltersState): number {
     let active = 0;
     if (state.orderPlaced !== "all") active++;
@@ -405,11 +419,23 @@
               checked={showIncompleteSets}
               on:change={toggleIncompleteSets}
             />
-            Show incomplete sets
+            {$tr("inventory.showIncompleteSets")}
+          </label>
+        {/if}
+        {#if $devMode}
+          <label
+            class="mb-2 flex w-fit cursor-pointer items-center gap-2 text-xs text-text-secondary"
+          >
+            <input
+              type="checkbox"
+              class="accent-[color:var(--accent)]"
+              bind:checked={missingIconsOnly}
+            />
+            {$tr("inventory.missingIconsDev")}
           </label>
         {/if}
         <InventoryGrid
-          items={filtered}
+          items={visibleItems}
           {showDucats}
           {detailKeys}
           on:select={handleItemSelect}

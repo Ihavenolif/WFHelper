@@ -1,6 +1,7 @@
 <script lang="ts">
   import { resetSharedFilters, sharedFilters, updateSharedFilters } from "../stores/filters.js";
   import { defaultSortDirection } from "../lib/filters.js";
+  import { tr } from "../lib/i18n.js";
   import SortControl from "./SortControl.svelte";
   import SearchBox from "./SearchBox.svelte";
   import type {
@@ -24,39 +25,39 @@
   export let showVaulted = false;
   export let showFoundryState = false;
 
-  const PRIME_OPTIONS: Array<[PrimeFilterMode, string]> = [
-    ["all", "All"],
-    ["prime", "Prime"],
-    ["non_prime", "Non-Prime"],
-  ];
+  $: PRIME_OPTIONS = [
+    ["all", $tr("common.all")],
+    ["prime", $tr("common.prime")],
+    ["non_prime", $tr("filters.nonPrime")],
+  ] as Array<[PrimeFilterMode, string]>;
 
-  const MASTERED_OPTIONS: Array<[MasteredFilterMode, string]> = [
-    ["all", "All"],
-    ["mastered", "Mastered"],
-    ["not_mastered", "Not Mastered"],
-  ];
+  $: MASTERED_OPTIONS = [
+    ["all", $tr("common.all")],
+    ["mastered", $tr("common.mastered")],
+    ["not_mastered", $tr("common.notMastered")],
+  ] as Array<[MasteredFilterMode, string]>;
 
-  const FOUNDRY_STATE_OPTIONS: Array<[FoundryStateFilterMode, string]> = [
-    ["all", "All"],
-    ["claimable", "Ready"],
-    ["not_ready", "Not Ready"],
-    ["buildable", "Can Build"],
-  ];
+  $: FOUNDRY_STATE_OPTIONS = [
+    ["all", $tr("common.all")],
+    ["claimable", $tr("common.ready")],
+    ["not_ready", $tr("filters.notReady")],
+    ["buildable", $tr("common.canBuild")],
+  ] as Array<[FoundryStateFilterMode, string]>;
 
-  const DEFAULT_SORT_OPTIONS: Array<[SharedSortKey, string]> = [
-    ["name", "Name"],
-    ["platinum", "Platinum"],
-    ["ducats", "Ducats"],
-    ["amount", "Amount"],
-    ["ducatonator", "Ducatonator"],
-    ["complete_sets", "Complete (Sets)"],
-    ["missing_parts", "Parts to Complete"],
-  ];
+  $: DEFAULT_SORT_OPTIONS = [
+    ["name", $tr("common.name")],
+    ["platinum", $tr("common.platinum")],
+    ["ducats", $tr("common.ducats")],
+    ["amount", $tr("filters.amount")],
+    ["ducatonator", $tr("filters.ducatonator")],
+    ["complete_sets", $tr("filters.completeSets")],
+    ["missing_parts", $tr("filters.partsToComplete")],
+  ] as Array<[SharedSortKey, string]>;
 
-  const YES_NO_OPTIONS: Array<[Exclude<YesNoFilterMode, "all">, string]> = [
-    ["yes", "Yes"],
-    ["no", "No"],
-  ];
+  $: YES_NO_OPTIONS = [
+    ["yes", $tr("filters.yes")],
+    ["no", $tr("filters.no")],
+  ] as Array<[Exclude<YesNoFilterMode, "all">, string]>;
 
   $: scopeStore = sharedFilters(scope);
   $: state = $scopeStore;
@@ -131,10 +132,10 @@
 
       {#if basicVariant === "full"}
         <div class="shared-select-group">
-          <span class="shared-chip-label">Prime</span>
+          <span class="shared-chip-label">{$tr("common.prime")}</span>
           <select
             class="shared-filter-select"
-            title="Prime filter"
+            title={$tr("filters.primeFilterTitle")}
             value={state.primeMode}
             on:change={(event) => setPrimeMode(selectedValue(event) as PrimeFilterMode)}
           >
@@ -145,10 +146,10 @@
         </div>
 
         <div class="shared-select-group">
-          <span class="shared-chip-label">Mastery</span>
+          <span class="shared-chip-label">{$tr("common.mastery")}</span>
           <select
             class="shared-filter-select"
-            title="Mastered filter"
+            title={$tr("filters.masteredFilterTitle")}
             value={state.masteredMode}
             on:change={(event) => setMasteredMode(selectedValue(event) as MasteredFilterMode)}
           >
@@ -160,10 +161,10 @@
 
         {#if showFoundryState}
           <div class="shared-select-group">
-            <span class="shared-chip-label">Claim</span>
+            <span class="shared-chip-label">{$tr("filters.claimLabel")}</span>
             <select
               class="shared-filter-select"
-              title="Not Ready hides everything you could claim or build right now"
+              title={$tr("filters.claimTitle")}
               value={state.foundryState}
               on:change={(event) =>
                 updateSharedFilters(scope, {
@@ -178,31 +179,31 @@
         {/if}
 
         {#if showVaulted}
-          <div class="filter-tabs" title="Vaulted or currently farmable">
+          <div class="filter-tabs" title={$tr("filters.vaultedTitle")}>
             <button
               class="filter-tab"
               class:active={state.vaulted === "yes"}
-              on:click={() => setYesNoFilter("vaulted", "yes")}>Vaulted</button
+              on:click={() => setYesNoFilter("vaulted", "yes")}>{$tr("common.vaulted")}</button
             >
             <button
               class="filter-tab"
               class:active={state.vaulted === "no"}
-              on:click={() => setYesNoFilter("vaulted", "no")}>Unvaulted</button
+              on:click={() => setYesNoFilter("vaulted", "no")}>{$tr("common.unvaulted")}</button
             >
           </div>
         {/if}
 
         {#if showSubsumed}
-          <div class="filter-tabs" title="Helminth ability subsumed">
+          <div class="filter-tabs" title={$tr("filters.subsumedTitle")}>
             <button
               class="filter-tab"
               class:active={state.subsumed === "yes"}
-              on:click={() => setYesNoFilter("subsumed", "yes")}>Subsumed</button
+              on:click={() => setYesNoFilter("subsumed", "yes")}>{$tr("common.subsumed")}</button
             >
             <button
               class="filter-tab"
               class:active={state.subsumed === "no"}
-              on:click={() => setYesNoFilter("subsumed", "no")}>Not Subsumed</button
+              on:click={() => setYesNoFilter("subsumed", "no")}>{$tr("filters.notSubsumed")}</button
             >
           </div>
         {/if}
@@ -218,8 +219,8 @@
     {/if}
 
     {#if isInventoryScope && showAdvanced}
-      <div class="shared-chip-group" title="Order placed">
-        <span class="shared-chip-label">Order placed</span>
+      <div class="shared-chip-group" title={$tr("filters.orderPlaced")}>
+        <span class="shared-chip-label">{$tr("filters.orderPlaced")}</span>
         <div class="filter-tabs">
           {#each YES_NO_OPTIONS as [mode, label]}
             <button
@@ -231,8 +232,8 @@
         </div>
       </div>
 
-      <div class="shared-chip-group" title="Yes: everything this part builds into is mastered">
-        <span class="shared-chip-label">Mastered</span>
+      <div class="shared-chip-group" title={$tr("filters.masteredHint")}>
+        <span class="shared-chip-label">{$tr("common.mastered")}</span>
         <div class="filter-tabs">
           {#each YES_NO_OPTIONS as [mode, label]}
             <button
@@ -244,8 +245,8 @@
         </div>
       </div>
 
-      <div class="shared-chip-group" title="Yes: owned above what unbuilt gear still needs">
-        <span class="shared-chip-label">Spares</span>
+      <div class="shared-chip-group" title={$tr("filters.sparesHint")}>
+        <span class="shared-chip-label">{$tr("filters.spares")}</span>
         <div class="filter-tabs">
           {#each YES_NO_OPTIONS as [mode, label]}
             <button
@@ -257,8 +258,8 @@
         </div>
       </div>
 
-      <div class="shared-chip-group" title="Vaulted relics and prime parts">
-        <span class="shared-chip-label">Vaulted</span>
+      <div class="shared-chip-group" title={$tr("filters.vaultedHint")}>
+        <span class="shared-chip-label">{$tr("common.vaulted")}</span>
         <div class="filter-tabs">
           {#each YES_NO_OPTIONS as [mode, label]}
             <button
@@ -270,24 +271,24 @@
         </div>
       </div>
 
-      <div class="shared-chip-group" title="Part type">
-        <span class="shared-chip-label">Part type</span>
+      <div class="shared-chip-group" title={$tr("filters.partTypeTitle")}>
+        <span class="shared-chip-label">{$tr("filters.partTypeTitle")}</span>
         <div class="filter-tabs">
           <button
             class="filter-tab"
             class:active={state.partType === "normal"}
-            on:click={() => setPartTypeFilter("normal")}>Normal</button
+            on:click={() => setPartTypeFilter("normal")}>{$tr("common.normal")}</button
           >
           <button
             class="filter-tab"
             class:active={state.partType === "prime"}
-            on:click={() => setPartTypeFilter("prime")}>Prime</button
+            on:click={() => setPartTypeFilter("prime")}>{$tr("common.prime")}</button
           >
         </div>
       </div>
 
-      <div class="shared-chip-group" title="Favorite">
-        <span class="shared-chip-label">Favorite</span>
+      <div class="shared-chip-group" title={$tr("filters.favoriteTitle")}>
+        <span class="shared-chip-label">{$tr("filters.favoriteTitle")}</span>
         <div class="filter-tabs">
           {#each YES_NO_OPTIONS as [mode, label]}
             <button
@@ -299,8 +300,8 @@
         </div>
       </div>
 
-      <div class="shared-chip-group" title="Minimum platinum">
-        <span class="shared-chip-label">Minimum platinum</span>
+      <div class="shared-chip-group" title={$tr("filters.minPlatinumTitle")}>
+        <span class="shared-chip-label">{$tr("filters.minPlatinumTitle")}</span>
         <div class="filter-tabs">
           <label class="shared-number-filter">
             <input
@@ -309,8 +310,8 @@
               max="1000000"
               step="1"
               value={state.minimumPlatinum || ""}
-              placeholder="Any"
-              aria-label="Custom minimum platinum"
+              placeholder={$tr("filters.any")}
+              aria-label={$tr("filters.customMinPlatinum")}
               on:input={setMinimumPlatinum}
             />
             <span>p</span>
@@ -318,16 +319,14 @@
         </div>
       </div>
 
-      <div
-        class="shared-chip-group"
-        title="Owned amount: hide single copies so you don't sell your only one"
-      >
-        <span class="shared-chip-label">Amount</span>
+      <div class="shared-chip-group" title={$tr("filters.amountHint")}>
+        <span class="shared-chip-label">{$tr("filters.amount")}</span>
         <div class="filter-tabs">
           <button
             class="filter-tab"
             class:active={state.minimumAmount === 0}
-            on:click={() => updateSharedFilters(scope, { minimumAmount: 0 })}>Any</button
+            on:click={() => updateSharedFilters(scope, { minimumAmount: 0 })}
+            >{$tr("filters.any")}</button
           >
           <button
             class="filter-tab"
@@ -337,8 +336,8 @@
         </div>
       </div>
 
-      <div class="shared-chip-group" title="Equipped (mods only)">
-        <span class="shared-chip-label">Equipped (Mods only)</span>
+      <div class="shared-chip-group" title={$tr("common.equippedModsOnly")}>
+        <span class="shared-chip-label">{$tr("common.equippedModsOnly")}</span>
         <div class="filter-tabs">
           {#each YES_NO_OPTIONS as [mode, label]}
             <button
@@ -350,8 +349,8 @@
         </div>
       </div>
 
-      <div class="shared-chip-group" title="Leveled up (mods and arcanes)">
-        <span class="shared-chip-label">Leveled up (Mods & Arcanes)</span>
+      <div class="shared-chip-group" title={$tr("filters.leveledUpTitle")}>
+        <span class="shared-chip-label">{$tr("filters.leveledUpLabel")}</span>
         <div class="filter-tabs">
           {#each YES_NO_OPTIONS as [mode, label]}
             <button
@@ -365,8 +364,12 @@
     {/if}
 
     {#if showAdvanced || basicVariant === "full"}
-      <button class="filter-tab" on:click={() => resetSharedFilters(scope)} title="Reset filters">
-        Reset
+      <button
+        class="filter-tab"
+        on:click={() => resetSharedFilters(scope)}
+        title={$tr("filters.resetTitle")}
+      >
+        {$tr("common.reset")}
       </button>
     {/if}
   </div>

@@ -151,6 +151,7 @@ export function parseFoundry(
   function resolveProduct(blueprintItemType: string): {
     name: string;
     imageUrl: string | null;
+    displayName?: string;
     productUniqueName: string | null;
     category: string;
   } {
@@ -160,6 +161,7 @@ export function parseFoundry(
       const resolved = resolveItem(productUn, itemDb);
       return {
         name: resolved.name,
+        ...(resolved.displayName ? { displayName: resolved.displayName } : {}),
         imageUrl: resolved.imageUrl ?? null,
         productUniqueName: productUn,
         category,
@@ -169,6 +171,7 @@ export function parseFoundry(
     return {
       // Strip a trailing "Blueprint" word so the card reads like the product.
       name: resolved.name.replace(/\s+Blueprint\s*$/i, "").trim() || resolved.name,
+      ...(resolved.displayName ? { displayName: resolved.displayName } : {}),
       imageUrl: resolved.imageUrl ?? null,
       productUniqueName: null,
       category,
@@ -196,6 +199,7 @@ export function parseFoundry(
     const details = resolveRecipeDetails(product.productUniqueName, blueprintUn);
     building.push({
       name: product.name,
+      ...(product.displayName ? { displayName: product.displayName } : {}),
       imageUrl: product.imageUrl,
       endDate: parseCompletionDate(recipe.CompletionDate),
       uniqueName: blueprintUn,
@@ -214,6 +218,7 @@ export function parseFoundry(
     const details = resolveRecipeDetails(productUn, blueprintUn);
     recipes.push({
       name: product.name,
+      ...(product.displayName ? { displayName: product.displayName } : {}),
       imageUrl: product.imageUrl,
       count: typeof recipe.ItemCount === "number" ? recipe.ItemCount : 1,
       uniqueName: blueprintUn,
@@ -244,6 +249,7 @@ export function parseResources(
 
       return {
         name: resolved.name,
+        ...(resolved.displayName ? { displayName: resolved.displayName } : {}),
         imageUrl: resolved.imageUrl ?? null,
         internalName,
         count: typeof item.ItemCount === "number" ? item.ItemCount : 0,

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { tr } from "../../lib/i18n.js";
+  import { locale, tr } from "../../lib/i18n.js";
   import ThemedInput from "../ThemedInput.svelte";
   import ThemedPanel from "../ThemedPanel.svelte";
   import type { TradeEvent } from "../../types/ipc.js";
@@ -28,7 +28,7 @@
     const d = new Date(iso);
     const mo = d.getMonth() + 1;
     const da = d.getDate();
-    const time = d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+    const time = d.toLocaleTimeString($locale, { hour: "2-digit", minute: "2-digit" });
     return `${mo}/${da}  ${time}`;
   }
 
@@ -55,7 +55,13 @@
               : 'border-border bg-transparent text-text-muted hover:text-text-primary'}"
             on:click={() => (tradeFilter = f)}
           >
-            {f === "all" ? "∞" : f === "sale" ? "Sale" : f === "purchase" ? "Purchase" : "Trade"}
+            {f === "all"
+              ? "∞"
+              : f === "sale"
+                ? $tr("stats.filterSale")
+                : f === "purchase"
+                  ? $tr("stats.filterPurchase")
+                  : $tr("stats.filterTrade")}
             <span
               class="text-xs rounded-lg px-1 min-w-[16px] text-center {tradeFilter === f
                 ? 'bg-black/25'
@@ -68,7 +74,7 @@
       </div>
       <ThemedInput
         type="text"
-        placeholder="Search items or players..."
+        placeholder={$tr("stats.tradeSearchPlaceholder")}
         bind:value={tradeSearch}
         className="w-full py-1 px-2.5 text-xs"
         searchFocusTarget
@@ -81,14 +87,14 @@
     {#if filteredTrades.length === 0}
       <div class="flex flex-col items-center justify-center gap-2 py-8 px-4 text-center">
         {#if trades.length === 0}
-          <p class="text-xs font-semibold text-text-secondary m-0">No trades recorded yet</p>
+          <p class="text-xs font-semibold text-text-secondary m-0">{$tr("stats.noTradesYet")}</p>
           <p class="text-xs text-text-muted max-w-[400px] leading-relaxed m-0">
-            Trades are detected automatically from your game log when you accept a trade in-game.
-            Keep the app running while playing to begin tracking, or import AlecaFrame data using
-            the button above.
+            {$tr("stats.noTradesDesc")}
           </p>
         {:else}
-          <p class="text-xs font-semibold text-text-secondary m-0">No matching trades</p>
+          <p class="text-xs font-semibold text-text-secondary m-0">
+            {$tr("stats.noMatchingTrades")}
+          </p>
         {/if}
       </div>
     {:else}
@@ -108,12 +114,16 @@
                     ? 'bg-info/15 text-info border-info/30'
                     : 'bg-[rgba(168,162,186,0.15)] text-text-secondary border-[rgba(168,162,186,0.3)]'}"
               >
-                {trade.type === "sale" ? "Sale" : trade.type === "purchase" ? "Purchase" : "Trade"}
+                {trade.type === "sale"
+                  ? $tr("stats.filterSale")
+                  : trade.type === "purchase"
+                    ? $tr("stats.filterPurchase")
+                    : $tr("stats.filterTrade")}
               </span>
               {#if trade.wfmClosed}
                 <span
                   class="text-xs font-bold uppercase tracking-[0.04em] py-[1px] px-1 rounded-[3px] bg-accent/15 text-accent border border-accent/30 shrink-0"
-                  title="WFM order auto-closed">WFM</span
+                  title={$tr("stats.wfmAutoClosedTitle")}>{$tr("stats.wfmBadge")}</span
                 >
               {/if}
               {#if trade.platChange > 0}

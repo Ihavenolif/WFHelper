@@ -1,3 +1,4 @@
+import type { MessageKey } from "./i18n.js";
 import type { SharedFiltersState } from "../types/filters.js";
 import type { ParsedItem, InventoryGroup, PartType } from "../types/inventory.js";
 import type { WfmItemsLookup } from "../types/ipc.js";
@@ -14,7 +15,7 @@ import {
   isRankedGroup,
   resolveRankedMaxRank,
 } from "../../config/shared/numeric.js";
-import { formatWfmAssetUrl } from "../../config/shared/wfm.js";
+import { formatWfmAssetUrl, sanitizeWfmSlug } from "../../config/shared/wfm.js";
 import { rendererPriceCacheKey } from "../../config/shared/wfmCacheKeys.js";
 import { isExcludedRankedMarketItem } from "../../config/shared/wfmExclusions.js";
 
@@ -43,6 +44,8 @@ export interface InventoryViewItem extends InventoryBaseItem {
   ducats: number | null;
   ducatonator: number | null;
   displayImageUrl: string | null;
+  /** Mod or arcane falling back to DE art because no WFM icon resolved. */
+  usesFallbackArt: boolean;
   equippedSummary: string | null;
 }
 
@@ -75,16 +78,16 @@ export interface MetricNeeds {
   network?: boolean;
 }
 
-export const INVENTORY_FILTERS: Array<{ key: InventoryFilterTab; label: string }> = [
-  { key: "all_parts", label: "All Parts" },
-  { key: "relics", label: "Relics" },
-  { key: "mods", label: "Mods" },
-  { key: "arcanes", label: "Arcanes" },
+export const INVENTORY_FILTERS: Array<{ key: InventoryFilterTab; labelKey: MessageKey }> = [
+  { key: "all_parts", labelKey: "inventory.tab.allParts" },
+  { key: "relics", labelKey: "common.relics" },
+  { key: "mods", labelKey: "inventory.tab.mods" },
+  { key: "arcanes", labelKey: "inventory.tab.arcanes" },
   // No incomplete_sets tab: those live on the Mastery page, plus a Full Sets toggle.
-  { key: "full_sets", label: "Full Sets" },
-  { key: "equipment", label: "Equipment" },
-  { key: "resources", label: "Resources" },
-  { key: "misc", label: "Misc" },
+  { key: "full_sets", labelKey: "inventory.tab.fullSets" },
+  { key: "equipment", labelKey: "inventory.tab.equipment" },
+  { key: "resources", labelKey: "nav.resources" },
+  { key: "misc", labelKey: "inventory.tab.misc" },
 ];
 
 function lookupNameCandidates(itemName: string): string[] {
@@ -234,10 +237,10 @@ function getLookupByGameRef(
 
 function resolveSlug(item: ParsedItem, lookup: WfmItemsLookup): string | null {
   const lookupByGameRef = getLookupByGameRef(item.internalName, lookup);
-  if (lookupByGameRef?.url_name) return toMarketSlug(lookupByGameRef.url_name);
+  if (lookupByGameRef?.url_name) return sanitizeWfmSlug(lookupByGameRef.url_name);
 
   const lookupByName = getLookupByName(item.name, lookup);
-  if (lookupByName?.url_name) return toMarketSlug(lookupByName.url_name);
+  if (lookupByName?.url_name) return sanitizeWfmSlug(lookupByName.url_name);
 
   if (isRankedGroup(item.inventoryGroup)) {
     return null;
@@ -331,9 +334,9 @@ export function buildBaseInventoryItems(
           : rawRelicGroupName;
       const lookupByName = getLookupByName(relicGroupName || item.name, wfmLookup);
       const lookupByGameRef = getLookupByGameRef(item.internalName, wfmLookup);
-      const mappedSlug = lookupByName?.url_name ? toMarketSlug(lookupByName.url_name) : null;
+      const mappedSlug = lookupByName?.url_name ? sanitizeWfmSlug(lookupByName.url_name) : null;
       const mappedGameRefSlug = lookupByGameRef?.url_name
-        ? toMarketSlug(lookupByGameRef.url_name)
+        ? sanitizeWfmSlug(lookupByGameRef.url_name)
         : null;
       const isSetGroup = group === "full_sets" || group === "incomplete_sets";
       const snapshotSetSlug = isSetGroup
@@ -434,11 +437,13 @@ export function buildBaseInventoryItems(
     .filter((item): item is InventoryBaseItem => item != null);
 }
 
-export function buildInventoryViewItems(
-  baseItems: InventoryBaseItem[],
+// Generic so callers that hang an extra field on the base item (market orders
+// carry sourceOrderId) get it back on the view item instead of re-joining.
+export function buildInventoryViewItems<T extends InventoryBaseItem>(
+  baseItems: T[],
   metricsByKey: Record<string, ItemMetrics>,
-): InventoryViewItem[] {
-  return baseItems.map<InventoryViewItem>((item) => {
+): (T & InventoryViewItem)[] {
+  return baseItems.map<T & InventoryViewItem>((item) => {
     const metric = metricsByKey[item.internalName] || null;
     const isRankedListingItem = isRankedGroup(item.inventoryGroup);
     const itemMaxRank =
@@ -490,9 +495,14 @@ export function buildInventoryViewItems(
         : null;
 
     const iconFromMeta = formatWfmAssetUrl(metric?.thumb || metric?.icon || null);
-    const displayImageUrl = isRankedGroup(item.inventoryGroup)
-      ? item.marketThumb || iconFromMeta || item.imageUrl || null
-      : item.imageUrl || item.marketThumb || iconFromMeta || null;
+    // Mods and arcanes used to prefer the WFM thumb because DE's flat icon was
+    // worse. The framed wiki card is better than both, so it wins when we have it.
+    const displayImageUrl =
+      isRankedListingItem && !item.cardArt
+        ? item.marketThumb || iconFromMeta || item.imageUrl || null
+        : item.imageUrl || item.marketThumb || iconFromMeta || null;
+    const usesFallbackArt =
+      isRankedListingItem && !item.cardArt && !item.marketThumb && !iconFromMeta;
 
     const equippedInList = Array.isArray(item.equippedIn) ? item.equippedIn : [];
     const equippedSummary =
@@ -512,6 +522,7 @@ export function buildInventoryViewItems(
       ducats,
       ducatonator,
       displayImageUrl,
+      usesFallbackArt,
       equippedSummary,
     };
   });

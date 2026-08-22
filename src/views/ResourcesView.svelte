@@ -1,5 +1,7 @@
 <script lang="ts">
   import { formatNumber } from "../lib/format.js";
+  import { tr } from "../lib/i18n.js";
+  import { itemLabel } from "../lib/itemLabel.js";
   import ItemImage from "../components/ItemImage.svelte";
   import type { Resource } from "../types/inventory.js";
 
@@ -7,10 +9,10 @@
 </script>
 
 <div class="resources-sub-panel">
-  <div class="grid grid-cols-[repeat(auto-fill,minmax(180px,1fr))] gap-3">
+  <div class="grid grid-cols-[repeat(auto-fill,minmax(13rem,1fr))] gap-3">
     {#if resources.length === 0}
       <div class="empty-state col-span-full">
-        <p>No resources found</p>
+        <p>{$tr("resources.noResourcesFound")}</p>
       </div>
     {:else}
       {#each resources as r}
@@ -20,12 +22,14 @@
           >
             <ItemImage
               src={r.imageUrl}
-              alt={r.name}
+              alt={itemLabel(r)}
               cls="h-[var(--resource-image-max)] w-[var(--resource-image-max)] object-contain"
             />
           </div>
-          <div class="resource-info">
-            <span class="resource-name">{r.name}</span>
+          <div class="resource-info flex-1 justify-center p-0">
+            <span class="resource-name whitespace-normal break-words leading-tight"
+              >{itemLabel(r)}</span
+            >
             <span class="resource-count">{formatNumber(r.count)}</span>
           </div>
         </div>

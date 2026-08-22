@@ -9,3 +9,9 @@
 *.ico binary
 *.wav binary
 *.onnx binary
+
+# Keep message data out of GitHub's language statistics while preserving diffs.
+src/i18n/*.json linguist-detectable=false
+
+# Generated from DE's own dictionaries; shipped, so tracked, but not our code.
+src/data/itemNames/*.json linguist-detectable=false linguist-generated=true

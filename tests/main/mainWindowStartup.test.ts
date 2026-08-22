@@ -14,6 +14,13 @@ describe("main window startup", () => {
     expect(createWindow).toMatch(/windowShown \|\| mainWindow\.isDestroyed\(\)/);
   });
 
+  it("restores maximized state only when the painted window is shown", () => {
+    expect(createWindow).toMatch(
+      /const showMainWindow[\s\S]*?savedState\?\.maximized[\s\S]*?mainWindow\.maximize\(\)[\s\S]*?mainWindow\.show\(\)/,
+    );
+    expect(createWindow.match(/mainWindow\.maximize\(\)/g)).toHaveLength(1);
+  });
+
   it("re-execs with the ozone flag in argv when joining XWayland", () => {
     expect(source).toMatch(/DISPLAY_BACKEND === "x11"[\s\S]*?if \(!OZONE_PLATFORM_ARG\)/);
     expect(source).toContain('process.argv.find((arg) => arg.startsWith("--ozone-platform="))');

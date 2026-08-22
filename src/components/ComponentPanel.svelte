@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { itemDb, wfmItems } from "../stores/data.js";
   import { createPriceLoader } from "../lib/priceState.js";
   import {
@@ -10,6 +11,7 @@
   import DropsList from "./DropsList.svelte";
   import MarketPrice from "./MarketPrice.svelte";
   import WikiButton from "./WikiButton.svelte";
+  import { tr, type MessageKey } from "../lib/i18n.js";
   import type { ComponentInfo } from "../types/inventory.js";
 
   /** The component whose detail is rendered. */
@@ -21,18 +23,28 @@
   /** Extra class for the outer .detail-panel element (e.g. "comp-inline-panel", "comp-panel"). */
   export let panelClass: string = "";
 
-  let priceText = "";
+  let priceKey: MessageKey | null = null;
+  let priceParams: Record<string, string | number> | undefined;
   let priceSlug: string | null = null;
   const priceLoader = createPriceLoader((state) => {
-    priceText = state.text;
+    priceKey = state.messageKey;
+    priceParams = state.messageParams;
     priceSlug = state.slug;
   });
+
+  $: priceText = priceKey ? $tr(priceKey, priceParams) : "";
 
   $: compDrops = resolveDrops(comp, $itemDb);
   $: compImageUrl = comp?.uniqueName ? $itemDb[comp.uniqueName]?.imageUrl || null : null;
   $: compDbEntry = comp?.uniqueName ? $itemDb[comp.uniqueName] : null;
   $: compLocation = resolveComponentLocation(compDbEntry);
   $: compWikiUrl = comp?.uniqueName ? $itemDb[comp.uniqueName]?.wikiaUrl || null : null;
+
+  // `parentName` stays the English lookup key for prices and the wiki, so only
+  // the meta row swaps in the parent's translated label, and only for the very
+  // entry that name belongs to.
+  $: parentEntry = compDbEntry?.componentOf ? $itemDb[compDbEntry.componentOf] || null : null;
+  $: parentLabel = parentEntry?.name === parentName ? itemLabel(parentEntry) : parentName;
 
   // Reload price whenever the component (identity) changes.
   $: if (comp) {
@@ -62,22 +74,26 @@
   <div class="detail-panel-top-actions">
     <WikiButton wikiUrl={compWikiUrl} fallbackName={wikiFallback} />
     {#if onClose}
-      <button class="detail-close" aria-label="Close" on:click={onClose}>&times;</button>
+      <button class="detail-close" aria-label={$tr("common.close")} on:click={onClose}
+        >&times;</button
+      >
     {/if}
   </div>
 
   <div class="detail-header">
     {#if compImageUrl}
       <div class="detail-img-wrap">
-        <img class="item-img" src={compImageUrl} alt={comp.name} />
+        <img class="item-img" src={compImageUrl} alt={itemLabel(comp)} />
       </div>
     {/if}
     <div class="detail-title-area">
-      <h2>{comp.name || "Unknown Component"}</h2>
+      <h2>{itemLabel(comp) || $tr("detail.unknownComponent")}</h2>
       <div class="comp-meta-stack">
-        {#if parentName}<div class="detail-meta">{parentName}</div>{/if}
-        {#if comp.tradable}<div class="detail-meta">Tradable</div>{/if}
-        <div class="detail-meta">{comp.ownedCount ?? 0}/{comp.itemCount || 1} owned</div>
+        {#if parentName}<div class="detail-meta">{parentLabel}</div>{/if}
+        {#if comp.tradable}<div class="detail-meta">{$tr("detail.tradable")}</div>{/if}
+        <div class="detail-meta">
+          {$tr("detail.owned", { owned: comp.ownedCount ?? 0, needed: comp.itemCount || 1 })}
+        </div>
       </div>
     </div>
   </div>
@@ -87,7 +103,7 @@
       <div class="detail-desc">{compLocation}</div>
     {/if}
 
-    <DropsList drops={compDrops} title="Drop Sources" />
+    <DropsList drops={compDrops} title={$tr("detail.dropSources")} />
 
     <MarketPrice text={priceText} slug={priceSlug} />
   </div>

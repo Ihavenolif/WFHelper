@@ -1,9 +1,11 @@
 <script lang="ts">
+  import { itemLabel } from "../../lib/itemLabel.js";
   import { createEventDispatcher, onDestroy, onMount } from "svelte";
 
   import ItemImage from "../ItemImage.svelte";
   import MarketMetricStrip from "../MarketMetricStrip.svelte";
   import { NAV_ICON_URLS } from "../../lib/assetUrls.js";
+  import { tr } from "../../lib/i18n.js";
   import type { InventoryViewItem } from "../../lib/inventoryMarket.js";
   import { isRankedGroup } from "../../../config/shared/numeric.js";
 
@@ -77,7 +79,7 @@
     : ''}"
   role="button"
   tabindex="0"
-  aria-label="Open details for {item.name}"
+  aria-label={$tr("common.openDetailsFor", { name: itemLabel(item) })}
   on:click={selectCard}
   on:keydown={(event) => (event.key === "Enter" || event.key === " ") && selectCard()}
   bind:this={cardEl}
@@ -86,26 +88,27 @@
     <button
       type="button"
       class="expand-link absolute top-1.5 right-1.5 z-10 inline-flex items-center rounded border border-border bg-black/45 px-1.5 py-0.5 font-display text-xs font-semibold text-text-secondary opacity-0 transition-[opacity,color,border-color] duration-100 group-hover:opacity-100 hover:text-accent hover:border-accent-dim"
-      title="Open item details"
-      aria-label="Open details for {item.name}"
+      title={$tr("inventory.openItemDetails")}
+      aria-label={$tr("common.openDetailsFor", { name: itemLabel(item) })}
       on:click|stopPropagation={() => dispatch("expand", item)}
     >
-      Details
+      {$tr("common.details")}
     </button>
   {/if}
   <div class="item-img-wrap">
     <ItemImage
       src={item.displayImageUrl}
       fallbackSrc={item.imageUrl !== item.displayImageUrl ? item.imageUrl : null}
-      alt={item.name}
+      alt={itemLabel(item)}
+      auditKey={item.name}
     />
     {#if item.vaulted}<span class="vault-badge">V</span>{/if}
     {#if item.orderPlaced}
       <span
         class="absolute top-1.5 left-1.5 inline-flex items-center justify-center rounded-full border border-border bg-black/50 p-1"
-        title="Listed on warframe.market"
+        title={$tr("inventory.listedOnWfm")}
       >
-        <img src={NAV_ICON_URLS.market} alt="Listed on warframe.market" class="h-3 w-3" />
+        <img src={NAV_ICON_URLS.market} alt={$tr("inventory.listedOnWfm")} class="h-3 w-3" />
       </span>
     {/if}
     {#if item.inventoryGroup === "incomplete_sets"}
@@ -121,15 +124,19 @@
     {/if}
   </div>
   <div class="item-body">
-    <span class="item-name">{item.name}</span>
+    <span class="item-name">{itemLabel(item)}</span>
     <span class="item-type">
       {item.categoryLabel}
       {#if item.inventoryGroup === "full_sets"}
-        {` · Complete ${typeof item.completeSets === "number" ? item.completeSets : 0}`}
+        {$tr("inventory.completeCount", {
+          count: typeof item.completeSets === "number" ? item.completeSets : 0,
+        })}
       {:else if item.inventoryGroup === "incomplete_sets"}
-        {` · Needs ${typeof item.missingParts === "number" ? item.missingParts : 0} ${
-          item.missingParts === 1 ? "part" : "parts"
-        }`}
+        {typeof item.missingParts === "number" && item.missingParts === 1
+          ? $tr("inventory.needsPartsOne", { count: item.missingParts })
+          : $tr("inventory.needsPartsMany", {
+              count: typeof item.missingParts === "number" ? item.missingParts : 0,
+            })}
       {/if}
     </span>
 
@@ -147,7 +154,7 @@
           class="inventory-rank-order-box grid gap-0.5 min-h-8 content-center border border-accent-bright/50 bg-accent/20 rounded-md py-1 px-1.5"
         >
           <span class="inventory-rank-order-label text-xs uppercase tracking-[0.04em] font-display"
-            >WTS R{rankCapLabel}</span
+            >{$tr("inventory.wtsRank", { rank: rankCapLabel })}</span
           >
           <strong>{wtsRankMaxLabel}</strong>
         </span>
@@ -155,7 +162,7 @@
           class="inventory-rank-order-box grid gap-0.5 min-h-8 content-center border border-accent-bright/50 bg-accent/20 rounded-md py-1 px-1.5"
         >
           <span class="inventory-rank-order-label text-xs uppercase tracking-[0.04em] font-display"
-            >WTB R{rankCapLabel}</span
+            >{$tr("inventory.wtbRank", { rank: rankCapLabel })}</span
           >
           <strong>{wtbRankMaxLabel}</strong>
         </span>
@@ -163,7 +170,7 @@
           class="inventory-rank-order-box grid gap-0.5 min-h-8 content-center border border-accent-bright/50 bg-accent/20 rounded-md py-1 px-1.5"
         >
           <span class="inventory-rank-order-label text-xs uppercase tracking-[0.04em] font-display"
-            >WTS R0</span
+            >{$tr("inventory.wtsR0")}</span
           >
           <strong>{wtsRank0Label}</strong>
         </span>
@@ -171,7 +178,7 @@
           class="inventory-rank-order-box grid gap-0.5 min-h-8 content-center border border-accent-bright/50 bg-accent/20 rounded-md py-1 px-1.5"
         >
           <span class="inventory-rank-order-label text-xs uppercase tracking-[0.04em] font-display"
-            >WTB R0</span
+            >{$tr("inventory.wtbR0")}</span
           >
           <strong>{wtbRank0Label}</strong>
         </span>

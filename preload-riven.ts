@@ -21,8 +21,11 @@ import {
   RIVEN_RESCAN,
   RIVEN_WEAPON_MISSING,
   OVERLAY_GET_THEME_VARS,
+  OVERLAY_GET_MESSAGES,
+  OVERLAY_MESSAGES,
   OVERLAY_GET_DRAG_HINT,
   OVERLAY_DRAG_MOVE,
+  OVERLAY_READY,
 } from "./config/shared/ipcChannels";
 
 const onRivenIpc = (
@@ -37,6 +40,7 @@ contextBridge.exposeInMainWorld("rivenOverlay", {
   openAuction: (auctionId: string) => ipcRenderer.send(RIVEN_OPEN_AUCTION, auctionId),
   requestRescan: () => ipcRenderer.send(RIVEN_RESCAN_REQUEST),
   moveBy: (dx: number, dy: number) => ipcRenderer.send(OVERLAY_DRAG_MOVE, { dx, dy }),
+  ready: () => ipcRenderer.send(OVERLAY_READY),
   getDragHint: () => ipcRenderer.invoke(OVERLAY_GET_DRAG_HINT),
   onSessionStart: (cb: (weapon: string, kuvaPerRoll: number) => void) =>
     onRivenIpc(RIVEN_SESSION_START, (_event: unknown, weapon: unknown, kuvaPerRoll: unknown) =>
@@ -56,6 +60,8 @@ contextBridge.exposeInMainWorld("rivenOverlay", {
   onWeaponMissing: (cb: () => void) => onRivenIpc(RIVEN_WEAPON_MISSING, () => cb()),
   onThemeVars: (cb: (vars: unknown) => void) =>
     onRivenIpc(OVERLAY_THEME_VARS, (_event: unknown, vars: unknown) => cb(vars)),
+  onMessages: (cb: (messages: unknown) => void) =>
+    onRivenIpc(OVERLAY_MESSAGES, (_event: unknown, messages: unknown) => cb(messages)),
   onInteractionMode: (cb: (payload: unknown) => void) =>
     onRivenIpc(OVERLAY_INTERACTION_MODE, (_event: unknown, payload: unknown) => cb(payload)),
   // Grading + enrichment
@@ -68,4 +74,5 @@ contextBridge.exposeInMainWorld("rivenOverlay", {
   onSimilarListings: (cb: (listings: unknown) => void) =>
     onRivenIpc(RIVEN_SIMILAR_LISTINGS, (_event: unknown, listings: unknown) => cb(listings)),
   getThemeVars: () => ipcRenderer.invoke(OVERLAY_GET_THEME_VARS),
+  getMessages: () => ipcRenderer.invoke(OVERLAY_GET_MESSAGES),
 });

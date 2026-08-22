@@ -1,8 +1,10 @@
 import { fetchPriceByName, fetchPriceBySlug } from "./wfm/wfmPrice.js";
 import { send } from "./ipc.js";
+import type { MessageKey } from "../i18n/en.js";
 
-interface PriceState {
-  text: string;
+export interface PriceState {
+  messageKey: MessageKey | null;
+  messageParams?: Record<string, string | number>;
   slug: string | null;
 }
 
@@ -12,10 +14,14 @@ export async function loadItemPriceBySlug(slug: string): Promise<PriceState | nu
   try {
     const result = await fetchPriceBySlug(slug, { priority: "high" });
     if (result?.median != null) {
-      return { text: `~${result.median} platinum (48h median)`, slug: result.slug };
+      return {
+        messageKey: "market.priceMedian48h",
+        messageParams: { plat: result.median },
+        slug: result.slug,
+      };
     }
     if (result?.status === "no_data") {
-      return { text: "No recent price data.", slug: result.slug };
+      return { messageKey: "market.noRecentPriceData", slug: result.slug };
     }
     return null;
   } catch {
@@ -23,27 +29,31 @@ export async function loadItemPriceBySlug(slug: string): Promise<PriceState | nu
   }
 }
 
-/** WFM price for an item/component - { text, slug }. */
+/** WFM price for an item/component - { messageKey, slug }. */
 export async function loadItemPrice(
   name: string,
   wfmItems: Record<string, { url_name: string }>,
   isTradable: boolean,
 ): Promise<PriceState> {
   if (!isTradable) {
-    return { text: "Item is not tradable.", slug: null };
+    return { messageKey: "market.itemNotTradable", slug: null };
   }
   try {
     const result = await fetchPriceByName(name, wfmItems, { priority: "high" });
     if (result?.median != null) {
-      return { text: `~${result.median} platinum (48h median)`, slug: result.slug };
+      return {
+        messageKey: "market.priceMedian48h",
+        messageParams: { plat: result.median },
+        slug: result.slug,
+      };
     }
     const mapping = (wfmItems || {})[name?.toLowerCase()];
     if (mapping) {
-      return { text: "No recent price data.", slug: mapping.url_name };
+      return { messageKey: "market.noRecentPriceData", slug: mapping.url_name };
     }
-    return { text: "No listing found.", slug: null };
+    return { messageKey: "market.noListingFound", slug: null };
   } catch {
-    return { text: "Failed to load price data.", slug: null };
+    return { messageKey: "market.priceLoadFailed", slug: null };
   }
 }
 

@@ -39,6 +39,8 @@ export interface DropEntry {
 export interface ComponentEntry {
   uniqueName: string;
   name: string;
+  /** `/Lotus/Language/...` key this name came from, for game-language lookup. */
+  nameKey?: string | null;
   imageName?: string;
   tradable?: boolean;
   ducats?: number;
@@ -48,7 +50,12 @@ export interface ComponentEntry {
 
 /** Renderer-facing subset of ItemEntry sent via IPC. */
 export interface RendererItemEntry {
+  /** English. Stays the join key for warframe.market, OCR and by-name lookups. */
   name: string;
+  /** Active game language, present only when it differs from `name`. Display only. */
+  displayName?: string;
+  /** Art is the framed wiki card, so a marketplace thumbnail must not replace it. */
+  cardArt?: true;
   category: string;
   imageUrl: string | null;
   isPrime: boolean;
@@ -65,6 +72,7 @@ export interface RendererItemEntry {
   ducats: number | null;
   components: {
     name: string;
+    displayName?: string;
     uniqueName: string;
     tradable?: boolean;
     itemCount: number;

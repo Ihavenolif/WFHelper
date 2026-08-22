@@ -1,7 +1,3 @@
-import { app } from "electron";
-import fs from "node:fs";
-import path from "node:path";
-
 import {
   type GoodRollData,
   parseRivenGoodRollCsv,
@@ -9,8 +5,8 @@ import {
   RIVEN_GOOD_ROLLS_SHEET_ID,
 } from "../config/shared/rivenGoodRolls";
 import { statTagToDisplayName } from "../config/shared/rivenStatDisplayNames";
+import { createJsonCache } from "./jsonCache";
 import { withScope } from "./logger";
-import { writeFileAtomicSync } from "./atomicFile";
 
 const log = withScope("rivenBestAttributes");
 
@@ -33,43 +29,26 @@ interface BestAttributes {
 
 export type { GoodRollData };
 
-function cachePath(): string {
-  return path.join(app.getPath("userData"), "riven-good-rolls-cache.json");
-}
-
 function isGoodRollData(value: unknown): value is GoodRollData {
   if (!value || typeof value !== "object") return false;
   const data = value as GoodRollData;
   return Array.isArray(data.goodAttrs) && Array.isArray(data.acceptedBadAttrs);
 }
 
-function readCache(): CachePayload | null {
-  try {
-    const raw = fs.readFileSync(cachePath(), "utf8");
-    const parsed = JSON.parse(raw) as Partial<CachePayload>;
-    if (!parsed.updatedAt || !parsed.data || typeof parsed.data !== "object") return null;
-    const data: GoodRollMap = {};
-    for (const [name, value] of Object.entries(parsed.data)) {
-      if (isGoodRollData(value)) data[name] = value;
-    }
-    return Object.keys(data).length > 0 ? { updatedAt: parsed.updatedAt, data } : null;
-  } catch {
-    // Corrupt/unparseable cache payload - ignore and rebuild from source.
-    return null;
+// An all-garbage entry map is treated as no cache at all so the sheet is refetched.
+const cache = createJsonCache<CachePayload>("riven-good-rolls-cache.json", (raw) => {
+  const parsed = raw as Partial<CachePayload>;
+  if (!parsed.updatedAt || !parsed.data || typeof parsed.data !== "object") return null;
+  const data: GoodRollMap = {};
+  for (const [name, value] of Object.entries(parsed.data)) {
+    if (isGoodRollData(value)) data[name] = value;
   }
-}
-
-function writeCache(data: GoodRollMap): void {
-  try {
-    writeFileAtomicSync(cachePath(), JSON.stringify({ updatedAt: new Date().toISOString(), data }));
-  } catch (err) {
-    log.warn("Failed to write riven good-rolls cache", err);
-  }
-}
+  return Object.keys(data).length > 0 ? { updatedAt: parsed.updatedAt, data } : null;
+});
 
 function loadCacheIfNeeded(): void {
   if (goodRolls) return;
-  const cached = readCache();
+  const cached = cache.read();
   if (cached) goodRolls = cached.data;
 }
 
@@ -115,10 +94,10 @@ export async function ensureRivenGoodRollsLoaded(force = false): Promise<void> {
     try {
       const fresh = await fetchSheet();
       goodRolls = fresh;
-      writeCache(fresh);
+      cache.write({ updatedAt: new Date().toISOString(), data: fresh });
       log.info(`Loaded ${Object.keys(fresh).length} riven good-roll rows from Google Sheet`);
     } catch (err) {
-      const cached = readCache();
+      const cached = cache.read();
       if (cached) {
         goodRolls = cached.data;
         const ageMs = Date.now() - Date.parse(cached.updatedAt);

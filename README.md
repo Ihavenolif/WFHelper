@@ -39,6 +39,10 @@ In-game overlays (Warframe in Borderless mode):
 Notifications: in-game whispers, warframe.market DMs and arbitration windows can
 raise Windows notifications while you play.
 
+> **Use English for Warframe's interface.** Relic and riven OCR recognizes only
+> English item names. WFHelper's display language is separate and can be changed
+> in Settings.
+
 ## Install
 
 Download the latest `WFHelper-<version>-Setup.exe` from
@@ -68,7 +72,7 @@ Good to know:
   installs.
 - **Inventory comes straight from the running game.** Nothing extra to
   download on Linux.
-- **Wayland needs no setup.** The app puts itself on XWayland so the overlays
+- **Wayland picks its own backend.** The app puts itself on XWayland so the overlays
   can sit on top of the game. Compositors without a real XWayland (niri) show
   no window at all, so WFHelper notices, restarts on native Wayland and
   remembers it. Settings lets you pick the backend by hand. Wayland gives no
@@ -131,7 +135,7 @@ pnpm run dist:win   # build the NSIS installer
 ## Support
 
 WFHelper is free and open source, with no ads or accounts. If it saves you
-plat, [GitHub Sponsors](https://github.com/sponsors/WFHelper) or
+plat, [GitHub Sponsors](https://github.com/sponsors/MrZockerator) or
 [Ko-fi](https://ko-fi.com/WFHelper) helps cover the Cloudflare infrastructure
 it runs on. Supporters get a Discord role.
 

@@ -26,6 +26,7 @@ export function defaultSortDirection(sortBy: string): SortDirection {
 
 interface FilterableItem {
   name: string;
+  displayName?: string;
   category?: string;
   categoryLabel?: string;
   internalName?: string;
@@ -37,6 +38,7 @@ interface FilterableItem {
   platinum?: number | null;
   ducats?: number | null;
   amount?: number | null;
+  combinedAmount?: number | null;
   ducatonator?: number | null;
   completeSets?: number | boolean | null;
   missingParts?: number | null;
@@ -86,8 +88,10 @@ function matchesSearch(item: FilterableItem, search: string): boolean {
   const query = search.trim().toLowerCase();
   if (!query) return true;
 
+  // Both names: the list shows the localized one but traders search in English.
   const fields: string[] = [
     item.name,
+    item.displayName || "",
     item.category || "",
     item.categoryLabel || "",
     item.internalName || "",
@@ -216,9 +220,10 @@ export function matchesSharedFilters(item: FilterableItem, filters: SharedFilter
     return false;
   }
 
+  const filterAmount = typeof item.combinedAmount === "number" ? item.combinedAmount : item.amount;
   if (
     filters.minimumAmount > 0 &&
-    (typeof item.amount !== "number" || item.amount < filters.minimumAmount)
+    (typeof filterAmount !== "number" || filterAmount < filters.minimumAmount)
   ) {
     return false;
   }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { SvelteMap } from "svelte/reactivity";
 
   import { masteryData } from "../stores/mastery.js";
@@ -11,6 +12,8 @@
   import { parseOwnedRelics } from "../lib/relic.js";
   import { activeItem, activeComponent } from "../stores/modals.js";
   import { hideFounderMasteryItems } from "../stores/preferences.js";
+  import { locale, tr, type Translator } from "../lib/i18n.js";
+  import type { MessageKey } from "../lib/i18n.js";
   import SharedFilterBar from "../components/SharedFilterBar.svelte";
   import HeaderTabs from "../components/HeaderTabs.svelte";
   import SummaryStrip, { type SummaryStripItem } from "../components/SummaryStrip.svelte";
@@ -44,30 +47,36 @@
     "Necramech",
     "Misc",
   ];
-  const MASTERY_SORT_OPTIONS = [
-    ["name", "Name"],
-    ["owned", "Owned"],
-    ["parts_owned", "Parts Owned"],
-    ["mastery_xp", "Mastery XP"],
-    ["platinum", "Platinum"],
-  ] satisfies Array<["name" | "owned" | "parts_owned" | "mastery_xp" | "platinum", string]>;
+  $: MASTERY_SORT_OPTIONS = [
+    ["name", $tr("common.name")],
+    ["owned", $tr("common.owned")],
+    ["parts_owned", $tr("mastery.sort.partsOwned")],
+    ["mastery_xp", $tr("mastery.sort.masteryXp")],
+    ["platinum", $tr("common.platinum")],
+  ] as Array<["name" | "owned" | "parts_owned" | "mastery_xp" | "platinum", string]>;
   const FOUNDER_ITEM_NAMES = new Set(["Excalibur Prime", "Lato Prime", "Skana Prime"]);
 
   const INCOMPLETE_SETS_TAB = "__incomplete_sets";
   const VIEW_TAB_KEY = "wf_mastery_view_tab";
   const CAT_TAB_KEY = "wf_mastery_cat_tab";
   const STATUS_TAB_KEY = "wf_mastery_status_tab";
-  const STATUS_TABS = [
-    { key: "all", label: "All" },
-    { key: "missing", label: "Missing" },
-    { key: "progress", label: "In Progress" },
-    { key: "mastered", label: "Mastered" },
+  // Single source of truth per tab row: restore() runs at init and needs the bare
+  // keys, the labeled arrays below translate that same list.
+  const STATUS_TAB_DEFS: Array<{ key: string; labelKey: MessageKey }> = [
+    { key: "all", labelKey: "common.all" },
+    { key: "missing", labelKey: "common.missing" },
+    { key: "progress", labelKey: "common.inProgress" },
+    { key: "mastered", labelKey: "common.mastered" },
   ];
-  const VIEW_TABS = [
-    { key: "collection", label: "Collection" },
-    { key: "roadmap", label: "MR Roadmap" },
-    { key: "codex", label: "Codex" },
+  const VIEW_TAB_DEFS: Array<{ key: string; labelKey: MessageKey }> = [
+    { key: "collection", labelKey: "mastery.viewCollection" },
+    { key: "roadmap", labelKey: "mastery.viewRoadmap" },
+    { key: "codex", labelKey: "mastery.viewCodex" },
   ];
+  const STATUS_TAB_KEYS = STATUS_TAB_DEFS.map((tab) => tab.key);
+  const VIEW_TAB_KEYS = VIEW_TAB_DEFS.map((tab) => tab.key);
+  $: STATUS_TABS = STATUS_TAB_DEFS.map(({ key, labelKey }) => ({ key, label: $tr(labelKey) }));
+  $: VIEW_TABS = VIEW_TAB_DEFS.map(({ key, labelKey }) => ({ key, label: $tr(labelKey) }));
 
   // Category keys are data-driven; a stale restore falls back once categories load.
   let catFilter = readStorage(CAT_TAB_KEY) || "all";
@@ -78,12 +87,12 @@
 
   function restoreStatusTab(): string {
     const raw = readStorage(STATUS_TAB_KEY);
-    return raw && STATUS_TABS.some((tab) => tab.key === raw) ? raw : "all";
+    return raw && STATUS_TAB_KEYS.includes(raw) ? raw : "all";
   }
 
   function restoreViewTab(): string {
     const raw = readStorage(VIEW_TAB_KEY);
-    return raw && VIEW_TABS.some((tab) => tab.key === raw) ? raw : "collection";
+    return raw && VIEW_TAB_KEYS.includes(raw) ? raw : "collection";
   }
 
   function selectCategoryTab(key: string): void {
@@ -97,7 +106,7 @@
   }
 
   function selectViewTab(key: string): void {
-    viewTab = VIEW_TABS.some((tab) => tab.key === key) ? key : "collection";
+    viewTab = VIEW_TAB_KEYS.includes(key) ? key : "collection";
     writeStorage(VIEW_TAB_KEY, viewTab);
   }
 
@@ -161,30 +170,39 @@
   function buildMasterySummary(
     data: typeof $masteryData,
     foundry: ReturnType<typeof buildFoundryIndex>,
+    t: Translator,
+    localeCode: string,
   ): SummaryStripItem[] {
     if (!data) return [];
     const stats = data.stats;
     const profileMastery = stats.profileMastery || null;
     const rows: SummaryStripItem[] = [
-      { key: "mastered", value: stats.mastered, label: "Mastered", tone: "success" },
-      { key: "progress", value: stats.inProgress, label: "In Progress", tone: "warning" },
-      { key: "missing", value: stats.missing, label: "Missing", tone: "danger" },
-      { key: "total", value: stats.total, label: "Total" },
+      { key: "mastered", value: stats.mastered, label: t("common.mastered"), tone: "success" },
+      { key: "progress", value: stats.inProgress, label: t("common.inProgress"), tone: "warning" },
+      { key: "missing", value: stats.missing, label: t("common.missing"), tone: "danger" },
+      { key: "total", value: stats.total, label: t("common.total") },
     ];
     if (profileMastery && profileMastery.rank != null) {
       const nextRank = profileMastery.rank + 1;
-      let label = "Progress unavailable";
+      let label = t("mastery.progressUnavailable");
       if (profileMastery.testReady && profileMastery.xpIntoRank != null) {
         // Banked XP overflows past the bar; show the real figure, not a clamp.
-        label = `${profileMastery.xpIntoRank.toLocaleString()} / ${(profileMastery.xpForNext ?? 0).toLocaleString()} XP · MR ${nextRank} ready`;
+        label = t("mastery.mrXpReady", {
+          xp: profileMastery.xpIntoRank.toLocaleString(localeCode),
+          needed: (profileMastery.xpForNext ?? 0).toLocaleString(localeCode),
+          rank: nextRank,
+        });
       } else if (profileMastery.testReady) {
-        label = `MR ${nextRank} test ready`;
+        label = t("mastery.mrTestReady", { rank: nextRank });
       } else if (profileMastery.xpIntoRank != null && profileMastery.xpForNext != null) {
         // The game counts down to the next rank ("LEGENDARY 7 IN 93,362"); match it.
         const remaining = Math.max(0, profileMastery.xpForNext - profileMastery.xpIntoRank);
-        label = `MR ${nextRank} in ${remaining.toLocaleString()} XP`;
+        label = t("mastery.mrRemainingXp", {
+          rank: nextRank,
+          xp: remaining.toLocaleString(localeCode),
+        });
       } else if (profileMastery.percentToNext != null) {
-        label = `${profileMastery.percentToNext}% to next`;
+        label = t("mastery.percentToNext", { pct: profileMastery.percentToNext });
       }
       const mrRow: SummaryStripItem = { key: "mr", value: `MR ${profileMastery.rank}`, label };
       if (profileMastery.totalXp != null) {
@@ -194,9 +212,11 @@
           return sum + (item.masteryXpRemaining ?? 0);
         }, 0);
         const projection = masteryProjectionSubtext(
+          t,
           profileMastery.rank,
           profileMastery.totalXp,
           readyXp,
+          localeCode,
         );
         if (projection) {
           mrRow.subtext = projection;
@@ -208,24 +228,24 @@
     return rows;
   }
 
-  $: masterySummaryItems = buildMasterySummary(displayMasteryData, foundryIndex);
+  $: masterySummaryItems = buildMasterySummary(displayMasteryData, foundryIndex, $tr, $locale);
   // Straight from the account, so unaffected by the founder-item filter.
   $: completion = $masteryData?.stats?.completion ?? null;
   $: starChartRows = (
     completion
       ? [
-          ["Normal", completion.starChart.normal],
-          ["Junctions", completion.starChart.junctions],
-          ["Steel Path", completion.starChart.steelPath],
-          ["Steel P. Junctions", completion.starChart.steelPathJunctions],
+          [$tr("common.normal"), completion.starChart.normal],
+          [$tr("mastery.junctions"), completion.starChart.junctions],
+          [$tr("common.steelPath"), completion.starChart.steelPath],
+          [$tr("mastery.steelPathJunctions"), completion.starChart.steelPathJunctions],
         ]
       : []
   ) as Array<[string, ProgressPair]>;
   $: intrinsicRows = (
     completion
       ? [
-          ["Railjack", completion.intrinsics.railjack],
-          ["Duviri", completion.intrinsics.drifter],
+          [$tr("world.railjack"), completion.intrinsics.railjack],
+          [$tr("mastery.duviri"), completion.intrinsics.drifter],
         ]
       : []
   ) as Array<[string, ProgressPair]>;
@@ -264,6 +284,11 @@
 
   function isComponentOwned(comp: ComponentInfo): boolean {
     return comp.owned === true || (comp.ownedCount ?? 0) >= (comp.itemCount || 1);
+  }
+
+  function componentStateLabelKey(state: "building" | "owned" | "missing"): MessageKey {
+    if (state === "building") return "mastery.badgeCrafting";
+    return state === "owned" ? "common.owned" : "common.missing";
   }
 
   /** The card badges are the source of truth here: "Ready" is a finished build. */
@@ -373,10 +398,10 @@
   // Incomplete Sets sits just before Misc, which is the catch-all bucket.
   $: categoryTabs = (() => {
     const tabs = categories.map((cat) => ({ key: cat, label: cat }));
-    const setsTab = { key: INCOMPLETE_SETS_TAB, label: "Incomplete Sets" };
+    const setsTab = { key: INCOMPLETE_SETS_TAB, label: $tr("mastery.incompleteSets") };
     const miscAt = tabs.findIndex((tab) => tab.key.toLowerCase() === "misc");
     tabs.splice(miscAt >= 0 ? miscAt : tabs.length, 0, setsTab);
-    return [{ key: "all", label: "All" }, ...tabs];
+    return [{ key: "all", label: $tr("common.all") }, ...tabs];
   })();
 
   // Drop a restored category that no longer exists in the loaded data.
@@ -429,7 +454,7 @@
 
 <section class="view active">
   <div class="view-header">
-    <h2>Mastery Helper</h2>
+    <h2>{$tr("mastery.title")}</h2>
   </div>
 
   <div class="mb-3 flex items-end border-b border-white/[0.09]" data-tour="mastery-view-tabs">
@@ -477,12 +502,13 @@
               font-family="Rajdhani">{masteredPct}%</text
             >
             <text
+              class="ring-caption"
               x="60"
               y="72"
               text-anchor="middle"
               fill="var(--text-muted)"
               font-size="10"
-              font-family="Barlow">MASTERED</text
+              font-family="Barlow">{$tr("common.mastered")}</text
             >
           </svg>
         </div>
@@ -491,7 +517,7 @@
 
       {#if viewTab === "collection"}
         <CollapsibleSection
-          title="Detailed breakdown"
+          title={$tr("mastery.detailedBreakdown")}
           collapsed={!$breakdownExpanded}
           onToggle={() => breakdownExpanded.update((value) => !value)}
         >
@@ -530,7 +556,7 @@
             <div class="mt-3 grid gap-2 min-[900px]:grid-cols-2">
               <ThemedPanel className="grid gap-2 p-2.5">
                 <span class="font-display text-sm font-semibold text-text-secondary"
-                  >Star chart</span
+                  >{$tr("mastery.starChart")}</span
                 >
                 {#each starChartRows as [label, pair] (label)}
                   {@const width = boundedPercent(pair.done, pair.total)}
@@ -556,7 +582,7 @@
 
               <ThemedPanel className="grid content-start gap-2 p-2.5">
                 <span class="font-display text-sm font-semibold text-text-secondary"
-                  >Intrinsics</span
+                  >{$tr("mastery.intrinsics")}</span
                 >
                 {#each intrinsicRows as [label, pair] (label)}
                   {@const width = boundedPercent(pair.done, pair.total)}
@@ -613,21 +639,21 @@
       {#if catFilter === INCOMPLETE_SETS_TAB}
         <div class="item-grid">
           {#if incompleteSets.length === 0}
-            <div class="empty-state col-span-full"><p>No sets in progress</p></div>
+            <div class="empty-state col-span-full"><p>{$tr("mastery.noSetsInProgress")}</p></div>
           {:else}
             {#each incompleteSets as set (set.internalName)}
               <div
                 class="item-card group border-info/25"
                 role="button"
                 tabindex="0"
-                aria-label="Open details for {set.name}"
+                aria-label={$tr("common.openDetailsFor", { name: itemLabel(set) })}
                 on:click={() => activeItem.set(set)}
                 on:keydown={(event) => {
                   if (event.key === "Enter" || event.key === " ") activeItem.set(set);
                 }}
               >
                 <div class="item-img-wrap">
-                  <ItemImage src={set.imageUrl} alt={set.name} />
+                  <ItemImage src={set.imageUrl} alt={itemLabel(set)} auditKey={set.name} />
                   {#if set.vaulted}<span class="vault-badge">V</span>{/if}
                   <span
                     class="absolute right-2 bottom-1.5 font-display text-base font-bold text-info drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
@@ -635,10 +661,11 @@
                   >
                 </div>
                 <div class="item-body">
-                  <span class="item-name">{set.name}</span>
+                  <span class="item-name">{itemLabel(set)}</span>
                   <span class="item-type"
-                    >Needs {set.missingParts ?? 0}
-                    {(set.missingParts ?? 0) === 1 ? "part" : "parts"}</span
+                    >{(set.missingParts ?? 0) === 1
+                      ? $tr("mastery.needsOnePart", { count: set.missingParts ?? 0 })
+                      : $tr("mastery.needsPartsMany", { count: set.missingParts ?? 0 })}</span
                   >
                 </div>
               </div>
@@ -648,7 +675,7 @@
       {:else}
         <div class="item-grid">
           {#if filtered.length === 0}
-            <div class="empty-state col-span-full"><p>No items match your filters</p></div>
+            <div class="empty-state col-span-full"><p>{$tr("mastery.noItemsMatch")}</p></div>
           {:else}
             {#each filtered as item, itemIndex (`${item.uniqueName || item.internalName || item.name}-${itemIndex}`)}
               <div
@@ -661,14 +688,14 @@
                       : ''}"
                 role="button"
                 tabindex="0"
-                aria-label="Open details for {item.name}"
+                aria-label={$tr("common.openDetailsFor", { name: itemLabel(item) })}
                 on:click={() => activeItem.set(item)}
                 on:keydown={(event) => {
                   if (event.key === "Enter" || event.key === " ") activeItem.set(item);
                 }}
               >
                 <div class="item-img-wrap">
-                  <ItemImage src={item.imageUrl} alt={item.name} />
+                  <ItemImage src={item.imageUrl} alt={itemLabel(item)} auditKey={item.name} />
                   {#if item.vaulted}<span class="vault-badge">V</span>{/if}
                   <span
                     class="absolute right-1.5 bottom-1.5 w-1.5 h-1.5 rounded-full shadow-[0_0_0_2px_rgba(0,0,0,0.38)] {item.status ===
@@ -680,28 +707,30 @@
                   ></span>
                 </div>
                 <div class="item-body">
-                  <span class="item-name">{item.name}</span>
+                  <span class="item-name">{itemLabel(item)}</span>
                   <span class="item-type"
                     >{item.category}{item.masteryReq ? ` · MR ${item.masteryReq}` : ""}</span
                   >
                   {#if item.foundryStatus || item.subsumed || item.masteryXpRemaining > 0 || item.platinum != null}
                     <div class="mt-1 flex flex-wrap gap-1">
                       {#if item.masteryXpRemaining > 0}
-                        <span class="mastery-badge xp" title="Mastery left to earn on this item"
-                          >+{item.masteryXpRemaining.toLocaleString()} XP</span
+                        <span class="mastery-badge xp" title={$tr("mastery.xpBadgeTitle")}
+                          >+{item.masteryXpRemaining.toLocaleString($locale)} XP</span
                         >
                       {/if}
                       {#if item.platinum != null}
-                        <span class="mastery-badge plat" title="warframe.market median price"
+                        <span class="mastery-badge plat" title={$tr("mastery.priceBadgeTitle")}
                           >{item.platinum}p</span
                         >
                       {/if}
                       {#if item.foundryStatus === "in-progress"}
-                        <span class="mastery-badge building">Crafting</span>
+                        <span class="mastery-badge building">{$tr("mastery.badgeCrafting")}</span>
                       {:else if item.foundryStatus === "claimable"}
-                        <span class="mastery-badge ready">Ready</span>
+                        <span class="mastery-badge ready">{$tr("common.ready")}</span>
                       {/if}
-                      {#if item.subsumed}<span class="mastery-badge subsumed">Subsumed</span>{/if}
+                      {#if item.subsumed}<span class="mastery-badge subsumed"
+                          >{$tr("common.subsumed")}</span
+                        >{/if}
                     </div>
                   {/if}
                   {#if !item.missing}
@@ -730,10 +759,14 @@
                       </svg>
                     </div>
                     <span class="item-rank-text"
-                      >Lv {item.rank}/{item.maxRank} · {item.nextPct}%</span
+                      >{$tr("mastery.rankLine", {
+                        rank: item.rank,
+                        maxRank: item.maxRank,
+                        pct: item.nextPct,
+                      })}</span
                     >
                   {:else}
-                    <span class="text-xs text-text-muted">Not owned</span>
+                    <span class="text-xs text-text-muted">{$tr("mastery.notOwned")}</span>
                   {/if}
                   {#if (item.components || []).length > 0}
                     <div class="mt-1.5 flex flex-wrap gap-1">
@@ -748,10 +781,10 @@
                         <button
                           type="button"
                           class="comp-dot h-1.5 w-1.5 rounded-full border border-transparent {compState}"
-                          title="{comp.name || '?'}: {compState === 'building'
-                            ? 'crafting'
-                            : compState}"
-                          aria-label="Open {comp.name || 'component'} details"
+                          title="{itemLabel(comp) || '?'}: {$tr(componentStateLabelKey(compState))}"
+                          aria-label={$tr("mastery.openComponentDetailsAria", {
+                            name: itemLabel(comp) || $tr("mastery.componentFallback"),
+                          })}
                           on:click|stopPropagation={() =>
                             activeComponent.set({ comp, parentName: item.name })}
                         ></button>
@@ -762,8 +795,8 @@
                     <button
                       type="button"
                       class="wfm-link absolute top-1.5 right-1.5 inline-flex h-6 w-6 items-center justify-center rounded border border-border bg-black/25 text-text-muted opacity-0 transition-[opacity,color,border-color] duration-100 group-hover:opacity-100 hover:text-accent hover:border-accent-dim"
-                      title="View on warframe.market"
-                      aria-label="View {item.name} on warframe.market"
+                      title={$tr("mastery.viewOnWfmTitle")}
+                      aria-label={$tr("mastery.viewOnWfmAria", { name: item.name })}
                       on:click|stopPropagation={() =>
                         send("open-external", `https://warframe.market/items/${item.wfm.url_name}`)}
                     >
@@ -789,12 +822,16 @@
     {/if}
   {:else}
     <div class="empty-state">
-      <p>Loading mastery data...</p>
+      <p>{$tr("mastery.loadingData")}</p>
     </div>
   {/if}
 </section>
 
 <style>
+  .ring-caption {
+    text-transform: uppercase;
+  }
+
   .comp-dot.owned {
     background: color-mix(in oklab, var(--success) 65%, transparent);
     border-color: color-mix(in oklab, var(--success) 60%, transparent);

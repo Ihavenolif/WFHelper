@@ -15,7 +15,7 @@ import {
   type RivenWeaponSource,
 } from "./overlay/rivenWeaponLabel";
 import { looksLikeStaleCardRead } from "./overlay/rivenScanText";
-import type { CaptureResult } from "../services/screenCapture";
+import { captureScreenFast, type CaptureResult } from "../services/screenCapture";
 import type { WeaponLabelMatch } from "../services/rivenData";
 import { sleep } from "../services/rewardScannerUtils";
 import * as rivenGrading from "../services/rivenGrading";
@@ -62,6 +62,16 @@ const RIVEN_WIN_W = 420;
 const RIVEN_WIN_H = 640;
 const RIVEN_TOP_OFFSET = 80;
 
+const rivenLastEvents = new Map<string, unknown[]>();
+const readyRivenRenderers = new Set<number>();
+
+function onRivenWindowCreated(window: InstanceType<typeof BrowserWindow>): void {
+  const senderId = window.webContents.id;
+  readyRivenRenderers.delete(senderId);
+  window.webContents.on("did-start-loading", () => readyRivenRenderers.delete(senderId));
+  window.once("closed", () => readyRivenRenderers.delete(senderId));
+}
+
 const rivenWindowBaseOptions = {
   app,
   BrowserWindow,
@@ -80,7 +90,7 @@ const rivenWindowBaseOptions = {
   backgroundColor: "#060a12",
   preloadFileName: "preload-riven.js",
   hasShadow: false,
-  onWindowCreated: (window: InstanceType<typeof BrowserWindow>) => replayRivenEvents(window),
+  onWindowCreated: onRivenWindowCreated,
 };
 
 const rivenLeftWindowsController = createOverlayWindowsController({
@@ -119,8 +129,6 @@ const rivenRightWindowsController = createOverlayWindowsController({
 
 // Riven panels are painted from live events, so a window rebuilt mid-session
 // starts blank; every event is remembered and replayed into the new window.
-const rivenLastEvents = new Map<string, unknown[]>();
-
 function recordRivenEvent(channel: string, args: unknown[]): void {
   rivenLastEvents.delete(channel);
   rivenLastEvents.set(channel, args);
@@ -133,13 +141,15 @@ function sendToRivenWindows(channel: string, ...args: unknown[]): void {
   forEachRivenWindow((win) => win.webContents.send(channel, ...args));
 }
 
-function replayRivenEvents(window: InstanceType<typeof BrowserWindow>): void {
-  // Read the map at load time, not now, so events recorded during the rebuild
-  // (the interaction mode push) are included instead of lost on a raw send.
-  window.webContents.once("did-finish-load", () => {
-    if (window.isDestroyed()) return;
-    for (const [channel, args] of rivenLastEvents) window.webContents.send(channel, ...args);
-  });
+export function markRivenRendererReady(senderId: number): boolean {
+  const window = getRivenWindows().find(
+    (candidate) => candidate && !candidate.isDestroyed() && candidate.webContents.id === senderId,
+  );
+  if (!window) return false;
+  if (readyRivenRenderers.has(senderId)) return true;
+  readyRivenRenderers.add(senderId);
+  for (const [channel, args] of rivenLastEvents) window.webContents.send(channel, ...args);
+  return true;
 }
 
 function rivenWindowEntries() {
@@ -516,7 +526,24 @@ function onFitsInWeapon(match: WeaponLabelMatch): void {
 async function detectFitsInWeapon(capture: CaptureResult): Promise<void> {
   const token = _rivenSessionToken;
   try {
-    const match = await readFitsInWeapon(capture.image);
+    let match = await readFitsInWeapon(capture.image, capture.sourceType);
+    if (token !== _rivenSessionToken) return;
+    if (!match && rivenRightWindowsController.isOverlayWindowVisible()) {
+      let retryCapture: CaptureResult | null = null;
+      rivenRightWindowsController.hideOverlayWindow();
+      try {
+        await sleep(50);
+        if (token !== _rivenSessionToken) return;
+        retryCapture = await captureScreenFast(capture.sourceDisplayId || null, 100);
+      } finally {
+        if (token === _rivenSessionToken) {
+          rivenRightWindowsController.showOverlayWindowInactive();
+        }
+      }
+      if (retryCapture) {
+        match = await readFitsInWeapon(retryCapture.image, retryCapture.sourceType);
+      }
+    }
     if (token !== _rivenSessionToken) return;
     if (match) {
       onFitsInWeapon(match);

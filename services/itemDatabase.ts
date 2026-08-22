@@ -9,6 +9,8 @@ import { fallbackNameFromUniqueName, sanitizeDisplayName } from "../config/share
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { normalizeDucats } from "../config/shared/numeric";
 import { normalizeWfmSlug } from "../config/shared/wfm";
+import { WIKI_MOD_ART, WIKI_MOD_ART_BY_NAME } from "../config/shared/wikiModArt";
+import { isLocalizingNames, localizeName } from "./gameLocale";
 import * as publicExportSource from "./publicExportSource";
 import { correctedDropRarity } from "./relicRarity";
 import { withScope } from "./logger";
@@ -52,6 +54,17 @@ export function toIconMirrorUrl(sourceUrl: string | null | undefined): string | 
 function buildWfcdImageUrl(imageName: string | null | undefined): string | null {
   const trimmed = typeof imageName === "string" ? imageName.trim() : "";
   return trimmed ? WFCD_CDN + trimmed : null;
+}
+
+// DE's export ships the flat mod texture; the wiki has the framed card players
+// know. Mirror-only, so the manifest builder never takes it for an upstream URL.
+function wikiCardArtUrl(uniqueName: string, category: string, displayName: string): string | null {
+  if (process.env.WFHELPER_ICON_MIRROR_DISABLED === "1") return null;
+  if (category !== "Mod" && category !== "Arcane") return null;
+  // The wiki's internal names have drifted from DE's for railjack mods and
+  // stances, so the display name is the only join left for those.
+  const stem = WIKI_MOD_ART[uniqueName] ?? WIKI_MOD_ART_BY_NAME[displayName];
+  return stem ? `${ICON_MIRROR_BASE_URL}/mod-art/${encodeURIComponent(stem)}.webp` : null;
 }
 
 function chooseImageUrl(...urls: Array<string | null | undefined>): string | null {
@@ -168,6 +181,8 @@ interface ItemEntry {
   vaulted: boolean;
   exalted?: boolean;
   description: string;
+  /** `/Lotus/Language/...` key `name` was resolved from, for game-language lookup. */
+  nameKey?: string | null;
   productCategory: string | null;
   ducats: number | null;
   _source: string;
@@ -328,10 +343,18 @@ function loadPublicExportPlus(): number {
             ? (itemsByUniqueName[item.resultType]?.browseWfUrl ?? null)
             : null;
 
+        // Only a plain dict resolve is re-localizable: relic and recipe names are
+        // composed from English words that no dictionary key covers.
+        const nameKey =
+          !relicName && !recipeName && typeof item.name === "string" && item.name.startsWith("/")
+            ? item.name
+            : null;
+
         itemsByUniqueName[uniqueName] = {
           name: resolvedName,
+          nameKey,
           category,
-          imageUrl: null,
+          imageUrl: wikiCardArtUrl(uniqueName, category, resolvedName),
           browseWfUrl: resolveIcon(item.icon) || recipeIcon,
           isPrime: resolvedName.includes("Prime"),
           masteryReq: item.masteryReq || 0,
@@ -574,7 +597,12 @@ function loadWfcdItems(): number {
       } else {
         const existing = itemsByUniqueName[item.uniqueName];
 
-        existing.imageUrl = chooseImageUrl(existing.browseWfUrl, item.wikiaThumbnail, wfcdImageUrl);
+        existing.imageUrl = chooseImageUrl(
+          wikiCardArtUrl(item.uniqueName, existing.category, existing.name),
+          existing.browseWfUrl,
+          item.wikiaThumbnail,
+          wfcdImageUrl,
+        );
 
         if (existing.name.startsWith("/Lotus/") && item.name) {
           const cleanedName = sanitizeDisplayName(item.name);
@@ -852,13 +880,60 @@ function toRendererDrop(d: DropEntry): DropEntry {
   };
 }
 
+const BLUEPRINT_PATTERN_KEY = "/Lotus/Language/Items/BlueprintAndItem";
+const BLUEPRINT_PATTERN_EN = "|ITEM| Blueprint";
+
+// Recipes carry no name of their own, so theirs is composed from the item they
+// build. DE ships the pattern for it, which is the only thing that puts the word
+// where the language wants it: Spanish and Russian lead with it, Japanese does not.
+function localizeItemName(
+  uniqueName: string,
+  nameKey: string | null | undefined,
+  english: string,
+): string {
+  if (nameKey) return localizeName(nameKey, english);
+  const result = itemsByUniqueName[resultTypeByBlueprint[uniqueName]];
+  if (!result) return english;
+  return localizeName(BLUEPRINT_PATTERN_KEY, BLUEPRINT_PATTERN_EN).replace(
+    "|ITEM|",
+    localizeName(result.nameKey, result.name),
+  );
+}
+
+// `name` stays English because the renderer joins on it; `displayName` appears
+// only when the game language actually moved the name, so English users pay nothing.
+function localizedPair(uniqueName: string, nameKey: string | null | undefined, english: string) {
+  const localized = localizeItemName(uniqueName, nameKey, english);
+  return localized === english ? { name: english } : { name: english, displayName: localized };
+}
+
+/**
+ * displayName for anything built outside getRendererLookup, keyed by uniqueName.
+ * Spread it next to an English `name`; it is empty whenever nothing would move.
+ */
+export function localizedNameFields(
+  uniqueName: string | null | undefined,
+  english: string,
+): { displayName?: string } {
+  if (!isLocalizingNames() || !uniqueName) return {};
+  const pair = localizedPair(uniqueName, itemsByUniqueName[uniqueName]?.nameKey, english);
+  return pair.displayName ? { displayName: pair.displayName } : {};
+}
+
+/** True once the mirrored wiki card survived the merge as the item's art. */
+function hasCardArt(imageUrl: string | null): boolean {
+  return imageUrl != null && imageUrl.includes("/mod-art/");
+}
+
 export function getRendererLookup(): Record<string, RendererItemEntry> {
+  const localizing = isLocalizingNames();
   const lookup: Record<string, RendererItemEntry> = {};
   for (const [key, item] of Object.entries(itemsByUniqueName)) {
     lookup[key] = {
-      name: item.name,
+      ...(localizing ? localizedPair(key, item.nameKey, item.name) : { name: item.name }),
       category: item.category,
       imageUrl: item.imageUrl,
+      ...(hasCardArt(item.imageUrl) ? { cardArt: true } : {}),
       isPrime: item.isPrime,
       tradable: typeof item.tradable === "boolean" ? item.tradable : undefined,
       masteryReq: item.masteryReq || 0,
@@ -872,7 +947,14 @@ export function getRendererLookup(): Record<string, RendererItemEntry> {
       productCategory: item.productCategory || null,
       ducats: typeof item.ducats === "number" ? item.ducats : null,
       components: (item.components || []).map((c: ComponentEntry) => ({
-        name: c.name || "",
+        // Set parts carry no key of their own, so borrow the part item's.
+        ...(localizing
+          ? localizedPair(
+              c.uniqueName || "",
+              c.nameKey ?? itemsByUniqueName[c.uniqueName]?.nameKey,
+              c.name || "",
+            )
+          : { name: c.name || "" }),
         uniqueName: c.uniqueName || "",
         tradable: typeof c.tradable === "boolean" ? c.tradable : undefined,
         itemCount: c.itemCount || 1,

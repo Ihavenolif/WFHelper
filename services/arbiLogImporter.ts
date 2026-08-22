@@ -5,7 +5,7 @@ import path from "node:path";
 import readline from "node:readline";
 import { finished } from "node:stream/promises";
 import { withScope } from "./logger";
-import { createArbiParser } from "./arbiRunParser";
+import { createArbiParser, EE_LOG_LINE_TS } from "./arbiRunParser";
 import type { ArbiParsedRun } from "./arbiRunParser";
 import { addImportedRunFromFile } from "./arbiRunTracker";
 import type { ArbiImportResult, ArbiRunEndReason } from "../config/shared/arbiTypes";
@@ -15,7 +15,6 @@ const log = withScope("arbiLogImporter");
 
 /** EE.log header, e.g. "0.234 Sys [Diag]: Current time: Fri Jul 04 12:34:56 2026 [UTC: Fri Jul 04 10:34:56 2026]". */
 const CURRENT_TIME = /Sys \[Diag\]: Current time: (.+?)(?: \[UTC: (.+?)\])?\s*$/;
-const LINE_TS = /^[^\d]*(\d+\.\d+)/;
 
 const MAX_SEGMENT_BYTES = 256 * 1024 * 1024;
 
@@ -155,12 +154,12 @@ export async function importEeLog(
           // which is wrong for logs shared from another timezone.
           const utc = timeMatch[2] ? new Date(`${timeMatch[2].trim()} GMT`).getTime() : NaN;
           const wall = Number.isFinite(utc) ? utc : new Date(timeMatch[1].trim()).getTime();
-          const tsMatch = line.match(LINE_TS);
+          const tsMatch = line.match(EE_LOG_LINE_TS);
           const ts = tsMatch ? parseFloat(tsMatch[1]) : 0;
           if (Number.isFinite(wall)) anchor = { gameTimeZeroMs: wall - ts * 1000 };
         }
       }
-      const tsMatch = line.match(LINE_TS);
+      const tsMatch = line.match(EE_LOG_LINE_TS);
       if (tsMatch) lastTs = Math.max(lastTs, parseFloat(tsMatch[1]));
 
       const event = parser.feedLine(line);

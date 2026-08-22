@@ -92,8 +92,18 @@
     }
   }
 
+  // Storage first so the panel paints themed before the main process answers;
+  // a failed pull then simply leaves those stored values in place.
+  function bootstrapOverlayTheme(getThemeVars) {
+    loadThemeFromStorageFallback();
+    void Promise.resolve()
+      .then(getThemeVars)
+      .then(applyThemeVars)
+      .catch(function () {});
+  }
+
   window.overlayTheme = {
     applyThemeVars,
-    loadThemeFromStorageFallback,
+    bootstrapOverlayTheme,
   };
 })();

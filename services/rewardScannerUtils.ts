@@ -14,6 +14,10 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export function yieldToEventLoop(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
+
 export function computeMeanAndStd(values: number[]): { mean: number; std: number } {
   if (!Array.isArray(values) || values.length === 0) {
     return { mean: 0, std: 0 };

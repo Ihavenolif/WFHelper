@@ -1,5 +1,6 @@
-import { writable } from "svelte/store";
+import { get, writable } from "svelte/store";
 import type { AppUpdateState } from "../types/ipc.js";
+import { tr } from "../lib/i18n.js";
 import { addToast } from "./toasts.js";
 
 const DEFAULT_APP_UPDATE_STATE: AppUpdateState = {
@@ -19,10 +20,12 @@ export function applyUpdateState(state: AppUpdateState, showToast: boolean): voi
 
   // available/downloaded need no toast - the status-bar pill shows both states.
   if (state.status === "error") {
+    // A toast is a snapshot, so resolving the language once at fire time is fine.
+    const t = get(tr);
     addToast({
       level: "error",
-      title: "Updater Error",
-      message: state.message || "Automatic update check failed.",
+      title: t("update.errorTitle"),
+      message: state.message || t("update.checkFailed"),
     });
   }
 }

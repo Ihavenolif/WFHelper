@@ -5,6 +5,7 @@ import {
   buildSearchState,
   factionBadgeKey,
   filterScheduleEntries,
+  formatEntryTime,
   formatScheduleCountdown,
   formatUpdatedAgo,
   groupEntriesByDay,
@@ -104,7 +105,7 @@ describe("groupEntriesByDay", () => {
     const day1 = new Date(2026, 6, 8, 22, 0).getTime();
     const day1b = new Date(2026, 6, 8, 23, 0).getTime();
     const day2 = new Date(2026, 6, 9, 1, 0).getTime();
-    const groups = groupEntriesByDay([entry(day1, "a"), entry(day1b, "b"), entry(day2, "c")]);
+    const groups = groupEntriesByDay([entry(day1, "a"), entry(day1b, "b"), entry(day2, "c")], "en");
     expect(groups).toHaveLength(2);
     expect(groups[0].entries).toHaveLength(2);
     expect(groups[1].entries).toHaveLength(1);
@@ -138,5 +139,14 @@ describe("factionBadgeKey", () => {
     expect(factionBadgeKey("Infested")).toBe("infested");
     expect(factionBadgeKey("Corrupted")).toBe("corrupted");
     expect(factionBadgeKey("Narmer")).toBe("other");
+  });
+});
+
+describe("formatEntryTime", () => {
+  it("follows the locale it is handed, not the OS", () => {
+    const noon = Date.UTC(2026, 0, 5, 12, 0);
+    // A German clock has no AM/PM half, so this holds in any timezone.
+    expect(formatEntryTime(noon, "en-US")).toMatch(/AM|PM/);
+    expect(formatEntryTime(noon, "de-DE")).not.toMatch(/AM|PM/);
   });
 });

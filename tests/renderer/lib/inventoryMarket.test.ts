@@ -94,6 +94,7 @@ describe("inventoryMarket view mapping", () => {
     expect(mapped.displayImageUrl).toBe(
       "https://warframe.market/static/assets/sample_market_thumb.png",
     );
+    expect(mapped.usesFallbackArt).toBe(false);
   });
 
   it("falls back to market thumb/meta icon when local icon is missing", () => {
@@ -115,6 +116,7 @@ describe("inventoryMarket view mapping", () => {
     expect(mapped.displayImageUrl).toBe(
       "https://warframe.market/static/assets/sample_meta_icon.png",
     );
+    expect(mapped.usesFallbackArt).toBe(false);
   });
 
   it("falls back to local item icon when market sources are unavailable", () => {
@@ -134,6 +136,7 @@ describe("inventoryMarket view mapping", () => {
 
     const [mapped] = buildInventoryViewItems([item], metrics);
     expect(mapped.displayImageUrl).toBe("https://cdn.warframestat.us/img/sample_local.jpg");
+    expect(mapped.usesFallbackArt).toBe(true);
   });
 
   it("uses cached ranked order summaries when metrics are not yet hydrated", () => {
@@ -165,6 +168,47 @@ describe("inventoryMarket view mapping", () => {
       [0, true],
       [3, false],
     ]);
+  });
+
+  it("keeps a hyphenated catalog slug so the order still matches", () => {
+    // The Tektolyst arcanes are the only slugs warframe.market mints with
+    // hyphens. Folding them to zid_an_asheir lost both the price and the badge.
+    const gameRef = "/Lotus/Upgrades/CosmeticEnhancers/Antiques/StatusChanceOnUltimateHit";
+    const arcane = makeBaseItem({
+      name: "Zid-An Asheir",
+      internalName: gameRef,
+      inventoryGroup: "arcanes",
+      category: "arcanes",
+      categoryLabel: "Arcane",
+      maxRank: 5,
+      rank: 5,
+      marketSlug: null,
+    });
+    const lookup = {
+      [gameRef.toLowerCase()]: {
+        url_name: "zid-an-asheir",
+        item_name: "Zid-an Asheir",
+        thumb: null,
+        icon: null,
+        maxRank: 5,
+        gameRef,
+      },
+    };
+    const { orderedNames, orderedSlugs } = buildOrderLookups({
+      sell: [
+        {
+          id: "o1",
+          itemName: "Zid-an Asheir",
+          itemUrlName: "zid-an-asheir",
+          modRank: 5,
+        } as WfmOrder,
+      ],
+      buy: [],
+    });
+
+    const [row] = buildBaseInventoryItems([arcane], "arcanes", lookup, orderedNames, orderedSlugs);
+    expect(row.marketSlug).toBe("zid-an-asheir");
+    expect(row.orderPlaced).toBe(true);
   });
 
   it("marks every rank row for rank-less orders", () => {

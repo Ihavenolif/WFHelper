@@ -111,7 +111,7 @@
   <table class="w-full border-collapse text-sm">
     <thead>
       <tr class="border-b border-border text-left text-xs uppercase tracking-wide text-text-muted">
-        <th class="px-2 py-1.5 font-semibold">{$t("arbi.vitus.chance")}</th>
+        <th class="px-2 py-1.5 font-semibold">{$t("common.chance")}</th>
         <th class="px-2 py-1.5 font-semibold">{$t("arbi.vitus.total")}</th>
         <th class="px-2 py-1.5 font-semibold">{$t("arbi.vitus.luckLevel")}</th>
       </tr>

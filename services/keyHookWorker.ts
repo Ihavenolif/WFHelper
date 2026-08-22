@@ -2,6 +2,8 @@
 
 import koffi from "koffi";
 
+import { isWarframeExePath, queryExePath } from "./win32Process";
+
 interface WatchEntry {
   id: string;
   ctrl: boolean;
@@ -17,14 +19,6 @@ const { parentPort } = process;
 
 // Win32 BOOL is 4 bytes; koffi "bool" is 1 and leaks garbage - always int32.
 const GetModuleHandleW = kernel32.func("GetModuleHandleW", "void *", ["void *"]);
-const OpenProcess = kernel32.func("OpenProcess", "void *", ["uint32", "int32", "uint32"]);
-const CloseHandle = kernel32.func("CloseHandle", "int32", ["void *"]);
-const QueryFullProcessImageNameW = kernel32.func("QueryFullProcessImageNameW", "int32", [
-  "void *", // hProcess
-  "uint32", // dwFlags - 0 = Win32 path
-  "void *", // lpExeName  (PWSTR out buffer)
-  "void *", // lpdwSize   (PDWORD in/out)
-]);
 const GetLastError = kernel32.func("GetLastError", "uint32", []);
 
 const SetWindowsHookExW = user32.func("SetWindowsHookExW", "void *", [
@@ -71,8 +65,6 @@ const WM_SYSKEYDOWN = 0x0104;
 const PM_REMOVE = 0x0001;
 const PUMP_TICK_MS = 10;
 const MSG_SIZE = 48; // sizeof(MSG) on x64
-const MAX_PATH = 260;
-const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 const KEY_DOWN_BIT = 0x8000;
 
 const VK_SHIFT = 0x10;
@@ -81,9 +73,6 @@ const VK_MENU = 0x12; // Alt
 const VK_LWIN = 0x5b;
 const VK_RWIN = 0x5c;
 
-// Cache process names to keep work out of the hook callback.
-const _exeNameBuf = Buffer.alloc(MAX_PATH * 2);
-const _exeNameSizeBuf = Buffer.alloc(4);
 const _pidBuf = Buffer.alloc(4);
 const _pidIsWarframe = new Map<number, boolean>();
 const PID_CACHE_RESET_MS = 5000;
@@ -92,23 +81,10 @@ function isWarframePid(pid: number): boolean {
   const cached = _pidIsWarframe.get(pid);
   if (cached !== undefined) return cached;
 
-  const hProc = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-  if (!hProc) return false; // process gone; don't cache
+  const query = queryExePath(pid);
+  if (query.status === "unreachable") return false; // process gone; don't cache
 
-  _exeNameSizeBuf.writeUInt32LE(MAX_PATH, 0);
-  const ok = (QueryFullProcessImageNameW(hProc, 0, _exeNameBuf, _exeNameSizeBuf) as number) !== 0;
-  CloseHandle(hProc);
-  if (!ok) {
-    _pidIsWarframe.set(pid, false);
-    return false;
-  }
-
-  const charCount = _exeNameSizeBuf.readUInt32LE(0);
-  const exePath = _exeNameBuf
-    .subarray(0, charCount * 2)
-    .toString("utf16le")
-    .toLowerCase();
-  const result = exePath.endsWith("\\warframe.x64.exe");
+  const result = query.status === "ok" && isWarframeExePath(query.path);
   _pidIsWarframe.set(pid, result);
   return result;
 }

@@ -12,6 +12,7 @@ import { isWfmExcludedSlug } from "../../../config/shared/wfmExclusions.js";
 import { WFM_BACKEND_ERROR_COOLDOWN_MS } from "../../../config/runtime/cacheConfig.js";
 import { log } from "../log.js";
 import { normalizeWfmSlug, WFM_HEADERS } from "../../../config/shared/wfm.js";
+import { normalizeForSlug } from "../../../config/shared/textNormalize.js";
 import { rendererPriceCacheKey } from "../../../config/shared/wfmCacheKeys.js";
 import { createAdaptiveDelayController, createPriorityRequestQueue } from "./requestPolicy.js";
 import { fetchWithTimeout } from "../fetchWithTimeout.js";
@@ -366,7 +367,9 @@ export async function fetchPriceByName(
   }
 
   if (!slug) {
-    slug = normalizeWfmSlug(key);
+    // Nothing in the catalog matched, so this is a display name rather than a
+    // slug: fold it. A hyphenated name such as Medi-Ray is slugged medi_ray.
+    slug = normalizeForSlug(key);
   }
   if (!slug) return null;
 

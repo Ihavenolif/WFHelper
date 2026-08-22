@@ -5,6 +5,7 @@
   import ItemImage from "../ItemImage.svelte";
   import MarketBrowseStats from "./MarketBrowseStats.svelte";
   import WikiButton from "../WikiButton.svelte";
+  import { itemLabel } from "../../lib/itemLabel.js";
   import { componentOwnership, itemDb, parsedItems, wfmItems } from "../../stores/data.js";
   import { activeItem } from "../../stores/modals.js";
   import { orderModalState } from "../../stores/market.js";
@@ -13,6 +14,7 @@
   import { CREDITS_ICON_URL } from "../../lib/assetUrls.js";
   import { invoke, send } from "../../lib/ipc.js";
   import { isIpcError } from "../../lib/ipcGuards.js";
+  import { locale, tr as translate, type MessageKey, type Translator } from "../../lib/i18n.js";
   import { useInterval } from "../../lib/timers.js";
   import {
     clearOrderBookCache,
@@ -37,7 +39,6 @@
   type ContentView = "orders" | "stats";
   type StatusFilter = "all" | "onsite" | "ingame";
   type RankFilter = "all" | "maxed";
-
   const AUTO_REFRESH_MS = 45_000;
   const FEEDBACK_TTL_MS = 2_500;
   const MAX_SUGGESTIONS = 8;
@@ -50,12 +51,12 @@
   let rowLimit = MAX_ROWS;
   let orderBook: ItemOrderBook | null = null;
   let loading = false;
-  let errorMessage = "";
+  let errorKey: MessageKey | null = null;
   let noData = false;
   let requestToken = 0;
   let autoRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   let feedbackTimer: ReturnType<typeof setTimeout> | null = null;
-  let feedbackMessage = "";
+  let feedbackKey: MessageKey | null = null;
   let stopAgeTick: (() => void) | null = null;
   let nowTimestamp = Date.now();
 
@@ -217,7 +218,7 @@
     const token = ++requestToken;
     const rank = currentFetchRank();
     orderBook = null;
-    errorMessage = "";
+    errorKey = null;
     noData = false;
     loading = true;
 
@@ -238,7 +239,7 @@
     }
     setAgeTick(false);
     if (result.status === "not_found") noData = true;
-    else errorMessage = "Failed to load listings. Try again.";
+    else errorKey = "common.failedToLoadListingsTryAgain";
   }
 
   function refresh(): void {
@@ -273,6 +274,12 @@
   });
 
   $: selectedDbEntry = selected?.gameRef ? ($itemDb[selected.gameRef] ?? null) : null;
+
+  // The catalog is English because warframe.market is. Only the label follows the
+  // game language; every slug, order and chat line still goes out in English.
+  function catalogLabel(entry: { name: string; gameRef?: string | null }): string {
+    return itemLabel(entry.gameRef ? ($itemDb[entry.gameRef] ?? entry) : entry);
+  }
   $: owned = computeOwned(selected, $parsedItems);
 
   interface OwnedInfo {
@@ -340,28 +347,32 @@
     return out;
   }
 
-  function statusLabel(status: string | null): string {
-    if (status === "ingame") return "Online in game";
-    if (status === "online") return "Online";
-    if (status === "invisible") return "Invisible";
-    return "Offline";
+  function statusLabelKey(status: string | null): MessageKey {
+    if (status === "ingame") return "browse.status.ingame";
+    if (status === "online") return "common.online";
+    if (status === "invisible") return "common.invisible";
+    return "common.offline";
   }
 
-  function formatUpdatedLabel(timestamp: number | null | undefined, nowMs: number): string {
-    if (!timestamp || timestamp <= 0) return "Updated recently";
+  function formatUpdatedLabel(
+    translate: Translator,
+    timestamp: number | null | undefined,
+    nowMs: number,
+  ): string {
+    if (!timestamp || timestamp <= 0) return translate("common.updatedRecently");
     const ageSec = Math.max(0, Math.floor((nowMs - timestamp) / 1000));
-    if (ageSec < 5) return "Updated just now";
-    if (ageSec < 60) return `Updated ${ageSec}s ago`;
+    if (ageSec < 5) return translate("common.updatedJustNow");
+    if (ageSec < 60) return translate("common.updatedSAgo", { sec: ageSec });
     const ageMin = Math.floor(ageSec / 60);
-    if (ageMin < 60) return `Updated ${ageMin}m ago`;
-    return `Updated ${Math.floor(ageMin / 60)}h ago`;
+    if (ageMin < 60) return translate("common.updatedMAgo", { min: ageMin });
+    return translate("common.updatedHAgo", { hr: Math.floor(ageMin / 60) });
   }
 
-  function setFeedback(message: string): void {
-    feedbackMessage = message;
+  function setFeedback(key: MessageKey): void {
+    feedbackKey = key;
     if (feedbackTimer) clearTimeout(feedbackTimer);
     feedbackTimer = setTimeout(() => {
-      feedbackMessage = "";
+      feedbackKey = null;
       feedbackTimer = null;
     }, FEEDBACK_TTL_MS);
   }
@@ -372,9 +383,17 @@
     const rankSuffix = ranked && entry.rank != null ? ` (Rank ${entry.rank})` : "";
     const itemText = `${selected.name}${rankSuffix}${quantitySuffix}`;
     if (side === "sell") {
-      return `/w ${entry.userName} Hi! I want to buy: ${itemText} for ${entry.platinum} platinum.`;
+      return $translate("common.whisperBuy", {
+        user: entry.userName,
+        item: itemText,
+        platinum: entry.platinum,
+      });
     }
-    return `/w ${entry.userName} Hi! I want to sell: ${itemText} for ${entry.platinum} platinum.`;
+    return $translate("common.whisperSell", {
+      user: entry.userName,
+      item: itemText,
+      platinum: entry.platinum,
+    });
   }
 
   let copiedKey: string | null = null;
@@ -396,12 +415,12 @@
       if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(message);
         markCopied(key);
-        setFeedback("Whisper copied. Paste it in the in-game chat.");
+        setFeedback("browse.whisperCopied");
         return;
       }
-      setFeedback("Clipboard unavailable in this environment.");
+      setFeedback("common.clipboardUnavailableInThisEnvironment");
     } catch {
-      setFeedback("Failed to copy whisper.");
+      setFeedback("common.failedToCopyWhisper");
     }
   }
 
@@ -437,13 +456,13 @@
 
     const session = await invoke("wfmGetSession");
     if (!session.loggedIn) {
-      setFeedback("Sign in on the My Orders tab to post orders.");
+      setFeedback("browse.signInRequired");
       return;
     }
 
     const lookup = await invoke("wfmLookupItemBySlug", selected.slug);
     if (isIpcError(lookup) || !isLookupItem(lookup)) {
-      setFeedback("Unable to prepare an order for this item.");
+      setFeedback("browse.orderPrepFailed");
       return;
     }
 
@@ -469,7 +488,7 @@
         <input
           class="min-w-0 flex-1 border-0 bg-transparent px-3.5 py-2.5 text-base text-text-primary outline-none placeholder:text-text-muted"
           type="text"
-          placeholder="Search any tradable item..."
+          placeholder={$translate("browse.searchPlaceholder")}
           bind:value={query}
           bind:this={searchEl}
           on:input={() => (showSuggestions = true)}
@@ -482,7 +501,7 @@
           <button
             type="button"
             class="flex cursor-pointer items-center border-0 bg-transparent px-2 text-base leading-none text-text-muted hover:text-text-primary"
-            aria-label="Clear search"
+            aria-label={$translate("common.clearSearch")}
             on:mousedown|preventDefault={clearSearch}>&times;</button
           >
         {/if}
@@ -517,12 +536,12 @@
                   fallbackSrc={suggestion.gameRef
                     ? ($itemDb[suggestion.gameRef]?.imageUrl ?? null)
                     : null}
-                  alt={suggestion.name}
+                  alt={catalogLabel(suggestion)}
                   cls="max-h-full max-w-full"
                 />
               </span>
               <span class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap"
-                >{suggestion.name}</span
+                >{catalogLabel(suggestion)}</span
               >
             </button>
           {/each}
@@ -535,14 +554,16 @@
         ? 'border-accent/50 bg-accent-glow text-accent'
         : 'border-border bg-bg-soft text-text-secondary hover:text-text-primary'}"
       disabled={!selected}
-      title={currentSaved ? "Already saved" : "Save this item"}
+      title={currentSaved ? $translate("browse.alreadySaved") : $translate("browse.saveItem")}
       on:click={saveCurrent}>★</button
     >
   </div>
 
   {#if $savedStore.length > 0}
     <div class="mx-auto flex w-[min(640px,100%)] flex-wrap items-center gap-1.5">
-      <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Saved</span>
+      <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+        >{$translate("common.saved")}</span
+      >
       {#each $savedStore as saved (saved)}
         <span
           class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm {selected &&
@@ -553,13 +574,13 @@
           <button
             type="button"
             class="cursor-pointer border-0 bg-transparent p-0 text-inherit hover:text-text-primary"
-            title="Open this item"
+            title={$translate("browse.openItem")}
             on:click={() => applySaved(saved)}>{saved}</button
           >
           <button
             type="button"
             class="cursor-pointer border-0 bg-transparent p-0 text-inherit opacity-60 hover:opacity-100"
-            title="Remove saved item"
+            title={$translate("browse.removeSavedItem")}
             on:click={() => removeSavedSearch("marketBrowse", saved)}>×</button
           >
         </span>
@@ -567,11 +588,11 @@
     </div>
   {/if}
 
-  {#if feedbackMessage}
+  {#if feedbackKey}
     <div
       class="mx-auto w-[min(640px,100%)] rounded-lg border border-accent-dim bg-accent-glow px-3 py-2 text-center text-xs font-semibold text-accent-bright"
     >
-      {feedbackMessage}
+      {$translate(feedbackKey)}
     </div>
   {/if}
 
@@ -579,7 +600,7 @@
     <div
       class="mx-auto w-[min(640px,100%)] rounded-xl border border-dashed border-border bg-bg-soft px-4 py-8 text-center text-sm text-text-secondary"
     >
-      Search any tradable item to see who is selling and buying it, live from warframe.market.
+      {$translate("browse.emptyHint")}
     </div>
   {:else}
     <div
@@ -591,7 +612,7 @@
         <ItemImage
           src={selected.thumb}
           fallbackSrc={selected.gameRef ? ($itemDb[selected.gameRef]?.imageUrl ?? null) : null}
-          alt={selected.name}
+          alt={catalogLabel(selected)}
           cls="max-h-[72px] max-w-[72px]"
         />
       </div>
@@ -599,46 +620,51 @@
         <h3
           class="m-0 font-display text-2xl font-bold uppercase tracking-[0.04em] text-text-primary"
         >
-          {selected.name}
+          {catalogLabel(selected)}
         </h3>
         <div class="mt-1 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
           <span class={owned.total > 0 ? "font-semibold text-success" : ""}
-            >Owned x{owned.total}{owned.ranks.length > 0
+            >{$translate("browse.owned", { count: owned.total })}{owned.ranks.length > 0
               ? ` (${owned.ranks.map((entry) => `${entry.count}x R${entry.rank}`).join(", ")})`
               : ""}</span
           >
           {#if tradingTax != null}
             <span class="inline-flex items-center gap-1"
-              >Trading tax {tradingTax.toLocaleString()}<img
+              >{$translate("browse.tradingTax")}
+              {tradingTax.toLocaleString($locale)}<img
                 src={CREDITS_ICON_URL}
-                alt="credits"
+                alt={$translate("common.credits")}
                 class="h-3.5 w-3.5 object-contain"
               /></span
             >
           {/if}
-          {#if ranked}<span>Max rank {effectiveMaxRank}</span>{/if}
+          {#if ranked}<span>{$translate("browse.maxRank", { rank: effectiveMaxRank })}</span>{/if}
           <button type="button" class="link-btn" on:click={openOnWarframeMarket}
-            >Open on warframe.market</button
+            >{$translate("common.openOnWarframeMarket")}</button
           >
           {#if orderBook && !loading}
             <span class="text-text-muted"
-              >{formatUpdatedLabel(orderBook.timestamp ?? null, nowTimestamp)}</span
+              >{formatUpdatedLabel($translate, orderBook.timestamp ?? null, nowTimestamp)}</span
             >
           {/if}
         </div>
       </div>
       <div class="flex flex-wrap items-center gap-1.5">
         {#if selectedDbEntry}
-          <button class="btn-secondary btn-sm" on:click={openDetails}>Details</button>
+          <button class="btn-secondary btn-sm" on:click={openDetails}
+            >{$translate("common.details")}</button
+          >
         {/if}
         <WikiButton wikiUrl={selectedDbEntry?.wikiaUrl ?? null} fallbackName={selected.name} />
         <button class="btn-success btn-sm" on:click={() => void openPostOrder("sell")}
-          >Post WTS</button
+          >{$translate("common.postWts")}</button
         >
         <button class="btn-danger btn-sm" on:click={() => void openPostOrder("buy")}
-          >Post WTB</button
+          >{$translate("common.postWtb")}</button
         >
-        <button class="btn-secondary btn-sm" on:click={refresh}>Refresh</button>
+        <button class="btn-secondary btn-sm" on:click={refresh}
+          >{$translate("common.refresh")}</button
+        >
       </div>
     </div>
 
@@ -646,12 +672,12 @@
       <button
         class="filter-tab"
         class:active={contentView === "orders"}
-        on:click={() => (contentView = "orders")}>Orders</button
+        on:click={() => (contentView = "orders")}>{$translate("browse.tabOrders")}</button
       >
       <button
         class="filter-tab"
         class:active={contentView === "stats"}
-        on:click={() => (contentView = "stats")}>Statistics</button
+        on:click={() => (contentView = "stats")}>{$translate("browse.tabStatistics")}</button
       >
     </div>
 
@@ -660,65 +686,73 @@
     {:else}
       <div class="flex flex-wrap items-end gap-x-4 gap-y-2">
         <div class="grid gap-1">
-          <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Order type</span>
+          <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+            >{$translate("common.orderType")}</span
+          >
           <div class="filter-tabs">
             <button
               class="filter-tab browse-side-sell"
               class:active={side === "sell"}
-              on:click={() => setSide("sell")}>Sellers</button
+              on:click={() => setSide("sell")}>{$translate("browse.sellers")}</button
             >
             <button
               class="filter-tab browse-side-buy"
               class:active={side === "buy"}
-              on:click={() => setSide("buy")}>Buyers</button
+              on:click={() => setSide("buy")}>{$translate("browse.buyers")}</button
             >
           </div>
         </div>
         <div class="grid gap-1">
-          <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Status</span>
+          <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+            >{$translate("browse.status")}</span
+          >
           <div class="filter-tabs">
             <button
               class="filter-tab"
               class:active={statusFilter === "ingame"}
-              on:click={() => (statusFilter = "ingame")}>In Game</button
+              on:click={() => (statusFilter = "ingame")}>{$translate("common.inGame")}</button
             >
             <button
               class="filter-tab"
               class:active={statusFilter === "onsite"}
-              on:click={() => (statusFilter = "onsite")}>On Site</button
+              on:click={() => (statusFilter = "onsite")}>{$translate("browse.onSite")}</button
             >
             <button
               class="filter-tab"
               class:active={statusFilter === "all"}
-              on:click={() => (statusFilter = "all")}>All</button
+              on:click={() => (statusFilter = "all")}>{$translate("common.all")}</button
             >
           </div>
         </div>
         {#if ranked}
           <div class="grid gap-1">
-            <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Rank</span>
+            <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+              >{$translate("common.rank")}</span
+            >
             <div class="filter-tabs">
               <button
                 class="filter-tab"
                 class:active={rankFilter === "all"}
-                on:click={() => setRankFilter("all")}>All</button
+                on:click={() => setRankFilter("all")}>{$translate("common.all")}</button
               >
               <button
                 class="filter-tab"
                 class:active={rankFilter === "maxed"}
-                on:click={() => setRankFilter("maxed")}>Maxed</button
+                on:click={() => setRankFilter("maxed")}>{$translate("browse.maxed")}</button
               >
             </div>
           </div>
         {/if}
         <div class="grid gap-1">
-          <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Price</span>
+          <span class="text-xs uppercase tracking-[0.05em] text-text-muted"
+            >{$translate("common.price")}</span
+          >
           <div class="flex items-center gap-1.5">
             <input
               class="browse-price-input"
               type="number"
               min="0"
-              placeholder="Min"
+              placeholder={$translate("common.min")}
               bind:value={minPrice}
             />
             <span class="text-xs text-text-muted">-</span>
@@ -726,7 +760,7 @@
               class="browse-price-input"
               type="number"
               min="0"
-              placeholder="Max"
+              placeholder={$translate("common.max")}
               bind:value={maxPrice}
             />
           </div>
@@ -737,25 +771,25 @@
         <div
           class="rounded-xl border border-dashed border-border bg-bg-soft px-4 py-6 text-center text-sm text-text-secondary"
         >
-          Loading listings...
+          {$translate("common.loadingListings")}
         </div>
-      {:else if errorMessage}
+      {:else if errorKey}
         <div
           class="rounded-xl border border-dashed border-danger/40 bg-bg-soft px-4 py-6 text-center text-sm text-danger"
         >
-          {errorMessage}
+          {$translate(errorKey)}
         </div>
       {:else if noData || !orderBook}
         <div
           class="rounded-xl border border-dashed border-border bg-bg-soft px-4 py-6 text-center text-sm text-text-secondary"
         >
-          No active listings found for this item.
+          {$translate("browse.noListings")}
         </div>
       {:else if rows.length === 0}
         <div
           class="rounded-xl border border-dashed border-border bg-bg-soft px-4 py-6 text-center text-sm text-text-secondary"
         >
-          No {side === "sell" ? "sell" : "buy"} orders match the current filters.
+          {side === "sell" ? $translate("browse.noOrdersSell") : $translate("browse.noOrdersBuy")}
         </div>
       {:else}
         <div class="overflow-hidden rounded-xl border border-border">
@@ -764,12 +798,16 @@
               <tr
                 class="bg-bg-raised text-left text-xs uppercase tracking-[0.05em] text-text-muted [&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold"
               >
-                <th>Qty</th>
-                <th>User</th>
-                <th>Status</th>
-                {#if ranked}<th class="text-right">Rank</th>{/if}
-                <th class="text-right">Unit price</th>
-                <th class="text-right">{side === "sell" ? "Buy" : "Sell"}</th>
+                <th>{$translate("browse.col.qty")}</th>
+                <th>{$translate("browse.col.user")}</th>
+                <th>{$translate("browse.status")}</th>
+                {#if ranked}<th class="text-right">{$translate("common.rank")}</th>{/if}
+                <th class="text-right">{$translate("browse.col.unitPrice")}</th>
+                <th class="text-right"
+                  >{side === "sell"
+                    ? $translate("browse.col.buy")
+                    : $translate("browse.col.sell")}</th
+                >
               </tr>
             </thead>
             <tbody>
@@ -798,7 +836,7 @@
                       <button
                         type="button"
                         class="link-btn font-semibold"
-                        title="Open warframe.market profile"
+                        title={$translate("browse.openProfile")}
                         on:click={() => openProfile(entry)}>{entry.userName}</button
                       >
                     </div>
@@ -810,7 +848,7 @@
                         ? 'text-success'
                         : entry.status === 'online'
                           ? 'text-info'
-                          : 'text-text-muted'}">{statusLabel(entry.status)}</span
+                          : 'text-text-muted'}">{$translate(statusLabelKey(entry.status))}</span
                     >
                   </td>
                   {#if ranked}
@@ -828,7 +866,9 @@
                         : 'btn-secondary'} btn-sm min-w-[104px]"
                       title={buildWhisper(entry)}
                       on:click={() => void copyWhisper(entry, rowKey)}
-                      >{copiedKey === rowKey ? "Copied!" : "Copy whisper"}</button
+                      >{copiedKey === rowKey
+                        ? $translate("common.copied")
+                        : $translate("browse.copyWhisper")}</button
                     >
                   </td>
                 </tr>
@@ -837,11 +877,14 @@
           </table>
         </div>
         <div class="text-center text-xs text-text-muted">
-          Showing {rows.length} of {filteredRows.length}
-          {side === "sell" ? "sell" : "buy"} orders - refreshes automatically.
+          {side === "sell"
+            ? $translate("browse.showingSell", { shown: rows.length, total: filteredRows.length })
+            : $translate("browse.showingBuy", { shown: rows.length, total: filteredRows.length })}
           {#if filteredRows.length > rows.length}
             <button class="link-btn" on:click={() => (rowLimit += MAX_ROWS)}
-              >Show {Math.min(MAX_ROWS, filteredRows.length - rows.length)} more</button
+              >{$translate("browse.showMore", {
+                n: Math.min(MAX_ROWS, filteredRows.length - rows.length),
+              })}</button
             >
           {/if}
         </div>

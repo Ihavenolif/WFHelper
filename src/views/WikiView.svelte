@@ -7,6 +7,7 @@
   import { activeItem } from "../stores/modals.js";
   import { buildItemNameIndex } from "../lib/componentResolution.js";
   import { buildParsedItemFromDb } from "../lib/parsedItemFromDb.js";
+  import { tr as t } from "../lib/i18n.js";
   import type { DropRow, DropSearchMode } from "../types/drops.js";
 
   let query = "";
@@ -114,9 +115,9 @@
   <div class="mx-auto flex w-full max-w-[1040px] flex-col gap-4 py-4">
     <header class="view-header mb-0">
       <div class="flex flex-col gap-1">
-        <h2>Drop Data</h2>
+        <h2>{$t("wiki.title")}</h2>
         <p class="m-0 text-sm text-text-secondary">
-          Search the full Warframe drop tables for any item's drop locations and rates.
+          {$t("wiki.description")}
         </p>
       </div>
     </header>
@@ -127,8 +128,8 @@
           type="search"
           class="w-full rounded-lg border border-border bg-bg-soft px-3 py-2 pr-8 text-sm text-text-primary outline-none placeholder:text-text-muted focus:border-accent [&::-webkit-search-cancel-button]:hidden"
           placeholder={mode === "item"
-            ? "Search an item (e.g. Vitus Essence)"
-            : "Search a location (e.g. Arbitrations)"}
+            ? $t("wiki.searchPlaceholderItem")
+            : $t("wiki.searchPlaceholderPlace")}
           bind:value={query}
           bind:this={searchEl}
           on:input={onInput}
@@ -140,7 +141,7 @@
           <button
             type="button"
             class="absolute right-1.5 top-1/2 -translate-y-1/2 cursor-pointer rounded border-0 bg-transparent px-1.5 py-0.5 text-base leading-none text-text-muted hover:text-text-primary"
-            aria-label="Clear search"
+            aria-label={$t("common.clearSearch")}
             on:click={clearSearch}>&times;</button
           >
         {/if}
@@ -151,7 +152,7 @@
           ? 'bg-accent-glow text-accent'
           : 'bg-bg-soft text-text-secondary hover:text-text-primary'}"
         disabled={!query.trim()}
-        title={currentSearchSaved ? "Search already saved" : "Save this search"}
+        title={currentSearchSaved ? $t("wiki.searchAlreadySaved") : $t("wiki.saveSearch")}
         on:click={() => addSavedSearch(`wiki:${mode}`, query)}>★</button
       >
       <div class="flex shrink-0 overflow-hidden rounded-lg border border-border">
@@ -160,21 +161,22 @@
           class="px-3 py-2 text-sm font-display {mode === 'item'
             ? 'bg-accent-glow text-accent'
             : 'bg-bg-soft text-text-secondary hover:text-text-primary'}"
-          on:click={() => setMode("item")}>By item</button
+          on:click={() => setMode("item")}>{$t("wiki.byItem")}</button
         >
         <button
           type="button"
           class="border-l border-border px-3 py-2 text-sm font-display {mode === 'place'
             ? 'bg-accent-glow text-accent'
             : 'bg-bg-soft text-text-secondary hover:text-text-primary'}"
-          on:click={() => setMode("place")}>By location</button
+          on:click={() => setMode("place")}>{$t("wiki.byLocation")}</button
         >
       </div>
     </div>
 
     {#if $savedStore.length > 0}
       <div class="flex flex-wrap items-center gap-1.5">
-        <span class="text-xs uppercase tracking-[0.05em] text-text-muted">Saved</span>
+        <span class="text-xs uppercase tracking-[0.05em] text-text-muted">{$t("common.saved")}</span
+        >
         {#each $savedStore as s (s)}
           <span
             class="inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm {query.trim() ===
@@ -185,13 +187,13 @@
             <button
               type="button"
               class="cursor-pointer border-0 bg-transparent p-0 text-inherit hover:text-text-primary"
-              title="Search this"
+              title={$t("wiki.searchThis")}
               on:click={() => applySavedSearch(s)}>{s}</button
             >
             <button
               type="button"
               class="cursor-pointer border-0 bg-transparent p-0 text-inherit opacity-60 hover:opacity-100"
-              title="Remove saved search"
+              title={$t("wiki.removeSearch")}
               on:click={() => removeSavedSearch(`wiki:${mode}`, s)}>×</button
             >
           </span>
@@ -203,28 +205,28 @@
       <div
         class="rounded-lg border border-dashed border-border bg-bg-soft px-3 py-6 text-center text-sm text-text-secondary"
       >
-        Searching...
+        {$t("common.searching")}
       </div>
     {:else if !searched}
       <div
         class="rounded-lg border border-dashed border-border bg-bg-soft px-3 py-6 text-center text-sm text-text-secondary"
       >
-        Type to search drop tables.
+        {$t("wiki.typeToSearch")}
       </div>
     {:else if rows.length === 0}
       <div
         class="rounded-lg border border-dashed border-border bg-bg-soft px-3 py-6 text-center text-sm text-text-secondary"
       >
-        No drops found for "{query.trim()}".
+        {$t("wiki.noResults", { query: query.trim() })}
       </div>
     {:else}
       <div class="overflow-hidden rounded-lg border border-border">
         <table class="w-full border-collapse text-sm">
           <thead>
             <tr class="bg-bg-soft text-left text-xs uppercase tracking-[0.05em] text-text-muted">
-              <th class="px-3 py-2 font-medium">Item</th>
-              <th class="px-3 py-2 font-medium">Drops from</th>
-              <th class="px-3 py-2 text-right font-medium">Rarity</th>
+              <th class="px-3 py-2 font-medium">{$t("common.item")}</th>
+              <th class="px-3 py-2 font-medium">{$t("wiki.col.dropsFrom")}</th>
+              <th class="px-3 py-2 text-right font-medium">{$t("wiki.col.rarity")}</th>
             </tr>
           </thead>
           <tbody>
@@ -257,7 +259,7 @@
       </div>
       {#if total > rows.length}
         <p class="m-0 text-center text-xs text-text-muted">
-          Showing {rows.length} of {total} results. Refine your search to narrow it down.
+          {$t("wiki.showingResults", { shown: rows.length, total })}
         </p>
       {/if}
     {/if}

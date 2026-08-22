@@ -17,6 +17,7 @@ import {
 } from "./overlay/windows";
 import { withScope } from "../services/logger";
 import { hardenBrowserWindowNavigation } from "../services/windowSecurity";
+import { userDataPath } from "../services/userDataPath";
 
 import * as relicService from "../services/relicService";
 import {
@@ -32,7 +33,6 @@ import {
 } from "../config/runtime/overlaySettings";
 import {
   OVERLAY_CLOSE,
-  OVERLAY_GET_RELIC_ITEMS,
   OVERLAY_GET_PRICE,
   OVERLAY_GET_DRAG_HINT,
   TOGGLE_OVERLAY,
@@ -64,7 +64,7 @@ const wfmStatsPrice = {
 const APP_ROOT = app.getAppPath();
 const OVERLAY_WINDOW_FILE = path.join(APP_ROOT, "renderer", "overlay.html");
 // Prices and ducat meta live in the snapshot cache; price-cache.json is not written.
-const PRICE_CACHE_FILE = path.join(app.getPath("userData"), "snapshot-cache.json");
+const PRICE_CACHE_FILE = userDataPath("snapshot-cache.json");
 
 export const rewardWindowsController = createOverlayWindowsController({
   app,
@@ -243,10 +243,6 @@ export function register(
     }
 
     rewardWindowsController.hideOverlayWindow();
-  });
-
-  handleAuthorized(OVERLAY_GET_RELIC_ITEMS, assertOverlayRendererSender, async () => {
-    return relicService.getRelicRewardItems();
   });
 
   // move-hint state: unlock hotkey + whether a live overlay was ever dragged (setup doesn't count)

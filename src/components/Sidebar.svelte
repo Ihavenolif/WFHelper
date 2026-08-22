@@ -1,95 +1,34 @@
 <script lang="ts">
-  import { onMount } from "svelte";
-
   import { currentView } from "../stores/app.js";
   import { invoke, send } from "../lib/ipc.js";
   import { tr } from "../lib/i18n.js";
   import { NAV_ICON_URLS } from "../lib/assetUrls.js";
   import { persistedBoolean } from "../lib/persistence.js";
+  import { devMode } from "../stores/devMode.js";
   import { hiddenTabs } from "../stores/sidebarTabs.js";
   import { resetTourAutoStart } from "../stores/tour.js";
   import type { MessageKey } from "../lib/i18n.js";
+  import type { ViewName } from "../types/views.js";
+  import { SIDEBAR_VIEW_ORDER, VIEW_LABEL_KEYS } from "../lib/viewRegistry.js";
 
   const collapsed = persistedBoolean("sidebar.collapsed", false);
-  let showDevTools = import.meta.env.DEV;
-
-  onMount(() => {
-    invoke("getAppRuntimeInfo")
-      .then((info) => {
-        showDevTools = !info.isPackaged;
-      })
-      .catch(() => {
-        showDevTools = import.meta.env.DEV;
-      });
-  });
+  $: showDevTools = $devMode;
 
   function toggleCollapsed(): void {
     collapsed.update((value) => !value);
   }
 
   interface NavItem {
-    view: string;
+    view: ViewName;
     labelKey: MessageKey;
     icon: string;
   }
 
-  const navItems: NavItem[] = [
-    {
-      view: "inventory",
-      labelKey: "nav.inventory",
-      icon: NAV_ICON_URLS.inventory,
-    },
-    {
-      view: "foundry",
-      labelKey: "nav.foundry",
-      icon: NAV_ICON_URLS.foundry,
-    },
-    {
-      view: "mastery",
-      labelKey: "nav.mastery",
-      icon: NAV_ICON_URLS.mastery,
-    },
-    {
-      view: "stats",
-      labelKey: "nav.stats",
-      icon: NAV_ICON_URLS.stats,
-    },
-    {
-      view: "world",
-      labelKey: "nav.world",
-      icon: NAV_ICON_URLS.world,
-    },
-    {
-      view: "market",
-      labelKey: "nav.market",
-      icon: NAV_ICON_URLS.market,
-    },
-    {
-      view: "relics",
-      labelKey: "nav.relics",
-      icon: NAV_ICON_URLS.relics,
-    },
-    {
-      view: "wiki",
-      labelKey: "nav.wiki",
-      icon: NAV_ICON_URLS.wiki,
-    },
-    {
-      view: "rivens",
-      labelKey: "nav.rivens",
-      icon: NAV_ICON_URLS.rivens,
-    },
-    {
-      view: "arbi",
-      labelKey: "nav.arbi",
-      icon: NAV_ICON_URLS.arbi,
-    },
-    {
-      view: "settings",
-      labelKey: "nav.settings",
-      icon: NAV_ICON_URLS.settings,
-    },
-  ];
+  const navItems: NavItem[] = SIDEBAR_VIEW_ORDER.map((view) => ({
+    view,
+    labelKey: VIEW_LABEL_KEYS[view],
+    icon: NAV_ICON_URLS[view],
+  }));
 
   $: visibleNavItems = navItems.filter((item) => !$hiddenTabs.has(item.view));
 
@@ -122,8 +61,8 @@
   <div class="flex flex-col gap-0.5">
     <button
       class="nav-btn nav-btn-collapse relative flex w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3.5 py-2.5 font-display text-base font-medium tracking-wide text-text-muted transition-colors duration-150 hover:bg-bg-hover hover:text-text-primary"
-      title={$collapsed ? "Expand sidebar" : "Collapse sidebar"}
-      aria-label={$collapsed ? "Expand sidebar" : "Collapse sidebar"}
+      title={$collapsed ? $tr("nav.expandSidebar") : $tr("nav.collapseSidebar")}
+      aria-label={$collapsed ? $tr("nav.expandSidebar") : $tr("nav.collapseSidebar")}
       on:click={toggleCollapsed}
     >
       <svg
@@ -137,10 +76,11 @@
       >
         <polyline points="15 18 9 12 15 6" />
       </svg>
-      <span>Collapse</span>
+      <span>{$tr("nav.collapse")}</span>
     </button>
     {#each visibleNavItems as item}
       <button
+        data-view={item.view}
         class="nav-btn relative flex w-full cursor-pointer items-center gap-3 rounded-md border-0 px-3.5 py-2.5 font-display text-base font-medium tracking-wide transition-colors duration-150 {$currentView ===
         item.view
           ? "bg-accent-glow text-accent before:content-[''] before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-1 before:rounded-r before:bg-accent max-[800px]:before:hidden"
@@ -158,7 +98,7 @@
     <div class="mt-2 flex flex-col gap-0.5">
       <button
         class="nav-btn relative flex w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3.5 py-2.5 font-display text-base font-medium tracking-wide text-text-muted transition-colors duration-150 hover:bg-bg-hover hover:text-text-secondary"
-        title="Preview setup wizard"
+        title={$tr("nav.previewSetupWizard")}
         on:click={() => {
           resetTourAutoStart();
           currentView.set("setup");
@@ -174,7 +114,7 @@
           <rect x="4" y="5" width="16" height="14" rx="2" />
           <path d="M8 9h8M8 13h5M16 13h1" />
         </svg>
-        <span>Setup</span>
+        <span>{$tr("nav.setup")}</span>
       </button>
       <button
         class="nav-btn relative flex w-full cursor-pointer items-center gap-3 rounded-md border-0 bg-transparent px-3.5 py-2.5 font-display text-base font-medium tracking-wide text-text-muted transition-colors duration-150 hover:bg-bg-hover hover:text-text-secondary"

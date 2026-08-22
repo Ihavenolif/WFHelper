@@ -464,7 +464,7 @@ export interface WfmRivenListing {
   isDirectSell: boolean;
 }
 
-type WfmNotification =
+export type WfmNotification =
   | { type: "whisper" | "trade"; from: string; content: string }
   // The persistent WS listener gave up after repeated sign-in rejections;
   // the session token is dead and the user must log in again.
@@ -530,6 +530,8 @@ export interface IpcSendMap {
   "toggle-overlay": [];
   "simulate-relic-trigger": [];
   "overlay-theme-updated": [themeVars: Record<string, string>];
+  "overlay-locale-updated": [locale: string];
+  "game-locale-updated": [locale: string];
   "overlay:push-relic-filters": [filters: { squadSize: number; tierFilter: string | null }];
   "open-external": [url: string];
 }

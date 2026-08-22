@@ -2,30 +2,31 @@ import { derived, type Readable, type Writable } from "svelte/store";
 
 import { persistedBoolean } from "../lib/persistence.js";
 import type { MessageKey } from "../lib/i18n.js";
+import type { ToggleableView, ViewName } from "../types/views.js";
 
 // Tabs the user can hide. Inventory and Settings are deliberately absent: one is
 // the default landing view, the other is how you get the rest back.
-export const TOGGLEABLE_TABS: ReadonlyArray<{ view: string; labelKey: MessageKey }> = [
-  { view: "foundry", labelKey: "nav.foundry" },
-  { view: "mastery", labelKey: "nav.mastery" },
-  { view: "stats", labelKey: "nav.stats" },
-  { view: "world", labelKey: "nav.world" },
-  { view: "market", labelKey: "nav.market" },
-  { view: "relics", labelKey: "nav.relics" },
-  { view: "wiki", labelKey: "nav.wiki" },
-  { view: "rivens", labelKey: "nav.rivens" },
-  { view: "arbi", labelKey: "nav.arbi" },
+export const TOGGLEABLE_TABS: ReadonlyArray<{ view: ToggleableView; labelKey: MessageKey }> = [
+  { view: "foundry", labelKey: "common.foundry" },
+  { view: "mastery", labelKey: "common.mastery" },
+  { view: "stats", labelKey: "common.stats" },
+  { view: "world", labelKey: "common.world" },
+  { view: "market", labelKey: "common.market" },
+  { view: "relics", labelKey: "common.relics" },
+  { view: "wiki", labelKey: "common.wiki" },
+  { view: "rivens", labelKey: "common.rivens" },
+  { view: "arbi", labelKey: "common.arbitrations" },
 ];
 
-export const tabVisibility: Record<string, Writable<boolean>> = Object.fromEntries(
+export const tabVisibility = Object.fromEntries(
   TOGGLEABLE_TABS.map((t) => [t.view, persistedBoolean(`wf_tab_visible_${t.view}`, true)]),
-);
+) as Record<ToggleableView, Writable<boolean>>;
 
 /** Views currently switched off, for the sidebar to filter against. */
-export const hiddenTabs: Readable<Set<string>> = derived(
+export const hiddenTabs: Readable<Set<ViewName>> = derived(
   TOGGLEABLE_TABS.map((t) => tabVisibility[t.view]),
   (visible) => {
-    const hidden = new Set<string>();
+    const hidden = new Set<ViewName>();
     TOGGLEABLE_TABS.forEach((t, i) => {
       if (!visible[i]) hidden.add(t.view);
     });

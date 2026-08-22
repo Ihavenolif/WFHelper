@@ -25,11 +25,12 @@
     return "text-text-muted border-border";
   }
 
-  function typeLabel(run: ArbiRunRecord): string {
-    if (run.missionType === "defense") return $t("arbi.type.defense");
-    if (run.missionType === "interception") return $t("arbi.type.interception");
-    if (run.missionType === "disruption") return $t("arbi.type.disruption");
-    return missionKindLabel(run) ?? $t("arbi.type.other");
+  // Named mission kinds are game data; only the fallback words are translated.
+  function typeLabel(t: typeof $t, run: ArbiRunRecord): string {
+    if (run.missionType === "defense") return t("arbi.type.defense");
+    if (run.missionType === "interception") return t("arbi.type.interception");
+    if (run.missionType === "disruption") return t("arbi.type.disruption");
+    return missionKindLabel(run) ?? t("arbi.type.other");
   }
 
   async function onDeleteRun(e: MouseEvent, id: string): Promise<void> {
@@ -53,15 +54,15 @@
             type="checkbox"
             class="block h-3.5 w-3.5 cursor-pointer accent-[var(--accent)]"
             checked={allSelected}
-            title={$t("arbi.selectAll")}
-            aria-label={$t("arbi.selectAll")}
+            title={$t("common.selectAll")}
+            aria-label={$t("common.selectAll")}
             on:change={onToggleSelectAll}
           />
         </th>
         <th class="px-3 py-2 font-semibold">{$t("arbi.col.date")}</th>
-        <th class="px-3 py-2 font-semibold">{$t("arbi.col.node")}</th>
-        <th class="px-3 py-2 font-semibold">{$t("arbi.col.type")}</th>
-        <th class="px-3 py-2 text-right font-semibold">{$t("arbi.col.duration")}</th>
+        <th class="px-3 py-2 font-semibold">{$t("common.node")}</th>
+        <th class="px-3 py-2 font-semibold">{$t("common.type")}</th>
+        <th class="px-3 py-2 text-right font-semibold">{$t("common.duration")}</th>
         <th class="px-3 py-2 text-right font-semibold">{$t("arbi.col.rotations")}</th>
         <th class="px-3 py-2 text-right font-semibold">{$t("arbi.col.drones")}</th>
         <th class="px-3 py-2 text-right font-semibold">{$t("arbi.col.vitus")}</th>
@@ -93,7 +94,7 @@
             {#if run.source === "imported"}
               <span
                 class="ml-1.5 rounded border border-border px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-muted"
-                >{$t("arbi.source.imported")}</span
+                >{$t("common.imported")}</span
               >
             {/if}
             {#if run.tags && run.tags.length > 0}
@@ -113,7 +114,7 @@
                 run,
               )}"
             >
-              {typeLabel(run)}
+              {typeLabel($t, run)}
             </span>
           </td>
           <td class="whitespace-nowrap px-3 py-2 text-right text-text-secondary"

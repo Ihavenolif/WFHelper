@@ -3,10 +3,10 @@
   --surface: var(--bg-surface, #111827);
   --raised: var(--bg-raised, #162340);
   --border: var(--border-strong, rgba(79, 158, 255, 0.25));
-  --accent: var(--accent, #4f9eff);
-  --accent-bright: var(--accent-bright, #7db8ff);
-  --accent-dim: var(--accent-dim, #2d6abf);
-  --accent-glow: var(--accent-glow, rgba(79, 158, 255, 0.15));
+  --accent: #4f9eff;
+  --accent-bright: #7db8ff;
+  --accent-dim: #2d6abf;
+  --accent-glow: rgba(79, 158, 255, 0.15);
   --text: var(--text-primary, #e8edf5);
   --muted: var(--text-secondary, #a0aec0);
   --text-dim: var(--text-muted, #5a6a82);

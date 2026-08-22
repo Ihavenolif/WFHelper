@@ -12,6 +12,7 @@ import {
 } from "./rivenConstants";
 import { getGoodRolls, type GoodRollData } from "./rivenBestAttributes";
 import { clamp01 } from "./rewardScannerUtils";
+import { lerp } from "../config/shared/numeric";
 
 const log = withScope("rivenGrading");
 
@@ -48,10 +49,6 @@ const GRADE_THRESHOLDS: { min: number; grade: string }[] = [
   { min: -7.5, grade: "C" },
   { min: -9.5, grade: "C-" },
 ];
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
 
 function inverseLerp(a: number, b: number, v: number): number {
   if (b === a) return 0;

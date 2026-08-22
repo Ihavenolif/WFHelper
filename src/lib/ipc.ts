@@ -103,6 +103,8 @@ const sendApiMap: Record<SendChannel, (...args: never[]) => void> = {
   "simulate-relic-trigger": () => window.api.simulateRelicTrigger(),
   "overlay-theme-updated": (themeVars: Record<string, string>) =>
     window.api.updateOverlayTheme(themeVars),
+  "overlay-locale-updated": (locale: string) => window.api.updateOverlayLocale(locale),
+  "game-locale-updated": (locale: string) => window.api.updateGameLocale(locale),
   "overlay:push-relic-filters": (filters: { squadSize: number; tierFilter: string | null }) =>
     window.api.pushRelicFilters(filters),
   "open-external": (url: string) => window.api.openExternal(url),

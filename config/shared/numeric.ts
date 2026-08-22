@@ -112,6 +112,10 @@ export function normalizeDucats(value: unknown): number | null {
   return parsed != null && parsed >= 0 ? Math.round(parsed) : null;
 }
 
+export function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
 /** Whether an inventory group has rank-bearing entries. */
 export function isRankedGroup(group: string | null | undefined): boolean {
   return group === "mods" || group === "arcanes";

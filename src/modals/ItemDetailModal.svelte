@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { activeItem } from "../stores/modals.js";
   import { itemDb, wfmItems, componentOwnership } from "../stores/data.js";
   import { createPriceLoader } from "../lib/priceState.js";
@@ -12,14 +13,19 @@
   import DetailModalBase from "./DetailModalBase.svelte";
   import ComponentPanel from "../components/ComponentPanel.svelte";
   import CraftingTree from "../components/CraftingTree.svelte";
+  import { tr, type MessageKey } from "../lib/i18n.js";
   import type { ComponentInfo, ParsedItem } from "../types/inventory.js";
 
-  let priceText = "";
+  let priceKey: MessageKey | null = null;
+  let priceParams: Record<string, string | number> | undefined;
   let priceSlug: string | null = null;
   const priceLoader = createPriceLoader((state) => {
-    priceText = state.text;
+    priceKey = state.messageKey;
+    priceParams = state.messageParams;
     priceSlug = state.slug;
   });
+
+  $: priceText = priceKey ? $tr(priceKey, priceParams) : "";
 
   // Inline component panel state
   let selectedComp: ComponentInfo | null = null;
@@ -132,7 +138,7 @@
 
 {#if item}
   <DetailModalBase
-    ariaLabel={item.name}
+    ariaLabel={itemLabel(item)}
     onClose={onModalClose}
     sideState={selectedComp ? "component" : "none"}
     panelClass={showCraftingTree ? "w-[90vw] max-w-[1100px]" : ""}
@@ -144,7 +150,7 @@
           class="rounded border border-border-subtle bg-transparent px-2.5 py-0.5 text-xs text-text-secondary transition-colors duration-150 hover:bg-surface-hover hover:text-text-primary"
           on:click={goBack}
         >
-          ← Back
+          {$tr("detail.back")}
         </button>
       {/if}
       {#if hasCraftingTree}
@@ -156,22 +162,28 @@
             showCraftingTree = !showCraftingTree;
           }}
         >
-          {showCraftingTree ? "← Details" : "Crafting Tree"}
+          {showCraftingTree ? $tr("detail.backToDetails") : $tr("detail.craftingTree")}
         </button>
       {/if}
       <WikiButton wikiUrl={item.wikiaUrl} fallbackName={item.name} />
-      <button class="detail-close" aria-label="Close" on:click={close}>&times;</button>
+      <button class="detail-close" aria-label={$tr("common.close")} on:click={close}>&times;</button
+      >
     </div>
 
     {#if showCraftingTree && craftingTree}
       <!-- Crafting tree mode: compact header + full tree -->
       <div class="flex items-center gap-3 px-4 py-2 border-b border-white/[0.06]">
         <div class="shrink-0 h-10 w-10">
-          <ItemImage src={item.imageUrl} alt={item.name} cls="h-10 w-10 object-contain" />
+          <ItemImage
+            src={item.imageUrl}
+            alt={itemLabel(item)}
+            auditKey={item.name}
+            cls="h-10 w-10 object-contain"
+          />
         </div>
         <div>
-          <h2 class="m-0 font-display text-base font-bold text-text-primary">{item.name}</h2>
-          <span class="text-xs text-text-muted">Crafting Tree</span>
+          <h2 class="m-0 font-display text-base font-bold text-text-primary">{itemLabel(item)}</h2>
+          <span class="text-xs text-text-muted">{$tr("detail.craftingTree")}</span>
         </div>
       </div>
 
@@ -182,17 +194,27 @@
       <!-- Normal detail mode -->
       <div class="detail-header">
         <div class="detail-img-wrap">
-          <ItemImage src={item.imageUrl} alt={item.name} cls="item-img" />
+          <ItemImage
+            src={item.imageUrl}
+            alt={itemLabel(item)}
+            auditKey={item.name}
+            cls="item-img"
+          />
         </div>
         <div class="detail-title-area">
-          <h2>{item.name}</h2>
+          <h2>{itemLabel(item)}</h2>
           <div class="detail-tags">
-            {#if item.isPrime}<span class="detail-tag prime">PRIME</span>{/if}
-            {#if item.vaulted}<span class="detail-tag vaulted">VAULTED</span>{/if}
-            {#if item.status === "mastered"}<span class="detail-tag mastered">MASTERED</span>{/if}
-            {#if item.status === "progress"}<span class="detail-tag progress">IN PROGRESS</span
+            {#if item.isPrime}<span class="detail-tag prime">{$tr("common.prime")}</span>{/if}
+            {#if item.vaulted}<span class="detail-tag vaulted">{$tr("common.vaulted")}</span>{/if}
+            {#if item.status === "mastered"}<span class="detail-tag mastered"
+                >{$tr("common.mastered")}</span
               >{/if}
-            {#if item.status === "missing"}<span class="detail-tag missing">MISSING</span>{/if}
+            {#if item.status === "progress"}<span class="detail-tag progress"
+                >{$tr("common.inProgress")}</span
+              >{/if}
+            {#if item.status === "missing"}<span class="detail-tag missing"
+                >{$tr("common.missing")}</span
+              >{/if}
             {#if item.categoryLabel || item.category}
               <span class="detail-meta-inline">{item.categoryLabel || item.category}</span>
             {/if}
@@ -200,10 +222,10 @@
               <button
                 type="button"
                 class="cursor-pointer rounded border border-border-subtle bg-transparent px-2 py-0.5 font-display text-xs text-text-secondary transition-colors duration-150 hover:border-accent hover:bg-surface-hover hover:text-accent"
-                title="Open {parentEntry.name}"
+                title={$tr("common.open", { name: itemLabel(parentEntry) })}
                 on:click={openParentItem}
               >
-                Part of: {parentEntry.name}
+                {$tr("common.partOf", { name: itemLabel(parentEntry) })}
               </button>
             {/if}
           </div>
@@ -216,7 +238,7 @@
       <div class="detail-body">
         {#if (item.components || []).length > 0}
           <div class="detail-section">
-            <h3>Components</h3>
+            <h3>{$tr("detail.components")}</h3>
             <div class="detail-components">
               {#each item.components as comp}
                 {@const ownedCount = comp.ownedCount ?? 0}
@@ -236,7 +258,7 @@
                   aria-pressed={selectedComp === comp}
                   on:click={() => selectComponent(comp)}
                 >
-                  <span class="comp-name">{comp.name || "Unknown"}</span>
+                  <span class="comp-name">{itemLabel(comp) || $tr("common.unknown")}</span>
                   <span class="comp-count {countClass}">{ownedCount}/{needed}</span>
                 </button>
               {/each}

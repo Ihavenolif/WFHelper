@@ -52,6 +52,35 @@ const SCREENS = [
       3: "Wukong Prime Chassis Blueprint",
     },
   },
+  // Padded from real-4p, so these pin the aspect model against regression but
+  // cannot falsify it. Real-frame evidence: 98e22b5 (21:9), real-full-4p-16x10.
+  {
+    file: "sim-aspect-16x10.png",
+    expect: {
+      0: "Epitaph Prime Receiver",
+      1: "Forma Blueprint",
+      2: "Zephyr Prime Neuroptics Blueprint",
+      3: "Wukong Prime Chassis Blueprint",
+    },
+  },
+  {
+    file: "sim-aspect-4x3.png",
+    expect: {
+      0: "Epitaph Prime Receiver",
+      1: "Forma Blueprint",
+      2: "Zephyr Prime Neuroptics Blueprint",
+      3: "Wukong Prime Chassis Blueprint",
+    },
+  },
+  {
+    file: "sim-aspect-21x9.png",
+    expect: {
+      0: "Epitaph Prime Receiver",
+      1: "Forma Blueprint",
+      2: "Zephyr Prime Neuroptics Blueprint",
+      3: "Wukong Prime Chassis Blueprint",
+    },
+  },
   // Windows band-OCR drops interior words on merged-wrap strips (can
   // exact-match a shorter real item), so these pin onnx + both.
   {
@@ -129,14 +158,17 @@ const SCREENS = [
     },
   },
   {
+    // Only real taller-than-16:9 frame. All four slots hold Forma, so it gates
+    // that the y-correction reads at all, not that slots land where they should.
     file: "real-full-4p-16x10.png",
     fixture: true,
-    info: "16:10-ish crop of unknown source resolution - ratios do not apply cleanly",
+    // Windows OCR reads the "2 X" quantity prefix as part of the name here.
+    readers: ["onnx", "both"],
     expect: {
-      0: "Forma Blueprint",
-      1: "Forma Blueprint",
-      2: "Forma Blueprint",
-      3: "Forma Blueprint",
+      0: ["Forma Blueprint", "2X Forma Blueprint"],
+      1: ["Forma Blueprint", "2X Forma Blueprint"],
+      2: ["Forma Blueprint", "2X Forma Blueprint"],
+      3: ["Forma Blueprint", "2X Forma Blueprint"],
     },
   },
 ];
@@ -163,6 +195,33 @@ async function buildClientCroppedSims(outDir) {
   }
 }
 
+// Pads a real 16:9 screen to barless non-16:9 frames with its own non-black
+// background; the aspect model itself is gated by the real 16:10 fixture.
+async function buildAspectPadSims(screenDir) {
+  const sharp = require("sharp");
+  const src = path.join(screenDir, "real-4p.png");
+  if (!fs.existsSync(src)) return;
+  const background = { r: 24, g: 16, b: 16, alpha: 1 };
+  const meta = await sharp(src).metadata();
+  const variants = [
+    { out: "sim-aspect-16x10.png", width: 1920, height: 1200 },
+    { out: "sim-aspect-4x3.png", width: 1920, height: 1440 },
+    { out: "sim-aspect-21x9.png", width: 2560, height: 1080 },
+  ];
+  for (const variant of variants) {
+    await sharp(src)
+      .extend({
+        top: Math.floor((variant.height - meta.height) / 2),
+        bottom: Math.ceil((variant.height - meta.height) / 2),
+        left: Math.floor((variant.width - meta.width) / 2),
+        right: Math.ceil((variant.width - meta.width) / 2),
+        background,
+      })
+      .png()
+      .toFile(path.join(screenDir, variant.out));
+  }
+}
+
 (async () => {
   const workDir = fs.mkdtempSync(path.join(os.tmpdir(), "wfh-scan-e2e-"));
   const screenDir = path.join(workDir, "screens");
@@ -170,6 +229,7 @@ async function buildClientCroppedSims(outDir) {
 
   await buildRealScreens(screenDir);
   await buildClientCroppedSims(screenDir);
+  await buildAspectPadSims(screenDir);
   let syntheticOk = true;
   try {
     execFileSync(
@@ -264,11 +324,12 @@ async function buildClientCroppedSims(outDir) {
         );
 
         for (const [slot, expected] of Object.entries(screen.expect)) {
+          const accepted = Array.isArray(expected) ? expected : [expected];
           const actual = bySlot.get(Number(slot)) || null;
-          const ok = actual === expected;
+          const ok = accepted.includes(actual);
           const tag = screen.info ? "INFO" : ok ? "PASS" : "FAIL";
           console.log(
-            `${tag}: ${screen.file} [${reader}] slot ${Number(slot) + 1} ${expected} -> ${actual ?? "(none)"}`,
+            `${tag}: ${screen.file} [${reader}] slot ${Number(slot) + 1} ${accepted.join(" | ")} -> ${actual ?? "(none)"}`,
           );
           if (!ok && !screen.info)
             failures.push(`${screen.file}[${reader}] slot ${Number(slot) + 1}`);

@@ -5,9 +5,12 @@ import { OVERLAY_CONTENT_VISIBLE } from "../../config/shared/ipcChannels";
 import {
   createOverlayWindowBoundsChangeHandler,
   createOverlayWindowsController,
-  pinDragSize,
+  moveWindowBy,
 } from "../../ipc/overlay/windows";
-import type { OverlaySettings } from "../../config/runtime/overlaySettings";
+import type {
+  OverlaySavedWindowBounds,
+  OverlaySettings,
+} from "../../config/runtime/overlaySettings";
 
 function createController(overlaySettings: Record<string, unknown> = {}) {
   const display = {
@@ -114,6 +117,7 @@ function createWindowTypeProbe(platform: typeof process.platform) {
     }
     on() {}
     setBounds() {}
+    setAspectRatio() {}
     getBounds() {
       return { x: 0, y: 0, width: 100, height: 100 };
     }
@@ -222,6 +226,7 @@ function createPresentationProbe(options: {
     setVisibleOnAllWorkspaces = vi.fn();
     setAlwaysOnTop = vi.fn();
     setBounds = vi.fn();
+    setAspectRatio = vi.fn();
     getBounds = vi.fn(() => ({ x: 0, y: 0, width: 100, height: 100 }));
     on = vi.fn();
     loadFile = vi.fn(() => Promise.resolve());
@@ -806,21 +811,41 @@ describe("show raise reassert", () => {
   });
 });
 
-describe("pinDragSize", () => {
-  it("keeps the first tick's size for every later tick of the drag", () => {
-    const first = pinDragSize(undefined, { width: 490, height: 344 }, 1_000);
-    // Windows shrank the window between ticks (DPI rounding); do not adopt it.
-    const second = pinDragSize(first, { width: 489, height: 343 }, 1_016);
-    expect(second).toMatchObject({ width: 490, height: 344 });
+describe("moveWindowBy", () => {
+  // Stands in for any window that returns a smaller size than it was handed:
+  // a move must not write the size at all, or the overlay shrinks per tick.
+  function fakeWindow(bounds: { x: number; y: number; width: number; height: number }) {
+    const state = { ...bounds };
+    return {
+      state,
+      getBounds: () => ({ ...state }),
+      setPosition: (x: number, y: number) => {
+        state.x = x;
+        state.y = y;
+      },
+      setBounds: (next: { x: number; y: number; width: number; height: number }) => {
+        state.x = next.x;
+        state.y = next.y;
+        state.width = next.width - 1;
+        state.height = next.height - 1;
+      },
+    };
+  }
 
-    const third = pinDragSize(second, { width: 480, height: 336 }, 1_400);
-    expect(third).toMatchObject({ width: 490, height: 344 });
+  it("moves the window", () => {
+    const win = fakeWindow({ x: 100, y: 200, width: 490, height: 344 });
+
+    moveWindowBy(win, 12, -8);
+
+    expect(win.state).toMatchObject({ x: 112, y: 192 });
   });
 
-  it("re-reads the size once the previous drag is over", () => {
-    const first = pinDragSize(undefined, { width: 490, height: 344 }, 1_000);
-    const later = pinDragSize(first, { width: 460, height: 320 }, 2_000);
-    expect(later).toMatchObject({ width: 460, height: 320 });
+  it("never changes the size, however many drags it takes", () => {
+    const win = fakeWindow({ x: 100, y: 200, width: 490, height: 344 });
+
+    for (let tick = 0; tick < 50; tick += 1) moveWindowBy(win, 3, 0);
+
+    expect(win.state).toMatchObject({ x: 250, width: 490, height: 344 });
   });
 });
 
@@ -844,5 +869,176 @@ describe("createOverlayWindowBoundsChangeHandler", () => {
     });
     expect(ctx.overlaySettings.overlayDragHintDismissed).toBe(true);
     expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it("writes the per-window scale only when a resize supplies one", () => {
+    const ctx = {
+      overlaySettings: {
+        overlayWindowBounds: {},
+        overlayWindowScales: {},
+      } as unknown as OverlaySettings,
+    };
+    const handler = createOverlayWindowBoundsChangeHandler({ ctx, save: vi.fn() });
+
+    handler("reward", { x: 10, y: 20 });
+    expect(ctx.overlaySettings.overlayWindowScales.reward).toBeUndefined();
+
+    handler("reward", { x: 10, y: 20 }, 1.25);
+    expect(ctx.overlaySettings.overlayWindowScales.reward).toBe(1.25);
+  });
+});
+
+function createResizeProbe() {
+  const display = { id: 1, workArea: { x: 0, y: 0, width: 1920, height: 1080 } };
+  const saves: Array<{ bounds: OverlaySavedWindowBounds; scale?: number }> = [];
+  let currentBounds = { x: 300, y: 400, width: 980, height: 140 };
+  const windows: FakeResizableWindow[] = [];
+
+  class FakeResizableWindow {
+    webContents = {
+      id: 1,
+      on: vi.fn(),
+      once: vi.fn(),
+      send: vi.fn(),
+      setZoomFactor: vi.fn(),
+      isLoadingMainFrame: () => false,
+      isCrashed: () => false,
+    };
+
+    listeners = new Map<string, () => void>();
+
+    constructor() {
+      windows.push(this);
+    }
+
+    on = vi.fn((event: string, listener: () => void) => {
+      this.listeners.set(event, listener);
+    });
+    loadFile = vi.fn(() => Promise.resolve());
+    setAspectRatio = vi.fn();
+    setBounds = vi.fn();
+    getBounds = vi.fn(() => currentBounds);
+    isDestroyed = vi.fn(() => false);
+    isVisible = vi.fn(() => false);
+    showInactive = vi.fn();
+    moveTop = vi.fn();
+    hide = vi.fn();
+    destroy = vi.fn();
+    setSkipTaskbar = vi.fn();
+    setVisibleOnAllWorkspaces = vi.fn();
+    setAlwaysOnTop = vi.fn();
+    setFocusable = vi.fn();
+    setIgnoreMouseEvents = vi.fn();
+  }
+
+  const ctx = {
+    overlayWindow: null,
+    overlaySettings: {} as OverlaySettings,
+    overlayInteractiveMode: true,
+  };
+  // The real persistence handler, so a saved scale is in place by the time the
+  // controller reads it back.
+  const persist = createOverlayWindowBoundsChangeHandler({ ctx, save: () => {} });
+
+  const controller = createOverlayWindowsController({
+    app: { getAppPath: () => "D:\\app" } as unknown as typeof import("electron").app,
+    BrowserWindow: FakeResizableWindow as unknown as typeof import("electron").BrowserWindow,
+    screen: {
+      getPrimaryDisplay: () => display,
+      getAllDisplays: () => [display],
+      getCursorScreenPoint: () => ({ x: 960, y: 540 }),
+      getDisplayNearestPoint: () => display,
+      getDisplayMatching: () => display,
+    } as unknown as typeof import("electron").screen,
+    ctx,
+    log: { warn: () => {}, info: () => {} },
+    hardenBrowserWindowNavigation: () => {},
+    overlayWindowFile: "D:\\app\\renderer\\overlay.html",
+    windowStateKey: "reward",
+    onWindowBoundsChanged: (key, bounds, scale) => {
+      saves.push({ bounds, scale });
+      persist(key, bounds, scale);
+    },
+    platform: "win32",
+  });
+
+  vi.useFakeTimers();
+  controller.createOverlayWindow({ show: false });
+  // Clears the suppression the initial positioning arms.
+  vi.advanceTimersByTime(1);
+
+  return {
+    saves,
+    ctx,
+    window: () => windows[windows.length - 1],
+    dragEdgeTo: (width: number, height: number) => {
+      currentBounds = { ...currentBounds, width, height };
+      windows[windows.length - 1].listeners.get("resize")?.();
+      vi.advanceTimersByTime(250);
+    },
+  };
+}
+
+describe("overlay resize", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("saves the scale a dragged edge works out to", () => {
+    const probe = createResizeProbe();
+
+    probe.dragEdgeTo(1225, 175);
+
+    expect(probe.saves).toHaveLength(1);
+    expect(probe.saves[0].scale).toBe(1.25);
+    expect(probe.saves[0].bounds).toMatchObject({ x: 300, y: 400, displayId: "1" });
+  });
+
+  it("zooms the content while the drag is still live", () => {
+    const probe = createResizeProbe();
+
+    probe.dragEdgeTo(1225, 175);
+
+    expect(probe.window().webContents.setZoomFactor).toHaveBeenLastCalledWith(1.25);
+  });
+
+  it("clamps a drag past the scale the settings slider allows", () => {
+    const probe = createResizeProbe();
+
+    probe.dragEdgeTo(1880, 268);
+
+    expect(probe.saves[0].scale).toBe(1.5);
+  });
+
+  it("scales from the edge that moved when only one of them did", () => {
+    const probe = createResizeProbe();
+
+    probe.dragEdgeTo(980, 175);
+
+    expect(probe.saves[0].scale).toBe(1.25);
+    expect(probe.window().setBounds).toHaveBeenLastCalledWith(
+      expect.objectContaining({ width: 1225, height: 175 }),
+      false,
+    );
+  });
+
+  it("springs a drag below the smallest scale back to that scale", () => {
+    const probe = createResizeProbe();
+
+    probe.dragEdgeTo(500, 71);
+
+    expect(probe.saves[0].scale).toBe(0.75);
+    expect(probe.window().setBounds).toHaveBeenLastCalledWith(
+      expect.objectContaining({ width: 735, height: 105 }),
+      false,
+    );
+  });
+
+  it("leaves the scale alone when the size is the one we asked for", () => {
+    const probe = createResizeProbe();
+
+    probe.dragEdgeTo(980, 140);
+
+    expect(probe.saves).toHaveLength(0);
   });
 });

@@ -1,8 +1,12 @@
 <script lang="ts">
   import { FORMA_ICON_URL } from "../lib/assetUrls.js";
+  import { reportDegradedIcon } from "../stores/devMode.js";
+  import { tr } from "../lib/i18n.js";
 
   export let src: string | null = null;
   export let alt = "";
+  // The dev icon audit joins on English names; alt follows the game language.
+  export let auditKey: string | null = null;
   export let cls = "item-img";
   // Second-chance source (e.g. DE artwork when the mirrored WFM thumb 404s).
   export let fallbackSrc: string | null = null;
@@ -34,6 +38,9 @@
   $: mergedPlaceholderClass = `${placeholderBase} ${cls}`.trim();
 
   function onError(event: Event): void {
+    // Every branch below is a degradation, the Forma swap included.
+    const key = auditKey || alt;
+    if (key) reportDegradedIcon(key);
     const img = event.currentTarget as HTMLImageElement | null;
     if (isFormaIcon && !useFormaFallback && img && !img.src.endsWith("Forma.webp")) {
       useFormaFallback = true;
@@ -52,7 +59,7 @@
 {#if effectiveSrc && !failed}
   <img class={mergedImageClass} src={effectiveSrc} {alt} loading="lazy" on:error={onError} />
 {:else}
-  <div class={mergedPlaceholderClass} title="No image available">
+  <div class={mergedPlaceholderClass} title={$tr("common.noImageAvailable")}>
     <svg
       class={placeholderIconBase}
       viewBox="0 0 24 24"

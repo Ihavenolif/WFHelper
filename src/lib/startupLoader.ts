@@ -1,4 +1,5 @@
 import { invoke } from "./ipc.js";
+import { onInventoryLoaded } from "./actions.js";
 import { itemDb, wfmItems } from "../stores/data.js";
 import { relicDb } from "../stores/relics.js";
 import { applyUpdateState } from "../stores/updates.js";
@@ -70,6 +71,21 @@ export function initStartup(): StartupHandle {
       profileStage("item-db:load", stageStart);
     } catch (e) {
       log.error("[Startup] getItemDatabase failed:", e);
+    }
+
+    // Main pushes inventory once, on the window's first load. A reload past that
+    // point kept the stores empty until the helper next rewrote the file, so pull
+    // it here too; onInventoryLoaded is idempotent and a push may still beat us.
+    try {
+      const stageStart = Date.now();
+      const inventory = await invoke("getInventory");
+      if (disposed) return;
+      if (inventory && !(inventory as { error?: unknown }).error) {
+        await onInventoryLoaded(inventory as Parameters<typeof onInventoryLoaded>[0]);
+      }
+      profileStage("inventory:load", stageStart);
+    } catch (e) {
+      log.error("[Startup] getInventory failed:", e);
     }
 
     // A WFM outage at startup must not brick the market for the session:

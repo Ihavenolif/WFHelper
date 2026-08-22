@@ -8,6 +8,7 @@
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
     "checkJs": true,
+    "resolveJsonModule": true,
     "allowJs": true,
     "types": ["svelte"]
   },

@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { tr } from "../../lib/i18n.js";
+
   /** Inline number control: typed value + arrow steps. */
   export let value: number;
   export let min = 1;
@@ -39,7 +41,7 @@
     {min}
     {max}
     value={String(value)}
-    aria-label="Listed {label}"
+    aria-label={$tr("market.listedLabel", { label })}
     style="width: {String(value).length + 1.5}ch"
     class="rounded-sm border border-border/70 bg-black/25 p-0 text-center font-display text-base font-bold leading-none outline-none
            focus:border-accent/70 focus:bg-white/10
@@ -52,13 +54,13 @@
     <button
       type="button"
       class="flex h-3 w-4 items-center justify-center border-0 bg-transparent p-0 text-[9px] leading-none text-text-muted hover:text-accent"
-      aria-label="Increase {label}"
+      aria-label={$tr("market.increaseLabel", { label })}
       on:click={() => step(1)}>&#9650;</button
     >
     <button
       type="button"
       class="flex h-3 w-4 items-center justify-center border-0 bg-transparent p-0 text-[9px] leading-none text-text-muted hover:text-accent"
-      aria-label="Decrease {label}"
+      aria-label={$tr("market.decreaseLabel", { label })}
       on:click={() => step(-1)}>&#9660;</button
     >
   </span>

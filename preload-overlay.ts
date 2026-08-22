@@ -3,9 +3,10 @@ import { onIpc } from "./ipc/preloadListeners";
 import { installOverlayContentVisibility } from "./ipc/overlayContentVisibility";
 import {
   OVERLAY_CLOSE,
-  OVERLAY_GET_RELIC_ITEMS,
   OVERLAY_GET_PRICE,
   OVERLAY_GET_THEME_VARS,
+  OVERLAY_GET_MESSAGES,
+  OVERLAY_MESSAGES,
   OVERLAY_GET_DRAG_HINT,
   RELIC_REWARD_TRIGGER,
   RELIC_PLANNER_TRIGGER,
@@ -24,9 +25,9 @@ installOverlayContentVisibility(ipcRenderer);
 
 contextBridge.exposeInMainWorld("overlay", {
   close: () => ipcRenderer.send(OVERLAY_CLOSE),
-  getRelicItems: () => ipcRenderer.invoke(OVERLAY_GET_RELIC_ITEMS),
   getPrice: (slug: string) => ipcRenderer.invoke(OVERLAY_GET_PRICE, slug),
   getThemeVars: () => ipcRenderer.invoke(OVERLAY_GET_THEME_VARS),
+  getMessages: () => ipcRenderer.invoke(OVERLAY_GET_MESSAGES),
   getDragHint: () => ipcRenderer.invoke(OVERLAY_GET_DRAG_HINT),
   moveBy: (dx: number, dy: number) => ipcRenderer.send(OVERLAY_DRAG_MOVE, { dx, dy }),
   ready: () => ipcRenderer.send(OVERLAY_READY),
@@ -39,6 +40,8 @@ contextBridge.exposeInMainWorld("overlay", {
     onOverlayIpc(RELIC_RECOMMENDATIONS, (_event: unknown, payload: unknown) => cb(payload)),
   onThemeVars: (cb: (vars: unknown) => void) =>
     onOverlayIpc(OVERLAY_THEME_VARS, (_event: unknown, vars: unknown) => cb(vars)),
+  onMessages: (cb: (messages: unknown) => void) =>
+    onOverlayIpc(OVERLAY_MESSAGES, (_event: unknown, messages: unknown) => cb(messages)),
   onInteractionMode: (cb: (payload: unknown) => void) =>
     onOverlayIpc(OVERLAY_INTERACTION_MODE, (_event: unknown, payload: unknown) => cb(payload)),
 });

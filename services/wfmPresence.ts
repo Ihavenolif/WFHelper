@@ -1,6 +1,7 @@
 import { normalizeErrorMessage } from "../config/shared/errors";
 import { normalizeWfmHoldMinutes, wfmStatusCanExpire, type WfmStatus } from "../config/shared/wfm";
 import { withScope } from "./logger";
+import { userDataPath } from "./userDataPath";
 import * as wfmSession from "./wfmSession";
 
 const log = withScope("wfmPresence");
@@ -31,8 +32,7 @@ const STARTUP_RECLAIM_DELAY_MS = 5_000;
 
 function autoFlagPath(): string | null {
   try {
-    const { app } = require("electron") as typeof import("electron");
-    return require("node:path").join(app.getPath("userData"), AUTO_FLAG_FILE);
+    return userDataPath(AUTO_FLAG_FILE);
   } catch {
     return null;
   }

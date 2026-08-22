@@ -11,20 +11,21 @@
     overflow-y: auto;
     overflow-x: hidden;
     background: var(--bg-base);
-    /* Padding here clips sticky rows. */
-    padding: 0 1.75rem 1.5rem;
+    /* A top padding here parks the sticky rows below the scrollport and lets
+       the grid scroll through the strip above them. */
+    padding: 0 var(--content-gutter) 1.5rem;
   }
   #app:has(#content.setup-active) {
     height: calc(100vh - var(--titlebar-height));
   }
   #content.setup-active {
     display: flex;
-    align-items: center;
-    justify-content: center;
   }
-  /* Flex centering shrinks the view to fit; full width lets the wizard's max-w apply. */
+  /* Auto margins centre the wizard when it fits; unlike align/justify-center
+     an overflowing wizard stays scrollable instead of clipping at the top. */
   #content.setup-active > .view {
     width: 100%;
+    margin: auto;
   }
   .view {
     display: block;
@@ -557,8 +558,8 @@
     top: 0;
     z-index: 15;
     background: var(--bg-base);
-    margin-inline: -1.75rem;
-    padding: 0.5rem 1.75rem 0;
+    margin-inline: calc(var(--content-gutter) * -1);
+    padding: 0.5rem var(--content-gutter) 0;
   }
 
   /* Shared collapsible sections retain their historical names. */
@@ -874,6 +875,8 @@
     font-size: 0.64rem;
     font-weight: 700;
     letter-spacing: 0.05em;
+    /* Caps live here, not in the dictionary, so one key serves both cases. */
+    text-transform: uppercase;
   }
   .detail-tag.prime {
     background: rgba(212, 168, 67, 0.2);

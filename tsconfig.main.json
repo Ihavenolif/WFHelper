@@ -8,6 +8,7 @@
     "strict": true,
     "noImplicitAny": true,
     "skipLibCheck": true,
+    "resolveJsonModule": true,
     "types": ["node", "electron"],
     "rootDir": ".",
     "outDir": ".electron-build",

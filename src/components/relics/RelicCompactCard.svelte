@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { itemLabel } from "../../lib/itemLabel.js";
   import ItemImage from "../ItemImage.svelte";
   import MarketMetricStrip from "../MarketMetricStrip.svelte";
   import { fissureTierClass, QUALITY_MODES, RELIC_ICON_PATHS } from "../../lib/relic.js";
+  import { tr, type MessageKey } from "../../lib/i18n.js";
   import type { RelicGroup, RelicQuality, RelicReward } from "../../types/relics.js";
   import type { RelicQualityMode } from "../../stores/relics.js";
 
@@ -26,17 +28,29 @@
   export let openRelic: (group: RelicGroup) => void;
 
   const RELIC_QUALITY_COLUMNS = QUALITY_MODES;
-  const RELIC_QUALITY_LABEL: Record<RelicQuality, string> = {
-    intact: "Intact",
-    exceptional: "Exceptional",
-    flawless: "Flawless",
-    radiant: "Radiant",
+  const RELIC_QUALITY_LABEL_KEY: Record<RelicQuality, MessageKey> = {
+    intact: "relics.quality.intact",
+    exceptional: "relics.quality.exceptional",
+    flawless: "relics.quality.flawless",
+    radiant: "relics.quality.radiant",
   };
-  const RELIC_QUALITY_SHORT: Record<RelicQuality, string> = {
-    intact: "Int",
-    exceptional: "Ex",
-    flawless: "Fl",
-    radiant: "Rad",
+  const RELIC_QUALITY_SHORT_KEY: Record<RelicQuality, MessageKey> = {
+    intact: "relics.qualityShort.intact",
+    exceptional: "relics.qualityShort.exceptional",
+    flawless: "relics.qualityShort.flawless",
+    radiant: "relics.qualityShort.radiant",
+  };
+  $: RELIC_QUALITY_LABEL = {
+    intact: $tr(RELIC_QUALITY_LABEL_KEY.intact),
+    exceptional: $tr(RELIC_QUALITY_LABEL_KEY.exceptional),
+    flawless: $tr(RELIC_QUALITY_LABEL_KEY.flawless),
+    radiant: $tr(RELIC_QUALITY_LABEL_KEY.radiant),
+  };
+  $: RELIC_QUALITY_SHORT = {
+    intact: $tr(RELIC_QUALITY_SHORT_KEY.intact),
+    exceptional: $tr(RELIC_QUALITY_SHORT_KEY.exceptional),
+    flawless: $tr(RELIC_QUALITY_SHORT_KEY.flawless),
+    radiant: $tr(RELIC_QUALITY_SHORT_KEY.radiant),
   };
 
   $: tierClass = fissureTierClass(group.tier);
@@ -47,9 +61,9 @@
   $: qualityHeader =
     qualityMode === "owned"
       ? selectedOwned
-        ? `Selected EV: ${RELIC_QUALITY_LABEL[selectedOwned]}`
-        : "Selected EV: Owned"
-      : `Selected EV: ${RELIC_QUALITY_LABEL[qualityMode]}`;
+        ? $tr("relics.selectedEv", { quality: RELIC_QUALITY_LABEL[selectedOwned] })
+        : $tr("relics.selectedEvOwned")
+      : $tr("relics.selectedEv", { quality: RELIC_QUALITY_LABEL[qualityMode] });
 
   function fallbackIconForTier(): string {
     return RELIC_ICON_PATHS[tierClass] || RELIC_ICON_PATHS.default;
@@ -96,7 +110,7 @@
         >{group.name}</span
       >
       <span class="relic-status-tag" class:vaulted={group.vaulted}>
-        {group.vaulted ? "Vaulted" : "Unvaulted"}
+        {group.vaulted ? $tr("common.vaulted") : $tr("common.unvaulted")}
       </span>
     </span>
 
@@ -123,7 +137,11 @@
         class:owned={isOwnedReward(reward)}
         title={rewardTooltip(reward)}
       >
-        <ItemImage src={rewardIconSrc(reward)} alt={reward.name} cls="relic-reward-preview-img" />
+        <ItemImage
+          src={rewardIconSrc(reward)}
+          alt={itemLabel(reward)}
+          cls="relic-reward-preview-img"
+        />
       </span>
     {/each}
   </span>

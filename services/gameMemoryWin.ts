@@ -1,6 +1,7 @@
 // Compatibility scan for PCs where Sainan's helper rejects a valid singleton.
 import { bestAuthz, createAuthzScanDiagnostics, scanBufferForAuthz } from "./gameMemoryAuthz";
 import { withScope } from "./logger";
+import { enumProcessIds, exePathOfPid, isWarframeExePath } from "./win32Process";
 
 const log = withScope("gameMemoryWin");
 
@@ -26,8 +27,6 @@ interface Win32 {
   GetLastError: NativeFn;
   VirtualQueryEx: NativeFn;
   ReadProcessMemory: NativeFn;
-  EnumProcesses: NativeFn;
-  QueryFullProcessImageNameW: NativeFn;
 }
 
 function loadApi(): Win32 | null {
@@ -36,7 +35,6 @@ function loadApi(): Win32 | null {
   try {
     const k = koffi();
     const kernel32 = k.load("kernel32.dll");
-    const psapi = k.load("psapi.dll");
     _api = {
       // Win32 BOOL is a 4-byte int; koffi's "bool" is 1 byte and leaves garbage
       // in the upper bytes, so always declare BOOL params/returns as int32.
@@ -62,17 +60,6 @@ function loadApi(): Win32 | null {
         "size_t",
         "void *",
       ]) as NativeFn,
-      EnumProcesses: psapi.func("EnumProcesses", "int32", [
-        "void *",
-        "uint32",
-        "void *",
-      ]) as NativeFn,
-      QueryFullProcessImageNameW: kernel32.func("QueryFullProcessImageNameW", "int32", [
-        "void *",
-        "uint32",
-        "void *",
-        "void *",
-      ]) as NativeFn,
     };
     return _api;
   } catch (err) {
@@ -86,14 +73,12 @@ function errMsg(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
-const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000;
 const PROCESS_QUERY_INFORMATION = 0x0400;
 const PROCESS_VM_READ = 0x0010;
 const MEM_COMMIT = 0x1000;
 const PAGE_NOACCESS = 0x01;
 const PAGE_EXECUTE = 0x10;
 const PAGE_GUARD = 0x100;
-const MAX_PATH = 260;
 // x64 MEMORY_BASIC_INFORMATION is 48 bytes; fields we read: BaseAddress@0,
 // RegionSize@24, State@32, Protect@36 (all little-endian).
 const MBI_SIZE = 48;
@@ -107,35 +92,8 @@ interface AuthzResult {
   reason: string;
 }
 
-const _pidsBuf = Buffer.alloc(4096); // up to 1024 DWORD pids
-const _pidsUsedBuf = Buffer.alloc(4);
-const _exeNameBuf = Buffer.alloc(MAX_PATH * 2);
-const _exeNameSizeBuf = Buffer.alloc(4);
-
-function exePathOfPid(api: Win32, pid: number): string | null {
-  const hProc = api.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
-  if (!hProc) return null;
-  _exeNameSizeBuf.writeUInt32LE(MAX_PATH, 0);
-  const ok =
-    (api.QueryFullProcessImageNameW(hProc, 0, _exeNameBuf, _exeNameSizeBuf) as number) !== 0;
-  api.CloseHandle(hProc);
-  if (!ok) return null;
-  const chars = _exeNameSizeBuf.readUInt32LE(0);
-  return _exeNameBuf.subarray(0, chars * 2).toString("utf16le");
-}
-
-function findWarframePids(api: Win32): number[] {
-  _pidsUsedBuf.fill(0);
-  if ((api.EnumProcesses(_pidsBuf, _pidsBuf.length, _pidsUsedBuf) as number) === 0) return [];
-  const count = _pidsUsedBuf.readUInt32LE(0) >>> 2;
-  const matches: number[] = [];
-  for (let i = 0; i < count; i++) {
-    const pid = _pidsBuf.readUInt32LE(i * 4);
-    if (pid === 0) continue;
-    const p = exePathOfPid(api, pid);
-    if (p && p.toLowerCase().endsWith("\\warframe.x64.exe")) matches.push(pid);
-  }
-  return matches;
+function findWarframePids(): number[] {
+  return enumProcessIds().filter((pid) => isWarframeExePath(exePathOfPid(pid)));
 }
 
 function isReadableRegion(state: number, protect: number): boolean {
@@ -179,7 +137,7 @@ export async function readGameAuthzWin(apiOverride?: Win32): Promise<AuthzResult
   const api = apiOverride ?? loadApi();
   if (!api) return { authz: null, reason: "mem-open-noapi" };
 
-  const pids = findWarframePids(api);
+  const pids = findWarframePids();
   if (pids.length === 0) return { authz: null, reason: "process-not-found" };
 
   const counts = new Map<string, number>();

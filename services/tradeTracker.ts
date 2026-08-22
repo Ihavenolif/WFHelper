@@ -1,9 +1,8 @@
 /** Persist confirmed EE.log trades; inventory diffs produce unrelated false positives. */
 
-import path from "node:path";
 import fs from "node:fs";
-import { app } from "electron";
 import { withScope } from "./logger";
+import { userDataPath } from "./userDataPath";
 import { writeFileAtomicSync } from "./atomicFile";
 import * as statsTracker from "./statsTracker";
 import { lookupTradedCatalogItem } from "./tradeItemName";
@@ -112,7 +111,7 @@ function sanitizeTradeEvent(value: unknown): TradeEvent | null {
 }
 
 function _logPath(): string {
-  return path.join(app.getPath("userData"), "trade-log.json");
+  return userDataPath("trade-log.json");
 }
 
 function _saveLog(): void {

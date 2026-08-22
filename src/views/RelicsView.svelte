@@ -27,6 +27,7 @@
     relicGroupMatchesSearch,
   } from "../lib/relic.js";
   import { invoke, send } from "../lib/ipc.js";
+  import { tr, type MessageKey } from "../lib/i18n.js";
   import HeaderTabs from "../components/HeaderTabs.svelte";
   import RelicCompactCard from "../components/relics/RelicCompactCard.svelte";
   import SearchBox from "../components/SearchBox.svelte";
@@ -43,47 +44,62 @@
 
   type RelicQualityModeView = RelicQualityMode;
 
-  const TIER_OPTIONS: Array<[string, string]> = [
-    ["all", "All"],
-    ["Lith", "Lith"],
-    ["Meso", "Meso"],
-    ["Neo", "Neo"],
-    ["Axi", "Axi"],
-    ["Requiem", "Requiem"],
+  const TIER_OPTION_KEYS: Array<[string, MessageKey]> = [
+    ["all", "common.all"],
+    ["Lith", "relics.tier.lith"],
+    ["Meso", "relics.tier.meso"],
+    ["Neo", "relics.tier.neo"],
+    ["Axi", "relics.tier.axi"],
+    ["Requiem", "relics.tier.requiem"],
   ];
-  const TIER_TABS = TIER_OPTIONS.map(([key, label]) => ({ key, label }));
+  $: TIER_TABS = TIER_OPTION_KEYS.map(([key, i18nKey]) => ({ key, label: $tr(i18nKey) }));
 
-  const SORT_OPTIONS: Array<[RelicSortMode, string]> = [
-    ["tier", "Default"],
-    ["name", "Name"],
-    ["ev", "Platinum"],
-    ["ducat", "Ducats"],
-    ["ducatonator", "Ducats/Plat"],
+  const SORT_OPTION_KEYS: Array<[RelicSortMode, MessageKey]> = [
+    ["tier", "common.default"],
+    ["name", "common.name"],
+    ["ev", "common.platinum"],
+    ["ducat", "common.ducats"],
+    ["ducatonator", "relics.sort.ducatsPerPlat"],
   ];
+  $: SORT_OPTIONS = SORT_OPTION_KEYS.map(
+    ([key, i18nKey]) => [key, $tr(i18nKey)] as [RelicSortMode, string],
+  );
 
-  const QUALITY_OPTIONS: Array<[RelicQualityModeView, string]> = [
-    ["owned", "Owned"],
-    ["intact", "Intact"],
-    ["exceptional", "Exceptional"],
-    ["flawless", "Flawless"],
-    ["radiant", "Radiant"],
+  const QUALITY_OPTION_KEYS: Array<[RelicQualityModeView, MessageKey]> = [
+    ["owned", "common.owned"],
+    ["intact", "relics.quality.intact"],
+    ["exceptional", "relics.quality.exceptional"],
+    ["flawless", "relics.quality.flawless"],
+    ["radiant", "relics.quality.radiant"],
   ];
+  $: QUALITY_OPTIONS = QUALITY_OPTION_KEYS.map(
+    ([key, i18nKey]) => [key, $tr(i18nKey)] as [RelicQualityModeView, string],
+  );
 
-  const SQUAD_OPTIONS: Array<[number, string]> = [
-    [1, "Solo"],
-    [2, "2P"],
-    [3, "3P"],
-    [4, "4P"],
+  const SQUAD_OPTION_KEYS: Array<[number, MessageKey]> = [
+    [1, "relics.squad.solo"],
+    [2, "relics.squad.p2"],
+    [3, "relics.squad.p3"],
+    [4, "relics.squad.p4"],
   ];
-  const VAULTED_OPTIONS: Array<[RelicVaultedMode, string]> = [
-    ["all", "All"],
-    ["vaulted", "Vaulted"],
-    ["unvaulted", "Unvaulted"],
+  $: SQUAD_OPTIONS = SQUAD_OPTION_KEYS.map(
+    ([size, i18nKey]) => [size, $tr(i18nKey)] as [number, string],
+  );
+  const VAULTED_OPTION_KEYS: Array<[RelicVaultedMode, MessageKey]> = [
+    ["all", "common.all"],
+    ["vaulted", "common.vaulted"],
+    ["unvaulted", "common.unvaulted"],
   ];
-  const OWNERSHIP_OPTIONS: Array<[RelicOwnershipMode, string]> = [
-    ["owned", "Owned only"],
-    ["all", "All relics"],
+  $: VAULTED_OPTIONS = VAULTED_OPTION_KEYS.map(
+    ([key, i18nKey]) => [key, $tr(i18nKey)] as [RelicVaultedMode, string],
+  );
+  const OWNERSHIP_OPTION_KEYS: Array<[RelicOwnershipMode, MessageKey]> = [
+    ["owned", "relics.ownership.ownedOnly"],
+    ["all", "relics.ownership.all"],
   ];
+  $: OWNERSHIP_OPTIONS = OWNERSHIP_OPTION_KEYS.map(
+    ([key, i18nKey]) => [key, $tr(i18nKey)] as [RelicOwnershipMode, string],
+  );
 
   const RELIC_QUALITY_COLUMNS = QUALITY_MODES;
   const RELIC_PREVIEW_REWARD_LIMIT = 6;
@@ -227,7 +243,7 @@
   }
 
   let loading = false;
-  let error = "";
+  let errorKey: MessageKey | null = null;
   let ownedModeSelectedQualityByGroup: Record<string, RelicQuality> = {};
   let ownedRewardInternalNames: Record<string, true> = {};
   let ownedRewardNames: Record<string, true> = {};
@@ -249,7 +265,7 @@
           relicOwnedCounts.set(parseOwnedRelics($inventoryData, db));
         }
       } catch (e) {
-        error = "Failed to load relic database.";
+        errorKey = "relics.loadFailed";
         console.error("[Relics] getRelicDatabase failed:", e);
       } finally {
         loading = false;
@@ -490,10 +506,18 @@
     return reward.imageUrl || null;
   }
 
-  function rewardTooltip(reward: RelicReward): string {
-    const rarity = reward.rarity || "Unknown";
-    return `${reward.name} (${rarity}, ${reward.chance}%)`;
+  function makeRewardTooltip(
+    t: (key: MessageKey, params?: Record<string, string | number>) => string,
+  ): (reward: RelicReward) => string {
+    return (reward) =>
+      t("relics.rewardTooltip", {
+        name: reward.name,
+        rarity: reward.rarity || t("common.unknown"),
+        chance: reward.chance,
+      });
   }
+
+  $: rewardTooltip = makeRewardTooltip($tr);
 
   $: {
     const nextInternalNames: Record<string, true> = {};
@@ -553,7 +577,7 @@
 
 <section class="view active">
   <h2 class="m-0 mb-2 font-display text-3xl font-semibold tracking-[0.03em] text-text-primary">
-    Relic Planner ({groups.length} relics)
+    {$tr("relics.title", { count: groups.length })}
   </h2>
   <div class="view-sticky-filters mb-4" data-tour="relic-filters">
     <div
@@ -574,7 +598,7 @@
         <SearchBox
           value={$relicViewState.search}
           onValueChange={(search) => setRelicFilter({ search })}
-          placeholder="Search relics..."
+          placeholder={$tr("relics.searchPlaceholder")}
           class="w-40 min-w-40 shrink-0"
         />
 
@@ -588,8 +612,8 @@
           />
         </div>
 
-        <label class="shared-filter-sort" title="Show owned relics or the full relic catalog">
-          <span>Relics</span>
+        <label class="shared-filter-sort" title={$tr("relics.ownershipTitle")}>
+          <span>{$tr("common.relics")}</span>
           <select
             class="shared-filter-select w-32 min-w-32"
             value={$relicViewState.ownershipMode}
@@ -605,15 +629,15 @@
           type="button"
           class="filter-tab min-h-8 shrink-0 whitespace-nowrap"
           class:active={$relicViewState.containsUnownedReward}
-          title="Only show relics containing at least one reward you do not currently own"
+          title={$tr("relics.unownedRewardTitle")}
           on:click={() =>
             setRelicFilter({ containsUnownedReward: !$relicViewState.containsUnownedReward })}
         >
-          Unowned reward
+          {$tr("relics.unownedRewardLabel")}
         </button>
 
-        <label class="shared-filter-sort" title="Relic quality for EV">
-          <span>Quality</span>
+        <label class="shared-filter-sort" title={$tr("relics.qualityTitle")}>
+          <span>{$tr("relics.qualityLabel")}</span>
           <select
             class="shared-filter-select w-32 min-w-32"
             value={$relicViewState.qualityMode}
@@ -625,8 +649,8 @@
           </select>
         </label>
 
-        <label class="shared-filter-sort" title="Vaulted status">
-          <span>Vault</span>
+        <label class="shared-filter-sort" title={$tr("relics.vaultedTitle")}>
+          <span>{$tr("relics.vaultedLabel")}</span>
           <select
             class="shared-filter-select w-28 min-w-28"
             value={$relicViewState.vaultedMode}
@@ -638,8 +662,8 @@
           </select>
         </label>
 
-        <label class="shared-filter-sort" title="Squad size for EV">
-          <span>Squad</span>
+        <label class="shared-filter-sort" title={$tr("relics.squadTitle")}>
+          <span>{$tr("relics.squadLabel")}</span>
           <select
             class="shared-filter-select w-24 min-w-24"
             value={$relicViewState.squadSize}
@@ -653,7 +677,7 @@
 
         <button
           class="inline-flex min-h-8 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-[var(--radius-md)] border border-[var(--ui-control-border)] bg-[var(--ui-control-bg)] px-3 py-0 font-display text-xs font-medium tracking-[0.03em] text-text-secondary transition-[border-color,background-color,color] duration-150 hover:border-accent hover:bg-bg-hover hover:text-accent [&_svg]:shrink-0"
-          title="Push current tier & squad filters to the in-game relic overlay"
+          title={$tr("relics.pushOverlayTitle")}
           on:click={pushFiltersToOverlay}
         >
           <svg
@@ -667,18 +691,18 @@
             <polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" />
             <path d="M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5" />
           </svg>
-          Push to Overlay
+          {$tr("relics.pushOverlay")}
         </button>
       </div>
     </div>
   </div>
 
   {#if loading}
-    <div class="empty-state"><p>Loading relic database...</p></div>
-  {:else if error}
-    <div class="empty-state"><p>{error}</p></div>
+    <div class="empty-state"><p>{$tr("relics.loading")}</p></div>
+  {:else if errorKey}
+    <div class="empty-state"><p>{$tr(errorKey)}</p></div>
   {:else if groups.length === 0}
-    <div class="empty-state"><p>No relics found</p></div>
+    <div class="empty-state"><p>{$tr("relics.empty")}</p></div>
   {:else}
     <div
       class="grid gap-[var(--relic-grid-gap)] grid-cols-[repeat(auto-fill,minmax(min(100%,18.5rem),1fr))]"

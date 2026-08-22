@@ -22,7 +22,7 @@ export function rewardOcrOnnxAvailable(): boolean {
 /** Load the shared paddle session off the scan path - the first crack of a
  * session otherwise pays the ~1.4s model load inside the scan. */
 export async function warmupRewardStripOnnx(): Promise<void> {
-  if (!paddleRecognizerAvailable()) return;
+  if (!rewardOcrOnnxAvailable()) return;
   try {
     await recognizePaddleCrops([{ data: Buffer.alloc(160 * 48 * 3, 255), width: 160, height: 48 }]);
   } catch (err) {
@@ -116,7 +116,7 @@ interface RewardStripRead {
 /** Read a reward title-strip PNG. Returns null when unavailable or nothing legible. */
 export async function recognizeRewardStripOnnx(stripPng: Buffer): Promise<RewardStripRead | null> {
   try {
-    if (!paddleRecognizerAvailable()) return null;
+    if (!rewardOcrOnnxAvailable()) return null;
 
     const sharp: (typeof import("sharp"))["default"] = require("sharp");
     const meta = await sharp(stripPng).metadata();

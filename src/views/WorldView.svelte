@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { onMount } from "svelte";
   import { worldData, worldLoading, worldFissureMode } from "../stores/world.js";
   import { inventoryData, itemDb, componentOwnership, wfmItems } from "../stores/data.js";
@@ -38,7 +39,7 @@
   import CollapsibleSection from "../components/CollapsibleSection.svelte";
   import HeaderTabs from "../components/HeaderTabs.svelte";
   import ArbiSchedule from "../components/world/ArbiSchedule.svelte";
-  import { tr } from "../lib/i18n.js";
+  import { tr, type Translator } from "../lib/i18n.js";
   import InvasionItem from "../components/world/InvasionItem.svelte";
   import BaroInventoryCard from "../components/world/BaroInventoryCard.svelte";
   import CycleRow from "../components/world/CycleRow.svelte";
@@ -71,8 +72,8 @@
     }
   }
   $: worldTabOptions = [
-    { key: "world", label: $tr("world.tab.world") },
-    { key: "arbis", label: $tr("world.tab.arbitrations") },
+    { key: "world", label: $tr("common.world") },
+    { key: "arbis", label: $tr("common.arbitrations") },
   ];
 
   const nowClock = clockStore(1000);
@@ -131,21 +132,27 @@
     idx: number,
     db: Record<string, ItemDbEntry>,
     inv: RawInventoryData | null,
+    t: Translator,
   ): Array<{ label: string; current: boolean; items: CircuitChoice[] }> {
     if (idx < 0) return [];
     const ordered = [...rotation.slice(idx), ...rotation.slice(0, idx)];
     return resolveCircuitRotation(ordered, db, inv).map((items, i) => ({
-      label: i === 0 ? "This week" : i === 1 ? "Next week" : `In ${i} weeks`,
+      label:
+        i === 0
+          ? t("world.thisWeek")
+          : i === 1
+            ? t("world.nextWeek")
+            : t("world.inWeeks", { n: i }),
       current: i === 0,
       items,
     }));
   }
 
   $: circuitNormalFull = circuitFullView
-    ? buildFullWeeks(CIRCUIT_NORMAL_ROTATION, circuitNormalIdx, $itemDb, $inventoryData)
+    ? buildFullWeeks(CIRCUIT_NORMAL_ROTATION, circuitNormalIdx, $itemDb, $inventoryData, $tr)
     : [];
   $: circuitHardFull = circuitFullView
-    ? buildFullWeeks(CIRCUIT_HARD_ROTATION, circuitHardIdx, $itemDb, $inventoryData)
+    ? buildFullWeeks(CIRCUIT_HARD_ROTATION, circuitHardIdx, $itemDb, $inventoryData, $tr)
     : [];
 
   // Recompute all countdowns from a single clock source.
@@ -176,6 +183,7 @@
     duviriState,
     times,
     nowCoarseMs,
+    t: $tr,
   });
 
   // Invasions from raw DE world state (or warframestat fallback)
@@ -214,18 +222,23 @@
     return s.toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  function daysUntilLabel(iso: string | undefined): string {
-    const ms = iso ? Date.parse(iso) - nowCoarseMs : Number.NaN;
-    if (!Number.isFinite(ms)) return "Soon";
+  function daysUntilLabel(iso: string | undefined, now: number, t: Translator): string {
+    const ms = iso ? Date.parse(iso) - now : Number.NaN;
+    if (!Number.isFinite(ms)) return t("world.soon");
     const days = Math.max(1, Math.ceil(ms / 86_400_000));
-    return `In ${days} day${days === 1 ? "" : "s"}`;
+    return days === 1 ? t("world.inDaySingular", { days }) : t("world.inDaysPlural", { days });
   }
+
+  $: steelPathUpcoming = (steelPathHonors?.upcoming ?? []).map((reward) => ({
+    reward,
+    daysLabel: daysUntilLabel(reward.activation, nowCoarseMs, $tr),
+  }));
 </script>
 
 <section class="view active">
   <div class="mb-4">
     <h2 class="m-0 mb-2 font-display text-3xl font-semibold tracking-[0.03em] text-text-primary">
-      World
+      {$tr("common.world")}
     </h2>
     <div class="flex items-end border-b border-white/[0.09]">
       <HeaderTabs options={worldTabOptions} activeKey={worldTab} onSelect={setWorldTab} />
@@ -234,13 +247,13 @@
           {#if baroActive}
             <span
               class="rounded border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-warning"
-              >Baro leaves in {times.baro}{#if baroLocation}
+              >{$tr("world.baroLeavesIn", { baro: times.baro })}{#if baroLocation}
                 - {baroLocation}{/if}</span
             >
           {:else}
             <span
               class="rounded border border-warning/30 bg-warning/10 px-2 py-0.5 text-xs font-semibold whitespace-nowrap text-warning"
-              >Baro arrives in {times.baro}{#if baroLocation}
+              >{$tr("world.baroArrivesIn", { baro: times.baro })}{#if baroLocation}
                 - {baroLocation}{/if}</span
             >
           {/if}
@@ -252,9 +265,9 @@
   {#if worldTab === "arbis"}
     <ArbiSchedule />
   {:else if !wd && $worldLoading}
-    <div class="empty-state"><p>Loading world data...</p></div>
+    <div class="empty-state"><p>{$tr("world.loading")}</p></div>
   {:else if !wd}
-    <div class="empty-state"><p>World data unavailable</p></div>
+    <div class="empty-state"><p>{$tr("world.unavailable")}</p></div>
   {:else}
     <div class="grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)] gap-x-6 max-[1100px]:grid-cols-1">
       <!-- LEFT COLUMN -->
@@ -262,7 +275,7 @@
         <!-- PLANET CYCLES -->
         <div class="world-section">
           <CollapsibleSection
-            title="Planet Cycles"
+            title={$tr("world.planetCycles")}
             collapsed={collapsed.cycles}
             onToggle={() => toggleSection("cycles")}
           >
@@ -291,7 +304,7 @@
                 {/each}
               </div>
               <div class="mt-0.5 flex items-center gap-2 pt-1.5 text-xs text-text-secondary">
-                <span>Notify before cycle change</span>
+                <span>{$tr("world.notifyBeforeCycleChange")}</span>
                 <span class="flex items-center gap-1">
                   <input
                     type="number"
@@ -301,11 +314,13 @@
                     value={$overlaySettings.cycleAlertMinutesBefore ?? 3}
                     on:change={(e) => setCycleAlertMinutes(Number(e.currentTarget.value))}
                   />
-                  <span>min</span>
+                  <span>{$tr("world.min")}</span>
                 </span>
               </div>
             {:else}
-              <span class="text-sm text-text-secondary opacity-70">Cycle data unavailable</span>
+              <span class="text-sm text-text-secondary opacity-70"
+                >{$tr("world.cycleDataUnavailable")}</span
+              >
             {/if}
           </CollapsibleSection>
         </div>
@@ -313,30 +328,31 @@
         <!-- RESET TIMERS -->
         <div class="world-section">
           <CollapsibleSection
-            title="Reset Timers"
+            title={$tr("world.resetTimers")}
             collapsed={collapsed.timers}
             onToggle={() => toggleSection("timers")}
           >
             <div class="world-row">
-              <span class="text-sm text-text-secondary">Daily sortie</span><span
+              <span class="text-sm text-text-secondary">{$tr("world.dailySortie")}</span><span
                 class="font-display text-sm tracking-[0.02em] whitespace-nowrap text-text-primary"
                 class:world-timer-urgent={resetUrgency.sortie}>{times.sortie}</span
               >
             </div>
             <div class="world-row">
-              <span class="text-sm text-text-secondary">Daily reset</span><span
+              <span class="text-sm text-text-secondary">{$tr("world.dailyReset")}</span><span
                 class="font-display text-sm tracking-[0.02em] whitespace-nowrap text-text-primary"
                 class:world-timer-urgent={resetUrgency.daily}>{times.daily}</span
               >
             </div>
             <div class="world-row">
-              <span class="text-sm text-text-secondary">Weekly resets</span><span
+              <span class="text-sm text-text-secondary">{$tr("world.weeklyResets")}</span><span
                 class="font-display text-sm tracking-[0.02em] whitespace-nowrap text-text-primary"
                 class:world-timer-urgent={resetUrgency.weekly}>{times.weekly}</span
               >
             </div>
             <div class="world-row">
-              <span class="text-sm text-text-secondary">Steel Path honours</span><span
+              <span class="text-sm text-text-secondary">{$tr("world.steelPathHonorsReset")}</span
+              ><span
                 class="font-display text-sm tracking-[0.02em] whitespace-nowrap text-text-primary"
                 class:world-timer-urgent={resetUrgency.steelPath}>{times.steelPath}</span
               >
@@ -347,18 +363,18 @@
         <!-- PRIME RESURGENCE -->
         <div class="world-section">
           <CollapsibleSection
-            title="Prime Resurgence"
+            title={$tr("world.primeResurgence")}
             collapsed={collapsed.resurgence}
             onToggle={() => toggleSection("resurgence")}
           >
             <div class="text-sm text-text-secondary mb-2">
-              Rotation ends in <strong>{times.varzia}</strong>
+              {$tr("world.rotationEndsIn")} <strong>{times.varzia}</strong>
             </div>
             {#if featuredPrimes.length > 0}
               <div class="-m-1 flex gap-2.5 overflow-x-auto p-2">
                 {#each featuredPrimes as p}
                   <IconButtonCard
-                    name={p.name}
+                    name={itemLabel(p)}
                     imageUrl={p.imageUrl}
                     owned={p.owned}
                     onClick={() => openItemDetail(p.uniqueName)}
@@ -370,7 +386,7 @@
               </div>
             {:else}
               <span class="text-sm text-text-secondary opacity-70"
-                >No featured prime items found</span
+                >{$tr("world.noFeaturedPrimes")}</span
               >
             {/if}
           </CollapsibleSection>
@@ -379,7 +395,7 @@
         <!-- THE CIRCUIT -->
         <div class="world-section">
           <CollapsibleSection
-            title="The Circuit"
+            title={$tr("world.theCircuit")}
             collapsed={collapsed.circuit}
             onToggle={() => toggleSection("circuit")}
           >
@@ -389,11 +405,11 @@
                   class="btn-secondary btn-sm"
                   on:click={() => (circuitFullView = !circuitFullView)}
                 >
-                  {circuitFullView ? "Show current" : "Show full rotation"}
+                  {circuitFullView ? $tr("world.showCurrent") : $tr("world.showFullRotation")}
                 </button>
               {/if}
             </svelte:fragment>
-            {#each [{ label: "Normal rotation", items: circuitNormalItems, weeks: circuitNormalFull, isSteelPath: false }, { label: "Steel Path rotation", items: circuitHardItems, weeks: circuitHardFull, isSteelPath: true }] as rot}
+            {#each [{ label: $tr("world.normalRotation"), items: circuitNormalItems, weeks: circuitNormalFull, isSteelPath: false }, { label: $tr("world.steelPathRotation"), items: circuitHardItems, weeks: circuitHardFull, isSteelPath: true }] as rot}
               <div
                 class="mb-1 text-xs font-bold uppercase tracking-[0.06em] {rot.isSteelPath
                   ? 'text-warning'
@@ -417,7 +433,7 @@
                       <div class="flex gap-2">
                         {#each week.items as item}
                           <IconButtonCard
-                            name={item.name}
+                            name={itemLabel(item)}
                             imageUrl={item.imageUrl}
                             owned={item.owned}
                             onClick={() => openItemDetail(item.uniqueName)}
@@ -434,7 +450,7 @@
                 <div class="-mx-1.5 -mt-1 mb-1 flex gap-2 overflow-x-auto p-2">
                   {#each rot.items as item}
                     <IconButtonCard
-                      name={item.name}
+                      name={itemLabel(item)}
                       imageUrl={item.imageUrl}
                       owned={item.owned}
                       onClick={() => openItemDetail(item.uniqueName)}
@@ -443,7 +459,8 @@
                       borderWidth="1.5"
                     />
                   {:else}
-                    <span class="text-sm text-text-secondary opacity-70">No data</span>
+                    <span class="text-sm text-text-secondary opacity-70">{$tr("world.noData")}</span
+                    >
                   {/each}
                 </div>
               {/if}
@@ -455,7 +472,7 @@
         {#if steelPathHonors}
           <div class="world-section">
             <CollapsibleSection
-              title="Steel Path Honors"
+              title={$tr("world.steelPathHonorsReset")}
               collapsed={collapsed.steelpath}
               onToggle={() => toggleSection("steelpath")}
             >
@@ -468,23 +485,23 @@
               <div class="flex items-center gap-2 py-1.5">
                 <span
                   class="text-xs font-bold text-text-secondary uppercase tracking-[0.06em] shrink-0"
-                  >This week</span
+                  >{$tr("world.thisWeek")}</span
                 >
                 <span class="text-sm font-semibold text-warning flex-1 min-w-0"
                   >{steelPathHonors.currentReward.name}</span
                 >
                 <span class="text-xs text-text-secondary whitespace-nowrap shrink-0"
-                  >{steelPathHonors.currentReward.cost} Steel Essence</span
+                  >{$tr("world.steelEssenceCost", {
+                    cost: steelPathHonors.currentReward.cost,
+                  })}</span
                 >
               </div>
-              {#each steelPathHonors.upcoming || [] as reward}
+              {#each steelPathUpcoming as row}
                 <div class="flex items-center gap-2 py-0.5">
-                  <span class="text-sm text-text-secondary shrink-0"
-                    >{daysUntilLabel(reward.activation)}:</span
-                  >
-                  <span class="text-sm text-text-primary flex-1 min-w-0">{reward.name}</span>
+                  <span class="text-sm text-text-secondary shrink-0">{row.daysLabel}:</span>
+                  <span class="text-sm text-text-primary flex-1 min-w-0">{row.reward.name}</span>
                   <span class="text-xs text-text-secondary whitespace-nowrap shrink-0"
-                    >{reward.cost} Steel Essence</span
+                    >{$tr("world.steelEssenceCost", { cost: row.reward.cost })}</span
                   >
                 </div>
               {/each}
@@ -496,7 +513,7 @@
         {#if darvoDeals.length > 0}
           <div class="world-section">
             <CollapsibleSection
-              title="Darvo's Deal"
+              title={$tr("world.darvosDeal")}
               collapsed={collapsed.darvo}
               onToggle={() => toggleSection("darvo")}
             >
@@ -514,7 +531,7 @@
                            {dealDb ? 'cursor-pointer hover:scale-105' : ''}"
                     disabled={!dealDb}
                     on:click={() => dealDb && openItemDetail(deal.uniqueName || "")}
-                    title={deal.item || "Unknown"}
+                    title={deal.item || $tr("common.unknown")}
                   >
                     {#if dealImg}
                       <img
@@ -531,7 +548,7 @@
                   </button>
                   <div class="flex min-w-0 flex-col gap-0.5">
                     <span class="truncate text-sm font-semibold text-text-primary"
-                      >{deal.item || "Unknown"}</span
+                      >{deal.item || $tr("common.unknown")}</span
                     >
                     <span class="text-xs text-text-secondary">
                       <strong class="text-accent">{deal.salePrice}p</strong>
@@ -542,11 +559,14 @@
                       >
                     </span>
                     <span class="text-xs text-text-muted">
-                      {deal.sold}/{deal.total} sold
-                      {#if deal.expiry}- ends in {timeTo(
-                          parseIsoDate(deal.expiry),
-                          nowCoarseMs,
-                        )}{/if}
+                      <!-- No counts means no sales data; "0/0 sold" would read as a real figure. -->
+                      {#if deal.sold != null && deal.total != null}{$tr("world.soldOfTotal", {
+                          sold: deal.sold,
+                          total: deal.total,
+                        })}{/if}
+                      {#if deal.expiry}{$tr("world.endsIn", {
+                          time: timeTo(parseIsoDate(deal.expiry), nowCoarseMs),
+                        })}{/if}
                     </span>
                   </div>
                 </div>
@@ -561,7 +581,7 @@
         <!-- VOID FISSURES -->
         <div class="world-section border-t-0">
           <CollapsibleSection
-            title="Void Fissures"
+            title={$tr("world.voidFissures")}
             collapsed={collapsed.fissures}
             onToggle={() => toggleSection("fissures")}
           >
@@ -575,11 +595,14 @@
             <div class="flex flex-col">
               {#if fissureFlat.length === 0}
                 <span class="text-sm text-text-secondary opacity-70"
-                  >No active {$worldFissureMode === "steel"
-                    ? "Steel Path"
-                    : $worldFissureMode === "railjack"
-                      ? "Railjack"
-                      : "Normal"} fissures</span
+                  >{$tr("world.noActiveFissures", {
+                    mode:
+                      $worldFissureMode === "steel"
+                        ? $tr("common.steelPath")
+                        : $worldFissureMode === "railjack"
+                          ? $tr("world.railjack")
+                          : $tr("common.normal"),
+                  })}</span
                 >
               {:else}
                 {#each fissureFlat as f}
@@ -601,15 +624,17 @@
                       {f.tier}
                     </span>
                     <span class="min-w-0 flex-1 text-sm">
-                      <strong class="text-text-primary">{f.missionType || "Mission"}</strong>
+                      <strong class="text-text-primary"
+                        >{f.missionType || $tr("common.mission")}</strong
+                      >
                       {#if f.isStorm && f.isHard}
                         <span
                           class="ml-1.5 rounded-sm bg-warning/20 px-1 py-0.5 text-[0.625rem] font-bold uppercase tracking-[0.06em] text-warning"
-                          >SP</span
+                          >{$tr("world.spBadge")}</span
                         >
                       {/if}
                       <span class="ml-1.5 text-xs text-text-secondary opacity-75"
-                        >{f.node || "Unknown"}</span
+                        >{f.node || $tr("common.unknown")}</span
                       >
                     </span>
                     <span
@@ -632,7 +657,7 @@
         {#if invasions.length > 0}
           <div class="world-section">
             <CollapsibleSection
-              title="Invasions"
+              title={$tr("world.invasions")}
               collapsed={collapsed.invasions}
               onToggle={() => toggleSection("invasions")}
             >
@@ -649,10 +674,10 @@
         {#if !baroActive && baroAct}
           <div class="world-section">
             <div class="flex items-center gap-2 py-1.5">
-              <span class="text-sm font-semibold text-text-primary">Baro Ki'Teer</span>
+              <span class="text-sm font-semibold text-text-primary">{$tr("world.baroKiteer")}</span>
               <span
                 class="text-xs font-bold py-0.5 px-1.5 rounded uppercase tracking-[0.06em] bg-white/[0.06] text-text-secondary opacity-70"
-                >Inactive</span
+                >{$tr("world.inactive")}</span
               >
               <span class="text-sm font-display text-text-secondary ml-auto"
                 >{times.baro}{#if baroLocation}
@@ -668,13 +693,15 @@
     {#if baroActive && baro?.inventory && baro.inventory.length > 0}
       <div class="world-section mt-2">
         <CollapsibleSection
-          title="Baro Ki'Teer"
+          title={$tr("world.baroKiteer")}
           collapsed={collapsed.baro}
           onToggle={() => toggleSection("baro")}
         >
           <div class="flex items-center justify-between py-1.5 text-sm text-text-secondary">
             <span>{baroLocation}</span>
-            <span class="text-text-secondary text-xs">Leaves in <strong>{times.baro}</strong></span>
+            <span class="text-text-secondary text-xs"
+              >{$tr("world.leavesIn")} <strong>{times.baro}</strong></span
+            >
           </div>
           <div class="flex flex-wrap gap-2.5 px-1 py-1">
             {#each baro.inventory as inv}
@@ -695,7 +722,7 @@
     {#if bounties.length > 0}
       <div class="world-section mt-2">
         <CollapsibleSection
-          title="Bounties"
+          title={$tr("world.bounties")}
           collapsed={collapsed.bounties}
           onToggle={() => toggleSection("bounties")}
         >
@@ -719,7 +746,7 @@
                         >
                       {/if}
                       <span class="ml-auto text-xs text-text-secondary"
-                        >{group.jobs.length} bounties</span
+                        >{$tr("world.bountiesCount", { count: group.jobs.length })}</span
                       >
                     </button>
                     {#if !collapsed[`bounty-${group.syndicateKey}`]}
@@ -751,7 +778,7 @@
                             <div class="mb-1 ml-1 border-l-2 border-accent py-1 pl-5">
                               {#await getBountyRewards(group.syndicateKey, job.enemyLevels, job.standingStages.length, bountyRotation, job.tierIndex)}
                                 <span class="text-xs text-text-secondary py-1"
-                                  >Loading rewards...</span
+                                  >{$tr("world.loadingRewards")}</span
                                 >
                               {:then rewards}
                                 {#if rewards.length > 0}
@@ -785,7 +812,7 @@
                                                 rewardUniqueName &&
                                                 openItemDetail(rewardUniqueName, [
                                                   {
-                                                    location: `${group.syndicate} Bounty (${job.enemyLevels[0]}\u2013${job.enemyLevels[1]}) \u2014 ${sr.label}`,
+                                                    location: `${group.syndicate} ${$tr("world.bountyLabel")} (${job.enemyLevels[0]}\u2013${job.enemyLevels[1]}) \u2014 ${sr.label}`,
                                                     rarity: item.rarity,
                                                     chance: item.chance / 100,
                                                   },
@@ -815,7 +842,7 @@
                                 {/if}
                               {:catch err}
                                 <div class="text-xs text-text-muted opacity-50">
-                                  {(err as Error)?.message ?? "Reward unavailable"}
+                                  {(err as Error)?.message ?? $tr("world.rewardUnavailable")}
                                 </div>
                               {/await}
                             </div>

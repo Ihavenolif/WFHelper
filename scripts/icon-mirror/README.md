@@ -5,14 +5,14 @@ icon mirror.
 
 The generated output lives in `.icon-mirror/` and is intentionally ignored by
 git. The mirror uses the compiled main-process services as the source of truth,
-so run it through the npm scripts instead of calling the files directly.
+so run it through the package scripts instead of calling the files directly.
 
 ## Commands
 
 ```bash
-npm run icons:manifest
-npm run icons:download
-npm run icons:deploy
+pnpm run icons:manifest
+pnpm run icons:download
+pnpm run icons:deploy
 ```
 
 `icons:manifest` compiles the main process, builds the item/relic databases, and
@@ -22,7 +22,7 @@ writes `.icon-mirror/public/manifest.json`.
 It defaults to 6 concurrent requests. Override with:
 
 ```bash
-ICON_MIRROR_CONCURRENCY=3 npm run icons:download
+ICON_MIRROR_CONCURRENCY=3 pnpm run icons:download
 ```
 
 `icons:deploy` deploys the already-generated `.icon-mirror/public` directory to a
@@ -46,7 +46,7 @@ the missing ones.
 Before the first deploy, log in once:
 
 ```bash
-npm --prefix backend/worker exec -- wrangler login
+pnpm --dir backend/worker exec wrangler login
 ```
 
 Then create/attach the custom domain in Cloudflare Pages, for example:

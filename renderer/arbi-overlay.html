@@ -6,7 +6,7 @@
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'; base-uri 'none'; object-src 'none'; form-action 'none';"
     />
-    <title>Arbitration Summary</title>
+    <title data-i18n="common.arbitrationSummary">Arbitration Summary</title>
     <link
       href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Barlow:wght@300;400;500;600&display=swap"
       rel="stylesheet"
@@ -17,41 +17,44 @@
     <div id="panel">
       <div id="header">
         <div id="header-left">
-          <div id="panel-label">&#9670; Arbitration Complete</div>
+          <div id="panel-label">
+            &#9670; <span data-i18n="overlay.arbi.complete">Arbitration Complete</span>
+          </div>
           <div id="run-node">&mdash;</div>
         </div>
         <div id="header-right">
           <div id="run-meta">&mdash;</div>
-          <button id="btn-close" title="Dismiss">&times;</button>
+          <button id="btn-close" data-i18n-title="common.dismiss" title="Dismiss">&times;</button>
         </div>
       </div>
 
       <div id="kpi-grid">
         <div class="kpi">
           <div class="kpi-value" id="kpi-vitus">&mdash;</div>
-          <div class="kpi-label">Expected Vitus</div>
+          <div class="kpi-label" data-i18n="overlay.arbi.expectedVitus">Expected Vitus</div>
         </div>
         <div class="kpi">
           <div class="kpi-value" id="kpi-drones">&mdash;</div>
-          <div class="kpi-label">Drone Kills</div>
+          <div class="kpi-label" data-i18n="overlay.arbi.droneKills">Drone Kills</div>
         </div>
         <div class="kpi">
           <div class="kpi-value" id="kpi-kills">&mdash;</div>
-          <div class="kpi-label">Total Kills</div>
+          <div class="kpi-label" data-i18n="overlay.arbi.totalKills">Total Kills</div>
         </div>
         <div class="kpi">
           <div class="kpi-value" id="kpi-saturation">&mdash;</div>
-          <div class="kpi-label">Time at 15+ Enemies</div>
+          <div class="kpi-label" data-i18n="overlay.arbi.saturation">Time at 15+ Enemies</div>
         </div>
       </div>
 
       <div id="footer">
-        <div id="drag-hint">Right-click drag to move</div>
-        <button id="btn-details">Detailed Stats</button>
+        <div id="drag-hint" data-i18n="overlay.hint.rightClickDrag">Right-click drag to move</div>
+        <button id="btn-details" data-i18n="overlay.arbi.details">Detailed Stats</button>
       </div>
     </div>
     <script src="overlay-drag.js"></script>
     <script src="overlay-theme.js"></script>
+    <script src="overlay-i18n.js"></script>
     <script src="arbi-overlay.js"></script>
   </body>
 </html>

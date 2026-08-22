@@ -3,6 +3,7 @@
   import { attributeKeyword } from "../../lib/marketContract.js";
   import MarketRowBase from "./MarketRowBase.svelte";
   import RivenPolarityIcon from "../RivenPolarityIcon.svelte";
+  import { tr, type MessageKey } from "../../lib/i18n.js";
   import type { WfmContract, WfmContractAttribute } from "../../types/market.js";
 
   export let contract: WfmContract;
@@ -19,14 +20,16 @@
       .map((label) => label.replace(/\b\w/g, (letter) => letter.toUpperCase()));
   }
 
-  function contractBadge(contractRow: WfmContract): string {
-    if (contractRow.isDirectSell) return "Direct";
-    if (contractRow.buyoutPlatinum != null && contractRow.buyoutPlatinum > 0) return "Auction";
-    return "Listing";
+  function contractBadgeKey(contractRow: WfmContract): MessageKey {
+    if (contractRow.isDirectSell) return "market.badge.direct";
+    if (contractRow.buyoutPlatinum != null && contractRow.buyoutPlatinum > 0) {
+      return "common.auction";
+    }
+    return "market.badge.listing";
   }
 
   $: statsPreview = contractStatsPreview(contract);
-  $: badge = contractBadge(contract);
+  $: badge = $tr(contractBadgeKey(contract));
   $: badgeClass = contract.isDirectSell
     ? "bg-amber-500/20 text-amber-300"
     : "bg-sky-500/20 text-sky-300";
@@ -53,7 +56,7 @@
     <svelte:fragment slot="compactBody">
       <div class="flex min-w-0 flex-1 flex-col gap-0.5">
         <div class="flex items-center gap-3">
-          <span class="flex items-center gap-1 font-display" title="Platinum">
+          <span class="flex items-center gap-1 font-display" title={$tr("common.platinum")}>
             <img src={PLATINUM_ICON_URL} alt="" width="16" height="16" class="shrink-0" />
             <span class="text-lg font-bold leading-none text-accent">{contract.platinum}</span>
           </span>
@@ -78,11 +81,11 @@
       <div class="grid shrink-0 gap-1">
         <button
           class="btn-sm btn-secondary px-2 py-1 text-xs"
-          on:click|stopPropagation={() => onEdit(contract)}>Edit</button
+          on:click|stopPropagation={() => onEdit(contract)}>{$tr("market.edit")}</button
         >
         <button
           class="btn-sm btn-secondary px-2 py-1 text-xs"
-          on:click|stopPropagation={() => onOpen(contract)}>Open</button
+          on:click|stopPropagation={() => onOpen(contract)}>{$tr("market.open")}</button
         >
       </div>
     </svelte:fragment>
@@ -130,11 +133,11 @@
       <div class="grid shrink-0 gap-1">
         <button
           class="btn-sm btn-secondary px-2 py-1 text-xs"
-          on:click|stopPropagation={() => onEdit(contract)}>Edit</button
+          on:click|stopPropagation={() => onEdit(contract)}>{$tr("market.edit")}</button
         >
         <button
           class="btn-sm btn-secondary px-2 py-1 text-xs"
-          on:click|stopPropagation={() => onOpen(contract)}>Open</button
+          on:click|stopPropagation={() => onOpen(contract)}>{$tr("market.open")}</button
         >
       </div>
     </svelte:fragment>

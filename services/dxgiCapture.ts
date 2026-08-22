@@ -29,7 +29,6 @@ let _gdiFns: {
   GetDC: (...args: any[]) => any;
   ReleaseDC: (...args: any[]) => any;
   GetSystemMetrics: (...args: any[]) => any;
-  GetMonitorInfoW: (...args: any[]) => any;
   FindWindowW: (...args: any[]) => any;
   IsIconic: (...args: any[]) => any;
   GetClientRect: (...args: any[]) => any;
@@ -56,7 +55,6 @@ function ensureGdi(): boolean {
       GetDC: u32.func("__stdcall", "GetDC", "void*", ["void*"]),
       ReleaseDC: u32.func("__stdcall", "ReleaseDC", "int32", ["void*", "void*"]),
       GetSystemMetrics: u32.func("__stdcall", "GetSystemMetrics", "int32", ["int32"]),
-      GetMonitorInfoW: u32.func("__stdcall", "GetMonitorInfoW", "int32", ["void*", "void*"]),
       FindWindowW: u32.func("__stdcall", "FindWindowW", "void*", ["str16", "str16"]),
       IsIconic: u32.func("__stdcall", "IsIconic", "int32", ["void*"]),
       GetClientRect: u32.func("__stdcall", "GetClientRect", "int32", ["void*", "void*"]),
@@ -99,7 +97,16 @@ function ensureGdi(): boolean {
   }
 }
 
-/** Capture current BGRA display output, selecting an HMONITOR when supplied. */
+/** Virtual-screen pixel bounds of the monitor to capture, with the Electron
+ * display id the caller wants carried through to the result. */
+export interface GdiCaptureTarget {
+  displayId: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 interface GameWindowRect {
   x: number;
   y: number;
@@ -131,37 +138,16 @@ export function getGameWindowClientRect(): GameWindowRect | null {
   }
 }
 
-export function captureGdi(displayId?: string | null): GdiCaptureResult | null {
+export function captureGdi(target?: GdiCaptureTarget | null): GdiCaptureResult | null {
   if (process.platform !== "win32") return null;
   if (!ensureGdi()) return null;
   const g = _gdiFns!;
 
-  // Determine capture area from target display
-  let cx = 0,
-    cy = 0,
-    cw = 0,
-    ch = 0;
-  let resolvedDisplayId = "";
-
-  const wantedId = displayId?.trim() || null;
-  if (wantedId) {
-    if (!/^\d+$/.test(wantedId)) return null;
-    const hMon = parseInt(wantedId, 10);
-    // Must be a finite positive integer. parseInt accepts "123abc" -> 123 and
-    // "abc" -> NaN; only the former is a real HMONITOR-shaped value.
-    if (Number.isFinite(hMon) && hMon > 0) {
-      // MONITORINFO: cbSize(4) + rcMonitor(16) + rcWork(16) + dwFlags(4) = 40
-      const mi = Buffer.alloc(40);
-      mi.writeUInt32LE(40, 0); // cbSize
-      if (g.GetMonitorInfoW(hMon, mi)) {
-        cx = mi.readInt32LE(4); // rcMonitor.left
-        cy = mi.readInt32LE(8); // rcMonitor.top
-        cw = mi.readInt32LE(12) - cx; // right - left
-        ch = mi.readInt32LE(16) - cy; // bottom - top
-        resolvedDisplayId = wantedId;
-      }
-    }
-  }
+  let cx = target?.x ?? 0;
+  let cy = target?.y ?? 0;
+  let cw = target?.width ?? 0;
+  let ch = target?.height ?? 0;
+  let resolvedDisplayId = cw > 0 && ch > 0 ? target!.displayId : "";
 
   // Fallback to primary screen metrics
   if (cw <= 0 || ch <= 0) {

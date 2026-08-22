@@ -1,7 +1,5 @@
-// Builds src/data/codexScanRequirements.ts from the community wiki's enemy
-// modules (wiki.warframe.com Module:Enemies/data/<faction>, CC BY-SA), plus
-// DE PublicExport extras (conservation animals, codex objects and fragments).
-// Manual refresh: node scripts/codex-scans/build-codex-scan-data.mjs
+// Builds Codex scan data from the Warframe wiki enemy modules (CC BY-SA) and
+// DE PublicExport animals, objects and fragments.
 
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -45,10 +43,11 @@ for (const faction of FACTIONS) {
   const url = `https://wiki.warframe.com/w/Module:Enemies/data/${faction}?action=raw`;
   const res = await fetch(url, { headers: { "User-Agent": "WFHelper data build" } });
   if (!res.ok) {
-    console.warn(`skip ${faction}: HTTP ${res.status}`);
-    continue;
+    throw new Error(`${faction}: HTTP ${res.status} - refusing to overwrite`);
   }
   const entries = parseEntries(await res.text(), faction);
+  if (entries.length === 0)
+    throw new Error(`${faction}: no entries parsed - refusing to overwrite`);
   for (const entry of entries) {
     if (!all.has(entry.internal)) all.set(entry.internal, entry);
   }
@@ -92,20 +91,89 @@ function deIconMirror(iconPath) {
   return { sourceUrl, mirrorUrl: `${MIRROR_BASE}/icons/${hash}${ext}` };
 }
 
+// Lore fragment pages pair each Codex display name with its wiki artwork.
+const FRAGMENT_PAGES = [
+  "Fragments/Cephalon",
+  "Fragments/Fish",
+  "Fragments/Glass",
+  "Fragments/Ghoul",
+  "Fragments/Revenant",
+  "Fragments/Solaris United",
+  "Fragments/Partnership",
+  "Fragments/The Tenets",
+  // Fragments/Duviri is absent on purpose: every block there has an empty
+  // image field, so the parse below yields nothing and refuses to overwrite.
+  "Fragments/Albrecht",
+  "Fragments/Isleweaver",
+];
+// Solaris filenames carry the vendor omitted from the fragment field.
+const SOLARIS_VENDORS = {
+  Eudico: "Eudico",
+  Legs: "Legs",
+  LittleDuck: "Little Duck's",
+  RudeZuud: "Rude Zuud's",
+  Smokefinger: "Smokefinger's",
+  TheBusiness: "The Business'",
+  Ticker: "Ticker's",
+};
+const normFragmentName = (name) =>
+  name.toLowerCase().replace(/[‘’]/g, "'").replace(/[–—]/g, "-").replace(/\s+/g, " ").trim();
+const fragmentImageByName = new Map();
+for (const page of FRAGMENT_PAGES) {
+  const url = `https://wiki.warframe.com/w/${encodeURI(page)}?action=raw`;
+  const res = await fetch(url, { headers: { "User-Agent": "WFHelper data build" } });
+  if (!res.ok) {
+    throw new Error(`${page}: HTTP ${res.status} - refusing to overwrite`);
+  }
+  const text = await res.text();
+  let parsedImages = 0;
+  for (const block of text.split(/\{\{Fragments\s*\n/).slice(1)) {
+    let name = block.match(/(?:^|\|)\s*fragment\s*=\s*([^\n|]+)/)?.[1]?.trim();
+    const image = block.match(/(?:^|\|)\s*image\s*=\s*([^\n|]+)/)?.[1]?.trim();
+    if (!image) continue;
+    const solaris = /^Frag_SU(\w+)_0*(\d+)\.png$/.exec(image);
+    if (solaris && SOLARIS_VENDORS[solaris[1]]) {
+      name = `${SOLARIS_VENDORS[solaris[1]]} Mem Fragment ${solaris[2]}/5`;
+    }
+    if (!name) continue;
+    parsedImages += 1;
+    const key = normFragmentName(name);
+    if (!fragmentImageByName.has(key)) fragmentImageByName.set(key, image);
+  }
+  if (parsedImages === 0)
+    throw new Error(`${page}: no fragment artwork parsed - refusing to overwrite`);
+}
+console.log(`wiki fragment artwork: ${fragmentImageByName.size} names`);
+
+// Albrecht entries carry a set prefix the wiki page titles drop.
+function wikiFragmentImage(name) {
+  if (!name) return null;
+  const key = normFragmentName(name);
+  const direct = fragmentImageByName.get(key);
+  if (direct) return direct;
+  const dash = key.indexOf(" - ");
+  return dash >= 0 ? (fragmentImageByName.get(key.slice(dash + 3)) ?? null) : null;
+}
+
 const extras = new Map();
 const codexIconSources = new Set();
-function addExtra(key, rawName, icon, faction, reqScans) {
+const fragmentImagesUsed = new Set();
+function resolveName(rawName) {
+  return typeof rawName === "string" && rawName.startsWith("/")
+    ? (dictEn[rawName] || "").replace(/<[^>]+>/g, "").trim() || null
+    : rawName || null;
+}
+
+function addExtra(key, rawName, icon, faction, reqScans, wikiImage = null) {
   if (all.has(key) || extras.has(key)) return;
-  const name =
-    typeof rawName === "string" && rawName.startsWith("/")
-      ? (dictEn[rawName] || "").replace(/<[^>]+>/g, "").trim() || null
-      : rawName || null;
+  const name = resolveName(rawName);
   const resolved = icon ? deIconMirror(icon) : null;
   if (!name && !resolved) return;
   if (resolved) codexIconSources.add(resolved.sourceUrl);
+  if (!resolved && wikiImage) fragmentImagesUsed.add(wikiImage);
   extras.set(key, {
     name,
-    icon: resolved ? resolved.mirrorUrl : null,
+    icon: resolved ? resolved.mirrorUrl : wikiImage,
     faction,
     scans: Number.isFinite(reqScans) && reqScans > 0 ? reqScans : null,
   });
@@ -120,10 +188,21 @@ const CODEX_SECTION_FACTION = {
   songs: "lore",
   fighterFrames: "objects",
 };
+// Matching ship decorations fill icons omitted from Codex fragment records.
+const resourceIconByName = new Map();
+for (const item of Object.values(readPep("ExportResources.json"))) {
+  if (!item.icon) continue;
+  const name = resolveName(item.name);
+  if (!name) continue;
+  resourceIconByName.set(name, resourceIconByName.has(name) ? null : item.icon);
+}
 for (const [section, sectionEntries] of Object.entries(readPep("ExportCodex.json"))) {
   const faction = CODEX_SECTION_FACTION[section] || "objects";
   for (const [key, item] of Object.entries(sectionEntries || {})) {
-    addExtra(key, item.name, item.icon, faction, item.reqScans);
+    const icon = item.icon ?? resourceIconByName.get(resolveName(item.name)) ?? null;
+    const wikiImage =
+      section === "loreFragments" && !icon ? wikiFragmentImage(resolveName(item.name)) : null;
+    addExtra(key, item.name, icon, faction, item.reqScans, wikiImage);
   }
 }
 
@@ -157,8 +236,7 @@ const body =
   `> = {\n` +
   lines.join("\n") +
   `\n};\n\n` +
-  `// Profile-only scan types (not in the wiki enemy modules): display name,\n` +
-  `// mirrored DE icon and, when DE states one, the required scan count.\n` +
+  `// Profile-only scans from DE PublicExport, with mirrored DE or wiki art.\n` +
   `export const CODEX_EXTRA_INFO: Record<\n` +
   `  string,\n` +
   `  { name?: string; icon?: string; faction: string; scans?: number }\n` +
@@ -170,7 +248,9 @@ fs.writeFileSync(OUT_FILE, banner + body);
 
 // Sidecars for the icon mirror: wiki image filenames the table references, and
 // the DE texture source URLs the extras need mirrored.
-const images = [...new Set(sorted.map((e) => e.image).filter(Boolean))].sort();
+const images = [
+  ...new Set([...sorted.map((e) => e.image), ...fragmentImagesUsed].filter(Boolean)),
+].sort();
 const IMAGES_FILE = path.join(process.cwd(), "scripts", "icon-mirror", "enemy-images.json");
 fs.writeFileSync(IMAGES_FILE, JSON.stringify(images, null, 2) + "\n");
 const CODEX_ICONS_FILE = path.join(process.cwd(), "scripts", "icon-mirror", "codex-icon-urls.json");

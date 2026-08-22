@@ -14,12 +14,9 @@ import {
   type StructuredOcrBufferRunner,
 } from "./rewardScannerSlotScan";
 import { CROP_PRESETS, SCANNER_TUNING } from "./rewardScannerSupport";
-import { round4 } from "./rewardScannerUtils";
+import { round4, yieldToEventLoop } from "./rewardScannerUtils";
 
 const log = withScope("rewardScanner");
-
-// Each crop/encode runs synchronously on the UI thread - yield or the cursor stalls.
-const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
 // capture -> guards (console open, frame dedup) -> slot scan -> text fallback.
 

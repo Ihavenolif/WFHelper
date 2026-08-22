@@ -32,6 +32,7 @@
   --ui-control-border: var(--border);
   --ui-backdrop-blur: none;
   --sidebar-width: 300px;
+  --content-gutter: 1.75rem;
   --titlebar-height: 38px;
   --statusbar-height: 28px;
   --item-image-max: 96px;

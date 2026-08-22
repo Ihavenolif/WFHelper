@@ -6,7 +6,7 @@ import type {
 } from "../config/shared/arbiTypes";
 import { computeVitusModel } from "../config/shared/arbiMath";
 
-const TS = /^[^\d]*(\d+\.\d+)/;
+export const EE_LOG_LINE_TS = /^[^\d]*(\d+\.\d+)/;
 const MISSION_NAME = /Script \[Info\]: ThemedSquadOverlay\.lua: Mission name: (.*)/;
 const SPAM_SKIP = /Game \[Warning\]:|DamagePct/;
 const AGENT_CREATED = /OnAgentCreated/;
@@ -251,7 +251,7 @@ export function createArbiParser(): ArbiParser {
   function feedLine(line: string): ArbiParserEvent | null {
     if (!line || SPAM_SKIP.test(line)) return null;
 
-    const tsMatch = line.match(TS);
+    const tsMatch = line.match(EE_LOG_LINE_TS);
     const ts = tsMatch ? parseFloat(tsMatch[1]) : 0;
 
     const sector = line.match(PENDING_SECTOR_PLAIN) ?? line.match(PENDING_SECTOR_JSON);

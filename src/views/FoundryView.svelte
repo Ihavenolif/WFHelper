@@ -1,4 +1,5 @@
 ﻿<script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { SvelteMap } from "svelte/reactivity";
   import {
     itemDb,
@@ -24,6 +25,8 @@
   import { clockStore } from "../lib/timers.js";
   import { persistedString } from "../lib/persistence.js";
   import { sharedFilters } from "../stores/filters.js";
+  import { tr } from "../lib/i18n.js";
+  import type { MessageKey } from "../lib/i18n.js";
   import ItemImage from "../components/ItemImage.svelte";
   import HeaderTabs from "../components/HeaderTabs.svelte";
   import SharedFilterBar from "../components/SharedFilterBar.svelte";
@@ -45,6 +48,7 @@
   interface FoundryEntry {
     source: "building" | "blueprint";
     name: string;
+    displayName?: string;
     imageUrl: string | null;
     uniqueName: string | null;
     productUniqueName: string | null;
@@ -87,29 +91,39 @@
     "Misc",
   ];
 
-  const foundryFilterTabs = [
-    { key: "all", label: "All" },
-    { key: "status:in-progress", label: "In Progress" },
-    { key: "status:ready", label: "Ready to Build" },
-    ...CATEGORY_ORDER.map((cat) => ({ key: `cat:${cat}`, label: cat })),
+  const STATUS_FILTERS: Array<{ key: FilterKey; labelKey: MessageKey }> = [
+    { key: "all", labelKey: "common.all" },
+    { key: "status:in-progress", labelKey: "common.inProgress" },
+    { key: "status:ready", labelKey: "foundry.status.readyToBuild" },
   ];
+  // Categories are data values, not UI copy, so they stay untranslated.
+  const CATEGORY_FILTERS = CATEGORY_ORDER.map((cat) => ({
+    key: `cat:${cat}` as FilterKey,
+    label: cat,
+  }));
+  // persistedString reads at init, so its key list must not wait on the translator.
   const activeFilter = persistedString<FilterKey>(
     FILTER_KEY,
-    foundryFilterTabs.map((tab) => tab.key as FilterKey),
+    [...STATUS_FILTERS.map((tab) => tab.key), ...CATEGORY_FILTERS.map((tab) => tab.key)],
     "all",
   );
-  const foundryFilters = sharedFilters("foundry");
-  const foundrySortOptions: Array<[SortMode, string]> = [
-    ["count", "Count"],
-    ["time", "Time"],
-    ["name", "Name"],
+  $: foundryFilterTabs = [
+    ...STATUS_FILTERS.map(({ key, labelKey }) => ({ key, label: $tr(labelKey) })),
+    ...CATEGORY_FILTERS,
   ];
+  const foundryFilters = sharedFilters("foundry");
+  $: foundrySortOptions = [
+    ["count", $tr("foundry.sort.count")],
+    ["time", $tr("foundry.sort.time")],
+    ["name", $tr("common.name")],
+  ] as Array<[SortMode, string]>;
   const nowClock = clockStore(1000);
   $: nowMs = $nowClock;
 
   function commonEntryFields(item: FoundryBuildingItem | FoundryRecipeItem) {
     return {
       name: item.name,
+      ...(item.displayName ? { displayName: item.displayName } : {}),
       imageUrl: item.imageUrl,
       uniqueName: item.uniqueName,
       productUniqueName: item.productUniqueName,
@@ -221,16 +235,16 @@
     return masteryLookup.byName.get(normalizeLookupKey(entry.name)) ?? "missing";
   }
 
-  function masteryLabelFor(state: MasteryStatus | "unknown"): string {
+  function masteryLabelKeyFor(state: MasteryStatus | "unknown"): MessageKey {
     switch (state) {
       case "mastered":
-        return "Mastered";
+        return "common.mastered";
       case "progress":
-        return "In Progress";
+        return "common.inProgress";
       case "missing":
-        return "Not Mastered";
+        return "common.notMastered";
       default:
-        return "Mastery N/A";
+        return "foundry.mastery.notApplicable";
     }
   }
 
@@ -250,6 +264,7 @@
 
   function filterableFoundryEntry(row: { e: FoundryEntry; status: ItemStatus }): {
     name: string;
+    displayName?: string;
     category: string;
     keywords: string[];
     count: number | null;
@@ -263,6 +278,7 @@
     const db = row.e.productUniqueName ? $itemDb[row.e.productUniqueName] : null;
     return {
       name: row.e.name,
+      ...(row.e.displayName ? { displayName: row.e.displayName } : {}),
       category: row.e.category,
       keywords: materialKeywords(row.e.productUniqueName),
       count: row.e.source === "blueprint" ? row.e.count : null,
@@ -349,23 +365,23 @@
     return ($itemDb[un]?.imageUrl as string | null) ?? null;
   }
 
-  function statusLabel(s: ItemStatus): string {
+  function statusLabelKey(s: ItemStatus): MessageKey {
     switch (s) {
       case "claimable":
-        return "READY";
+        return "common.ready";
       case "in-progress":
-        return "BUILDING";
+        return "foundry.status.building";
       case "ready-to-build":
-        return "READY TO BUILD";
+        return "foundry.status.readyToBuild";
       case "not-ready":
-        return "MISSING PARTS";
+        return "foundry.status.missingParts";
     }
   }
 </script>
 
 <section class="view active">
   <div class="view-header">
-    <h2>Foundry</h2>
+    <h2>{$tr("common.foundry")}</h2>
   </div>
 
   <div class="view-sticky-filters mb-3">
@@ -393,16 +409,18 @@
     <div class="resource-card mb-3 border-accent/35 px-3 py-2.5">
       <div class="flex flex-wrap items-center justify-between gap-2">
         <span class="font-display text-sm font-semibold text-text-primary">
-          Pinned blueprints <span class="text-accent">({pinnedTotals.count})</span>
+          {$tr("foundry.pinnedBlueprints")} <span class="text-accent">({pinnedTotals.count})</span>
         </span>
         <div class="flex items-center gap-3">
           {#if pinnedTotals.credits > 0}
             <span class="flex items-center gap-1 text-xs text-text-secondary">
-              <img src={CREDITS_ICON_URL} alt="Credits" class="h-4 w-4" />
+              <img src={CREDITS_ICON_URL} alt={$tr("common.credits")} class="h-4 w-4" />
               {formatNumber(pinnedTotals.credits)}
             </span>
           {/if}
-          <button class="filter-tab" title="Unpin all" on:click={clearPinnedRecipes}>Clear</button>
+          <button class="filter-tab" title={$tr("foundry.unpinAll")} on:click={clearPinnedRecipes}
+            >{$tr("foundry.clear")}</button
+          >
         </div>
       </div>
       <div class="mt-2 flex flex-wrap gap-x-4 gap-y-1.5">
@@ -426,7 +444,9 @@
         <div
           class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-white/[0.09] pt-2"
         >
-          <span class="text-xs font-semibold uppercase tracking-[0.08em] text-danger">Missing</span>
+          <span class="text-xs font-semibold uppercase tracking-[0.08em] text-danger"
+            >{$tr("common.missing")}</span
+          >
           {#each pinnedTotals.missing as res (res.uniqueName)}
             <span
               class="flex items-center gap-1 text-xs text-text-secondary"
@@ -452,7 +472,7 @@
   <div class="grid grid-cols-[repeat(auto-fill,minmax(380px,1fr))] gap-3">
     {#if sorted.length === 0}
       <div class="empty-state col-span-full">
-        <p>No foundry items match your filters</p>
+        <p>{$tr("foundry.noItemsMatch")}</p>
       </div>
     {:else}
       {#each sorted as { e: item, status }, i (cardKey(item, i))}
@@ -489,22 +509,24 @@
               <div class="h-14 w-14 shrink-0 flex items-center justify-center">
                 <ItemImage
                   src={item.imageUrl}
-                  alt={item.name}
+                  alt={itemLabel(item)}
                   cls="max-h-14 max-w-14 object-contain"
                 />
               </div>
               <div class="flex-1 min-w-0 flex flex-col gap-1">
                 <span class="font-display font-semibold text-sm text-text-primary truncate">
-                  {item.name}{#if item.source === "blueprint"}<span
+                  {itemLabel(item)}{#if item.source === "blueprint"}<span
                       class="ml-2 text-accent font-bold">×{item.count}</span
                     >{/if}
                 </span>
                 <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-display text-xs font-bold tracking-wider {statusText}">
+                  <span
+                    class="font-display text-xs font-bold tracking-wider uppercase {statusText}"
+                  >
                     {#if status === "in-progress" && item.endDate}
                       {formatTimeRemaining(item.endDate)}
                     {:else}
-                      {statusLabel(status)}
+                      {$tr(statusLabelKey(status))}
                     {/if}
                   </span>
                   {#if item.source === "blueprint" && item.isIngredient}
@@ -523,7 +545,7 @@
                         <path d="M8.5 9h4.5v4.5H8.5z" />
                         <path d="M7.5 6.75h1M10.75 6.5v2.5" />
                       </svg>
-                      <span>Used in crafting</span>
+                      <span>{$tr("foundry.usedInCrafting")}</span>
                     </span>
                   {/if}
                 </div>
@@ -588,7 +610,11 @@
                   <span
                     class="flex items-center gap-1.5 font-display font-semibold tracking-wide text-accent"
                   >
-                    <img src={CREDITS_ICON_URL} alt="Credits" class="h-5 w-5 object-contain" />
+                    <img
+                      src={CREDITS_ICON_URL}
+                      alt={$tr("common.credits")}
+                      class="h-5 w-5 object-contain"
+                    />
                     {formatNumber(item.buildPrice)}
                   </span>
                 {/if}
@@ -598,7 +624,7 @@
                   </span>
                 {/if}
                 {#if item.source === "blueprint" && item.ingredients.length === 0}
-                  <span class="text-text-muted italic">No recipe data</span>
+                  <span class="text-text-muted italic">{$tr("foundry.noRecipeData")}</span>
                 {/if}
               </div>
               <div class="flex items-center justify-end gap-1.5 flex-wrap">
@@ -607,7 +633,7 @@
                   0
                     ? 'border-success/30 bg-emerald-500/10 text-success'
                     : 'border-border bg-white/[0.04] text-text-muted'}"
-                  title={`Owned copies: ${ownedCount}`}
+                  title={$tr("foundry.ownedCopies", { count: ownedCount })}
                 >
                   <svg
                     viewBox="0 0 16 16"
@@ -620,7 +646,7 @@
                     <path d="M2 5.5 8 9l6-3.5" />
                     <path d="M8 9v5" />
                   </svg>
-                  <span>{ownedCount} Owned</span>
+                  <span>{$tr("foundry.ownedCount", { count: ownedCount })}</span>
                 </span>
                 <span
                   class="inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-display font-bold uppercase tracking-[0.08em] {masteryState ===
@@ -629,7 +655,7 @@
                     : masteryState === 'progress'
                       ? 'border-warning/30 bg-warning/10 text-warning'
                       : 'border-border bg-white/[0.04] text-text-muted'}"
-                  title={masteryLabelFor(masteryState)}
+                  title={$tr(masteryLabelKeyFor(masteryState))}
                 >
                   <svg
                     viewBox="0 0 16 16"
@@ -642,7 +668,7 @@
                     <path d="m6.35 6.55 1.15 1.15 2.25-2.3" />
                     <path d="M6.1 10.4 5 14l3-1.55L11 14l-1.1-3.6" />
                   </svg>
-                  <span>{masteryLabelFor(masteryState)}</span>
+                  <span>{$tr(masteryLabelKeyFor(masteryState))}</span>
                 </span>
               </div>
             </div>
@@ -654,7 +680,7 @@
                    transition-colors {isPinned
                 ? 'border-accent/50 bg-accent/15 text-accent'
                 : 'border-border bg-black/40 text-text-muted hover:text-text-secondary'}"
-              title={isPinned ? "Unpin blueprint" : "Pin blueprint (adds to combined resources)"}
+              title={isPinned ? $tr("foundry.unpinBlueprint") : $tr("foundry.pinBlueprint")}
               on:click|stopPropagation={() => togglePinnedRecipe(item.uniqueName || "")}
             >
               <svg

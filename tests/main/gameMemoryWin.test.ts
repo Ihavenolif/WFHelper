@@ -1,4 +1,16 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// Process discovery moved to services/win32Process; the fake below still owns
+// which pids exist and what each one's image path is.
+const win32 = vi.hoisted(() => ({ processes: [] as { pid: number; imagePath: string }[] }));
+
+vi.mock("../../services/win32Process", () => ({
+  enumProcessIds: () => win32.processes.map((process) => process.pid),
+  exePathOfPid: (pid: number) =>
+    win32.processes.find((process) => process.pid === pid)?.imagePath ?? null,
+  isWarframeExePath: (exePath: string | null) =>
+    typeof exePath === "string" && exePath.toLowerCase().endsWith("\\warframe.x64.exe"),
+}));
 
 import { readGameAuthzWin } from "../../services/gameMemoryWin";
 
@@ -25,6 +37,10 @@ function nativeFn(implementation: (...args: unknown[]) => unknown) {
 
 function createWin32Fake(processes: FakeProcess[]) {
   const byPid = new Map(processes.map((process) => [process.pid, process]));
+  win32.processes = processes.map((process) => ({
+    pid: process.pid,
+    imagePath: process.imagePath ?? "C:\\Games\\Warframe.x64.exe",
+  }));
   const openProcess = nativeFn((access: unknown, _inherit: unknown, pidValue: unknown) => {
     const pid = pidValue as number;
     if (!byPid.has(pid)) return 0;
@@ -91,6 +107,10 @@ function createWin32Fake(processes: FakeProcess[]) {
 }
 
 describe("Windows game-memory scan", () => {
+  beforeEach(() => {
+    win32.processes = [];
+  });
+
   it("continues to a singleton after an oversized read report", async () => {
     const { api, readMemory } = createWin32Fake([
       {

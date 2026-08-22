@@ -17,13 +17,10 @@ import {
   RELIC_ROW_TILE_LABEL_RECTS,
   SCANNER_TUNING,
 } from "./rewardScannerSupport";
-import { round4 } from "./rewardScannerUtils";
+import { round4, yieldToEventLoop } from "./rewardScannerUtils";
 import { clampNumber } from "../config/shared/numeric";
 
 const log = withScope("rewardScanner");
-
-// Each region encodes synchronously on the UI thread - yield or the cursor stalls.
-const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
 interface RelicEraDetectionResult {
   era: string | null;

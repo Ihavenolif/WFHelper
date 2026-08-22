@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { tr } from "../lib/i18n.js";
+
   interface Props {
     value: string;
     placeholder?: string;
@@ -8,7 +10,7 @@
 
   let {
     value = $bindable(),
-    placeholder = "Search...",
+    placeholder = $tr("common.searchPlaceholder"),
     class: extraClass = "",
     onValueChange,
   }: Props = $props();
@@ -40,8 +42,11 @@
     data-search-focus
   />
   {#if value}
-    <button type="button" class="search-box-clear" aria-label="Clear search" onclick={clear}
-      >&times;</button
+    <button
+      type="button"
+      class="search-box-clear"
+      aria-label={$tr("common.clearSearch")}
+      onclick={clear}>&times;</button
     >
   {/if}
 </div>

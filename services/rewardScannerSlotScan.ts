@@ -14,11 +14,9 @@ import {
 import { hasConfidentSlotLayout } from "./rewardScannerSupport";
 import { dumpRewardScanDebug, type ScanDebugSlot } from "./rewardScanDebug";
 import { withScope } from "./logger";
+import { yieldToEventLoop } from "./rewardScannerUtils";
 
 const log = withScope("rewardScanner");
-
-// Each crop/encode runs synchronously on the UI thread - yield or the cursor stalls.
-const yieldToEventLoop = (): Promise<void> => new Promise((resolve) => setImmediate(resolve));
 
 interface OcrLine {
   text?: string;

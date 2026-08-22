@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { itemLabel } from "../lib/itemLabel.js";
   import { activeRelic } from "../stores/modals.js";
   import { itemDb, componentOwnership } from "../stores/data.js";
   import { relicOwnedCounts } from "../stores/relics.js";
@@ -8,6 +9,7 @@
   import WikiButton from "../components/WikiButton.svelte";
   import ComponentPanel from "../components/ComponentPanel.svelte";
   import DetailModalBase from "./DetailModalBase.svelte";
+  import { tr, type MessageKey } from "../lib/i18n.js";
   import {
     computeSquadEV,
     fissureTierClass,
@@ -22,19 +24,28 @@
   } from "../types/relics.js";
   import type { ComponentInfo } from "../types/inventory.js";
 
-  const QUAL_LABELS: Record<RelicQuality, string> = {
-    intact: "Intact",
-    exceptional: "Exceptional",
-    flawless: "Flawless",
-    radiant: "Radiant",
+  const QUAL_LABEL_KEYS: Record<RelicQuality, MessageKey> = {
+    intact: "relics.quality.intact",
+    exceptional: "relics.quality.exceptional",
+    flawless: "relics.quality.flawless",
+    radiant: "relics.quality.radiant",
   };
-  const QUAL_ENTRIES = Object.entries(QUAL_LABELS) as Array<[RelicQuality, string]>;
-  const SQUAD_OPTIONS: Array<[number, string]> = [
-    [1, "Solo"],
-    [2, "2P"],
-    [3, "3P"],
-    [4, "4P"],
+  $: QUAL_LABELS = {
+    intact: $tr(QUAL_LABEL_KEYS.intact),
+    exceptional: $tr(QUAL_LABEL_KEYS.exceptional),
+    flawless: $tr(QUAL_LABEL_KEYS.flawless),
+    radiant: $tr(QUAL_LABEL_KEYS.radiant),
+  };
+  $: QUAL_ENTRIES = Object.entries(QUAL_LABELS) as Array<[RelicQuality, string]>;
+  const SQUAD_OPTION_KEYS: Array<[number, MessageKey]> = [
+    [1, "relics.squad.solo"],
+    [2, "relics.squad.p2"],
+    [3, "relics.squad.p3"],
+    [4, "relics.squad.p4"],
   ];
+  $: SQUAD_OPTIONS = SQUAD_OPTION_KEYS.map(
+    ([size, i18nKey]) => [size, $tr(i18nKey)] as [number, string],
+  );
   const EMPTY_OWNED: OwnedQualityCounts = {
     intact: 0,
     exceptional: 0,
@@ -141,8 +152,30 @@
   $: hasAnyDucats = ducats?.some((value) => value != null);
   $: ducatonator =
     squadEV != null && squadDucatEV != null && squadEV > 0 ? squadDucatEV / squadEV : null;
-  $: squadLabel = localSquadSize === 1 ? "Solo" : `best of ${localSquadSize}`;
+  $: squadLabel =
+    localSquadSize === 1
+      ? $tr("relics.squad.solo")
+      : $tr("relics.detail.bestOf", { count: localSquadSize });
   $: qualLabel = QUAL_LABELS[activeQuality] || activeQuality;
+
+  // One whole sentence per data shape, so a translator can reorder the numbers
+  // instead of receiving them as separate fragments.
+  let evSummaryKey: MessageKey;
+  $: evSummaryKey =
+    squadEV == null
+      ? "relics.detail.evDucats"
+      : squadDucatEV == null
+        ? "relics.detail.evPlatinum"
+        : ducatonator == null
+          ? "relics.detail.evPlatinumDucats"
+          : "relics.detail.evPlatinumDucatsRatio";
+  // The two numbers stay unsubstituted so the markup can split on them and keep
+  // their accent colour; everything else interpolates normally.
+  $: evParts = $tr(evSummaryKey, {
+    quality: qualLabel,
+    squad: squadLabel,
+    ratio: ducatonator?.toFixed(1) ?? "",
+  }).split(/(\{platinum\}|\{ducats\})/);
 
   $: owned = group ? $relicOwnedCounts[group.key] || EMPTY_OWNED : EMPTY_OWNED;
 
@@ -204,7 +237,8 @@
   >
     <div class="detail-panel-top-actions">
       <WikiButton wikiUrl={null} fallbackName={group.name} />
-      <button class="detail-close" aria-label="Close" on:click={close}>&times;</button>
+      <button class="detail-close" aria-label={$tr("common.close")} on:click={close}>&times;</button
+      >
     </div>
 
     <div class="detail-header relic-detail-header items-center">
@@ -229,7 +263,7 @@
         <h2>{group.name}</h2>
         <div class="relic-detail-owned flex flex-wrap gap-1">
           <span class="detail-tag" class:vaulted={group.vaulted} class:mastered={!group.vaulted}
-            >{group.vaulted ? "VAULTED" : "UNVAULTED"}</span
+            >{group.vaulted ? $tr("common.vaulted") : $tr("common.unvaulted")}</span
           >
           {#each QUAL_ENTRIES as [quality, label]}
             {#if (owned[quality] || 0) > 0}
@@ -239,7 +273,7 @@
               >
             {/if}
           {:else}
-            <span class="detail-muted">None owned</span>
+            <span class="detail-muted">{$tr("relics.detail.noneOwned")}</span>
           {/each}
         </div>
       </div>
@@ -259,7 +293,7 @@
       </div>
 
       <div class="mt-2 flex items-center gap-1.5">
-        <span class="text-xs text-text-secondary">Squad:</span>
+        <span class="text-xs text-text-secondary">{$tr("relics.detail.squadLabel")}</span>
         {#each SQUAD_OPTIONS as [size, label]}
           <button
             class="rounded-md border px-2 py-1 font-display text-xs font-semibold transition-all duration-[0.14s] {localSquadSize ===
@@ -275,10 +309,12 @@
         <div
           class="grid grid-cols-[30px_minmax(0,1fr)_72px_78px_78px_120px] max-[800px]:grid-cols-[24px_minmax(0,1fr)_56px_60px_60px_94px] max-[800px]:gap-1.5 gap-1.5 text-xs text-text-muted px-1.5"
         >
-          <span></span><span>Item</span><span class="text-right">Chance</span>
-          <span class="text-right">Price</span><span class="text-right">Ducats</span><span
-            class="text-right">E.V.</span
+          <span></span><span>{$tr("common.item")}</span><span class="text-right"
+            >{$tr("common.chance")}</span
           >
+          <span class="text-right">{$tr("common.price")}</span><span class="text-right"
+            >{$tr("common.ducats")}</span
+          ><span class="text-right">{$tr("relics.detail.col.ev")}</span>
         </div>
         {#each rewards as reward, i}
           {@const price = prices ? prices[i] : null}
@@ -301,7 +337,7 @@
             >
             <span
               class="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-text-primary text-sm"
-              title={reward.name}>{reward.name}</span
+              title={itemLabel(reward)}>{itemLabel(reward)}</span
             >
             <span class="text-right text-xs text-text-secondary">{reward.chance}%</span>
             <span class="text-right text-xs text-text-secondary">
@@ -336,22 +372,14 @@
 
       <div class="relic-ev-total mt-2.5 border-t border-border pt-2 text-sm text-text-secondary">
         {#if loadingPrices}
-          Loading prices and ducats...
+          {$tr("relics.detail.loadingPrices")}
         {:else if !hasAnyPrice && !hasAnyDucats}
-          Expected value ({qualLabel}): <strong>N/A</strong> (no value data)
+          {$tr("relics.detail.evUnavailable", { quality: qualLabel })}
         {:else}
-          <span>Expected value ({qualLabel}, {squadLabel}): </span>
-          {#if squadEV != null}
-            <strong>~{squadEV.toFixed(1)} platinum</strong>
-          {:else}
-            <strong>N/A platinum</strong>
-          {/if}
-          {#if squadDucatEV != null}
-            <span> | <strong>{squadDucatEV.toFixed(1)} ducats</strong></span>
-          {/if}
-          {#if ducatonator != null}
-            <span> ({ducatonator.toFixed(1)} ducats/plat)</span>
-          {/if}
+          {#each evParts as part}{#if part === "{platinum}"}<strong
+                >{squadEV?.toFixed(1) ?? ""}</strong
+              >{:else if part === "{ducats}"}<strong>{squadDucatEV?.toFixed(1) ?? ""}</strong
+              >{:else}{part}{/if}{/each}
         {/if}
       </div>
     </div>

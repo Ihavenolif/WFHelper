@@ -47,7 +47,7 @@ test.describe("Electron Smoke", () => {
     launchEnv.LOCALAPPDATA = localAppData;
     launchEnv.WFHELPER_USER_DATA = path.join(sandboxDir, "user-data");
 
-    app = await electron.launch({ args: ["--no-sandbox", "."], env: launchEnv });
+    app = await electron.launch({ args: ["--no-sandbox", "--lang=en-US", "."], env: launchEnv });
     page = await mainWindow(app);
   });
 

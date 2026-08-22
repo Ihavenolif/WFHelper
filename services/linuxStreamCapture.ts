@@ -21,6 +21,9 @@ const GRAB_TIMEOUT_MS = 5_000;
 const SLOW_GRAB_LOG_MS = 250;
 
 let _win: BrowserWindowType | null = null;
+// Bumped per installed window so a slow grab can tell whether the stream it
+// judged is still the one a teardown would destroy.
+let _streamGeneration = 0;
 let _starting: Promise<boolean> | null = null;
 let _handlerInstalled = false;
 let _cooldownUntil = 0;
@@ -72,6 +75,7 @@ async function _installDisplayMediaHandler(win: BrowserWindowType): Promise<void
 }
 
 async function _createWindow(): Promise<BrowserWindowType | null> {
+  _resetBlankTracking();
   try {
     const { app, BrowserWindow } = await import("electron");
     // getAppPath() is the asar root; __dirname is .electron-build, which has no renderer/.
@@ -146,6 +150,7 @@ async function _ensureStream(): Promise<boolean> {
       const win = await _createWindow();
       if (!win) return false;
       _win = win;
+      _streamGeneration += 1;
       const live = await _waitForLiveStream(win);
       if (!live) {
         const cooldownMs = _sourceLookupFailed ? SOURCE_ERROR_COOLDOWN_MS : DECLINE_COOLDOWN_MS;
@@ -185,17 +190,68 @@ function isUsableFrame(frame: RawFrame | null): frame is RawFrame {
   return !!pixels && pixels.byteLength === width * height * 4;
 }
 
+// A portal grant can go stale without the track ending (restore-token grant to a
+// gone source): the stream stays "live" but every frame is a featureless field.
+const BLANK_LUM_RANGE = 8;
+const BLANK_FRAMES_BEFORE_RESET = 3;
+let _blankStreak = 0;
+let _sawContent = false;
+
+// Only a stream blank since its first frame is a stale grant. Loading screens
+// are blank too, and re-requesting reopens the portal picker this file avoids.
+function shouldDropBlankStream(blankStreak: number, sawContent: boolean): boolean {
+  return !sawContent && blankStreak >= BLANK_FRAMES_BEFORE_RESET;
+}
+
+function _resetBlankTracking(): void {
+  _blankStreak = 0;
+  _sawContent = false;
+}
+
+function isBlankFrame(frame: RawFrame): boolean {
+  const { pixels } = frame;
+  const samples = Math.min(2048, frame.width * frame.height);
+  const step = Math.max(4, Math.floor(pixels.length / samples / 4) * 4);
+  let min = 255;
+  let max = 0;
+  for (let i = 0; i + 2 < pixels.length; i += step) {
+    const lum = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+    if (lum < min) min = lum;
+    if (lum > max) max = lum;
+    if (max - min >= BLANK_LUM_RANGE) return false;
+  }
+  return true;
+}
+
 export async function captureLinuxStreamFrame(): Promise<NativeImage | null> {
   const startedAt = _now();
   const live = await _ensureStream();
   if (!live || !_win || _win.isDestroyed()) return null;
 
   const streamReadyAt = _now();
+  const generation = _streamGeneration;
   const grab = _exec<RawFrame | null>(_win, "window.__grabFrame && window.__grabFrame()");
   const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), GRAB_TIMEOUT_MS));
   const frame = await Promise.race([grab, timeout]);
   const grabbedAt = _now();
   if (!isUsableFrame(frame)) return null;
+  // A grab can outlive its stream; a replacement must not inherit this frame's
+  // blank verdict, nor be the window the teardown below destroys.
+  if (generation !== _streamGeneration) return null;
+
+  if (isBlankFrame(frame)) {
+    _blankStreak += 1;
+    if (shouldDropBlankStream(_blankStreak, _sawContent) && _win && !_win.isDestroyed()) {
+      log.warn("[LinuxCapture] stream blank since it started - dropping it to re-request");
+      _win.destroy();
+      _win = null;
+      _cooldownUntil = _now() + SOURCE_ERROR_COOLDOWN_MS;
+      _resetBlankTracking();
+    }
+    return null;
+  }
+  _blankStreak = 0;
+  _sawContent = true;
 
   // Named only when it hurts, so a healthy session stays quiet. Splits the cost
   // into stream wait, renderer work, and the transfer of the pixels themselves.
@@ -233,6 +289,7 @@ export async function captureLinuxStreamFrame(): Promise<NativeImage | null> {
 export function disposeLinuxStreamCapture(): void {
   if (_win && !_win.isDestroyed()) _win.destroy();
   _win = null;
+  _resetBlankTracking();
 }
 
-export const __test__ = { pickCaptureSource, isUsableFrame };
+export const __test__ = { pickCaptureSource, isUsableFrame, isBlankFrame, shouldDropBlankStream };

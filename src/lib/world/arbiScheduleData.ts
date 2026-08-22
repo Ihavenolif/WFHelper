@@ -116,7 +116,10 @@ export function selectedScheduleEntries(
   return entries.filter((entry) => selectedKeys.has(scheduleEntryKey(entry)));
 }
 
-export function groupEntriesByDay(entries: ArbiScheduleEntry[]): ArbiScheduleDayGroup[] {
+export function groupEntriesByDay(
+  entries: ArbiScheduleEntry[],
+  localeCode: string,
+): ArbiScheduleDayGroup[] {
   const groups: ArbiScheduleDayGroup[] = [];
   let current: ArbiScheduleDayGroup | null = null;
   for (const entry of entries) {
@@ -125,7 +128,7 @@ export function groupEntriesByDay(entries: ArbiScheduleEntry[]): ArbiScheduleDay
     if (!current || current.dayKey !== dayKey) {
       current = {
         dayKey,
-        dayLabel: date.toLocaleDateString(undefined, {
+        dayLabel: date.toLocaleDateString(localeCode, {
           weekday: "long",
           day: "numeric",
           month: "short",
@@ -139,8 +142,8 @@ export function groupEntriesByDay(entries: ArbiScheduleEntry[]): ArbiScheduleDay
   return groups;
 }
 
-export function formatEntryTime(epochMs: number): string {
-  return new Date(epochMs).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+export function formatEntryTime(epochMs: number, localeCode: string): string {
+  return new Date(epochMs).toLocaleTimeString(localeCode, { hour: "2-digit", minute: "2-digit" });
 }
 
 /** "NOW" while active (arbitrations last an hour), else d/h/m/s countdown. */

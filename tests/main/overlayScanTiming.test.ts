@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createOverlayScanController } from "../../ipc/overlay/scan";
 
 vi.mock("../../services/itemDatabase", () => ({
+  localizedNameFields: () => ({}),
   lookupItem: () => null,
   lookupItemByNameOrSlug: () => null,
   isReusableBlueprint: () => false,

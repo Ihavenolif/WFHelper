@@ -14,6 +14,7 @@ import type {
   VeiledRivenEntry,
   VeiledRivenGroup,
 } from "../config/shared/rivenTypes";
+import { lerp } from "../config/shared/numeric";
 
 const log = withScope("rivenFingerprint");
 
@@ -164,10 +165,6 @@ function getRivenTypeLabel(itemType: string): string {
 function rivenIntToFloat(i: number): number {
   const f = i / 0x3fffffff; // 1073741823
   return f >= 0.0 && f <= 1.0 ? f : 0.0;
-}
-
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
 }
 
 function computeBuffValue(

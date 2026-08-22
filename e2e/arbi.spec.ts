@@ -85,11 +85,14 @@ describeArbi("Arbitration schedule + post-run overlay", () => {
     env.LOCALAPPDATA = localAppData;
     env.WFHELPER_USER_DATA = userData;
 
-    app = await electron.launch({ args: ["--no-sandbox", "."], env });
+    app = await electron.launch({ args: ["--no-sandbox", "--lang=en-US", "."], env });
     page = await mainWindow(app);
 
     // Fresh sandbox starts on the setup view; flag it done and reload.
-    await page.evaluate(() => localStorage.setItem("setup-completed-v2", "1"));
+    await page.evaluate(() => {
+      localStorage.setItem("setup-completed-v2", "1");
+      localStorage.setItem("app-language", "en");
+    });
     await page.reload();
     await expect(page.locator("#sidebar")).toBeVisible({ timeout: 20_000 });
   });
@@ -107,8 +110,8 @@ describeArbi("Arbitration schedule + post-run overlay", () => {
       .click();
 
     await expect(page.getByPlaceholder("search nodes: Alator Callisto")).toBeVisible();
-    // Shows either the fetched schedule ("N entries") or the offline state.
-    await expect(page.locator("text=/\\d+ entries|Schedule unavailable/").first()).toBeVisible({
+    // Shows either the fetched schedule ("Entries: N") or the offline state.
+    await expect(page.locator("text=/Entries: \\d+|Schedule unavailable/").first()).toBeVisible({
       timeout: 30_000,
     });
   });
@@ -135,7 +138,7 @@ describeArbi("Arbitration schedule + post-run overlay", () => {
     const overlay = await overlayPromise;
 
     await expect(overlay.locator("#run-node")).toHaveText("Stöfler (Lua)", { timeout: 15_000 });
-    await expect(overlay.locator("#run-meta")).toContainText("2 rotations");
+    await expect(overlay.locator("#run-meta")).toContainText("Rotations: 2");
     await expect(overlay.locator("#kpi-drones")).toHaveText("3");
     await expect(overlay.locator("#kpi-kills")).toHaveText("8");
     await expect(overlay.locator("#kpi-vitus")).toContainText(/\d/);

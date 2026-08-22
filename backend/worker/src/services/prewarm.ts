@@ -155,7 +155,7 @@ export async function fetchPricePayload(
 
 	let response: Response;
 	try {
-		response = await fetch(`https://api.warframe.market/v1/items/${slug}/statistics`, {
+		response = await fetch(`https://api.warframe.market/v1/items/${encodeURIComponent(slug)}/statistics`, {
 			headers: WFM_HEADERS,
 		});
 	} catch {
@@ -181,7 +181,7 @@ export async function fetchPricePayload(
 export async function fetchMetaPayload(slug: string): Promise<FetchResult<MetaPayload>> {
 	let response: Response;
 	try {
-		response = await fetch(`https://api.warframe.market/v2/items/${slug}`, {
+		response = await fetch(`https://api.warframe.market/v2/items/${encodeURIComponent(slug)}`, {
 			headers: WFM_HEADERS,
 		});
 	} catch {
@@ -239,7 +239,7 @@ async function fetchRawOrdersFromEndpoint(url: string): Promise<FetchResult<unkn
 export async function fetchOrdersPayload(slug: string, options?: { rank?: number | null }): Promise<FetchResult<OrdersPayload>> {
 	const targetRank = normalizeRankFilter(options?.rank);
 
-	const v2Attempt = await fetchRawOrdersFromEndpoint(`https://api.warframe.market/v2/orders/item/${slug}`);
+	const v2Attempt = await fetchRawOrdersFromEndpoint(`https://api.warframe.market/v2/orders/item/${encodeURIComponent(slug)}`);
 	if (v2Attempt.data) {
 		return {
 			data: {
@@ -255,7 +255,7 @@ export async function fetchOrdersPayload(slug: string, options?: { rank?: number
 		return { data: null, transient: true };
 	}
 
-	const v1Attempt = await fetchRawOrdersFromEndpoint(`https://api.warframe.market/v1/items/${slug}/orders`);
+	const v1Attempt = await fetchRawOrdersFromEndpoint(`https://api.warframe.market/v1/items/${encodeURIComponent(slug)}/orders`);
 	if (!v1Attempt.data) {
 		return { data: null, transient: v1Attempt.transient };
 	}

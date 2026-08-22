@@ -114,7 +114,7 @@ export function parseInventory(
         ? equipped
         : (configEquipped ?? (equippedIn.length > 0 ? true : undefined));
 
-    const displayName = canonicalBuildPartName(internalName, resolved.name);
+    const englishName = canonicalBuildPartName(internalName, resolved.name);
 
     const dbDucats =
       typeof dbEntry.ducats === "number" && Number.isFinite(dbEntry.ducats) ? dbEntry.ducats : null;
@@ -130,7 +130,9 @@ export function parseInventory(
     }
 
     const nextItem: ParsedItem = {
-      name: displayName,
+      name: englishName,
+      ...(resolved.displayName ? { displayName: resolved.displayName } : {}),
+      ...(resolved.cardArt ? { cardArt: true as const } : {}),
       internalName,
       category: finalCat,
       categoryLabel: finalLabel,
@@ -219,8 +221,16 @@ export function parseInventory(
   }
 
   const ownedCounts = new Map<string, number>();
-  for (const [internalName, item] of itemMap) {
-    ownedCounts.set(internalName, item.amount || 0);
+  const combinedTotals = new Map<string, number>();
+  for (const [instanceKey, item] of itemMap) {
+    ownedCounts.set(instanceKey, item.amount || 0);
+    if (item.inventoryGroup !== "mods" && item.inventoryGroup !== "arcanes") continue;
+    const name = item.internalName;
+    combinedTotals.set(name, (combinedTotals.get(name) || 0) + (item.amount || 0));
+  }
+  for (const item of itemMap.values()) {
+    const total = combinedTotals.get(item.internalName);
+    if (total !== undefined) item.combinedAmount = total;
   }
 
   return [...itemMap.values(), ...buildFullSetItems(itemDb, ownedCounts, sellableEquipmentCounts)];

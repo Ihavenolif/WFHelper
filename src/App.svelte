@@ -25,56 +25,25 @@
   import OrderModal from "./modals/OrderModal.svelte";
 
   import { currentView, SETUP_COMPLETED_KEY, statusText } from "./stores/app.js";
-  import { pendingArbiRunId } from "./stores/arbiRuns.js";
-  import { itemDb, parsedItems } from "./stores/data.js";
+  import { parsedItems } from "./stores/data.js";
   import { tourActive } from "./stores/tour.js";
-  import { masteryData } from "./stores/mastery.js";
-  import {
-    applyClosedWfmListing,
-    clearMarketAccountState,
-    resetMarketFetchTimes,
-    setMarketViewState,
-  } from "./stores/market.js";
   import { activeItem, activeComponent, activeRelic } from "./stores/modals.js";
-  import { applyUpdateState } from "./stores/updates.js";
-  import { addToast } from "./stores/toasts.js";
-  import { onInventoryLoaded, setInventoryStatus } from "./lib/actions.js";
+  import { setInventoryStatus } from "./lib/actions.js";
   import { initStartup } from "./lib/startupLoader.js";
-  import { invoke, on } from "./lib/ipc.js";
-  import { invalidateMarketOrdersRefresh } from "./lib/marketOrdersSync.js";
+  import { initRendererEvents } from "./lib/rendererEvents.js";
+  import { invoke } from "./lib/ipc.js";
   import { tr } from "./lib/i18n.js";
-  import type { MessageKey } from "./lib/i18n.js";
+  import type { ViewName } from "./types/views.js";
+  import {
+    isLazyView,
+    LAZY_VIEW_LOADERS,
+    VIEW_LABEL_KEYS,
+    type LazyViewName,
+  } from "./lib/viewRegistry.js";
 
-  type ViewName =
-    | "setup"
-    | "inventory"
-    | "foundry"
-    | "mastery"
-    | "stats"
-    | "world"
-    | "market"
-    | "relics"
-    | "wiki"
-    | "rivens"
-    | "arbi"
-    | "settings";
-
-  type LazyViewName = Extract<ViewName, "world" | "market" | "relics" | "wiki" | "arbi">;
   type LazyViewComponent = Component<Record<string, never>>;
-  type LazyViewModule = { default: LazyViewComponent };
 
-  interface LazyViewEntry {
-    loader: () => Promise<LazyViewModule>;
-    component: LazyViewComponent | null;
-  }
-
-  const lazyViews = new Map<LazyViewName, LazyViewEntry>([
-    ["world", { loader: () => import("./views/WorldView.svelte"), component: null }],
-    ["market", { loader: () => import("./views/MarketView.svelte"), component: null }],
-    ["relics", { loader: () => import("./views/RelicsView.svelte"), component: null }],
-    ["wiki", { loader: () => import("./views/WikiView.svelte"), component: null }],
-    ["arbi", { loader: () => import("./views/ArbiAnalyzeView.svelte"), component: null }],
-  ]);
+  const loadedLazyViews: Partial<Record<LazyViewName, LazyViewComponent>> = {};
 
   let lazyViewComponent: LazyViewComponent | null = null;
   let lazyViewLoading = false;
@@ -90,93 +59,7 @@
       handleViewChange(view);
     });
 
-    const unsubscribeInventoryUpdated = on("inventory-updated", async (data) => {
-      if (data && !(data as { error?: unknown }).error) {
-        await onInventoryLoaded(data);
-        // SetupView routes itself during the wizard; navigating here would tear it down
-        statusText.set(`Live update - ${$parsedItems.length} items loaded`);
-      }
-    });
-
-    const unsubscribeInventoryStatus = on("inventory-status-updated", (status) => {
-      if (status.lastError) {
-        statusText.set(`Inventory watcher error: ${status.lastError.message}`);
-      } else if (status.found) {
-        statusText.set(`${$parsedItems.length} items loaded`);
-      }
-    });
-
-    const unsubscribeUpdateStatus = on("app-update-status", (state) => {
-      applyUpdateState(state, true);
-    });
-
-    const unsubscribeWfmNotification = on("wfm:notification", (notification) => {
-      if (notification.type === "orders-changed") {
-        // MarketView refetches when it is mounted; this covers when it is not.
-        resetMarketFetchTimes();
-        return;
-      }
-      if (notification.type === "presence") {
-        // Main drives presence (hold expiry, game launch) while the lazy Market
-        // tab may be unmounted - keep the store current either way.
-        setMarketViewState({
-          status: notification.status,
-          statusExpiresAt: notification.expiresAt,
-          statusAutoActive: notification.autoActive,
-        });
-        return;
-      }
-      if (notification.type === "listener-auth-failed") {
-        invalidateMarketOrdersRefresh();
-        clearMarketAccountState();
-        addToast({
-          level: "warning",
-          title: "Warframe Market session expired",
-          message: "Sign in again on the Market tab to restore trade notifications.",
-          durationMs: 12000,
-        });
-        return;
-      }
-      addToast({
-        level: "info",
-        title: `WFM DM from ${notification.from}`,
-        message: notification.content,
-        durationMs: 8000,
-      });
-    });
-
-    // Lives here, not in MarketView: the trade lands while the user is in-game,
-    // long before the (lazy) Market tab is mounted.
-    const unsubscribeTradeRecorded = on("trade-recorded", (data) => {
-      for (const match of data?.wfmMatches ?? []) applyClosedWfmListing(match);
-    });
-
-    // Post-run overlay "Detailed Stats" button: open the arbi tab on that run.
-    const unsubscribeArbiOpenRun = on("arbi-open-run", (runId) => {
-      pendingArbiRunId.set(runId);
-      currentView.set("arbi");
-    });
-
-    // DE overlay refresh can add items/icons after startup; re-pull the affected stores.
-    const unsubscribeItemDbUpdated = on("item-db-updated", async () => {
-      const db = await invoke("getItemDatabase");
-      itemDb.set(db || {});
-      invoke("getMasteryProgress")
-        .then((md) => masteryData.set(md))
-        .catch((err) => console.warn("[Mastery] getMasteryProgress failed:", err));
-    });
-
-    // Main raises fallbackHint once per remembered XWayland failure.
-    void invoke("getLinuxDisplay").then((display) => {
-      if (!display?.fallbackHint) return;
-      addToast({
-        level: "warning",
-        title: "Overlay fallback active",
-        message:
-          "XWayland failed last launch, so WFHelper runs on native Wayland and overlays may not appear above the game. Pin XWayland in Settings to retry.",
-        durationMs: 15000,
-      });
-    });
+    const disposeEvents = initRendererEvents();
 
     const startup = initStartup();
 
@@ -192,38 +75,13 @@
 
     return () => {
       startup.dispose();
+      disposeEvents();
       unsubscribeViewChange();
-      unsubscribeInventoryUpdated();
-      unsubscribeInventoryStatus();
-      unsubscribeUpdateStatus();
-      unsubscribeWfmNotification();
-      unsubscribeTradeRecorded();
-      unsubscribeArbiOpenRun();
-      unsubscribeItemDbUpdated();
-
       window.removeEventListener("keydown", onKeyDown);
     };
   });
 
-  function isLazyView(view: string): view is LazyViewName {
-    return (
-      view === "world" ||
-      view === "market" ||
-      view === "relics" ||
-      view === "wiki" ||
-      view === "arbi"
-    );
-  }
-
-  function lazyViewLabelKey(view: LazyViewName): MessageKey {
-    if (view === "world") return "view.world";
-    if (view === "market") return "view.market";
-    if (view === "wiki") return "view.wiki";
-    if (view === "arbi") return "view.arbi";
-    return "view.relics";
-  }
-
-  function handleViewChange(view: string): void {
+  function handleViewChange(view: ViewName): void {
     if (isLazyView(view)) {
       activeLazyView = view;
       if (lastRequestedLazyView === view) return;
@@ -246,13 +104,10 @@
     lazyViewLoading = true;
 
     try {
-      const entry = lazyViews.get(view);
-      if (!entry) throw new Error(`Unknown lazy view: ${view}`);
-      let component = entry.component;
+      let component = loadedLazyViews[view];
       if (!component) {
-        const loaded = await entry.loader();
-        component = loaded.default;
-        entry.component = component;
+        component = (await LAZY_VIEW_LOADERS[view]()).default;
+        loadedLazyViews[view] = component;
       }
 
       if (requestToken !== lazyRequestToken || $currentView !== view) {
@@ -286,7 +141,7 @@
       if (inventoryStatus?.found || helperStatus?.inventoryLastModified) return;
 
       currentView.set("setup");
-      statusText.set("Inventory setup required");
+      statusText.set({ key: "app.inventorySetupRequired" });
     } catch {
       // Keep the persisted view if startup status checks are unavailable.
     }
@@ -352,13 +207,13 @@
         {#if lazyViewLoading || activeLazyView !== lastRequestedLazyView}
           <section class="view active">
             <div class="empty-state">
-              <p>{$tr("app.loadingView", { view: $tr(lazyViewLabelKey(activeLazyView)) })}</p>
+              <p>{$tr("app.loadingView", { view: $tr(VIEW_LABEL_KEYS[activeLazyView]) })}</p>
             </div>
           </section>
         {:else if lazyViewError}
           <section class="view active">
             <div class="empty-state gap-3">
-              <p>{$tr("app.failedLoadView", { view: $tr(lazyViewLabelKey(activeLazyView)) })}</p>
+              <p>{$tr("app.failedLoadView", { view: $tr(VIEW_LABEL_KEYS[activeLazyView]) })}</p>
               <p class="text-sm text-text-muted">{lazyViewError}</p>
               <button
                 class="cursor-pointer rounded border border-border bg-bg-soft px-3 py-1 text-sm text-text-secondary transition-[border-color,color] duration-150 hover:border-border-strong hover:text-text-primary"

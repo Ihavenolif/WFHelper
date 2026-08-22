@@ -30,6 +30,20 @@ function defaultFilters(): SharedFiltersState {
 }
 
 describe("shared filters", () => {
+  it("searches the localized name and the English one alike", () => {
+    const item = {
+      name: "Serration",
+      displayName: "Einkerbung",
+      internalName: "/Lotus/Upgrades/Mods/Rifle/WeaponDamageAmountMod",
+      category: "mods",
+    };
+    const filters = defaultFilters();
+
+    expect(matchesSharedFilters(item, { ...filters, search: "einkerb" })).toBe(true);
+    expect(matchesSharedFilters(item, { ...filters, search: "serrat" })).toBe(true);
+    expect(matchesSharedFilters(item, { ...filters, search: "vitality" })).toBe(false);
+  });
+
   it("matches search, prime mode, and mastered mode", () => {
     const item = {
       name: "Soma Prime",
@@ -68,6 +82,16 @@ describe("shared filters", () => {
     expect(matchesSharedFilters(done, no)).toBe(false);
     expect(matchesSharedFilters(prime, no)).toBe(false);
     expect(matchesSharedFilters(prime, defaultFilters())).toBe(true);
+  });
+
+  it("prefers combinedAmount over amount for the minimum amount filter", () => {
+    const filters: SharedFiltersState = { ...defaultFilters(), minimumAmount: 2 };
+
+    expect(matchesSharedFilters({ name: "Bite", amount: 1, combinedAmount: 2 }, filters)).toBe(
+      true,
+    );
+    expect(matchesSharedFilters({ name: "Bite", amount: 1 }, filters)).toBe(false);
+    expect(matchesSharedFilters({ name: "Serration", amount: 3 }, filters)).toBe(true);
   });
 
   it("sorts by name with direction", () => {
